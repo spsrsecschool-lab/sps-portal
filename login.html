@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shiv Public School — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!--
+  ═══════════════════════════════════════════════════════════════
+  SETUP INSTRUCTIONS
+  ═══════════════════════════════════════════════════════════════
+
+  1. Fill in your Supabase project URL and anon key below.
+     Find them in: Supabase Dashboard → Project Settings → API
+
+  2. Set AUTH_EMAIL_DOMAIN to a domain of your choice.
+     This is appended to each username to form a Supabase Auth
+     email (since Supabase Auth requires email format).
+     Example: username "SPS-T-0142" + "@spsrsec.school"
+              → Supabase Auth email = "SPS-T-0142@spsrsec.school"
+     This does NOT need to be a real email domain.
+     Pick anything consistent. Use the same domain when creating
+     teacher/admin accounts in the Admin Portal.
+
+  3. File naming expected by this login page:
+     - main-teacher.html    (Main Teacher Portal)
+     - class-teacher.html   (Class Teacher Portal)
+     - mother-teacher.html  (Mother Teacher Portal)
+     - admin.html           (Admin Portal)
+
+  4. Each portal page must call checkSession() on load to verify
+     the user is authenticated before rendering. A shared
+     auth.js helper will handle this (built next).
+
+  5. For GitHub Pages: all files go in the same repository root.
+     No build step needed — pure HTML + Supabase JS via CDN.
+
+  ═══════════════════════════════════════════════════════════════
+-->
+
+<!-- Config: project URL, anon key, auth domain — edit config.js, not here -->
+<script src="config.js"></script>
+
+<!-- Supabase JS v2 via CDN (no npm, works on GitHub Pages) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root{
+    --lav-100:#F1EFFC;--lav-200:#E4E0FA;--lav-300:#CFC9F5;
+    --ink:#221F35;--ink-soft:#6B6685;--ink-faint:#A8A3C2;
+    --indigo:#5B4FE8;--indigo-dark:#4A3FD6;--indigo-100:#EDEBFE;
+    --white:#FFFFFF;--line:#E7E3F8;--success:#2BB673;
+    --danger:#E5556B;--danger-soft:#FCE7EA;
+    --radius-lg:28px;--radius-md:16px;--radius-sm:10px;
+    --font:'Plus Jakarta Sans',sans-serif;--mono:'DM Mono',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+
+  body{
+    font-family:var(--font);
+    background:
+      radial-gradient(900px 500px at 12% 8%,#E9E5FC 0%,transparent 60%),
+      radial-gradient(900px 600px at 90% 90%,#E2DEFB 0%,transparent 55%),
+      var(--lav-100);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    padding:32px 18px;position:relative;overflow-x:hidden;
+  }
+
+  .blob{position:fixed;border-radius:50%;filter:blur(2px);opacity:.55;z-index:0;pointer-events:none}
+  .blob-1{width:340px;height:340px;background:linear-gradient(135deg,var(--lav-300),#fff0);top:-120px;left:-120px}
+  .blob-2{width:260px;height:260px;background:linear-gradient(135deg,#fff,var(--lav-200));bottom:-100px;right:-80px}
+
+  .shell{
+    position:relative;z-index:1;width:100%;max-width:980px;
+    background:var(--white);border-radius:var(--radius-lg);
+    box-shadow:0 30px 70px -25px rgba(76,63,170,.28),0 4px 16px rgba(76,63,170,.06);
+    display:grid;grid-template-columns:1.05fr 1fr;
+    overflow:hidden;min-height:600px;
+  }
+
+  /* ── LEFT BRAND PANEL ── */
+  .panel{
+    background:
+      radial-gradient(420px 280px at 20% 15%,rgba(255,255,255,.16),transparent 60%),
+      linear-gradient(155deg,var(--indigo) 0%,#463BC9 60%,#3A2FB8 100%);
+    color:#fff;padding:46px 44px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    position:relative;overflow:hidden;
+  }
+  .panel::after{content:'';position:absolute;width:380px;height:380px;border-radius:50%;border:1px solid rgba(255,255,255,.14);right:-140px;bottom:-160px}
+  .panel::before{content:'';position:absolute;width:240px;height:240px;border-radius:50%;border:1px solid rgba(255,255,255,.10);right:-60px;bottom:-80px}
+
+  .brand{display:flex;align-items:center;gap:11px;position:relative;z-index:2}
+  .brand-mark{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;border:1px solid rgba(255,255,255,.25)}
+  .brand-name{font-size:14.5px;font-weight:700;letter-spacing:.01em}
+  .brand-sub{font-size:11px;color:rgba(255,255,255,.65);margin-top:1px;letter-spacing:.04em;text-transform:uppercase}
+
+  .panel-copy{position:relative;z-index:2;margin-top:50px}
+  .panel-copy h1{font-size:32px;font-weight:800;line-height:1.18;letter-spacing:-.01em}
+  .panel-copy p{margin-top:14px;font-size:14px;color:rgba(255,255,255,.74);line-height:1.65;max-width:340px}
+
+  .portal-chips{position:relative;z-index:2;display:flex;flex-wrap:wrap;gap:8px;margin-top:34px}
+  .chip{font-size:11.5px;font-weight:600;padding:7px 13px;border-radius:999px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.9)}
+
+  .panel-foot{position:relative;z-index:2;display:flex;align-items:center;gap:10px;font-size:11.5px;color:rgba(255,255,255,.55)}
+  .panel-foot .pulse{width:7px;height:7px;border-radius:50%;background:#5CE6A1;box-shadow:0 0 0 3px rgba(92,230,161,.22)}
+
+  /* ── RIGHT FORM PANEL ── */
+  .form-side{padding:46px;display:flex;flex-direction:column;justify-content:center;position:relative}
+
+  /* LOGIN FORM VIEW */
+  #loginView{}
+  .form-head h2{font-size:23px;font-weight:800;letter-spacing:-.01em}
+  .form-head p{margin-top:7px;font-size:13px;color:var(--ink-soft)}
+
+  .field{margin-top:22px}
+  .field label{display:block;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px}
+  .input-wrap{position:relative;display:flex;align-items:center}
+  .input-wrap svg.field-icon{position:absolute;left:15px;width:17px;height:17px;stroke:var(--ink-faint);fill:none;pointer-events:none}
+  .input-wrap input{
+    width:100%;font-family:var(--font);font-size:14px;color:var(--ink);
+    background:var(--lav-100);border:1.5px solid transparent;
+    border-radius:var(--radius-sm);padding:13px 15px 13px 44px;outline:none;
+    transition:border-color .15s,background .15s;
+  }
+  .input-wrap input::placeholder{color:var(--ink-faint)}
+  .input-wrap input:focus{border-color:var(--indigo);background:#fff;box-shadow:0 0 0 4px var(--indigo-100)}
+  .input-wrap.has-error input{border-color:var(--danger);background:var(--danger-soft)}
+  .toggle-eye{position:absolute;right:14px;width:18px;height:18px;cursor:pointer;stroke:var(--ink-faint);fill:none}
+
+  .row-between{display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:12.5px}
+  .remember{display:flex;align-items:center;gap:8px;color:var(--ink-soft);cursor:pointer}
+  .remember input{accent-color:var(--indigo);width:14px;height:14px;cursor:pointer}
+
+  /* Error message */
+  .error-msg{
+    display:none;margin-top:14px;
+    background:var(--danger-soft);border:1px solid rgba(229,85,107,.25);
+    border-radius:var(--radius-sm);padding:11px 14px;
+    font-size:12.5px;color:var(--danger);font-weight:600;
+    display:flex;align-items:center;gap:8px;
+  }
+  .error-msg.hidden{display:none}
+  .error-msg svg{width:15px;height:15px;stroke:var(--danger);fill:none;flex-shrink:0}
+
+  .btn-primary{
+    width:100%;margin-top:26px;
+    background:linear-gradient(135deg,var(--indigo),var(--indigo-dark));
+    color:#fff;border:none;padding:14px 18px;border-radius:var(--radius-sm);
+    font-family:var(--font);font-size:14px;font-weight:700;letter-spacing:.01em;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
+    box-shadow:0 14px 28px -10px rgba(91,79,232,.55);
+    transition:transform .12s ease,box-shadow .12s ease,opacity .15s;
+  }
+  .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 18px 32px -10px rgba(91,79,232,.6)}
+  .btn-primary:active:not(:disabled){transform:translateY(0)}
+  .btn-primary:disabled{opacity:.65;cursor:not-allowed;transform:none}
+  .btn-primary svg{width:16px;height:16px;stroke:#fff;fill:none}
+
+  /* Spinner */
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .helper-note{margin-top:18px;font-size:12px;color:var(--ink-faint);text-align:center;line-height:1.6}
+  .divider-foot{display:flex;align-items:center;gap:10px;margin-top:30px}
+  .divider-foot .line{flex:1;height:1px;background:var(--line)}
+  .divider-foot span{font-size:10.5px;color:var(--ink-faint);letter-spacing:.06em;text-transform:uppercase}
+  .session-pill{margin-top:18px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:11.5px;color:var(--ink-faint);font-family:var(--mono)}
+  .session-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
+
+  /* ── PORTAL SELECTION VIEW ── */
+  #portalView{display:none;flex-direction:column}
+  #portalView.show{display:flex}
+
+  .portal-head{margin-bottom:8px}
+  .portal-head h2{font-size:21px;font-weight:800}
+  .portal-head p{font-size:13px;color:var(--ink-soft);margin-top:5px}
+
+  .portal-greeting{
+    background:var(--indigo-100);border-radius:var(--radius-sm);
+    padding:12px 16px;margin-bottom:20px;
+    display:flex;align-items:center;gap:12px;font-size:13px;
+  }
+  .portal-greeting .av{
+    width:36px;height:36px;border-radius:50%;
+    background:linear-gradient(135deg,#7B6EF6,var(--indigo));
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:800;flex-shrink:0;
+  }
+  .portal-greeting .gname{font-weight:700;color:var(--indigo-dark)}
+  .portal-greeting .grole{font-size:11.5px;color:var(--ink-soft);margin-top:1px}
+
+  .portal-card{
+    display:flex;align-items:center;gap:14px;
+    padding:16px;border:1.5px solid var(--line);border-radius:var(--radius-md);
+    cursor:pointer;margin-bottom:10px;transition:border-color .15s,box-shadow .15s,transform .12s;
+    text-decoration:none;color:inherit;background:var(--white);
+  }
+  .portal-card:hover{border-color:var(--indigo);box-shadow:0 8px 24px -12px rgba(91,79,232,.35);transform:translateY(-2px)}
+  .portal-card .pc-icon{
+    width:44px;height:44px;border-radius:12px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .portal-card .pc-icon svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8}
+  .portal-card .pc-label{font-size:14px;font-weight:700}
+  .portal-card .pc-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+  .portal-card .pc-arrow{margin-left:auto;width:18px;height:18px;stroke:var(--ink-faint);fill:none;flex-shrink:0}
+
+  .btn-signout{
+    margin-top:14px;background:transparent;border:1px solid var(--line);
+    color:var(--ink-soft);font-family:var(--font);font-size:12px;font-weight:600;
+    padding:9px 18px;border-radius:var(--radius-sm);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:7px;
+  }
+  .btn-signout svg{width:13px;height:13px;stroke:currentColor;fill:none}
+
+  /* ── PAGE LOADING OVERLAY ── */
+  #pageLoader{
+    position:fixed;inset:0;background:var(--lav-100);
+    display:flex;align-items:center;justify-content:center;
+    z-index:999;transition:opacity .3s;
+  }
+  #pageLoader.fade{opacity:0;pointer-events:none}
+  .loader-inner{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .loader-ring{width:38px;height:38px;border:3px solid var(--lav-200);border-top-color:var(--indigo);border-radius:50%;animation:spin .7s linear infinite}
+  .loader-txt{font-size:12.5px;color:var(--ink-faint);font-family:var(--mono)}
+
+  /* ── MOBILE ── */
+  @media (max-width:760px){
+    body{padding:0;align-items:stretch}
+    .shell{grid-template-columns:1fr;border-radius:0;min-height:100vh;box-shadow:none}
+    .panel{padding:30px 26px 38px;min-height:200px}
+    .panel-copy{margin-top:20px}
+    .panel-copy h1{font-size:22px}
+    .panel-copy p{font-size:13px}
+    .portal-chips{margin-top:18px}
+    .panel-foot{display:none}
+    .panel::after{width:200px;height:200px;right:-80px;bottom:-100px}
+    .panel::before{display:none}
+    .form-side{padding:28px 24px 36px;flex:1}
+  }
+  @media (max-width:400px){
+    .panel-copy h1{font-size:19px}
+    .form-head h2{font-size:19px}
+    .form-side{padding:24px 18px 30px}
+  }
+</style>
+</head>
+<body>
+
+<!-- Page loading overlay — shown while checking existing session -->
+<div id="pageLoader">
+  <div class="loader-inner">
+    <div class="loader-ring"></div>
+    <div class="loader-txt">Checking session…</div>
+  </div>
+</div>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<div class="shell">
+
+  <!-- ── LEFT BRAND PANEL ── -->
+  <div class="panel">
+    <div class="brand">
+      <div class="brand-mark">SP</div>
+      <div>
+        <div class="brand-name">Shiv Public School</div>
+        <div class="brand-sub">Unified Portal</div>
+      </div>
+    </div>
+    <div class="panel-copy">
+      <h1>One login,<br>every classroom.</h1>
+      <p>Marks, attendance, fees and messages — all in one place, built around how your school actually runs.</p>
+      <div class="portal-chips">
+        <span class="chip">Teacher</span>
+        <span class="chip">Class Teacher</span>
+        <span class="chip">Mother Teacher</span>
+        <span class="chip">Admin</span>
+        <span class="chip">Fee Desk</span>
+      </div>
+    </div>
+    <div class="panel-foot">
+      <span class="pulse"></span>
+      Session 2026–2027 is live
+    </div>
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="form-side">
+
+    <!-- LOGIN FORM -->
+    <div id="loginView">
+      <div class="form-head">
+        <h2>Welcome back</h2>
+        <p>Sign in with the username and password your admin gave you.</p>
+      </div>
+
+      <form id="loginForm" autocomplete="on" onsubmit="handleLogin(event)">
+        <div class="field">
+          <label for="username">Username</label>
+          <div class="input-wrap" id="usernameWrap">
+            <svg class="field-icon" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input type="text" id="username" placeholder="e.g. SPS-T-0142" autocomplete="username" spellcheck="false">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap" id="passwordWrap">
+            <svg class="field-icon" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+            <svg class="toggle-eye" id="eyeIcon" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="togglePassword()">
+              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="row-between">
+          <label class="remember">
+            <input type="checkbox" id="rememberMe"> Keep me signed in
+          </label>
+        </div>
+
+        <!-- Error message -->
+        <div class="error-msg hidden" id="errorMsg">
+          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="errorText">Incorrect username or password.</span>
+        </div>
+
+        <button type="submit" class="btn-primary" id="signInBtn">
+          <span id="btnLabel">Sign In</span>
+          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </form>
+
+      <div class="helper-note">
+        Forgot your credentials? Contact your <strong>school admin</strong> — only they can reset access.
+      </div>
+      <div class="divider-foot"><div class="line"></div><span>Secure Access</span><div class="line"></div></div>
+      <div class="session-pill"><span class="dot"></span> Supabase · v1.0</div>
+    </div>
+
+    <!-- PORTAL SELECTION (shown after login if multiple portals available) -->
+    <div id="portalView">
+      <div class="portal-head">
+        <h2>Choose your portal</h2>
+        <p>You have access to more than one view. Which do you want to open?</p>
+      </div>
+
+      <div class="portal-greeting">
+        <div class="av" id="greetAvatar">RM</div>
+        <div>
+          <div class="gname" id="greetName">Rina Mehta</div>
+          <div class="grole" id="greetRole">PGT Science</div>
+        </div>
+      </div>
+
+      <div id="portalCards">
+        <!-- Injected by JS -->
+      </div>
+
+      <button class="btn-signout" onclick="signOut()">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out and try a different account
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── INITIALISE SUPABASE ─────────────────────────────────────
+const { createClient } = supabase
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
+
+// ─── HELPERS ─────────────────────────────────────────────────
+const $ = id => document.getElementById(id)
+
+function initials(name = '') {
+  return name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+function emailFromUsername(username) {
+  // Supabase Auth requires email format. We derive it from the username.
+  // The domain is set in AUTH_EMAIL_DOMAIN above.
+  return `${username.trim().toLowerCase()}@${AUTH_EMAIL_DOMAIN}`
+}
+
+function showError(msg) {
+  $('errorText').textContent = msg
+  $('errorMsg').classList.remove('hidden')
+  $('usernameWrap').classList.add('has-error')
+  $('passwordWrap').classList.add('has-error')
+}
+
+function clearError() {
+  $('errorMsg').classList.add('hidden')
+  $('usernameWrap').classList.remove('has-error')
+  $('passwordWrap').classList.remove('has-error')
+}
+
+function setLoading(loading) {
+  const btn = $('signInBtn')
+  const label = $('btnLabel')
+  if (loading) {
+    btn.disabled = true
+    label.textContent = 'Signing in…'
+    // Replace arrow icon with spinner
+    btn.querySelector('svg').style.display = 'none'
+    if (!btn.querySelector('.spinner')) {
+      const s = document.createElement('div')
+      s.className = 'spinner'
+      btn.appendChild(s)
+    }
+  } else {
+    btn.disabled = false
+    label.textContent = 'Sign In'
+    btn.querySelector('svg').style.display = ''
+    const sp = btn.querySelector('.spinner')
+    if (sp) sp.remove()
+  }
+}
+
+function togglePassword() {
+  const inp = $('password')
+  const eye = $('eyeIcon')
+  const isHidden = inp.type === 'password'
+  inp.type = isHidden ? 'text' : 'password'
+  eye.style.opacity = isHidden ? '1' : '0.4'
+}
+
+function hidePageLoader() {
+  const loader = $('pageLoader')
+  loader.classList.add('fade')
+  setTimeout(() => loader.style.display = 'none', 350)
+}
+
+// ─── PORTAL DEFINITIONS ──────────────────────────────────────
+const PORTALS = {
+  admin: {
+    label: 'Admin Portal',
+    sub: 'Full school management — students, staff, assessments',
+    href: 'admin.html',
+    color: '#221F35',
+    icon: `<svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>`,
+  },
+  main_teacher: {
+    label: 'Main Teacher Portal',
+    sub: 'Marks entry, performance analysis, class tests',
+    href: 'main-teacher.html',
+    color: '#5B4FE8',
+    icon: `<svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+  },
+  class_teacher: {
+    label: 'Class Teacher Portal',
+    sub: 'Attendance, student management, exam fees, dues',
+    href: 'class-teacher.html',
+    color: '#2D8FC4',
+    icon: `<svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  },
+  mother_teacher: {
+    label: 'Mother Teacher Portal',
+    sub: 'Combined marks, attendance & class management',
+    href: 'mother-teacher.html',
+    color: '#C9962E',
+    icon: `<svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  },
+}
+
+// ─── ROLE DETECTION ──────────────────────────────────────────
+// After Supabase auth succeeds, we query the database to find
+// which tables this user appears in, which determines their portals.
+async function detectPortals(userId) {
+  const results = { portals: [], teacher: null, admin: null }
+
+  // 1. Check admins table
+  const { data: adminRow } = await sb
+    .from('admins')
+    .select('admin_id')
+    .eq('auth_user_id', userId)
+    .maybeSingle()
+
+  if (adminRow) {
+    results.admin = adminRow
+    results.portals.push('admin')
+    return results
+  }
+
+  // 2. Check teachers table
+  const { data: teacherRow } = await sb
+    .from('teachers')
+    .select('teacher_id, full_name, designation, is_active')
+    .eq('auth_user_id', userId)
+    .maybeSingle()
+
+  if (!teacherRow || !teacherRow.is_active) {
+    return results // no access
+  }
+  results.teacher = teacherRow
+
+  // 3. Check mother_teacher_map for current session
+  const { data: motherRow } = await sb
+    .from('mother_teacher_map')
+    .select('map_id')
+    .eq('teacher_id', teacherRow.teacher_id)
+    .eq('session_id', await getCurrentSessionId())
+    .maybeSingle()
+
+  if (motherRow) {
+    // Mother teacher gets the combined portal only — no separate main/class
+    results.portals.push('mother_teacher')
+    return results
+  }
+
+  // 4. Main teacher portal — available to all active teachers
+  results.portals.push('main_teacher')
+
+  // 5. Check class_teacher_map for current session
+  const { data: classRow } = await sb
+    .from('class_teacher_map')
+    .select('map_id')
+    .eq('teacher_id', teacherRow.teacher_id)
+    .eq('session_id', await getCurrentSessionId())
+    .maybeSingle()
+
+  if (classRow) {
+    results.portals.push('class_teacher')
+  }
+
+  return results
+}
+
+// Cache session ID to avoid repeated queries
+let _currentSessionId = null
+async function getCurrentSessionId() {
+  if (_currentSessionId) return _currentSessionId
+  const { data } = await sb
+    .from('sessions')
+    .select('session_id')
+    .eq('is_current', true)
+    .maybeSingle()
+  _currentSessionId = data?.session_id || null
+  return _currentSessionId
+}
+
+// ─── PORTAL ROUTING ──────────────────────────────────────────
+function storeSessionData(userData) {
+  // Store compact session info in sessionStorage (clears on browser close
+  // unless "Remember me" was checked, in which case Supabase persists anyway)
+  sessionStorage.setItem('sps_user', JSON.stringify(userData))
+}
+
+function routeToPortal(portals, teacher, admin) {
+  if (portals.length === 0) {
+    showError('Your account has no portal access. Contact your admin.')
+    setLoading(false)
+    return
+  }
+
+  // Store user data so portals can read it
+  storeSessionData({ teacher, admin, portals })
+
+  if (portals.length === 1) {
+    // Direct redirect — no selection needed
+    window.location.href = PORTALS[portals[0]].href
+    return
+  }
+
+  // Multiple portals — show selection screen
+  showPortalSelector(teacher, admin, portals)
+}
+
+function showPortalSelector(teacher, admin, portals) {
+  const name = teacher?.full_name || 'Admin'
+  const role = teacher?.designation || 'Administrator'
+
+  $('greetName').textContent = name
+  $('greetRole').textContent = role
+  $('greetAvatar').textContent = initials(name)
+
+  const container = $('portalCards')
+  container.innerHTML = portals.map(p => {
+    const pd = PORTALS[p]
+    return `
+      <a class="portal-card" href="${pd.href}">
+        <div class="pc-icon" style="background:${pd.color}">
+          ${pd.icon}
+        </div>
+        <div>
+          <div class="pc-label">${pd.label}</div>
+          <div class="pc-sub">${pd.sub}</div>
+        </div>
+        <svg class="pc-arrow" viewBox="0 0 24 24" stroke-width="2">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+      </a>
+    `
+  }).join('')
+
+  $('loginView').style.display = 'none'
+  $('portalView').classList.add('show')
+}
+
+// ─── LOGIN HANDLER ───────────────────────────────────────────
+async function handleLogin(e) {
+  e.preventDefault()
+  clearError()
+
+  const username = $('username').value.trim()
+  const password = $('password').value
+
+  if (!username) { showError('Please enter your username.'); return }
+  if (!password) { showError('Please enter your password.'); return }
+
+  setLoading(true)
+
+  // Supabase Auth: sign in with derived email
+  const { data, error } = await sb.auth.signInWithPassword({
+    email: emailFromUsername(username),
+    password: password,
+  })
+
+  if (error) {
+    setLoading(false)
+    if (error.message?.includes('Email not confirmed')) {
+      showError('Account not confirmed. Contact your admin.')
+    } else if (error.status === 400) {
+      showError('Incorrect username or password.')
+    } else {
+      showError('Could not connect to the server. Try again.')
+    }
+    return
+  }
+
+  // Auth success — detect which portals this user can access
+  const { portals, teacher, admin } = await detectPortals(data.user.id)
+
+  setLoading(false)
+  routeToPortal(portals, teacher, admin)
+}
+
+// ─── SIGN OUT ────────────────────────────────────────────────
+async function signOut() {
+  await sb.auth.signOut()
+  sessionStorage.removeItem('sps_user')
+  // Return to login form
+  $('portalView').classList.remove('show')
+  $('loginView').style.display = ''
+  $('username').value = ''
+  $('password').value = ''
+}
+
+// ─── SESSION CHECK ON LOAD ───────────────────────────────────
+// If the user already has a valid session, skip the login form
+// and route them directly (or show portal selector again).
+async function checkExistingSession() {
+  const { data: { session } } = await sb.auth.getSession()
+
+  if (session) {
+    // Valid session exists — re-detect portals and route
+    const { portals, teacher, admin } = await detectPortals(session.user.id)
+    if (portals.length > 0) {
+      routeToPortal(portals, teacher, admin)
+      return
+    }
+  }
+
+  // No valid session — show login form
+  hidePageLoader()
+}
+
+// ─── LISTEN FOR AUTH CHANGES ─────────────────────────────────
+// Handles token refresh, sign-out from another tab, etc.
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    sessionStorage.removeItem('sps_user')
+    $('portalView').classList.remove('show')
+    $('loginView').style.display = ''
+  }
+})
+
+// ─── CLEAR INPUT ERRORS ON TYPE ──────────────────────────────
+$('username').addEventListener('input', clearError)
+$('password').addEventListener('input', clearError)
+
+// ─── INIT ────────────────────────────────────────────────────
+checkExistingSession()
+</script>
+
+</body>
+</html>
