@@ -962,7 +962,7 @@ async function sendBroadcast() {
 // ═══════════════════════════════════════════
 let _ctMap = {}
 async function loadStaff() {
-  ldg($('staffBody').closest('table'))
+  ldg($('staffBody'))
   const { data, error } = await sb.from('teachers').select('*').order('full_name')
   if(error){toast('Failed to load staff','error');return}
   _staffRaw=data||[]; ALL_TEACHERS=_staffRaw
@@ -1043,10 +1043,10 @@ async function toggleTeacher(id, active) {
 // ═══════════════════════════════════════════
 async function loadStudents() {
   if(!SESS) return
-  ldg($('studentBody').closest('table'))
+  ldg($('studentBody'))
   const { data, error } = await sb.from('student_enrollments')
     .select(`enrollment_id,roll_no,s_no,status,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id,sort_order),class_sections(name)`)
-    .eq('session_id',SESS.session_id).order('classes(sort_order)').limit(500)
+    .eq('session_id',SESS.session_id).limit(500)
   if(error){toast('Failed to load students','error');return}
   _studentsRaw=data||[]
 
@@ -1237,8 +1237,8 @@ function populateMapFilter(){
 }
 
 async function loadMapping() {
-  ldg($('mappingBody').closest('table'))
-  const {data,error}=await sb.from('teacher_subject_class_map').select(`map_id,class_id,section_id,classes(name),class_sections(name),subjects(name),teachers(full_name,teacher_id)`).eq('session_id',SESS?.session_id||'').order('classes(sort_order)')
+  ldg($('mappingBody'))
+  const {data,error}=await sb.from('teacher_subject_class_map').select(`map_id,class_id,section_id,classes(name),class_sections(name),subjects(name),teachers(full_name,teacher_id)`).eq('session_id',SESS?.session_id||'')
   if(error){toast('Failed','error');return}
   _mappingRaw=data||[]
   const {data:ct}=await sb.from('class_teacher_map').select('section_id,teachers(full_name)').eq('session_id',SESS?.session_id||'')
