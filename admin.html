@@ -823,7 +823,7 @@ SPS.ready().then(async () => {
   await loadGlobals()
   renderDashboard()
   populateCalMonths()
-  document.getElementById('ca_date').value = today()
+  const caFrom=document.getElementById('ca_from'); if(caFrom) caFrom.value=today(); const caTo=document.getElementById('ca_to'); if(caTo) caTo.value=today()
   document.getElementById('admSessionLabel').textContent = SESS ? SESS.session_id : '—'
 })
 
@@ -1388,7 +1388,7 @@ async function loadMapping() {
   </tr>`).join('')
 }
 
-function openAddMappingModal(){
+function openAddMappingModal_orig(){
   const cls=ALL_CLASSES.filter(c=>c.is_active).map(c=>`<option value="${c.class_id}">${esc(c.name)}</option>`).join('')
   const tch=ALL_TEACHERS.filter(t=>t.is_active).map(t=>`<option value="${t.teacher_id}">${esc(t.full_name)}</option>`).join('')
   const sub=ALL_SUBJECTS.filter(s=>s.is_active).map(s=>`<option value="${s.subject_id}">${esc(s.name)}</option>`).join('')
@@ -1405,7 +1405,7 @@ async function mpLoadSections(){
   sel.innerHTML='<option value="">Select section</option>'+(data||[]).map(s=>`<option value="${s.section_id}">${esc(s.name)}</option>`).join('')
 }
 
-async function saveMapping(){
+async function saveMapping_orig(){
   const classId=$('mp_class')?.value, secId=$('mp_section')?.value, subId=$('mp_subject')?.value, tchId=$('mp_teacher')?.value
   if(!classId||!secId||!subId||!tchId){toast('All fields required','error');return}
   const {error}=await sb.from('teacher_subject_class_map').insert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId})
@@ -2347,15 +2347,7 @@ async function saveSubstitutions(){
     sender_type:'admin',sender_id:SPS.admin?.admin_id,
     recipient_type:'teacher',recipient_id:n.teacherId,
     subject:'Substitution Duty — '+date,
-    body:'You have been assigned as substitute teacher on '+date+'.
-
-Slot: '+n.slot+'
-Class: '+n.cls+'
-Subject: '+n.subj+'
-Covering for: '+(absentTeacher?.full_name||'—')+'
-
-Please report to the assigned class at the scheduled time.',
-    message_type:'substitution_notice',sent_at:new Date().toISOString()
+    body:'You have been assigned as substitute teacher on '+date+'. Slot: '+n.slot+' | Class: '+n.cls+' | Subject: '+n.subj+' | Covering for: '+(absentTeacher?.full_name||'—')+'. Please report to the assigned class at the scheduled time.',message_type:'substitution_notice',sent_at:new Date().toISOString()
   }))
   if(msgRows.length){
     await sb.from('messages').insert(msgRows)
@@ -2368,7 +2360,7 @@ Please report to the assigned class at the scheduled time.',
 // MAPPING — ADD TIMETABLE FIELDS
 // ═══════════════════════════════════════════
 // Override openAddMappingModal to include roster, slot and days
-const _origOpenMapping = openAddMappingModal
+// timetable-aware mapping modal
 async function openAddMappingModal(){
   const cls=ALL_CLASSES.filter(c=>c.is_active).map(c=>`<option value="${c.class_id}">${esc(c.name)}</option>`).join('')
   const tch=ALL_TEACHERS.filter(t=>t.is_active).map(t=>`<option value="${t.teacher_id}">${esc(t.full_name)}</option>`).join('')
@@ -2392,8 +2384,7 @@ async function openAddMappingModal(){
     `<button class="btn btn-dark" onclick="saveMapping()">Add Mapping</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`)
 }
 
-// Override saveMapping to also write timetable_entries
-const _origSaveMapping = saveMapping
+// timetable-aware saveMapping
 async function saveMapping(){
   const classId=$('mp_class')?.value, secId=$('mp_section')?.value, subId=$('mp_subject')?.value, tchId=$('mp_teacher')?.value
   if(!classId||!secId||!subId||!tchId){toast('Class, section, subject and teacher are required','error');return}
