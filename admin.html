@@ -242,7 +242,9 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-label">Academics</div>
     <div class="sb-item" onclick="goTo('mapping',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Class &amp; Subject Mapping</div>
     <div class="sb-item" onclick="goTo('assessments',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Assessments &amp; Exam Fees</div>
+    <div class="sb-item" onclick="goTo('miscfees',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.5 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/></svg>Misc Fees</div>
     <div class="sb-item" onclick="goTo('marksoverview',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg>Marks Overview</div>
+    <div class="sb-item" onclick="goTo('timetable',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="16" x2="21" y2="16"/></svg>School Timetable</div>
     <div class="sb-item" onclick="goTo('promotion',this)"><svg viewBox="0 0 24 24"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 21 3 17 7 13"/><line x1="3" y1="17" x2="15" y2="17"/></svg>Promotion</div>
     <div class="sb-item" onclick="goTo('reportcards',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Report Card Templates</div>
     <div class="sb-label">Attendance</div>
@@ -435,7 +437,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page" id="page-assessments">
       <div class="sub-page active" id="sub-assess-list">
         <div class="page-head">
-          <div><h2>Assessments &amp; Exam Fees</h2><p>Click any card to configure dates, marks lock and exam fees</p></div>
+          <div><h2>Assessments &amp; Exam Fees</h2><p>Click any card to configure dates, marks lock, exam fees and submission status</p></div>
           <button class="btn btn-dark" onclick="openAddAssessmentModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Assessment</button>
         </div>
         <div class="assess-grid" id="assessGrid"><div class="loading-row" style="grid-column:1/-1"><div class="spinner"></div></div></div>
@@ -443,6 +445,18 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="sub-page" id="sub-assess-edit">
         <button class="back-btn" onclick="openSub('assessments','sub-assess-list')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Assessments</button>
         <div id="assessEditContent"></div>
+      </div>
+      <div class="sub-page" id="sub-assess-settings">
+        <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="assessSettingsContent"></div>
+      </div>
+      <div class="sub-page" id="sub-assess-examfees">
+        <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="assessExamFeesContent"></div>
+      </div>
+      <div class="sub-page" id="sub-assess-status">
+        <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="assessStatusContent"></div>
       </div>
     </div>
 
@@ -458,7 +472,11 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="fg"><label>Class</label><select id="mo_class" onchange="moLoadSections()"><option value="">Select class</option></select></div>
           <div class="fg"><label>Section</label><select id="mo_section"><option value="">All sections</option></select></div>
           <div class="fg"><label>Subject</label><select id="mo_subject"><option value="">All subjects</option></select></div>
-          <div class="fg"><label>Assessment</label><select id="mo_assessment"><option value="">All assessments</option></select></div>
+          <div class="fg"><label>Assessments</label>
+            <div id="mo_assessments_wrap" style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px;max-height:120px;overflow-y:auto;min-width:180px">
+              <p style="font-size:11.5px;color:var(--ink-faint)">Select class first</p>
+            </div>
+          </div>
           <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMarksTable()">Load</button>
         </div>
       </div>
@@ -524,7 +542,8 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="form-row" style="margin-bottom:0">
           <div class="fg"><label>Class</label><select id="ca_class" onchange="caLoadSections()"><option value="">Select class</option></select></div>
           <div class="fg"><label>Section</label><select id="ca_section"><option value="">Select class first</option></select></div>
-          <div class="fg"><label>Date</label><input type="date" id="ca_date"></div>
+          <div class="fg"><label>Date From</label><input type="date" id="ca_from"></div>
+          <div class="fg"><label>Date To</label><input type="date" id="ca_to"></div>
           <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load</button>
         </div>
       </div>
@@ -647,6 +666,88 @@ tbody tr:hover td{background:var(--lav-50)}
           <h3>Danger Zone</h3>
           <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">These actions permanently alter school data and cannot be undone.</p>
           <button class="btn btn-danger btn-sm" onclick="confirmAct('Purge session attendance?','All attendance records for the current session will be deleted.',purgeAttendance)">Purge Session Attendance</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- MISC FEES -->
+    <div class="page" id="page-miscfees">
+      <div class="page-head">
+        <div><h2>Misc Fees</h2><p>Create one-off fees (Practical, Trip, etc.) and unlock for class teacher collection</p></div>
+        <button class="btn btn-dark" onclick="openAddMiscFeeModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Fee</button>
+      </div>
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>Amount</th><th>Collection</th><th>Created</th><th></th></tr></thead>
+        <tbody id="miscFeeBody"><tr><td colspan="7"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- SCHOOL TIMETABLE -->
+    <div class="page" id="page-timetable">
+      <div class="page-head"><div><h2>School Timetable</h2><p>Rosters, class &amp; teacher timetables, and substitution management</p></div></div>
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="switchTab('ttTab','roster',this)">Roster Settings</button>
+        <button class="tab-btn" onclick="switchTab('ttTab','student',this)">Student Timetable</button>
+        <button class="tab-btn" onclick="switchTab('ttTab','teacher',this)">Teacher Timetable</button>
+        <button class="tab-btn" onclick="switchTab('ttTab','sub',this)">Substitution</button>
+      </div>
+
+      <!-- ROSTER SETTINGS -->
+      <div id="ttTab-roster">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Rosters</h3>
+            <div id="rosterList"><div class="loading-row"><div class="spinner"></div></div></div>
+            <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+              <div class="form-row" style="margin-bottom:8px">
+                <div class="fg"><label>Roster Name</label><input type="text" id="newRosterName" placeholder="e.g. Regular Day, Saturday Short"></div>
+              </div>
+              <button class="btn btn-dark btn-sm" onclick="createRoster()">Create Roster</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Time Slots <span id="slotRosterLabel" style="font-weight:400;color:var(--ink-faint)">(select a roster)</span></h3>
+            <div id="slotList"><p style="font-size:12.5px;color:var(--ink-faint)">Click a roster on the left to manage its time slots.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STUDENT TIMETABLE -->
+      <div id="ttTab-student" style="display:none">
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg"><label>Class</label><select id="tt_cls" onchange="ttLoadSections()"><option value="">Select class</option></select></div>
+            <div class="fg"><label>Section</label><select id="tt_sec"><option value="">Select class first</option></select></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadStudentTimetable()">View Timetable</button>
+          </div>
+        </div>
+        <div id="studentTTGrid"></div>
+      </div>
+
+      <!-- TEACHER TIMETABLE -->
+      <div id="ttTab-teacher" style="display:none">
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg"><label>Teacher</label><select id="tt_teacher"><option value="">Select teacher</option></select></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadTeacherTimetable()">View Timetable</button>
+          </div>
+        </div>
+        <div id="teacherTTGrid"></div>
+      </div>
+
+      <!-- SUBSTITUTION -->
+      <div id="ttTab-sub" style="display:none">
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg"><label>Absent Teacher</label><select id="sub_teacher"><option value="">Select teacher</option></select></div>
+            <div class="fg"><label>Date</label><input type="date" id="sub_date"></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadSubstitutionSheet()">Load Schedule</button>
+          </div>
+        </div>
+        <div id="subSheet"></div>
+        <div id="subSaveRow" style="display:none;margin-top:16px">
+          <button class="btn btn-dark" onclick="saveSubstitutions()"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Save &amp; Send Notifications</button>
         </div>
       </div>
     </div>
@@ -781,12 +882,12 @@ function closeModal() { $('modalOverlay').classList.remove('show') }
 const titles = {
   dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',
   admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',
-  assessments:'Assessments & Exam Fees',marksoverview:'Marks Overview',promotion:'Promotion',
+  assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',
   reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',settings:'Settings'
 }
 const lazyLoad = {
   staff:loadStaff, students:loadStudents, mapping:()=>{ populateMapFilter(); loadMapping() },
-  assessments:loadAssessments, marksoverview:loadMarksOverviewShell,
+  assessments:loadAssessments, miscfees:loadMiscFees, marksoverview:loadMarksOverviewShell, timetable:loadTimetable,
   calendar:renderCalendar, promotion:loadPromotionShell,
   reportcards:loadTemplates, settings:loadSettings
 }
@@ -1178,26 +1279,57 @@ async function submitAdmission(e) {
 // ═══════════════════════════════════════════
 // BULK IMPORT
 // ═══════════════════════════════════════════
-function parseCsv(type, input) {
+async function parseCsv(type, input) {
   const file=input.files[0]; if(!file) return
   const reader=new FileReader()
-  reader.onload=ev=>{
+  reader.onload=async ev=>{
     const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean)
     const headers=lines[0].split(',').map(h=>h.trim())
     const required=type==='student'?['full_name','father_name']:['employee_code','full_name','username']
-    const valid=[],errors=[]
-    lines.slice(1).forEach((line,i)=>{
+    const valid=[],errors=[],autoCreated=[]
+    // Build class/section lookup maps
+    const classNameMap={}, sectionMap={}
+    ALL_CLASSES.forEach(c=>{classNameMap[c.name.toLowerCase()]=c.class_id})
+    const {data:allSecs}=await sb.from('class_sections').select('*').eq('session_id',SESS?.session_id||'')
+    ;(allSecs||[]).forEach(s=>{sectionMap[s.class_id+'_'+s.name.toLowerCase()]=s.section_id})
+
+    for(let i=0;i<lines.slice(1).length;i++){
+      const line=lines.slice(1)[i]
       const vals=line.split(',').map(v=>v.trim()); const obj={}; headers.forEach((h,j)=>obj[h]=vals[j]||'')
       const miss=required.filter(k=>!obj[k])
-      if(miss.length) errors.push({row:i+2,name:obj.full_name||'—',issue:'Missing: '+miss.join(', ')})
-      else valid.push(obj)
-    })
+      if(miss.length){errors.push({row:i+2,name:obj.full_name||'—',issue:'Missing: '+miss.join(', ')});continue}
+
+      if(type==='student'){
+        // Auto-create class if not exists
+        if(obj.class){
+          const clsKey=obj.class.toLowerCase()
+          if(!classNameMap[clsKey]){
+            const {data:newCls}=await sb.from('classes').insert({name:obj.class,sort_order:Object.keys(classNameMap).length+1,is_active:true,created_by:SPS.admin?.admin_id}).select().single()
+            if(newCls){ classNameMap[clsKey]=newCls.class_id; ALL_CLASSES.push(newCls); autoCreated.push('Class: '+obj.class) }
+          }
+          // Auto-create section if not exists
+          if(obj.section && classNameMap[clsKey]){
+            const secKey=classNameMap[clsKey]+'_'+obj.section.toLowerCase()
+            if(!sectionMap[secKey] && SESS){
+              const {data:newSec}=await sb.from('class_sections').insert({name:obj.section,class_id:classNameMap[clsKey],session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id}).select().single()
+              if(newSec){ sectionMap[secKey]=newSec.section_id; autoCreated.push('Section: '+obj.class+'-'+obj.section) }
+            }
+          }
+          obj._class_id = classNameMap[clsKey]||null
+          obj._section_id = obj.section && classNameMap[clsKey] ? sectionMap[classNameMap[clsKey]+'_'+obj.section.toLowerCase()]||null : null
+        }
+      }
+      valid.push(obj)
+    }
+
     const el=$(type==='student'?'previewStudents':'previewTeachers')
     el.innerHTML=`<h3>Validation Preview</h3>
       <div class="summary-bar" style="margin-top:0">
         <div><span class="sk">Valid</span><span class="sv" style="color:var(--success)">${valid.length}</span></div>
         <div><span class="sk">Errors</span><span class="sv" style="color:var(--danger)">${errors.length}</span></div>
+        ${autoCreated.length?`<div><span class="sk">Auto-created</span><span class="sv" style="color:var(--warn)">${autoCreated.length}</span></div>`:''}
       </div>
+      ${autoCreated.length?`<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px;font-size:12px;color:var(--ink-soft);margin-top:10px"><b>Auto-created:</b> ${autoCreated.map(x=>esc(x)).join(', ')}</div>`:''}
       ${errors.length?`<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Row</th><th>Name</th><th>Issue</th></tr></thead><tbody>${errors.map(e=>`<tr><td>${e.row}</td><td>${esc(e.name)}</td><td><span class="pill pill-danger">${esc(e.issue)}</span></td></tr>`).join('')}</tbody></table></div>`:''}
       <button class="btn btn-success" style="margin-top:14px" onclick="commitImport(${valid.length},'${type}')">Commit ${valid.length} Valid Rows</button>`
     el._validRows=valid
@@ -1220,7 +1352,7 @@ async function commitImport(count, type) {
 
 function downloadSampleCsv(type) {
   const [h,r]=type==='student'
-    ? [['student_id','full_name','father_name','mother_name','phone','alt_phone','dob','address','family_code'],['','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-04-15','House No 1 City','F001']]
+    ? [['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob','aadhar_no','address','family_code','class','section','roll_no'],['','','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-04-15','1234 5678 9012','House No 1, City','F001','8th','A','1']]
     : [['employee_code','full_name','designation','phone','username'],['SPS-T-001','Rina Mehta','PGT Science','9876543210','SPS-T-001']]
   const csv=[h.join(','),r.join(',')].join('\n')
   const a=document.createElement('a'); a.href='data:text/csv,'+encodeURIComponent(csv); a.download=`sample_${type}s.csv`; a.click()
@@ -1305,26 +1437,62 @@ async function loadAssessments(){
   }).join('')
 }
 
+let _currentAssess = null
 function openAssessEdit(a){
+  _currentAssess = a
   openSub('assessments','sub-assess-edit')
-  const ef=a.exam_fees||[]
   $('assessEditContent').innerHTML=`
-    <div class="page-head"><div><h2>Edit: ${esc(a.name)}</h2><p>${esc(a.classes?.name||'?')}</p></div>
-    <button class="btn btn-danger btn-sm" onclick="deleteAssessment('${a.assessment_id}','${esc(a.name)}')">Delete Assessment</button></div>
-    <div class="card" style="max-width:680px;margin-bottom:18px">
-      <h3>Basic Details</h3>
+    <div class="page-head">
+      <div><h2>${esc(a.name)}</h2><p>${esc(a._classNames||'—')} · ${fmtD(a.commencement_date)||'Date TBD'}</p></div>
+      <button class="btn btn-danger btn-sm" onclick="deleteAssessment('${a.assessment_id}','${esc(a.name)}')">Delete</button>
+    </div>
+    <div class="grid-3" style="margin-top:4px">
+      <div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer">
+        <div class="top"><h4>Assessment Settings</h4></div>
+        <div class="meta">Name, dates, marks unlock toggle</div>
+        <div class="arow"><span>Marks Entry</span><span>${a.is_marks_unlocked?'<span class=&quot;pill pill-success&quot;>Unlocked</span>':'<span class=&quot;pill pill-neutral&quot;>Locked</span>'}</span></div>
+      </div>
+      <div class="assess-card" onclick="openExamFees()" style="cursor:pointer">
+        <div class="top"><h4>Exam Fees</h4></div>
+        <div class="meta">Per class-group fee amounts &amp; collection unlock</div>
+        <div class="arow"><span>Fee rows</span><span>${(a.exam_fees||[]).length}</span></div>
+      </div>
+      <div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer">
+        <div class="top"><h4>Marks Submission Status</h4></div>
+        <div class="meta">Who has submitted, who is pending, who hasn't started</div>
+        <div class="arow"><span>View</span><span>→</span></div>
+      </div>
+    </div>`
+}
+
+function openAssessSettings(){
+  if(!_currentAssess) return
+  const a=_currentAssess
+  openSub('assessments','sub-assess-settings')
+  $('assessSettingsContent').innerHTML=`
+    <div class="page-head"><div><h2>Assessment Settings — ${esc(a.name)}</h2></div></div>
+    <div class="card" style="max-width:680px">
       <div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="${esc(a.name)}"></div><div class="fg"><label>Commencement Date</label><input type="date" id="ae_date" value="${a.commencement_date||''}"></div></div>
       <div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="${a.submission_deadline?.slice(0,16)||''}"></div></div>
       <div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch ${a.is_marks_unlocked?'on':''}" id="ae_unlock" onclick="this.classList.toggle('on')"></div></div>
-      <button class="btn btn-dark btn-sm" style="margin-top:14px" onclick="saveAssess('${a.assessment_id}')">Save Changes</button>
-    </div>
+      <button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess('${a.assessment_id}')">Save Changes</button>
+    </div>`
+}
+
+function openExamFees(){
+  if(!_currentAssess) return
+  const a=_currentAssess, ef=a.exam_fees||[]
+  openSub('assessments','sub-assess-examfees')
+  $('assessExamFeesContent').innerHTML=`
+    <div class="page-head"><div><h2>Exam Fees — ${esc(a.name)}</h2></div></div>
     <div class="card" style="max-width:680px">
-      <h3>Exam Fee Settings</h3>
       <div id="efRows">${ef.map(f=>`
         <div class="form-row" id="efr_${f.exam_fee_id}">
           <div class="fg"><label>Class Group</label><input id="efg_${f.exam_fee_id}" value="${esc(f.class_group||'')}"></div>
           <div class="fg"><label>Amount ₹</label><input type="number" id="efa_${f.exam_fee_id}" value="${f.amount||''}"></div>
-          <div class="fg" style="flex:0;align-items:flex-end"><div class="toggle-row" style="border:none;padding:0"><div class="switch ${f.is_collection_unlocked?'on':''}" id="efu_${f.exam_fee_id}" onclick="this.classList.toggle('on')" title="Unlock collection"></div></div></div>
+          <div class="fg" style="flex:0;align-items:flex-end"><div class="toggle-row" style="border:none;padding:0">
+            <div class="switch ${f.is_collection_unlocked?'on':''}" id="efu_${f.exam_fee_id}" onclick="this.classList.toggle('on')" title="Unlock collection for teachers"></div>
+          </div></div>
           <div style="display:flex;gap:5px;align-items:flex-end;padding-bottom:2px">
             <button class="btn btn-ghost btn-xs" onclick="saveEF('${f.exam_fee_id}','${a.assessment_id}')">Save</button>
             <button class="btn btn-danger btn-xs" onclick="deleteEF('${f.exam_fee_id}')">×</button>
@@ -1332,23 +1500,79 @@ function openAssessEdit(a){
         </div>`).join('')}</div>
       <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="addEFRow('${a.assessment_id}')">+ Add Fee Row</button>
     </div>`
-  $(`#assessEditContent .switch`).forEach(sw=>sw.addEventListener('click',function(){this.classList.toggle('on')}))
+}
+
+async function openSubmissionStatus(){
+  if(!_currentAssess) return
+  const a=_currentAssess
+  openSub('assessments','sub-assess-status')
+  const el=$('assessStatusContent')
+  el.innerHTML=`<div class="page-head"><div><h2>Marks Submission Status — ${esc(a.name)}</h2></div></div><div class="loading-row"><div class="spinner"></div> Loading submission data…</div>`
+  // Get all subject-class combos for this assessment's classes
+  const classIds=(a.assessment_classes||[]).map(ac=>ac.classes?.class_id).filter(Boolean)
+  if(!classIds.length){el.innerHTML+='<p style="color:var(--ink-faint);font-size:12.5px">No classes linked to this assessment.</p>';return}
+  // Get teacher mappings for these classes
+  const {data:maps}=await sb.from('teacher_subject_class_map')
+    .select('teacher_id,class_id,section_id,subject_id,teachers(full_name),classes(name),class_sections(name),subjects(name)')
+    .eq('session_id',SESS?.session_id||'').in('class_id',classIds)
+  if(!maps?.length){el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="empty-state"><p>No teacher-subject mappings found for the classes in this assessment.</p></div>';return}
+  // Get marks counts per teacher per subject
+  const {data:marksCounts}=await sb.from('marks_lock_state')
+    .select('teacher_id,subject_id,is_locked').eq('assessment_id',a.assessment_id)
+  const lockMap={}
+  marksCounts?.forEach(m=>{lockMap[m.teacher_id+'_'+m.subject_id]=m.is_locked})
+  // Group by teacher
+  const byTeacher={}
+  maps.forEach(m=>{
+    if(!byTeacher[m.teacher_id]) byTeacher[m.teacher_id]={name:m.teachers?.full_name||'—',rows:[]}
+    byTeacher[m.teacher_id].rows.push(m)
+  })
+  el.innerHTML=`<div class="page-head"><div><h2>Marks Submission Status — ${esc(a.name)}</h2></div></div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>Teacher</th><th>Class</th><th>Section</th><th>Subject</th><th>Status</th></tr></thead>
+      <tbody>${Object.entries(byTeacher).map(([tid,t])=>
+        t.rows.map((r,i)=>`<tr>
+          ${i===0?`<td rowspan="${t.rows.length}" style="font-weight:700;vertical-align:top;border-right:1px solid var(--line)">${esc(t.name)}</td>`:''}
+          <td>${esc(r.classes?.name||'—')}</td><td>${esc(r.class_sections?.name||'—')}</td><td>${esc(r.subjects?.name||'—')}</td>
+          <td>${lockMap[tid+'_'+r.subject_id]===true?'<span class="pill pill-success">Submitted &amp; Locked</span>':lockMap[tid+'_'+r.subject_id]===false?'<span class="pill pill-warn">In Progress</span>':'<span class="pill pill-neutral">Not Started</span>'}</td>
+        </tr>`).join('')
+      ).join('')}</tbody>
+    </table></div></div>`
 }
 
 function openAddAssessmentModal(){
-  const cls=ALL_CLASSES.filter(c=>c.is_active).map(c=>`<option value="${c.class_id}">${esc(c.name)}</option>`).join('')
+  const clsChecks = ALL_CLASSES.filter(c=>c.is_active).map(c=>`
+    <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer">
+      <input type="checkbox" value="${c.class_id}" class="na_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px">
+      <span>${esc(c.name)}</span>
+    </label>`).join('')
   openModal('Create Assessment',`
-    <div class="form-row"><div class="fg"><label>Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div><div class="fg"><label>Class *</label><select id="na_class">${cls}</select></div></div>
-    <div class="form-row"><div class="fg"><label>Commencement Date</label><input type="date" id="na_date"></div><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div>`,
-    `<button class="btn btn-dark" onclick="createAssessment()">Create</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`)
+    <div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div>
+    <div class="form-row">
+      <div class="fg"><label>Commencement Date</label><input type="date" id="na_date"></div>
+      <div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div>
+    </div>
+    <div class="fg" style="margin-bottom:14px">
+      <label>Applicable Classes * (select all that apply)</label>
+      <div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">
+        ${clsChecks}
+      </div>
+    </div>`,
+    `<button class="btn btn-dark" onclick="createAssessment()">Create Assessment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`)
 }
 
 async function createAssessment(){
-  const name=$('na_name')?.value?.trim(), cls=$('na_class')?.value
-  if(!name||!cls){toast('Name and class required','error');return}
-  const {error}=await sb.from('assessments').insert({name,class_id:cls,session_id:SESS.session_id,commencement_date:$('na_date')?.value||null,submission_deadline:$('na_dl')?.value?new Date($('na_dl').value).toISOString():null,is_marks_unlocked:false})
+  const name=$('na_name')?.value?.trim()
+  const selectedClasses=[...document.querySelectorAll('.na_cls_chk:checked')].map(el=>el.value)
+  if(!name){toast('Assessment name required','error');return}
+  if(!selectedClasses.length){toast('Select at least one class','error');return}
+  const {data:asmtData, error}=await sb.from('assessments').insert({name,session_id:SESS.session_id,commencement_date:$('na_date')?.value||null,submission_deadline:$('na_dl')?.value?new Date($('na_dl').value).toISOString():null,is_marks_unlocked:false}).select().single()
   if(error){toast('Failed: '+error.message,'error');return}
-  toast('Assessment created','success'); closeModal(); loadAssessments()
+  // Insert into assessment_classes junction
+  const junctionRows=selectedClasses.map(class_id=>({assessment_id:asmtData.assessment_id,class_id}))
+  const {error:je}=await sb.from('assessment_classes').insert(junctionRows)
+  if(je){toast('Assessment created but class linking failed: '+je.message,'error');return}
+  toast('Assessment created for '+selectedClasses.length+' class(es)','success'); closeModal(); loadAssessments()
 }
 
 async function saveAssess(id){
@@ -1404,29 +1628,48 @@ async function loadMarksOverviewShell(){
 
 async function moLoadSections(){
   const cid=$('mo_class')?.value
-  ;['mo_section','mo_subject','mo_assessment'].forEach(id=>$(id).innerHTML=`<option value="">All</option>`)
+  $('mo_section').innerHTML='<option value="">All sections</option>'
+  $('mo_subject').innerHTML='<option value="">All subjects</option>'
+  $('mo_assessments_wrap').innerHTML='<p style="font-size:11.5px;color:var(--ink-faint)">Select class first</p>'
   if(!cid||!SESS) return
   const [{data:secs},{data:subs},{data:asmts}]=await Promise.all([
     sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name'),
     sb.from('class_subject_assignments').select('subjects(subject_id,name)').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true),
-    sb.from('assessments').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).order('commencement_date')
+    sb.from('assessment_classes').select('assessment_id,assessments(assessment_id,name,commencement_date)').eq('class_id',cid)
   ])
   $('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>`<option value="${s.section_id}">${esc(s.name)}</option>`).join('')
   $('mo_subject').innerHTML='<option value="">All subjects</option>'+(subs||[]).map(s=>`<option value="${s.subjects.subject_id}">${esc(s.subjects.name)}</option>`).join('')
-  $('mo_assessment').innerHTML='<option value="">All assessments</option>'+(asmts||[]).map(a=>`<option value="${a.assessment_id}">${esc(a.name)}</option>`).join('')
+  const asmtList=asmts?.map(r=>r.assessments).filter(Boolean)||[]
+  if(!asmtList.length){$('mo_assessments_wrap').innerHTML='<p style="font-size:11.5px;color:var(--ink-faint)">No assessments for this class</p>';return}
+  $('mo_assessments_wrap').innerHTML=asmtList.map(a=>`
+    <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer">
+      <input type="checkbox" value="${a.assessment_id}" class="mo_asmt_chk" style="accent-color:var(--indigo);width:14px;height:14px">
+      <span>${esc(a.name)}</span>
+    </label>`).join('')
 }
 
 async function loadMarksTable(){
-  const classId=$('mo_class')?.value, secId=$('mo_section')?.value, subId=$('mo_subject')?.value, assId=$('mo_assessment')?.value
+  const classId=$('mo_class')?.value, secId=$('mo_section')?.value, subId=$('mo_subject')?.value
+  const selectedAssessments=[...document.querySelectorAll('.mo_asmt_chk:checked')].map(el=>el.value)
   const el=$('marksTable'); ldg(el)
-  let q=sb.from('marks').select(`mark_id,marks_obtained,is_absent,is_locked,entered_at,subjects(name),assessments(name),teachers(full_name),student_enrollments!inner(roll_no,students(full_name,student_id),class_id,section_id,session_id)`).eq('student_enrollments.session_id',SESS?.session_id||'')
-  if(classId) q=q.eq('student_enrollments.class_id',classId)
+  if(!classId){emp(el,'Select a class first');return}
+  let q=sb.from('marks').select(`mark_id,marks_obtained,is_absent,is_locked,assessment_id,subject_id,subjects(name),assessments(name),teachers(full_name),student_enrollments!inner(roll_no,students(full_name,student_id),class_id,section_id,session_id)`).eq('student_enrollments.session_id',SESS?.session_id||'').eq('student_enrollments.class_id',classId)
   if(secId) q=q.eq('student_enrollments.section_id',secId)
   if(subId) q=q.eq('subject_id',subId)
-  if(assId) q=q.eq('assessment_id',assId)
-  const {data,error}=await q.order('student_enrollments(roll_no)').limit(300)
-  if(error||!data?.length){emp(el,error?'Error loading marks':'No marks found for selected filters.');return}
-  el.innerHTML=`<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student</th><th>Assessment</th><th>Subject</th><th>Marks</th><th>Status</th><th>Teacher</th></tr></thead><tbody>${data.map(m=>`<tr><td class="mono">${m.student_enrollments?.roll_no||'—'}</td><td>${esc(m.student_enrollments?.students?.full_name||'—')}</td><td>${esc(m.assessments?.name||'Test')}</td><td>${esc(m.subjects?.name||'—')}</td><td class="mono">${m.is_absent?'<span class="pill pill-neutral">Absent</span>':String(m.marks_obtained??'—')}</td><td>${m.is_locked?'<span class="pill pill-neutral">Locked</span>':'<span class="pill pill-warn">Open</span>'}</td><td>${esc(m.teachers?.full_name||'—')}</td></tr>`).join('')}</tbody></table></div></div>`
+  if(selectedAssessments.length) q=q.in('assessment_id',selectedAssessments)
+  const {data,error}=await q.limit(500)
+  if(error||!data?.length){emp(el,error?'Error: '+error.message:'No marks found for the selected filters.');return}
+  // Group by student for multi-assessment display
+  const students={}, assessmentNames={}
+  data.forEach(m=>{
+    const sid=m.student_enrollments?.students?.student_id||m.student_enrollments?.roll_no||'?'
+    if(!students[sid]) students[sid]={roll:m.student_enrollments?.roll_no,name:m.student_enrollments?.students?.full_name,marks:{}}
+    const key=(m.assessments?.name||'Test')+' — '+(m.subjects?.name||'?')
+    students[sid].marks[key]=m.is_absent?'A':String(m.marks_obtained??'—')
+    assessmentNames[key]=true
+  })
+  const cols=Object.keys(assessmentNames)
+  el.innerHTML=`<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student</th>${cols.map(k=>`<th>${esc(k)}</th>`).join('')}</tr></thead><tbody>${Object.values(students).map(s=>`<tr><td class="mono">${s.roll||'—'}</td><td>${esc(s.name||'—')}</td>${cols.map(k=>`<td class="mono">${esc(s.marks[k]||'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`
 }
 
 // ═══════════════════════════════════════════
@@ -1557,15 +1800,46 @@ async function caLoadSections(){
 }
 
 async function loadClassAttendance(){
-  const classId=$('ca_class')?.value, secId=$('ca_section')?.value, date=$('ca_date')?.value
-  if(!classId||!date){toast('Select class and date','error');return}
+  const classId=$('ca_class')?.value, secId=$('ca_section')?.value
+  const fromDate=$('ca_from')?.value, toDate=$('ca_to')?.value
+  if(!classId||!fromDate||!toDate){toast('Select class and date range','error');return}
+  if(fromDate>toDate){toast('Date From must be before Date To','error');return}
   const el=$('caTable'); ldg(el)
-  let q=sb.from('student_attendance').select(`status,student_enrollments!inner(roll_no,class_id,section_id,session_id,students(full_name),class_sections(name))`).eq('date',date).eq('student_enrollments.session_id',SESS?.session_id||'').eq('student_enrollments.class_id',classId)
+  let q=sb.from('student_attendance')
+    .select(`date,status,student_enrollments!inner(roll_no,class_id,section_id,session_id,students(full_name,student_id),class_sections(name))`)
+    .eq('student_enrollments.session_id',SESS?.session_id||'').eq('student_enrollments.class_id',classId)
+    .gte('date',fromDate).lte('date',toDate)
   if(secId) q=q.eq('student_enrollments.section_id',secId)
-  const {data,error}=await q.order('student_enrollments(roll_no)')
+  const {data,error}=await q
+  if(error){emp(el,'Error: '+error.message);return}
+
+  // Build date columns
+  const dates=[]
+  let d=new Date(fromDate+'T00:00:00')
+  const end=new Date(toDate+'T00:00:00')
+  while(d<=end){ dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1) }
+
+  // Group by student
+  const students={}, statusByStudentDate={}
+  ;(data||[]).forEach(r=>{
+    const sid=r.student_enrollments?.students?.student_id||r.student_enrollments?.roll_no
+    if(!students[sid]) students[sid]={roll:r.student_enrollments?.roll_no,name:r.student_enrollments?.students?.full_name||'—',section:r.student_enrollments?.class_sections?.name||'—'}
+    statusByStudentDate[sid+'_'+r.date]=r.status
+  })
+
   const statusClr={'P':'success','A':'danger','L':'warn','H':'neutral'}
-  el.innerHTML=`<div class="card"><h3>${fmtD(date)}</h3>${!data?.length?`<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg><p>No attendance recorded for this date and class.</p></div>`:`<div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Section</th><th>Status</th></tr></thead><tbody>${data.map(r=>`<tr><td class="mono">${r.student_enrollments?.roll_no||'—'}</td><td>${esc(r.student_enrollments?.students?.full_name||'—')}</td><td>${esc(r.student_enrollments?.class_sections?.name||'—')}</td><td><span class="pill pill-${statusClr[r.status]||'neutral'}">${r.status}</span></td></tr>`).join('')}</tbody></table></div>`}</div>`
-  $('caUpload').style.display='block'; $('caUploadTitle').textContent=`Upload Attendance — ${fmtD(date)}`
+  if(!Object.keys(students).length){emp(el,'No attendance found for this class in the selected date range.');$('caUpload').style.display='block';return}
+
+  el.innerHTML=`<div class="card"><div class="table-wrap" style="max-height:500px;overflow:auto"><table>
+    <thead><tr><th>Roll</th><th>Name</th><th>Sec</th>${dates.map(d=>`<th style="font-size:10px;writing-mode:vertical-rl;padding:8px 6px">${d.slice(5)}</th>`).join('')}<th>P</th><th>A</th></tr></thead>
+    <tbody>${Object.entries(students).map(([sid,s])=>{
+      const statuses=dates.map(d=>statusByStudentDate[sid+'_'+d]||'—')
+      const p=statuses.filter(s=>s==='P').length, a=statuses.filter(s=>s==='A').length
+      return `<tr><td class="mono">${s.roll||'—'}</td><td>${esc(s.name)}</td><td>${esc(s.section)}</td>${statuses.map(st=>`<td style="text-align:center"><span class="pill pill-${statusClr[st]||'neutral'}" style="padding:2px 5px;font-size:9px">${st}</span></td>`).join('')}<td class="mono" style="color:var(--success);font-weight:700">${p}</td><td class="mono" style="color:var(--danger);font-weight:700">${a}</td></tr>`
+    }).join('')}</tbody>
+  </table></div></div>`
+  $('caUpload').style.display='block'
+  $('caUploadTitle').textContent=`Upload Attendance — ${fmtD(fromDate)} to ${fmtD(toDate)}`
 }
 
 function downloadAttSample(){ toast('Pre-filled sample would contain all students in the selected section','info') }
@@ -1617,7 +1891,13 @@ async function loadClassesList(){
   ALL_CLASSES=data||[]
   ;['adm_class','mo_class','pr_class','ca_class','newStreamClass'].forEach(id=>{ const s=$(id); if(s) s.innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>`<option value="${c.class_id}">${esc(c.name)}</option>`).join('') })
   if(!data?.length){emp(el,'No classes yet');return}
-  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${data.map(c=>`<tr style="cursor:pointer" onclick="selectClass('${c.class_id}','${esc(c.name)}')"><td>${esc(c.name)}</td><td class="mono">${c.sort_order}</td><td><span class="pill ${c.is_active?'pill-success':'pill-neutral'}">${c.is_active?'Active':'Inactive'}</span></td><td><button class="btn btn-danger btn-xs" onclick="event.stopPropagation();toggleClass('${c.class_id}',${c.is_active})">${c.is_active?'Deactivate':'Activate'}</button></td></tr>`).join('')}</tbody></table></div>`
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${data.map(c=>`<tr style="cursor:pointer" onclick="selectClass('${c.class_id}','${esc(c.name)}')">
+    <td id="clsname_${c.class_id}">${esc(c.name)}</td><td class="mono">${c.sort_order}</td>
+    <td><span class="pill ${c.is_active?'pill-success':'pill-neutral'}">${c.is_active?'Active':'Inactive'}</span></td>
+    <td style="display:flex;gap:5px">
+      <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();startRenameClass('${c.class_id}','${esc(c.name)}')">Rename</button>
+      <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();toggleClass('${c.class_id}',${c.is_active})">${c.is_active?'Deactivate':'Activate'}</button>
+    </td></tr>`).join('')}</tbody></table></div>`
 }
 async function createClass(){
   const name=$('newClassName')?.value?.trim(), order=parseInt($('newClassOrder')?.value)||99
@@ -1629,6 +1909,23 @@ async function createClass(){
 async function toggleClass(id,active){
   await sb.from('classes').update({is_active:!active}).eq('class_id',id)
   toast(active?'Class deactivated (data preserved)':'Class activated','success'); loadClassesList()
+}
+
+function startRenameClass(id, currentName){
+  const cell = document.getElementById('clsname_'+id)
+  if(!cell) return
+  cell.innerHTML = '<input type="text" value="'+currentName+'" id="rename_'+id+'" style="font-family:var(--font);font-size:12.5px;padding:4px 8px;border:1.5px solid var(--indigo);border-radius:6px;width:110px" onclick="event.stopPropagation()"> <button class="btn btn-dark btn-xs" style="margin-left:5px" onclick="event.stopPropagation();commitRenameClass(\'' + id + '\')" >Save</button> <button class="btn btn-ghost btn-xs" style="margin-left:3px" onclick="event.stopPropagation();loadClassesList()">×</button>'
+  const inp = document.getElementById('rename_'+id)
+  if(inp){ inp.focus(); inp.select() }
+}
+
+async function commitRenameClass(id){
+  const inp = document.getElementById('rename_'+id)
+  const newName = inp?.value?.trim()
+  if(!newName){toast('Enter a class name','error');return}
+  const {error} = await sb.from('classes').update({name:newName}).eq('class_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Class renamed to '+newName,'success'); await loadGlobals(); loadClassesList()
 }
 
 async function selectClass(classId, className){
@@ -1712,6 +2009,412 @@ async function purgeAttendance(){
 // ═══════════════════════════════════════════
 const _origLazy=lazyLoad.messages
 lazyLoad.messages=loadMessages
+// ═══════════════════════════════════════════
+// MISC FEES
+// ═══════════════════════════════════════════
+async function loadMiscFees(){
+  const el=$('miscFeeBody'); ldg(el)
+  if(!SESS){el.innerHTML='<tr><td colspan="7"><div class="empty-state"><p>No active session.</p></div></td></tr>';return}
+  const {data,error}=await sb.from('misc_fees')
+    .select('*,classes(name),class_sections(name)')
+    .eq('session_id',SESS.session_id).order('created_at',{ascending:false})
+  if(error){el.innerHTML=`<tr><td colspan="7"><p style="padding:16px;color:var(--danger)">${esc(error.message)}</p></td></tr>`;return}
+  if(!data?.length){el.innerHTML='<tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/></svg><p>No misc fees yet.</p></div></td></tr>';return}
+  el.innerHTML=data.map(f=>`<tr>
+    <td style="font-weight:700">${esc(f.name)}</td>
+    <td>${esc(f.classes?.name||'—')}</td>
+    <td>${esc(f.class_sections?.name||'All sections')}</td>
+    <td class="mono">₹${f.amount}</td>
+    <td><div class="switch ${f.is_collection_unlocked?'on':''}" onclick="toggleMiscFee('${f.misc_fee_id}',${f.is_collection_unlocked})" title="${f.is_collection_unlocked?'Unlock active — click to lock':'Click to unlock for teachers'}"></div></td>
+    <td class="mono" style="font-size:11px">${fmtD(f.created_at?.slice(0,10))}</td>
+    <td><button class="btn btn-danger btn-xs" onclick="deleteMiscFee('${f.misc_fee_id}','${esc(f.name)}')">Delete</button></td>
+  </tr>`).join('')
+}
+
+function openAddMiscFeeModal(){
+  const clsOpts=ALL_CLASSES.filter(c=>c.is_active).map(c=>`<option value="${c.class_id}">${esc(c.name)}</option>`).join('')
+  openModal('Create Misc Fee',`
+    <div class="form-row"><div class="fg"><label>Fee Name *</label><input id="mf_name" placeholder="e.g. Science Practical Fee, Annual Trip Fee"></div></div>
+    <div class="form-row">
+      <div class="fg"><label>Amount ₹ *</label><input type="number" id="mf_amount" placeholder="0"></div>
+      <div class="fg"><label>Class *</label><select id="mf_class" onchange="mfLoadSections()">${clsOpts}</select></div>
+      <div class="fg"><label>Section (blank = all sections)</label><select id="mf_section"><option value="">All Sections</option></select></div>
+    </div>
+    <div class="toggle-row" style="border:none">
+      <span>Unlock collection for class teachers immediately</span>
+      <div class="switch" id="mf_unlock" onclick="this.classList.toggle('on')"></div>
+    </div>`,
+    `<button class="btn btn-dark" onclick="saveMiscFee()">Create Fee</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`)
+}
+
+async function mfLoadSections(){
+  const cid=$('mf_class')?.value, sel=$('mf_section')
+  sel.innerHTML='<option value="">All Sections</option>'
+  if(!cid||!SESS) return
+  const {data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  sel.innerHTML='<option value="">All Sections</option>'+(data||[]).map(s=>`<option value="${s.section_id}">${esc(s.name)}</option>`).join('')
+}
+
+async function saveMiscFee(){
+  const name=$('mf_name')?.value?.trim(), amount=$('mf_amount')?.value, classId=$('mf_class')?.value
+  if(!name||!amount||!classId){toast('Name, amount and class required','error');return}
+  const sectionId=$('mf_section')?.value||null
+  const unlocked=$('mf_unlock')?.classList.contains('on')
+  const {error}=await sb.from('misc_fees').insert({name,amount:parseFloat(amount),class_id:classId,section_id:sectionId,session_id:SESS.session_id,is_collection_unlocked:unlocked,created_by:SPS.admin?.admin_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Misc fee created','success'); closeModal(); loadMiscFees()
+}
+
+async function toggleMiscFee(id, current){
+  const {error}=await sb.from('misc_fees').update({is_collection_unlocked:!current}).eq('misc_fee_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(current?'Collection locked':'Collection unlocked for teachers','success'); loadMiscFees()
+}
+
+async function deleteMiscFee(id, name){
+  confirmAct('Delete "'+name+'"?','This removes the fee item. Payment records are preserved.',async()=>{
+    const {error}=await sb.from('misc_fees').delete().eq('misc_fee_id',id)
+    if(error){toast('Failed: '+error.message,'error');return}
+    toast('Fee deleted','success'); loadMiscFees()
+  })
+}
+
+// ═══════════════════════════════════════════
+// TIMETABLE — ROSTER SETTINGS
+// ═══════════════════════════════════════════
+let _selectedRosterId=null, _selectedRosterName=''
+
+async function loadTimetable(){
+  loadRosters()
+  // Populate teacher dropdown for timetable tabs
+  $('tt_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>`<option value="${t.teacher_id}">${esc(t.full_name)}</option>`).join('')
+  $('sub_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>`<option value="${t.teacher_id}">${esc(t.full_name)}</option>`).join('')
+  $('tt_cls').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>`<option value="${c.class_id}">${esc(c.name)}</option>`).join('')
+  $('sub_date').value=today()
+}
+
+async function loadRosters(){
+  const el=$('rosterList'); ldg(el)
+  if(!SESS){emp(el,'No active session');return}
+  const {data,error}=await sb.from('rosters').select('*').eq('session_id',SESS.session_id).order('created_at')
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!data?.length){emp(el,'No rosters yet. Create one to start building the timetable.');return}
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Roster Name</th><th>Status</th><th></th></tr></thead><tbody>
+    ${data.map(r=>`<tr style="cursor:pointer" onclick="selectRoster('${r.roster_id}','${esc(r.name)}')">
+      <td style="font-weight:600">${esc(r.name)}</td>
+      <td>${r.is_active?'<span class="pill pill-success">Active</span>':'<span class="pill pill-neutral">Inactive</span>'}</td>
+      <td style="display:flex;gap:5px">
+        ${!r.is_active?`<button class="btn btn-dark btn-xs" onclick="event.stopPropagation();activateRoster('${r.roster_id}','${esc(r.name)}')">Set Active</button>`:''}
+        <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteRoster('${r.roster_id}','${esc(r.name)}')">Delete</button>
+      </td>
+    </tr>`).join('')}
+  </tbody></table></div>`
+}
+
+async function createRoster(){
+  const name=$('newRosterName')?.value?.trim()
+  if(!name||!SESS){toast('Enter roster name','error');return}
+  const {error}=await sb.from('rosters').insert({name,session_id:SESS.session_id,is_active:false,created_by:SPS.admin?.admin_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Roster created','success'); $('newRosterName').value=''; loadRosters()
+}
+
+async function activateRoster(id, name){
+  confirmAct('Switch to roster "'+name+'"?','Current roster entries are preserved and can be restored by switching back.',async()=>{
+    await sb.from('rosters').update({is_active:false}).eq('session_id',SESS.session_id)
+    const {error}=await sb.from('rosters').update({is_active:true}).eq('roster_id',id)
+    if(error){toast('Failed: '+error.message,'error');return}
+    toast('"'+name+'" is now the active roster','success'); loadRosters()
+  })
+}
+
+async function deleteRoster(id, name){
+  const {count}=await sb.from('time_slots').select('*',{count:'exact',head:true}).eq('roster_id',id)
+  if(count>0){
+    const {count:ec}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('roster_id',id)
+    if(ec>0){toast('Cannot delete — roster has '+ec+' timetable entries. Remove entries first.','error');return}
+  }
+  confirmAct('Delete roster "'+name+'"?','All time slots in this roster will also be deleted.',async()=>{
+    await sb.from('time_slots').delete().eq('roster_id',id)
+    const {error}=await sb.from('rosters').delete().eq('roster_id',id)
+    if(error){toast('Failed: '+error.message,'error');return}
+    toast('Roster deleted','success'); loadRosters(); $('slotList').innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Select a roster to manage its time slots.</p>'; _selectedRosterId=null
+  })
+}
+
+async function selectRoster(id, name){
+  _selectedRosterId=id; _selectedRosterName=name
+  $('slotRosterLabel').textContent='for '+name
+  const el=$('slotList'); ldg(el)
+  const {data}=await sb.from('time_slots').select('*').eq('roster_id',id).order('sort_order')
+  el.innerHTML=`
+    ${(data||[]).length?`<div class="table-wrap"><table><thead><tr><th>Name</th><th>Start</th><th>End</th><th>Order</th><th></th></tr></thead><tbody>
+      ${data.map(s=>`<tr>
+        <td id="slotname_${s.slot_id}" style="font-weight:600">${esc(s.name)}</td>
+        <td class="mono">${s.start_time?.slice(0,5)||'—'}</td>
+        <td class="mono">${s.end_time?.slice(0,5)||'—'}</td>
+        <td class="mono">${s.sort_order}</td>
+        <td style="display:flex;gap:5px">
+          <button class="btn btn-ghost btn-xs" onclick="editSlot('${s.slot_id}','${esc(s.name)}','${s.start_time?.slice(0,5)||''}','${s.end_time?.slice(0,5)||''}',${s.sort_order})">Edit</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteSlot('${s.slot_id}','${esc(s.name)}')">Delete</button>
+        </td>
+      </tr>`).join('')}
+    </tbody></table></div>`:'<p style="font-size:12.5px;color:var(--ink-faint);margin-bottom:12px">No time slots yet.</p>'}
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+      <div class="form-row" style="margin-bottom:8px">
+        <div class="fg" style="max-width:130px"><label>Slot Name</label><input id="newSlotName" placeholder="e.g. Period 1"></div>
+        <div class="fg" style="max-width:110px"><label>Start</label><input type="time" id="newSlotStart"></div>
+        <div class="fg" style="max-width:110px"><label>End</label><input type="time" id="newSlotEnd"></div>
+        <div class="fg" style="max-width:90px"><label>Order</label><input type="number" id="newSlotOrder" value="${(data?.length||0)+1}" min="1"></div>
+      </div>
+      <button class="btn btn-dark btn-sm" onclick="createSlot()">Add Time Slot</button>
+    </div>`
+}
+
+async function createSlot(){
+  const name=$('newSlotName')?.value?.trim(), start=$('newSlotStart')?.value, end=$('newSlotEnd')?.value, order=parseInt($('newSlotOrder')?.value||99)
+  if(!name||!start||!end||!_selectedRosterId){toast('Fill in all slot fields','error');return}
+  const {error}=await sb.from('time_slots').insert({name,start_time:start,end_time:end,sort_order:order,roster_id:_selectedRosterId})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Slot added','success'); selectRoster(_selectedRosterId,_selectedRosterName)
+}
+
+function editSlot(id,name,start,end,order){
+  openModal('Edit Slot — '+name,`
+    <div class="form-row"><div class="fg"><label>Name</label><input id="es_name" value="${esc(name)}"></div><div class="fg"><label>Start</label><input type="time" id="es_start" value="${start}"></div><div class="fg"><label>End</label><input type="time" id="es_end" value="${end}"></div><div class="fg"><label>Order</label><input type="number" id="es_order" value="${order}" min="1"></div></div>`,
+    `<button class="btn btn-dark" onclick="saveSlot('${id}')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`)
+}
+
+async function saveSlot(id){
+  const {error}=await sb.from('time_slots').update({name:$('es_name')?.value?.trim(),start_time:$('es_start')?.value,end_time:$('es_end')?.value,sort_order:parseInt($('es_order')?.value||99)}).eq('slot_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Slot updated','success'); closeModal(); selectRoster(_selectedRosterId,_selectedRosterName)
+}
+
+async function deleteSlot(id,name){
+  const {count}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('slot_id',id)
+  if(count>0){toast('Cannot delete "'+name+'" — '+count+' timetable entries use this slot.','error');return}
+  confirmAct('Delete slot "'+name+'"?','',async()=>{
+    await sb.from('time_slots').delete().eq('slot_id',id)
+    toast('Slot deleted','success'); selectRoster(_selectedRosterId,_selectedRosterName)
+  })
+}
+
+// ═══════════════════════════════════════════
+// TIMETABLE — STUDENT VIEW
+// ═══════════════════════════════════════════
+async function ttLoadSections(){
+  const cid=$('tt_cls')?.value, sel=$('tt_sec')
+  sel.innerHTML='<option value="">Select class first</option>'; if(!cid||!SESS) return
+  const {data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>`<option value="${s.section_id}">${esc(s.name)}</option>`).join('')
+}
+
+async function loadStudentTimetable(){
+  const classId=$('tt_cls')?.value, secId=$('tt_sec')?.value
+  const el=$('studentTTGrid'); ldg(el)
+  if(!classId){emp(el,'Select a class');return}
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster. Create and activate a roster in Roster Settings first.');return}
+  const {data,error}=await sb.from('timetable_entries')
+    .select('*,time_slots(name,start_time,end_time,sort_order),subjects(name),teachers(full_name),class_sections(name)')
+    .eq('roster_id',roster.roster_id).eq('class_id',classId)
+  if(secId&&data) { const filtered=data.filter(e=>e.section_id===secId); renderTTGrid(el,filtered,roster,'student') }
+  else renderTTGrid(el,data||[],roster,'student')
+}
+
+async function getActiveRoster(){
+  if(!SESS) return null
+  const {data}=await sb.from('rosters').select('*').eq('session_id',SESS.session_id).eq('is_active',true).maybeSingle()
+  return data
+}
+
+function renderTTGrid(el, entries, roster, mode){
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat']
+  // Get unique slots sorted
+  const slots=[...new Map(entries.map(e=>[e.slot_id,e.time_slots])).entries()].map(([id,s])=>({slot_id:id,...s})).filter(s=>s?.name).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  if(!slots.length){emp(el,'No timetable entries found for the active roster.');return}
+  // Build lookup: slot_id + day => entry
+  const lookup={}
+  entries.forEach(e=>{(e.days||[]).forEach(day=>{lookup[e.slot_id+'_'+day]=e})})
+  el.innerHTML=`<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Time Slot</th><th>Time</th>${days.map(d=>`<th>${d}</th>`).join('')}</tr></thead>
+    <tbody>${slots.map(slot=>`<tr>
+      <td style="font-weight:700;white-space:nowrap">${esc(slot.name||'')}</td>
+      <td class="mono" style="font-size:11px;white-space:nowrap">${(slot.start_time||'').slice(0,5)} – ${(slot.end_time||'').slice(0,5)}</td>
+      ${days.map(day=>{
+        const e=lookup[slot.slot_id+'_'+day]
+        if(!e) return '<td style="background:var(--lav-50)"></td>'
+        const cell=mode==='student'
+          ? `<b>${esc(e.subjects?.name||'—')}</b><br><span style="font-size:10.5px;color:var(--ink-soft)">${esc(e.teachers?.full_name||'—')}</span>`
+          : `<b>${esc(e.classes?.name||'—')}-${esc(e.class_sections?.name||'')}</b><br><span style="font-size:10.5px;color:var(--ink-soft)">${esc(e.subjects?.name||'—')}</span>`
+        return `<td style="text-align:center;padding:8px">${cell}</td>`
+      }).join('')}
+    </tr>`).join('')}
+    </tbody></table></div></div>`
+}
+
+// ═══════════════════════════════════════════
+// TIMETABLE — TEACHER VIEW
+// ═══════════════════════════════════════════
+async function loadTeacherTimetable(){
+  const teacherId=$('tt_teacher')?.value
+  const el=$('teacherTTGrid'); ldg(el)
+  if(!teacherId){emp(el,'Select a teacher');return}
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster.');return}
+  const {data,error}=await sb.from('timetable_entries')
+    .select('*,time_slots(name,start_time,end_time,sort_order),subjects(name),classes(name),class_sections(name)')
+    .eq('roster_id',roster.roster_id).eq('teacher_id',teacherId)
+  renderTTGrid(el,data||[],roster,'teacher')
+}
+
+// ═══════════════════════════════════════════
+// TIMETABLE — SUBSTITUTION
+// ═══════════════════════════════════════════
+let _subData=[], _subRoster=null
+
+async function loadSubstitutionSheet(){
+  const teacherId=$('sub_teacher')?.value, date=$('sub_date')?.value
+  const el=$('subSheet'); ldg(el); $('subSaveRow').style.display='none'
+  if(!teacherId||!date){emp(el,'Select a teacher and date');return}
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster.');return}
+  _subRoster=roster
+
+  // Get day of week
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(date+'T00:00:00').getDay()]
+  if(dow==='Sun'){emp(el,'Selected date is a Sunday — no schedule.');return}
+
+  // Get absent teacher's schedule for this day
+  const {data:entries}=await sb.from('timetable_entries')
+    .select('*,time_slots(name,start_time,end_time,sort_order),subjects(name),classes(name),class_sections(name)')
+    .eq('roster_id',roster.roster_id).eq('teacher_id',teacherId).contains('days',[dow])
+
+  if(!entries?.length){emp(el,'No schedule found for this teacher on '+dow+'.');return}
+  _subData=entries.sort((a,b)=>(a.time_slots?.sort_order||0)-(b.time_slots?.sort_order||0))
+
+  // Get all teachers busy in each slot on this day
+  const slotIds=_subData.map(e=>e.slot_id)
+  const {data:busyEntries}=await sb.from('timetable_entries')
+    .select('slot_id,teacher_id').eq('roster_id',roster.roster_id).in('slot_id',slotIds).contains('days',[dow])
+  const busyBySlot={}
+  ;(busyEntries||[]).forEach(b=>{if(!busyBySlot[b.slot_id])busyBySlot[b.slot_id]=[];busyBySlot[b.slot_id].push(b.teacher_id)})
+
+  el.innerHTML=`<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Slot</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute Teacher</th></tr></thead>
+    <tbody>${_subData.map((e,i)=>{
+      const busy=new Set(busyBySlot[e.slot_id]||[])
+      const freeTeachers=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!busy.has(t.teacher_id))
+      return `<tr>
+        <td style="font-weight:700">${esc(e.time_slots?.name||'—')}</td>
+        <td class="mono" style="font-size:11px">${(e.time_slots?.start_time||'').slice(0,5)}–${(e.time_slots?.end_time||'').slice(0,5)}</td>
+        <td>${esc(e.classes?.name||'—')}-${esc(e.class_sections?.name||'—')}</td>
+        <td>${esc(e.subjects?.name||'—')}</td>
+        <td><select class="sub_sel" data-entry-id="${e.entry_id}" style="font-family:var(--font);font-size:12px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);width:100%">
+          <option value="">— Leave unassigned —</option>
+          ${freeTeachers.map(t=>`<option value="${t.teacher_id}">${esc(t.full_name)}</option>`).join('')}
+        </select></td>
+      </tr>`
+    }).join('')}
+    </tbody></table></div>
+    <p style="font-size:11.5px;color:var(--ink-soft);margin-top:10px">Only teachers who are free in each time slot are shown in the dropdown.</p>
+    </div>`
+  $('subSaveRow').style.display='block'
+}
+
+async function saveSubstitutions(){
+  const teacherId=$('sub_teacher')?.value, date=$('sub_date')?.value
+  if(!teacherId||!date||!_subRoster){toast('Missing data','error');return}
+  const sels=document.querySelectorAll('.sub_sel')
+  const rows=[],notify=[]
+  sels.forEach(sel=>{
+    const entryId=sel.dataset.entryId
+    const subTeacherId=sel.value||null
+    const entry=_subData.find(e=>e.entry_id===entryId)
+    if(!entry) return
+    rows.push({date,absent_teacher_id:teacherId,roster_id:_subRoster.roster_id,slot_id:entry.slot_id,entry_id:entryId,substitute_teacher_id:subTeacherId,notification_sent:false,created_by:SPS.admin?.admin_id})
+    if(subTeacherId) notify.push({teacherId:subTeacherId,slot:entry.time_slots?.name,cls:entry.classes?.name+'-'+(entry.class_sections?.name||''),subj:entry.subjects?.name})
+  })
+  if(!rows.length){toast('No substitutions to save','error');return}
+  // Upsert substitutions
+  const {error}=await sb.from('substitutions').upsert(rows,{onConflict:'date,entry_id'})
+  if(error){toast('Failed to save: '+error.message,'error');return}
+
+  // Send notification messages to substitute teachers
+  const absentTeacher=ALL_TEACHERS.find(t=>t.teacher_id===teacherId)
+  const msgRows=notify.map(n=>({
+    sender_type:'admin',sender_id:SPS.admin?.admin_id,
+    recipient_type:'teacher',recipient_id:n.teacherId,
+    subject:'Substitution Duty — '+date,
+    body:'You have been assigned as substitute teacher on '+date+'.
+
+Slot: '+n.slot+'
+Class: '+n.cls+'
+Subject: '+n.subj+'
+Covering for: '+(absentTeacher?.full_name||'—')+'
+
+Please report to the assigned class at the scheduled time.',
+    message_type:'substitution_notice',sent_at:new Date().toISOString()
+  }))
+  if(msgRows.length){
+    await sb.from('messages').insert(msgRows)
+    await sb.from('substitutions').update({notification_sent:true,notification_sent_at:new Date().toISOString()}).eq('date',date).eq('absent_teacher_id',teacherId)
+  }
+  toast('Substitutions saved & '+notify.length+' notification(s) sent','success')
+}
+
+// ═══════════════════════════════════════════
+// MAPPING — ADD TIMETABLE FIELDS
+// ═══════════════════════════════════════════
+// Override openAddMappingModal to include roster, slot and days
+const _origOpenMapping = openAddMappingModal
+async function openAddMappingModal(){
+  const cls=ALL_CLASSES.filter(c=>c.is_active).map(c=>`<option value="${c.class_id}">${esc(c.name)}</option>`).join('')
+  const tch=ALL_TEACHERS.filter(t=>t.is_active).map(t=>`<option value="${t.teacher_id}">${esc(t.full_name)}</option>`).join('')
+  const sub=ALL_SUBJECTS.filter(s=>s.is_active).map(s=>`<option value="${s.subject_id}">${esc(s.name)}</option>`).join('')
+  const roster=await getActiveRoster()
+  let slotOpts='<option value="">No active roster</option>'
+  if(roster){
+    const {data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order')
+    slotOpts='<option value="">No timetable slot</option>'+(slots||[]).map(s=>`<option value="${s.slot_id}">${esc(s.name)} (${(s.start_time||'').slice(0,5)}–${(s.end_time||'').slice(0,5)})</option>`).join('')
+  }
+  const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="${d}" class="mp_day_chk" style="accent-color:var(--indigo)"> ${d}</label>`).join('')
+  openModal('Add Class-Subject Mapping',`
+    <div class="form-row"><div class="fg"><label>Class *</label><select id="mp_class" onchange="mpLoadSections()">${cls}</select></div><div class="fg"><label>Section *</label><select id="mp_section"><option value="">Select class first</option></select></div></div>
+    <div class="form-row"><div class="fg"><label>Subject *</label><select id="mp_subject">${sub}</select></div><div class="fg"><label>Teacher *</label><select id="mp_teacher">${tch}</select></div></div>
+    <div class="form-row"><div class="fg"><label>Also set as Class Teacher of this section?</label><select id="mp_ct"><option value="">No</option><option value="yes">Yes</option></select></div></div>
+    <div style="border-top:1px solid var(--line);margin-top:8px;padding-top:14px">
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px">Timetable (optional — active roster: <b>${roster?esc(roster.name):'none'}</b>)</p>
+      <div class="form-row" style="margin-bottom:8px"><div class="fg"><label>Time Slot</label><select id="mp_slot">${slotOpts}</select></div></div>
+      <div class="fg"><label>Days</label><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">${dayChks}</div></div>
+    </div>`,
+    `<button class="btn btn-dark" onclick="saveMapping()">Add Mapping</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>`)
+}
+
+// Override saveMapping to also write timetable_entries
+const _origSaveMapping = saveMapping
+async function saveMapping(){
+  const classId=$('mp_class')?.value, secId=$('mp_section')?.value, subId=$('mp_subject')?.value, tchId=$('mp_teacher')?.value
+  if(!classId||!secId||!subId||!tchId){toast('Class, section, subject and teacher are required','error');return}
+  const {error}=await sb.from('teacher_subject_class_map').insert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId})
+  if(error){toast('Failed: '+error.message,'error');return}
+  if($('mp_ct')?.value==='yes') await sb.from('class_teacher_map').upsert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId},{onConflict:'session_id,section_id'})
+
+  // Timetable entry if slot and days selected
+  const slotId=$('mp_slot')?.value
+  const days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value)
+  const roster=await getActiveRoster()
+  if(slotId&&days.length&&roster){
+    const {error:te}=await sb.from('timetable_entries').insert({roster_id:roster.roster_id,slot_id:slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days})
+    if(te) toast('Mapping saved but timetable entry failed: '+te.message,'error')
+    else toast('Mapping and timetable entry added','success')
+  } else {
+    toast('Mapping added','success')
+  }
+  closeModal(); loadMapping()
+}
+
 </script>
 </body>
 </html>
