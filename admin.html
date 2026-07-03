@@ -1543,45 +1543,47 @@ async function downloadAttSample(){
 function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3);const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};valid.push({student_id:sid,roll_no:parseInt(roll)||null,date,status})})});$('caPreview').innerHTML='<h3>Validation Preview</h3><div class="summary-bar" style="margin-top:0"><div><span class="sk">Records</span><span class="sv" style="color:var(--success)">'+valid.length+'</span></div><div><span class="sk">Errors</span><span class="sv" style="color:var(--danger)">'+errors.length+'</span></div></div>'+(errors.length?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Row</th><th>Issue</th></tr></thead><tbody>'+errors.map(e=>'<tr><td>'+e.row+'</td><td>'+esc(e.issue)+'</td></tr>').join('')+'</tbody></table></div>':'')+'<button class="btn btn-success" style="margin-top:14px" onclick="commitAttCsv()">Commit '+valid.length+' Records</button>';$('caPreview')._validRows=valid};reader.readAsText(file)}
 async function commitAttCsv(){
   const rows=$('caPreview')._validRows||[]
-  if(!rows.length){toast('No valid records','error');return}
+  if(!rows.length){toast('No valid records in preview','error');return}
   const classId=$('ca_class')?.value,secId=$('ca_section')?.value
   if(!classId){toast('Select a class first','error');return}
 
-  // Get enrollments
   let eq=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active')
   if(secId)eq=eq.eq('section_id',secId)
-  const{data:enrolled}=await eq
+  const{data:enrolled,error:eqErr}=await eq
+  if(eqErr){toast('Enrollment lookup failed: '+eqErr.message,'error');return}
+  if(!enrolled?.length){toast('No enrolled students found','error');return}
+  toast('Matched against '+enrolled.length+' enrolled students','info')
 
   const enrollMap={}
-  ;(enrolled||[]).forEach(e=>{
-    if(e.student_id) enrollMap[String(e.student_id).trim()]=e.enrollment_id
-    if(e.roll_no!=null) enrollMap[String(e.roll_no)]=e.enrollment_id
+  enrolled.forEach(e=>{
+    if(e.student_id)enrollMap[String(e.student_id).trim()]=e.enrollment_id
+    if(e.roll_no!=null)enrollMap[String(e.roll_no)]=e.enrollment_id
   })
 
-  const inserts=rows.map(r=>({
-    enrollment_id:enrollMap[String(r.student_id||'').trim()]||enrollMap[String(r.roll_no||'')],
-    date:r.date, status:r.status,
-    marked_by:null,
-    submitted_at:new Date().toISOString()
-  })).filter(r=>r.enrollment_id)
+  const inserts=[],unmatched=[]
+  rows.forEach(r=>{
+    const eid=enrollMap[String(r.student_id||'').trim()]||enrollMap[String(r.roll_no||'')]
+    if(eid)inserts.push({enrollment_id:eid,date:r.date,status:r.status,marked_by:null,submitted_at:new Date().toISOString()})
+    else unmatched.push('roll:'+r.roll_no)
+  })
 
-  if(!inserts.length){
-    toast('Could not match any students. Check that roll numbers or student IDs match enrolled students.','error')
-    return
+  if(unmatched.length)toast(unmatched.length+' rows unmatched (e.g. '+unmatched[0]+')','error')
+  if(!inserts.length){toast('Nothing to insert — check roll numbers match enrolled students','error');return}
+  toast('Saving '+inserts.length+' records…','info')
+
+  const{error}=await sb.from('student_attendance').upsert(inserts,{onConflict:'enrollment_id,date',ignoreDuplicates:false})
+  if(error){
+    toast('Upsert error: '+error.message,'error')
+    const{error:e2}=await sb.from('student_attendance').insert(inserts)
+    if(e2){toast('Insert also failed: '+e2.message,'error');return}
   }
-  const{error}=await sb.from('student_attendance').upsert(inserts,{onConflict:'enrollment_id,date'})
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast(inserts.length+' records saved','success')
-  // Update date inputs to match actual saved dates so grid shows them
+
+  toast(inserts.length+' records saved ✓','success')
   const savedDates=inserts.map(r=>r.date).sort()
-  if(savedDates.length){
-    const minD=savedDates[0], maxD=savedDates[savedDates.length-1]
-    if($('ca_from'))$('ca_from').value=minD
-    if($('ca_to'))$('ca_to').value=maxD
-    toast('Showing '+minD+' to '+maxD,'info')
-  }
-  loadClassAttendance()
+  if(savedDates.length){if($('ca_from'))$('ca_from').value=savedDates[0];if($('ca_to'))$('ca_to').value=savedDates[savedDates.length-1]}
+  setTimeout(()=>loadClassAttendance(),400)
 }
+
 // ═══════════ TIMETABLE PAGE INIT ═══════════
 async function loadTimetable(){
   loadRosters()
