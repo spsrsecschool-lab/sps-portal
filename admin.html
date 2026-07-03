@@ -1506,20 +1506,40 @@ async function loadClassAttendance(){
 }
 
 async function downloadAttSample(){
-  const classId=$('ca_class')?.value,secId=$('ca_section')?.value,fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
+  const classId=$('ca_class')?.value,secId=$('ca_section')?.value
+  const fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
   if(!classId||!fromDate||!toDate){toast('Select class and date range first','error');return}
-  const dates=[];let[_dy2,_dm2,_dd2]=fromDate.split('-').map(Number);const[_ey2,_em2,_ed2]=toDate.split('-').map(Number);while(_dy2<_ey2||(_dy2===_ey2&&_dm2<_em2)||(_dy2===_ey2&&_dm2===_em2&&_dd2<=_ed2)){dates.push(_dy2+'-'+String(_dm2).padStart(2,'0')+'-'+String(_dd2).padStart(2,'0'));_dd2++;const dim2=new Date(_dy2,_dm2,0).getDate();if(_dd2>dim2){_dd2=1;_dm2++;}if(_dm2>12){_dm2=1;_dy2++;}}
-  let q=sb.from('student_enrollments').select('roll_no,s_no,students(full_name,student_id)').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').order('roll_no')
+
+  // Build date list (no timezone issues)
+  const dates=[]
+  let[_y,_mo,_d]=fromDate.split('-').map(Number)
+  const[_ey,_em,_ed]=toDate.split('-').map(Number)
+  while(_y<_ey||(_y===_ey&&_mo<_em)||(_y===_ey&&_mo===_em&&_d<=_ed)){
+    dates.push(_y+'-'+String(_mo).padStart(2,'0')+'-'+String(_d).padStart(2,'0'))
+    _d++; const dim=new Date(_y,_mo,0).getDate()
+    if(_d>dim){_d=1;_mo++} if(_mo>12){_mo=1;_y++}
+  }
+
+  // Get enrollments (no join)
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').order('roll_no')
   if(secId)q=q.eq('section_id',secId)
-  const{data,error}=await q
-  if(error||!data?.length){toast('No students found for selected class/section','error');return}
+  const{data:enrs,error}=await q
+  if(error||!enrs?.length){toast('No students found','error');return}
+
+  // Get student names separately
+  const sids=enrs.map(e=>e.student_id).filter(Boolean)
+  const{data:stus}=await sb.from('students').select('student_id,full_name').in('student_id',sids)
+  const nameMap={}; (stus||[]).forEach(s=>{nameMap[s.student_id]=s.full_name})
+
+  // Build CSV
   const header=['roll_no','student_id','name',...dates]
-  const rows=data.map(e=>[e.roll_no||'',e.students?.student_id||'',e.students?.full_name||'',...dates.map(()=>'')])
-  const csv=[header.join(','),...rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','))].join('\n')
-  const cls=ALL_CLASSES.find(c=>c.class_id===classId)?.name||'class'
-  const a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(csv);a.download='attendance_'+cls+'_'+fromDate+'_to_'+toDate+'.csv';a.click()
-  toast('Downloaded — fill in P, A, L, or H in each date column','success')
+  const rows=enrs.map(e=>[e.roll_no||'',e.student_id||'',nameMap[e.student_id]||'',...dates.map(()=>'')])
+  const csv=[header.join(','),...rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(','))].join('\n')
+  const cls=ALL_CLASSES.find(cl=>cl.class_id===classId)?.name||'class'
+  const a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(csv);a.download='att_'+cls+'_'+fromDate+'_to_'+toDate+'.csv';a.click()
+  toast('Downloaded — fill P / A / L / H in the date columns','success')
 }
+
 function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3);const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};valid.push({student_id:sid,roll_no:parseInt(roll)||null,date,status})})});$('caPreview').innerHTML='<h3>Validation Preview</h3><div class="summary-bar" style="margin-top:0"><div><span class="sk">Records</span><span class="sv" style="color:var(--success)">'+valid.length+'</span></div><div><span class="sk">Errors</span><span class="sv" style="color:var(--danger)">'+errors.length+'</span></div></div>'+(errors.length?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Row</th><th>Issue</th></tr></thead><tbody>'+errors.map(e=>'<tr><td>'+e.row+'</td><td>'+esc(e.issue)+'</td></tr>').join('')+'</tbody></table></div>':'')+'<button class="btn btn-success" style="margin-top:14px" onclick="commitAttCsv()">Commit '+valid.length+' Records</button>';$('caPreview')._validRows=valid};reader.readAsText(file)}
 async function commitAttCsv(){
   const rows=$('caPreview')._validRows||[]
@@ -1552,8 +1572,15 @@ async function commitAttCsv(){
   const{error}=await sb.from('student_attendance').upsert(inserts,{onConflict:'enrollment_id,date'})
   if(error){toast('Failed: '+error.message,'error');return}
   toast(inserts.length+' records saved','success')
+  // Update date inputs to match actual saved dates so grid shows them
+  const savedDates=inserts.map(r=>r.date).sort()
+  if(savedDates.length){
+    const minD=savedDates[0], maxD=savedDates[savedDates.length-1]
+    if($('ca_from'))$('ca_from').value=minD
+    if($('ca_to'))$('ca_to').value=maxD
+    toast('Showing '+minD+' to '+maxD,'info')
+  }
   loadClassAttendance()
-
 }
 // ═══════════ TIMETABLE PAGE INIT ═══════════
 async function loadTimetable(){
