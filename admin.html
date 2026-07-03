@@ -1532,7 +1532,7 @@ async function downloadAttSample(){
   const nameMap={}; (stus||[]).forEach(s=>{nameMap[s.student_id]=s.full_name})
 
   // Build CSV
-  const header=['roll_no','student_id','name',...dates]
+  const header=['roll_no','student_id','name',...dates.map(d=>'d_'+d)]
   const rows=enrs.map(e=>[e.roll_no||'',e.student_id||'',nameMap[e.student_id]||'',...dates.map(()=>'')])
   const csv=[header.join(','),...rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(','))].join('\n')
   const cls=ALL_CLASSES.find(cl=>cl.class_id===classId)?.name||'class'
@@ -1540,7 +1540,13 @@ async function downloadAttSample(){
   toast('Downloaded — fill P / A / L / H in the date columns','success')
 }
 
-function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3);const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};valid.push({student_id:sid,roll_no:parseInt(roll)||null,date,status})})});$('caPreview').innerHTML='<h3>Validation Preview</h3><div class="summary-bar" style="margin-top:0"><div><span class="sk">Records</span><span class="sv" style="color:var(--success)">'+valid.length+'</span></div><div><span class="sk">Errors</span><span class="sv" style="color:var(--danger)">'+errors.length+'</span></div></div>'+(errors.length?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Row</th><th>Issue</th></tr></thead><tbody>'+errors.map(e=>'<tr><td>'+e.row+'</td><td>'+esc(e.issue)+'</td></tr>').join('')+'</tbody></table></div>':'')+'<button class="btn btn-success" style="margin-top:14px" onclick="commitAttCsv()">Commit '+valid.length+' Records</button>';$('caPreview')._validRows=valid};reader.readAsText(file)}
+function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3).map(h=>h.replace(/^d_/,'').trim());const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};// Normalise date: handle DD/MM/YYYY (Excel Indian locale) → YYYY-MM-DD
+let normDate=date
+const ddmm=date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+if(ddmm)normDate=ddmm[3]+'-'+ddmm[2].padStart(2,'0')+'-'+ddmm[1].padStart(2,'0')
+const dmdt=date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+if(!dmdt&&!ddmm){errors.push({row:i+2,issue:'Unrecognised date format: '+date});return}
+valid.push({student_id:sid,roll_no:parseInt(roll)||null,date:normDate,status})})});$('caPreview').innerHTML='<h3>Validation Preview</h3><div class="summary-bar" style="margin-top:0"><div><span class="sk">Records</span><span class="sv" style="color:var(--success)">'+valid.length+'</span></div><div><span class="sk">Errors</span><span class="sv" style="color:var(--danger)">'+errors.length+'</span></div></div>'+(errors.length?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Row</th><th>Issue</th></tr></thead><tbody>'+errors.map(e=>'<tr><td>'+e.row+'</td><td>'+esc(e.issue)+'</td></tr>').join('')+'</tbody></table></div>':'')+'<button class="btn btn-success" style="margin-top:14px" onclick="commitAttCsv()">Commit '+valid.length+' Records</button>';$('caPreview')._validRows=valid};reader.readAsText(file)}
 async function commitAttCsv(){
   const rows=$('caPreview')._validRows||[]
   if(!rows.length){toast('No valid records in preview','error');return}
@@ -1554,17 +1560,26 @@ async function commitAttCsv(){
   if(!enrolled?.length){toast('No enrolled students found','error');return}
   toast('Matched against '+enrolled.length+' enrolled students','info')
 
+  // Build lookup: student_id is unique so always safe
+  // roll_no can duplicate across sections, so prefix with section
   const enrollMap={}
   enrolled.forEach(e=>{
     if(e.student_id)enrollMap[String(e.student_id).trim()]=e.enrollment_id
-    if(e.roll_no!=null)enrollMap[String(e.roll_no)]=e.enrollment_id
+    // roll_no prefixed with section_id to avoid cross-section duplicates
+    if(e.roll_no!=null){
+      enrollMap['roll_'+String(e.roll_no)+'_'+String(e.section_id||'any')]=e.enrollment_id
+      // also plain roll as last resort (may collide if multi-section, but better than nothing)
+      if(!enrollMap['roll_'+String(e.roll_no)])enrollMap['roll_'+String(e.roll_no)]=e.enrollment_id
+    }
   })
 
   const inserts=[],unmatched=[]
   rows.forEach(r=>{
-    const eid=enrollMap[String(r.student_id||'').trim()]||enrollMap[String(r.roll_no||'')]
+    const sid=String(r.student_id||'').trim()
+    const roll=String(r.roll_no||'')
+    const eid=enrollMap[sid]||enrollMap['roll_'+roll+'_'+(secId||'any')]||enrollMap['roll_'+roll]
     if(eid)inserts.push({enrollment_id:eid,date:r.date,status:r.status,marked_by:null,submitted_at:new Date().toISOString()})
-    else unmatched.push('roll:'+r.roll_no)
+    else unmatched.push('roll:'+roll+'/id:'+sid)
   })
 
   if(unmatched.length)toast(unmatched.length+' rows unmatched (e.g. '+unmatched[0]+')','error')
