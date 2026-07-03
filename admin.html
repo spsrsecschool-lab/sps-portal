@@ -1580,8 +1580,17 @@ async function commitAttCsv(){
 
   toast(inserts.length+' records saved ✓','success')
   const savedDates=inserts.map(r=>r.date).sort()
-  if(savedDates.length){if($('ca_from'))$('ca_from').value=savedDates[0];if($('ca_to'))$('ca_to').value=savedDates[savedDates.length-1]}
-  setTimeout(()=>loadClassAttendance(),400)
+  // Preserve dropdown values before reload
+  const _cls=classId,_sec=secId
+  if(savedDates.length){
+    if($('ca_from'))$('ca_from').value=savedDates[0]
+    if($('ca_to'))$('ca_to').value=savedDates[savedDates.length-1]
+  }
+  setTimeout(()=>{
+    if($('ca_class')&&_cls)$('ca_class').value=_cls
+    if($('ca_section')&&_sec)$('ca_section').value=_sec
+    loadClassAttendance()
+  },400)
 }
 
 // ═══════════ TIMETABLE PAGE INIT ═══════════
