@@ -551,7 +551,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="fg"><label>Section</label><select id="ca_section"><option value="">Select class first</option></select></div>
           <div class="fg"><label>Date From</label><input type="date" id="ca_from"></div>
           <div class="fg"><label>Date To</label><input type="date" id="ca_to"></div>
-          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load</button>
+          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load</button><button class="btn btn-ghost" style="align-self:flex-end" onclick="debugAttendance()">🔍 Debug</button>
         </div>
       </div>
       <div id="caTable"></div>
@@ -1387,23 +1387,93 @@ async function removeHoliday(id){await sb.from('holidays').delete().eq('holiday_
 
 // ═══════════ CLASS ATTENDANCE ═══════════
 async function caLoadSections(){const cid=$('ca_class')?.value,sel=$('ca_section');sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')}
+async function debugAttendance(){
+  const classId=$('ca_class')?.value,secId=$('ca_section')?.value
+  const fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
+
+  // Check session
+  toast('SESS: '+(SESS?.session_id||'NULL — no active session!'),'info')
+
+  // Check enrollments
+  if(SESS&&classId){
+    let eq=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active')
+    if(secId)eq=eq.eq('section_id',secId)
+    const{data:e,error:ee}=await eq
+    toast('Enrollments found: '+(e?.length||0)+(ee?' ERR:'+ee.message:''),'info')
+    if(e?.length){
+      // Check attendance
+      const eids=e.map(x=>x.enrollment_id)
+      const{data:a,error:ae}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',fromDate||'2026-01-01').lte('date',toDate||'2026-12-31')
+      toast('Attendance records: '+(a?.length||0)+(ae?' ERR:'+ae.message:''), a?.length?'success':'error')
+    }
+  } else {
+    toast('Select class and ensure session is active','error')
+  }
+
+  // Check total attendance in DB
+  const{data:total}=await sb.from('student_attendance').select('date,status').limit(5)
+  toast('Total att sample: '+JSON.stringify(total?.slice(0,2)),'info')
+}
+
 async function loadClassAttendance(){
-  const classId=$('ca_class')?.value,secId=$('ca_section')?.value,fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
+  const classId=$('ca_class')?.value,secId=$('ca_section')?.value
+  const fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
   if(!classId||!fromDate||!toDate){toast('Select class and date range','error');return}
   if(fromDate>toDate){toast('From date must be before To date','error');return}
   const el=$('caTable');ldg(el)
-  let q=sb.from('student_attendance').select('date,status,student_enrollments!inner(roll_no,class_id,section_id,session_id,students(full_name,student_id),class_sections(name))').eq('student_enrollments.session_id',SESS?.session_id||'').eq('student_enrollments.class_id',classId).gte('date',fromDate).lte('date',toDate)
-  if(secId)q=q.eq('student_enrollments.section_id',secId)
-  const{data,error}=await q
-  if(error){emp(el,'Error: '+error.message);return}
-  const dates=[];let[_dy,_dm,_dd]=fromDate.split('-').map(Number);const[_ey,_em,_ed]=toDate.split('-').map(Number);while(_dy<_ey||(_dy===_ey&&_dm<_em)||(_dy===_ey&&_dm===_em&&_dd<=_ed)){dates.push(_dy+'-'+String(_dm).padStart(2,'0')+'-'+String(_dd).padStart(2,'0'));_dd++;const dim=new Date(_dy,_dm,0).getDate();if(_dd>dim){_dd=1;_dm++;}if(_dm>12){_dm=1;_dy++;}}
-  const students={},statusMap={}
-  ;(data||[]).forEach(r=>{const sid=r.student_enrollments?.students?.student_id||r.student_enrollments?.roll_no;if(!students[sid])students[sid]={roll:r.student_enrollments?.roll_no,name:r.student_enrollments?.students?.full_name||'—',section:r.student_enrollments?.class_sections?.name||'—'};statusMap[sid+'_'+r.date]=r.status})
+
+  // Step 1: Get enrollments for this class
+  let eq=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id,section_id,class_sections(name)').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active')
+  if(secId) eq=eq.eq('section_id',secId)
+  const{data:enrollments,error:ee}=await eq
+  if(ee){emp(el,'Error loading students: '+ee.message);return}
+  if(!enrollments?.length){emp(el,'No enrolled students found for this class/section.');return}
+
+  // Build enrollment lookup
+  const enrollMap={}  // enrollment_id -> {roll, section}
+  const studentIds=[]
+  enrollments.forEach(e=>{enrollMap[e.enrollment_id]={roll:e.roll_no,section:e.class_sections?.name||'—',student_id:e.student_id};studentIds.push(e.student_id)})
+
+  // Step 2: Get student names
+  const{data:studentRows}=await sb.from('students').select('student_id,full_name').in('student_id',studentIds)
+  const nameMap={}; (studentRows||[]).forEach(s=>{nameMap[s.student_id]=s.full_name})
+
+  // Step 3: Get attendance records
+  const enrollIds=enrollments.map(e=>e.enrollment_id)
+  const{data:attRows,error:ae}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',enrollIds).gte('date',fromDate).lte('date',toDate)
+  if(ae){emp(el,'Error loading attendance: '+ae.message);return}
+
+  // Build date columns (no timezone issues)
+  const dates=[]
+  let[_dy,_dm,_dd]=fromDate.split('-').map(Number)
+  const[_ey,_em,_ed]=toDate.split('-').map(Number)
+  while(_dy<_ey||(_dy===_ey&&_dm<_em)||(_dy===_ey&&_dm===_em&&_dd<=_ed)){
+    dates.push(_dy+'-'+String(_dm).padStart(2,'0')+'-'+String(_dd).padStart(2,'0'))
+    _dd++; const dim=new Date(_dy,_dm,0).getDate()
+    if(_dd>dim){_dd=1;_dm++;} if(_dm>12){_dm=1;_dy++;}
+  }
+
+  // Build status map
+  const statusMap={}
+  ;(attRows||[]).forEach(r=>{statusMap[r.enrollment_id+'_'+r.date]=r.status})
+
   const sClr={'P':'success','A':'danger','L':'warn','H':'neutral'}
-  if(!Object.keys(students).length){emp(el,'No attendance found for this range.');$('caUpload').style.display='block';return}
-  el.innerHTML='<div class="card"><div class="table-wrap" style="max-height:500px;overflow:auto"><table><thead><tr><th>Roll</th><th>Name</th><th>Sec</th>'+dates.map(d=>'<th style="font-size:10px;writing-mode:vertical-rl;padding:8px 6px">'+d.slice(5)+'</th>').join('')+'<th>P</th><th>A</th></tr></thead><tbody>'+Object.entries(students).map(([sid,s])=>{const statuses=dates.map(d=>statusMap[sid+'_'+d]||'—');const p=statuses.filter(x=>x==='P').length,a=statuses.filter(x=>x==='A').length;return'<tr><td class="mono">'+(s.roll||'—')+'</td><td>'+esc(s.name)+'</td><td>'+esc(s.section)+'</td>'+statuses.map(st=>'<td style="text-align:center"><span class="pill pill-'+(sClr[st]||'neutral')+'" style="padding:2px 5px;font-size:9px">'+st+'</span></td>').join('')+'<td class="mono" style="color:var(--success);font-weight:700">'+p+'</td><td class="mono" style="color:var(--danger);font-weight:700">'+a+'</td></tr>'}).join('')+'</tbody></table></div></div>'
-  $('caUpload').style.display='block';$('caUploadTitle').textContent='Upload Attendance — '+fmtD(fromDate)+' to '+fmtD(toDate)
+  el.innerHTML='<div class="card"><div class="table-wrap" style="max-height:520px;overflow:auto"><table>'+
+    '<thead><tr><th>Roll</th><th>Name</th><th>Sec</th>'+dates.map(d=>'<th style="font-size:10px;writing-mode:vertical-rl;padding:8px 6px;min-width:28px">'+d.slice(5)+'</th>').join('')+'<th>P</th><th>A</th></tr></thead>'+
+    '<tbody>'+enrollments.sort((a,b)=>(a.roll_no||0)-(b.roll_no||0)).map(e=>{
+      const name=nameMap[e.student_id]||'—'
+      const statuses=dates.map(d=>statusMap[e.enrollment_id+'_'+d]||'—')
+      const p=statuses.filter(x=>x==='P').length, a=statuses.filter(x=>x==='A').length
+      return '<tr><td class="mono">'+(e.roll_no||'—')+'</td><td>'+esc(name)+'</td><td>'+esc(e.class_sections?.name||'—')+'</td>'+
+        statuses.map(st=>'<td style="text-align:center"><span class="pill pill-'+(sClr[st]||'neutral')+'" style="padding:2px 5px;font-size:9px">'+st+'</span></td>').join('')+
+        '<td class="mono" style="color:var(--success);font-weight:700">'+p+'</td>'+
+        '<td class="mono" style="color:var(--danger);font-weight:700">'+a+'</td></tr>'
+    }).join('')+'</tbody></table></div></div>'
+  $('caUpload').style.display='block'
+  $('caUploadTitle').textContent='Upload Attendance — '+fmtD(fromDate)+' to '+fmtD(toDate)
+
 }
+
 async function downloadAttSample(){
   const classId=$('ca_class')?.value,secId=$('ca_section')?.value,fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
   if(!classId||!fromDate||!toDate){toast('Select class and date range first','error');return}
@@ -1420,134 +1490,37 @@ async function downloadAttSample(){
   toast('Downloaded — fill in P, A, L, or H in each date column','success')
 }
 function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3);const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};valid.push({student_id:sid,roll_no:parseInt(roll)||null,date,status})})});$('caPreview').innerHTML='<h3>Validation Preview</h3><div class="summary-bar" style="margin-top:0"><div><span class="sk">Records</span><span class="sv" style="color:var(--success)">'+valid.length+'</span></div><div><span class="sk">Errors</span><span class="sv" style="color:var(--danger)">'+errors.length+'</span></div></div>'+(errors.length?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Row</th><th>Issue</th></tr></thead><tbody>'+errors.map(e=>'<tr><td>'+e.row+'</td><td>'+esc(e.issue)+'</td></tr>').join('')+'</tbody></table></div>':'')+'<button class="btn btn-success" style="margin-top:14px" onclick="commitAttCsv()">Commit '+valid.length+' Records</button>';$('caPreview')._validRows=valid};reader.readAsText(file)}
-async function commitAttCsv(){const rows=$('caPreview')._validRows||[];if(!rows.length){toast('No valid records','error');return};const classId=$('ca_class')?.value,secId=$('ca_section')?.value;let q=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active');if(secId)q=q.eq('section_id',secId);const{data:enrolled}=await q;const enrollMap={};enrolled?.forEach(e=>{if(e.student_id)enrollMap[String(e.student_id).trim()]=e.enrollment_id;if(e.roll_no!=null)enrollMap[String(e.roll_no)]=e.enrollment_id});const inserts=rows.map(r=>({enrollment_id:enrollMap[String(r.student_id||'').trim()]||enrollMap[String(r.roll_no||'')],date:r.date,status:r.status,marked_by:null,submitted_at:new Date().toISOString()})).filter(r=>r.enrollment_id);if(!inserts.length){toast('Could not match any students to enrollment records','error');return};const{error}=await sb.from('student_attendance').upsert(inserts,{onConflict:'enrollment_id,date'});if(error){toast('Failed: '+error.message,'error');return};toast(inserts.length+' attendance records saved','success');loadClassAttendance()}
+async function commitAttCsv(){
+  const rows=$('caPreview')._validRows||[]
+  if(!rows.length){toast('No valid records','error');return}
+  const classId=$('ca_class')?.value,secId=$('ca_section')?.value
+  if(!classId){toast('Select a class first','error');return}
 
-// ═══════════ SETTINGS ═══════════
-function loadSettings(){loadSessionList();loadClassesList();loadSubjectsList();loadStreamsList();loadResetList()}
-async function loadSessionList(){const el=$('sessionList');ldg(el);const{data}=await sb.from('sessions').select('*').order('session_id',{ascending:false});if(!data?.length){emp(el,'No sessions yet');return};el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead><tbody>'+data.map(s=>'<tr><td class="mono">'+esc(s.session_id)+'</td><td>'+fmtD(s.start_date)+'</td><td>'+fmtD(s.end_date)+'</td><td>'+(s.is_current?'<span class="pill pill-success">Current</span>':'<span class="pill pill-neutral">Past</span>')+'</td><td>'+(!s.is_current?'<button class="btn btn-dark btn-xs" onclick="setCurrentSession(\''+s.session_id+'\')">Set Current</button>':'')+'</td></tr>').join('')+'</tbody></table></div>'}
-async function createSession(){const id=$('newSessId')?.value?.trim();if(!id){toast('Enter session ID','error');return};const{error}=await sb.from('sessions').insert({session_id:id,start_date:$('newSessStart')?.value||null,end_date:$('newSessEnd')?.value||null,is_current:false});if(error){toast('Failed: '+error.message,'error');return};toast('Session created','success');$('newSessId').value='';loadSessionList()}
-async function setCurrentSession(id){
-  confirmAct('Set '+id+' as current session?','All new data will be tied to this session.',async()=>{
-    const{error:e1}=await sb.from('sessions').update({is_current:false}).neq('session_id','__none__')
-    if(e1){toast('Failed to clear sessions: '+e1.message,'error');return}
-    const{error:e2}=await sb.from('sessions').update({is_current:true}).eq('session_id',id)
-    if(e2){toast('Failed to set session: '+e2.message,'error');return}
-    const{data:check}=await sb.from('sessions').select('session_id,is_current').eq('session_id',id).maybeSingle()
-    if(!check?.is_current){toast('Update did not save — check RLS or try from SQL Editor','error');return}
-    toast('Session set to '+id+' — reloading…','success');setTimeout(()=>location.reload(),1500)
-  })
-}
-async function loadClassesList(){
-  const el=$('classList');ldg(el)
-  const{data}=await sb.from('classes').select('*').order('sort_order')
-  ALL_CLASSES=data||[]
-  ;['adm_class','mo_class','pr_class','ca_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')})
-  if(!data?.length){emp(el,'No classes yet');return}
-  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>'+data.map(c=>'<tr style="cursor:pointer" onclick="selectClass(\''+c.class_id+'\',\''+esc(c.name)+'\')"><td id="clsname_'+c.class_id+'">'+esc(c.name)+'</td><td class="mono">'+c.sort_order+'</td><td><span class="pill '+(c.is_active?'pill-success':'pill-neutral')+'">'+(c.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();startRenameClass(\''+c.class_id+'\',\''+esc(c.name)+'\')">Rename</button><button class="btn btn-danger btn-xs" onclick="event.stopPropagation();toggleClass(\''+c.class_id+'\','+c.is_active+')">'+(c.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')+'</tbody></table></div>'
-}
-async function createClass(){const name=$('newClassName')?.value?.trim(),order=parseInt($('newClassOrder')?.value)||99;if(!name){toast('Enter class name','error');return};const{error}=await sb.from('classes').insert({name,sort_order:order,is_active:true,created_by:SPS.admin?.admin_id});if(error){toast('Failed: '+error.message,'error');return};toast('Class added','success');$('newClassName').value='';$('newClassOrder').value='';await loadGlobals();loadClassesList()}
-async function toggleClass(id,active){await sb.from('classes').update({is_active:!active}).eq('class_id',id);toast(active?'Class deactivated':'Class activated','success');await loadGlobals();loadClassesList()}
-function startRenameClass(id,currentName){const cell=document.getElementById('clsname_'+id);if(!cell)return;cell.innerHTML='<input type="text" value="'+esc(currentName)+'" id="rename_'+id+'" style="font-family:var(--font);font-size:12.5px;padding:4px 8px;border:1.5px solid var(--indigo);border-radius:6px;width:110px" onclick="event.stopPropagation()"> <button class="btn btn-dark btn-xs" style="margin-left:5px" onclick="event.stopPropagation();commitRenameClass(\''+id+'\')">Save</button> <button class="btn btn-ghost btn-xs" style="margin-left:3px" onclick="event.stopPropagation();loadClassesList()">×</button>';const inp=document.getElementById('rename_'+id);if(inp){inp.focus();inp.select()}}
-async function commitRenameClass(id){const newName=document.getElementById('rename_'+id)?.value?.trim();if(!newName){toast('Enter a class name','error');return};const{error}=await sb.from('classes').update({name:newName}).eq('class_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Class renamed to '+newName,'success');await loadGlobals();loadClassesList()}
-async function selectClass(classId,className){
-  _selectedClassId=classId;$('secLabel').textContent='for '+className
-  const el=$('sectionList');ldg(el)
-  if(!SESS){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">No active session.</p>';return}
-  const{data}=await sb.from('class_sections').select('*').eq('class_id',classId).eq('session_id',SESS.session_id).order('name')
-  el.innerHTML=((data||[]).length?'<div class="table-wrap"><table><thead><tr><th>Section</th><th>Status</th><th></th></tr></thead><tbody>'+data.map(s=>'<tr><td>'+esc(s.name)+'</td><td><span class="pill '+(s.is_active?'pill-success':'pill-neutral')+'">'+(s.is_active?'Active':'Inactive')+'</span></td><td><button class="btn btn-danger btn-xs" onclick="toggleSection(\''+s.section_id+'\','+s.is_active+',\''+classId+'\',\''+esc(className)+'\')">'+(s.is_active?'Deactivate':'Restore')+'</button></td></tr>').join('')+'</tbody></table></div>':'<p style="font-size:12.5px;color:var(--ink-faint);margin-bottom:12px">No sections for this session.</p>')+'<div style="display:flex;gap:8px;margin-top:12px;align-items:flex-end"><div class="fg" style="max-width:130px"><label>Name</label><input id="newSecName" placeholder="e.g. A, B"></div><button class="btn btn-dark btn-sm" onclick="createSection(\''+classId+'\',\''+esc(className)+'\')">Add Section</button></div>'
-}
-async function createSection(classId,className){const name=$('newSecName')?.value?.trim();if(!name||!SESS){toast('Enter section name','error');return};const{error}=await sb.from('class_sections').insert({name,class_id:classId,session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id});if(error){toast('Failed: '+error.message,'error');return};toast('Section added','success');selectClass(classId,className)}
-async function toggleSection(id,active,cid,cname){await sb.from('class_sections').update({is_active:!active}).eq('section_id',id);toast('Section updated','success');selectClass(cid,cname)}
-async function loadSubjectsList(){const el=$('subjectList');ldg(el);const{data}=await sb.from('subjects').select('*').order('name');ALL_SUBJECTS=data||[];if(!data?.length){emp(el,'No subjects yet');return};el.innerHTML='<div class="map-tags">'+data.map(s=>'<span class="map-tag" style="background:'+(s.is_active?'var(--indigo-100)':'var(--lav-100)')+';color:'+(s.is_active?'var(--indigo-dark)':'var(--ink-faint)')+'">'+esc(s.name)+(s.short_code?' ('+esc(s.short_code)+')':'')+' <button onclick="toggleSubject(\''+s.subject_id+'\','+s.is_active+')" style="background:none;border:none;cursor:pointer;color:inherit;font-size:14px;margin-left:2px">'+(s.is_active?'×':'↩')+'</button></span>').join('')+'</div>'}
-async function createSubject(){const name=$('newSubjName')?.value?.trim(),code=$('newSubjCode')?.value?.trim()||null;if(!name){toast('Enter subject name','error');return};const{error}=await sb.from('subjects').insert({name,short_code:code,is_active:true,created_by:SPS.admin?.admin_id});if(error){toast('Failed: '+error.message,'error');return};toast('Subject added','success');$('newSubjName').value='';$('newSubjCode').value='';await loadGlobals();loadSubjectsList()}
-async function toggleSubject(id,active){if(active){const{count}=await sb.from('marks').select('*',{count:'exact',head:true}).eq('subject_id',id);if(count>0){toast('Cannot deactivate — '+count+' marks exist.','error');return}};await sb.from('subjects').update({is_active:!active}).eq('subject_id',id);toast('Subject updated','success');loadSubjectsList()}
-async function loadStreamsList(){const el=$('streamList');ldg(el);if(!SESS){emp(el,'No active session');return};const{data}=await sb.from('streams').select('*,classes(name)').eq('session_id',SESS.session_id).order('name');if(!data?.length){emp(el,'No streams yet');return};el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Stream</th><th>Class</th><th>Status</th><th></th></tr></thead><tbody>'+data.map(s=>'<tr><td>'+esc(s.name)+'</td><td>'+esc(s.classes?.name||'—')+'</td><td><span class="pill '+(s.is_active?'pill-success':'pill-neutral')+'">'+(s.is_active?'Active':'Inactive')+'</span></td><td><button class="btn btn-danger btn-xs" onclick="toggleStream(\''+s.stream_id+'\','+s.is_active+')">'+(s.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')+'</tbody></table></div>'}
-async function createStream(){const name=$('newStreamName')?.value?.trim(),classId=$('newStreamClass')?.value;if(!name||!classId||!SESS){toast('Name and class required','error');return};const{error}=await sb.from('streams').insert({name,class_id:classId,session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id});if(error){toast('Failed: '+error.message,'error');return};toast('Stream added','success');$('newStreamName').value='';loadStreamsList()}
-async function toggleStream(id,active){await sb.from('streams').update({is_active:!active}).eq('stream_id',id);toast('Stream updated','success');loadStreamsList()}
-function loadResetList(){$('resetTeacherSel').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+esc(t.username)+'">'+esc(t.full_name)+'</option>').join('')}
-async function resetTeacherPassword(){const uname=$('resetTeacherSel')?.value;if(!uname){toast('Select a teacher','error');return};const{error}=await sb.auth.resetPasswordForEmail(uname+'@'+AUTH_EMAIL_DOMAIN);if(error){toast('Failed: '+error.message,'error');return};toast('Reset email sent','success')}
-async function saveThresholds(){const{error}=await sb.from('attendance_thresholds').upsert({shift_start_time:$('threshShift')?.value||'09:00',yellow_zone_lates:parseInt($('threshYellow')?.value||3),red_zone_lates:parseInt($('threshRed')?.value||5),updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()});if(error){toast('Failed: '+error.message,'error');return};toast('Thresholds saved','success')}
-function switchSettingsTab(key,btn){document.querySelectorAll('[id^="settingsTab-"]').forEach(t=>t.style.display='none');$('settingsTab-'+key).style.display='block';btn.closest('.tab-row').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}
-async function purgeAttendance(){toast('Purge attendance — implement specific date range delete before enabling.','info')}
+  // Get enrollments
+  let eq=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active')
+  if(secId)eq=eq.eq('section_id',secId)
+  const{data:enrolled}=await eq
 
-// ═══════════ TIMETABLE ═══════════
-async function getActiveRoster(){if(!SESS)return null;const{data}=await sb.from('rosters').select('*').eq('session_id',SESS.session_id).eq('is_active',true).maybeSingle();return data}
-async function loadTimetable(){
-  loadRosters()
-  $('tt_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
-  $('sub_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
-  $('tt_cls').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
-  $('sub_date').value=today()
-}
-async function loadRosters(){
-  const el=$('rosterList');ldg(el)
-  if(!SESS){emp(el,'No active session');return}
-  const{data,error}=await sb.from('rosters').select('*').eq('session_id',SESS.session_id).order('created_at')
-  if(error){emp(el,'Error: '+error.message);return}
-  if(!data?.length){emp(el,'No rosters yet.');return}
-  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Roster Name</th><th>Status</th><th></th></tr></thead><tbody>'+data.map(r=>'<tr style="cursor:pointer" onclick="selectRoster(\''+r.roster_id+'\',\''+esc(r.name)+'\')">'+'<td style="font-weight:600">'+esc(r.name)+'</td><td>'+(r.is_active?'<span class="pill pill-success">Active</span>':'<span class="pill pill-neutral">Inactive</span>')+'</td><td style="display:flex;gap:5px">'+(!r.is_active?'<button class="btn btn-dark btn-xs" onclick="event.stopPropagation();activateRoster(\''+r.roster_id+'\',\''+esc(r.name)+'\')">Set Active</button>':'')+'<button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteRoster(\''+r.roster_id+'\',\''+esc(r.name)+'\')">Delete</button></td></tr>').join('')+'</tbody></table></div>'
-}
-async function createRoster(){const name=$('newRosterName')?.value?.trim();if(!name||!SESS){toast('Enter roster name','error');return};const{error}=await sb.from('rosters').insert({name,session_id:SESS.session_id,is_active:false,created_by:SPS.admin?.admin_id});if(error){toast('Failed: '+error.message,'error');return};toast('Roster created','success');$('newRosterName').value='';loadRosters()}
-async function activateRoster(id,name){confirmAct('Switch to roster "'+name+'"?','Current entries are preserved and restored when you switch back.',async()=>{await sb.from('rosters').update({is_active:false}).eq('session_id',SESS.session_id);const{error}=await sb.from('rosters').update({is_active:true}).eq('roster_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('"'+name+'" is now active','success');loadRosters()})}
-async function deleteRoster(id,name){const{count:ec}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('roster_id',id);if(ec>0){toast('Cannot delete — '+ec+' timetable entries exist.','error');return};confirmAct('Delete roster "'+name+'"?','All time slots will also be deleted.',async()=>{await sb.from('time_slots').delete().eq('roster_id',id);const{error}=await sb.from('rosters').delete().eq('roster_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Roster deleted','success');loadRosters();$('slotList').innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Select a roster.</p>';_selectedRosterId=null})}
-async function selectRoster(id,name){
-  _selectedRosterId=id;_selectedRosterName=name;$('slotRosterLabel').textContent='for '+name
-  const el=$('slotList');ldg(el)
-  const{data}=await sb.from('time_slots').select('*').eq('roster_id',id).order('sort_order')
-  el.innerHTML=((data||[]).length?'<div class="table-wrap"><table><thead><tr><th>Name</th><th>Start</th><th>End</th><th>Order</th><th></th></tr></thead><tbody>'+data.map(s=>'<tr><td style="font-weight:600">'+esc(s.name)+'</td><td class="mono">'+(s.start_time?.slice(0,5)||'—')+'</td><td class="mono">'+(s.end_time?.slice(0,5)||'—')+'</td><td class="mono">'+s.sort_order+'</td><td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="editSlot(\''+s.slot_id+'\',\''+esc(s.name)+'\',\''+(s.start_time?.slice(0,5)||'')+'\',\''+(s.end_time?.slice(0,5)||'')+'\','+s.sort_order+')">Edit</button><button class="btn btn-danger btn-xs" onclick="deleteSlot(\''+s.slot_id+'\',\''+esc(s.name)+'\')">Delete</button></td></tr>').join('')+'</tbody></table></div>':'<p style="font-size:12.5px;color:var(--ink-faint);margin-bottom:12px">No time slots yet.</p>')+
-  '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><div class="form-row" style="margin-bottom:8px"><div class="fg" style="max-width:130px"><label>Slot Name</label><input id="newSlotName" placeholder="e.g. Period 1"></div><div class="fg" style="max-width:110px"><label>Start</label><input type="time" id="newSlotStart"></div><div class="fg" style="max-width:110px"><label>End</label><input type="time" id="newSlotEnd"></div><div class="fg" style="max-width:90px"><label>Order</label><input type="number" id="newSlotOrder" value="'+(( data?.length||0)+1)+'" min="1"></div></div><button class="btn btn-dark btn-sm" onclick="createSlot()">Add Time Slot</button></div>'
-}
-async function createSlot(){const name=$('newSlotName')?.value?.trim(),start=$('newSlotStart')?.value,end=$('newSlotEnd')?.value,order=parseInt($('newSlotOrder')?.value||99);if(!name||!start||!end||!_selectedRosterId){toast('Fill in all slot fields','error');return};const{error}=await sb.from('time_slots').insert({name,start_time:start,end_time:end,sort_order:order,roster_id:_selectedRosterId});if(error){toast('Failed: '+error.message,'error');return};toast('Slot added','success');selectRoster(_selectedRosterId,_selectedRosterName)}
-function editSlot(id,name,start,end,order){openModal('Edit Slot — '+name,'<div class="form-row"><div class="fg"><label>Name</label><input id="es_name" value="'+esc(name)+'"></div><div class="fg"><label>Start</label><input type="time" id="es_start" value="'+start+'"></div><div class="fg"><label>End</label><input type="time" id="es_end" value="'+end+'"></div><div class="fg"><label>Order</label><input type="number" id="es_order" value="'+order+'" min="1"></div></div>','<button class="btn btn-dark" onclick="saveSlot(\''+id+'\')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')}
-async function saveSlot(id){const{error}=await sb.from('time_slots').update({name:$('es_name')?.value?.trim(),start_time:$('es_start')?.value,end_time:$('es_end')?.value,sort_order:parseInt($('es_order')?.value||99)}).eq('slot_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Slot updated','success');closeModal();selectRoster(_selectedRosterId,_selectedRosterName)}
-async function deleteSlot(id,name){const{count}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('slot_id',id);if(count>0){toast('Cannot delete "'+name+'" — '+count+' entries use this slot.','error');return};confirmAct('Delete slot "'+name+'"?','',async()=>{await sb.from('time_slots').delete().eq('slot_id',id);toast('Slot deleted','success');selectRoster(_selectedRosterId,_selectedRosterName)})}
-async function ttLoadSections(){const cid=$('tt_cls')?.value,sel=$('tt_sec');sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')}
-async function loadStudentTimetable(){const classId=$('tt_cls')?.value,secId=$('tt_sec')?.value,el=$('studentTTGrid');ldg(el);if(!classId){emp(el,'Select a class');return};const roster=await getActiveRoster();if(!roster){emp(el,'No active roster. Create and activate one in Roster Settings.');return};const{data}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),subjects(name),teachers(full_name),class_sections(name)').eq('roster_id',roster.roster_id).eq('class_id',classId);renderTTGrid(el,secId?(data||[]).filter(e=>e.section_id===secId):(data||[]),'student')}
-async function loadTeacherTimetable(){const teacherId=$('tt_teacher')?.value,el=$('teacherTTGrid');ldg(el);if(!teacherId){emp(el,'Select a teacher');return};const roster=await getActiveRoster();if(!roster){emp(el,'No active roster.');return};const{data}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),subjects(name),classes(name),class_sections(name)').eq('roster_id',roster.roster_id).eq('teacher_id',teacherId);renderTTGrid(el,data||[],'teacher')}
-function renderTTGrid(el,entries,mode){
-  const days=['Mon','Tue','Wed','Thu','Fri','Sat']
-  const slotMap=new Map();entries.forEach(e=>{if(e.time_slots&&!slotMap.has(e.slot_id))slotMap.set(e.slot_id,e.time_slots)})
-  const slots=[...slotMap.entries()].map(([id,s])=>({slot_id:id,...s})).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
-  if(!slots.length){emp(el,'No timetable entries found for the active roster.');return}
-  const lookup={};entries.forEach(e=>{(e.days||[]).forEach(day=>{lookup[e.slot_id+'_'+day]=e})})
-  let html='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>'
-  slots.forEach(slot=>{
-    html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name||'')+'</td><td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
-    days.forEach(day=>{const e=lookup[slot.slot_id+'_'+day];if(!e){html+='<td style="background:var(--lav-50)"></td>';return};const cell=mode==='student'?'<b>'+esc(e.subjects?.name||'—')+'</b><br><span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.teachers?.full_name||'—')+'</span>':'<b>'+esc(e.classes?.name||'—')+'-'+esc(e.class_sections?.name||'')+'</b><br><span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.subjects?.name||'—')+'</span>';html+='<td style="text-align:center;padding:8px">'+cell+'</td>'})
-    html+='</tr>'
+  const enrollMap={}
+  ;(enrolled||[]).forEach(e=>{
+    if(e.student_id) enrollMap[String(e.student_id).trim()]=e.enrollment_id
+    if(e.roll_no!=null) enrollMap[String(e.roll_no)]=e.enrollment_id
   })
-  el.innerHTML=html+'</tbody></table></div></div>'
+
+  const inserts=rows.map(r=>({
+    enrollment_id:enrollMap[String(r.student_id||'').trim()]||enrollMap[String(r.roll_no||'')],
+    date:r.date, status:r.status,
+    marked_by:null,
+    submitted_at:new Date().toISOString()
+  })).filter(r=>r.enrollment_id)
+
+  if(!inserts.length){
+    toast('Could not match any students. Check that roll numbers or student IDs match enrolled students.','error')
+    return
+  }
+  const{error}=await sb.from('student_attendance').upsert(inserts,{onConflict:'enrollment_id,date'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(inserts.length+' records saved','success')
+  loadClassAttendance()
+
 }
-async function loadSubstitutionSheet(){
-  const teacherId=$('sub_teacher')?.value,date=$('sub_date')?.value,el=$('subSheet');ldg(el);$('subSaveRow').style.display='none'
-  if(!teacherId||!date){emp(el,'Select a teacher and date');return}
-  const roster=await getActiveRoster();if(!roster){emp(el,'No active roster.');return}
-  _subRoster=roster
-  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(date+'T00:00:00').getDay()]
-  if(dow==='Sun'){emp(el,'Selected date is a Sunday — no schedule.');return}
-  const{data:entries}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),subjects(name),classes(name),class_sections(name)').eq('roster_id',roster.roster_id).eq('teacher_id',teacherId).contains('days',[dow])
-  if(!entries?.length){emp(el,'No schedule found for this teacher on '+dow+'.');return}
-  _subData=entries.sort((a,b)=>(a.time_slots?.sort_order||0)-(b.time_slots?.sort_order||0))
-  const slotIds=_subData.map(e=>e.slot_id)
-  const{data:busyEntries}=await sb.from('timetable_entries').select('slot_id,teacher_id').eq('roster_id',roster.roster_id).in('slot_id',slotIds).contains('days',[dow])
-  const busyBySlot={};(busyEntries||[]).forEach(b=>{if(!busyBySlot[b.slot_id])busyBySlot[b.slot_id]=[];busyBySlot[b.slot_id].push(b.teacher_id)})
-  let html='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute Teacher</th></tr></thead><tbody>'
-  _subData.forEach(e=>{const busy=new Set(busyBySlot[e.slot_id]||[]);const free=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!busy.has(t.teacher_id));html+='<tr><td style="font-weight:700">'+esc(e.time_slots?.name||'—')+'</td><td class="mono" style="font-size:11px">'+(e.time_slots?.start_time||'').slice(0,5)+'–'+(e.time_slots?.end_time||'').slice(0,5)+'</td><td>'+esc(e.classes?.name||'—')+'-'+esc(e.class_sections?.name||'—')+'</td><td>'+esc(e.subjects?.name||'—')+'</td><td><select class="sub_sel" data-entry-id="'+e.entry_id+'" style="font-family:var(--font);font-size:12px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);width:100%"><option value="">— Leave unassigned —</option>'+free.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')+'</select></td></tr>'})
-  el.innerHTML=html+'</tbody></table></div><p style="font-size:11.5px;color:var(--ink-soft);margin-top:10px">Only teachers free in each slot are shown.</p></div>'
-  $('subSaveRow').style.display='block'
-}
-async function saveSubstitutions(){
-  const teacherId=$('sub_teacher')?.value,date=$('sub_date')?.value
-  if(!teacherId||!date||!_subRoster){toast('Missing data','error');return}
-  const rows=[],notify=[]
-  document.querySelectorAll('.sub_sel').forEach(sel=>{const entryId=sel.dataset.entryId,subTeacherId=sel.value||null,entry=_subData.find(e=>e.entry_id===entryId);if(!entry)return;rows.push({date,absent_teacher_id:teacherId,roster_id:_subRoster.roster_id,slot_id:entry.slot_id,entry_id:entryId,substitute_teacher_id:subTeacherId,notification_sent:false,created_by:SPS.admin?.admin_id});if(subTeacherId)notify.push({teacherId:subTeacherId,slot:entry.time_slots?.name,cls:(entry.classes?.name||'—')+'-'+(entry.class_sections?.name||'—'),subj:entry.subjects?.name})})
-  if(!rows.length){toast('No substitutions to save','error');return}
-  const{error}=await sb.from('substitutions').upsert(rows,{onConflict:'date,entry_id'})
-  if(error){toast('Failed to save: '+error.message,'error');return}
-  const absentTeacher=ALL_TEACHERS.find(t=>t.teacher_id===teacherId)
-  if(notify.length){const msgRows=notify.map(n=>({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:n.teacherId,subject:'Substitution Duty — '+date,body:'You are assigned as substitute on '+date+'. Slot: '+n.slot+' | Class: '+n.cls+' | Subject: '+n.subj+' | Covering for: '+(absentTeacher?.full_name||'—'),message_type:'substitution_notice',sent_at:new Date().toISOString()}));await sb.from('messages').insert(msgRows);await sb.from('substitutions').update({notification_sent:true,notification_sent_at:new Date().toISOString()}).eq('date',date).eq('absent_teacher_id',teacherId)}
-  toast('Substitutions saved & '+notify.length+' notification(s) sent','success')
-}
-</script>
-</body>
-</html>
