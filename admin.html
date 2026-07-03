@@ -1422,53 +1422,84 @@ async function loadClassAttendance(){
   if(fromDate>toDate){toast('From date must be before To date','error');return}
   const el=$('caTable');ldg(el)
 
-  // Step 1: Get enrollments for this class
-  let eq=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id,section_id,class_sections(name)').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active')
+  // STEP 1 — Get enrollment IDs for this class (simple query, no joins)
+  let eq=sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,student_id,section_id')
+    .eq('session_id',SESS?.session_id||'')
+    .eq('class_id',classId)
+    .eq('status','active')
   if(secId) eq=eq.eq('section_id',secId)
   const{data:enrollments,error:ee}=await eq
-  if(ee){emp(el,'Error loading students: '+ee.message);return}
-  if(!enrollments?.length){emp(el,'No enrolled students found for this class/section.');return}
-
-  // Build enrollment lookup
-  const enrollMap={}  // enrollment_id -> {roll, section}
-  const studentIds=[]
-  enrollments.forEach(e=>{enrollMap[e.enrollment_id]={roll:e.roll_no,section:e.class_sections?.name||'—',student_id:e.student_id};studentIds.push(e.student_id)})
-
-  // Step 2: Get student names
-  const{data:studentRows}=await sb.from('students').select('student_id,full_name').in('student_id',studentIds)
-  const nameMap={}; (studentRows||[]).forEach(s=>{nameMap[s.student_id]=s.full_name})
-
-  // Step 3: Get attendance records
-  const enrollIds=enrollments.map(e=>e.enrollment_id)
-  const{data:attRows,error:ae}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',enrollIds).gte('date',fromDate).lte('date',toDate)
-  if(ae){emp(el,'Error loading attendance: '+ae.message);return}
-
-  // Build date columns (no timezone issues)
-  const dates=[]
-  let[_dy,_dm,_dd]=fromDate.split('-').map(Number)
-  const[_ey,_em,_ed]=toDate.split('-').map(Number)
-  while(_dy<_ey||(_dy===_ey&&_dm<_em)||(_dy===_ey&&_dm===_em&&_dd<=_ed)){
-    dates.push(_dy+'-'+String(_dm).padStart(2,'0')+'-'+String(_dd).padStart(2,'0'))
-    _dd++; const dim=new Date(_dy,_dm,0).getDate()
-    if(_dd>dim){_dd=1;_dm++;} if(_dm>12){_dm=1;_dy++;}
+  if(ee||!enrollments?.length){
+    emp(el,ee?'Error: '+ee.message:'No enrolled students found.');
+    $('caUpload').style.display='block'
+    return
   }
 
-  // Build status map
+  const enrollIds=enrollments.map(e=>e.enrollment_id)
+  const studentIds=[...new Set(enrollments.map(e=>e.student_id))]
+  const sectionIds=[...new Set(enrollments.map(e=>e.section_id))]
+
+  // STEP 2 — Get student names (simple query)
+  const{data:stuRows}=await sb.from('students').select('student_id,full_name').in('student_id',studentIds)
+  const nameMap={}; (stuRows||[]).forEach(s=>{nameMap[s.student_id]=s.full_name})
+
+  // STEP 3 — Get section names (simple query)
+  const{data:secRows}=await sb.from('class_sections').select('section_id,name').in('section_id',sectionIds)
+  const secNameMap={}; (secRows||[]).forEach(s=>{secNameMap[s.section_id]=s.name})
+
+  // STEP 4 — Get attendance records (simple IN query)
+  const{data:attRows,error:ae}=await sb.from('student_attendance')
+    .select('enrollment_id,date,status')
+    .in('enrollment_id',enrollIds)
+    .gte('date',fromDate)
+    .lte('date',toDate)
+  if(ae){emp(el,'Attendance query error: '+ae.message);return}
+
+  // Build status map keyed by "enrollmentId_date"
   const statusMap={}
   ;(attRows||[]).forEach(r=>{statusMap[r.enrollment_id+'_'+r.date]=r.status})
 
-  const sClr={'P':'success','A':'danger','L':'warn','H':'neutral'}
-  el.innerHTML='<div class="card"><div class="table-wrap" style="max-height:520px;overflow:auto"><table>'+
-    '<thead><tr><th>Roll</th><th>Name</th><th>Sec</th>'+dates.map(d=>'<th style="font-size:10px;writing-mode:vertical-rl;padding:8px 6px;min-width:28px">'+d.slice(5)+'</th>').join('')+'<th>P</th><th>A</th></tr></thead>'+
-    '<tbody>'+enrollments.sort((a,b)=>(a.roll_no||0)-(b.roll_no||0)).map(e=>{
-      const name=nameMap[e.student_id]||'—'
+  // Build date columns with no timezone offset (pure string arithmetic)
+  const dates=[]
+  let[_y,_mo,_d]=fromDate.split('-').map(Number)
+  const[_ey,_em,_ed]=toDate.split('-').map(Number)
+  while(_y<_ey||(_y===_ey&&_mo<_em)||(_y===_ey&&_mo===_em&&_d<=_ed)){
+    dates.push(_y+'-'+String(_mo).padStart(2,'0')+'-'+String(_d).padStart(2,'0'))
+    _d++
+    const dim=new Date(_y,_mo,0).getDate()
+    if(_d>dim){_d=1;_mo++}
+    if(_mo>12){_mo=1;_y++}
+  }
+
+  const sClr={'P':'pill-success','A':'pill-danger','L':'pill-warn','H':'pill-neutral'}
+  const sorted=[...enrollments].sort((a,b)=>(a.roll_no||0)-(b.roll_no||0))
+
+  el.innerHTML='<div class="card"><p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:12px">'+
+    sorted.length+' students · '+dates.length+' date(s) · '+(attRows?.length||0)+' records found</p>'+
+    '<div class="table-wrap" style="max-height:520px;overflow:auto"><table>'+
+    '<thead><tr><th>Roll</th><th>Name</th><th>Sec</th>'+
+    dates.map(d=>'<th style="font-size:10px;writing-mode:vertical-rl;padding:8px 4px;min-width:26px">'+d.slice(5)+'</th>').join('')+
+    '<th>P</th><th>A</th></tr></thead><tbody>'+
+    sorted.map(e=>{
+      const nm=nameMap[e.student_id]||e.student_id||'—'
+      const sec=secNameMap[e.section_id]||'—'
       const statuses=dates.map(d=>statusMap[e.enrollment_id+'_'+d]||'—')
-      const p=statuses.filter(x=>x==='P').length, a=statuses.filter(x=>x==='A').length
-      return '<tr><td class="mono">'+(e.roll_no||'—')+'</td><td>'+esc(name)+'</td><td>'+esc(e.class_sections?.name||'—')+'</td>'+
-        statuses.map(st=>'<td style="text-align:center"><span class="pill pill-'+(sClr[st]||'neutral')+'" style="padding:2px 5px;font-size:9px">'+st+'</span></td>').join('')+
+      const p=statuses.filter(x=>x==='P').length
+      const a=statuses.filter(x=>x==='A').length
+      return '<tr>'+
+        '<td class="mono">'+(e.roll_no||'—')+'</td>'+
+        '<td>'+esc(nm)+'</td>'+
+        '<td>'+esc(sec)+'</td>'+
+        statuses.map(s=>'<td style="text-align:center;padding:6px 3px">'+
+          (s==='—'?'<span style="color:var(--ink-faint);font-size:11px">—</span>':
+          '<span class="pill '+sClr[s]+'" style="padding:2px 6px;font-size:9.5px">'+s+'</span>')+
+          '</td>').join('')+
         '<td class="mono" style="color:var(--success);font-weight:700">'+p+'</td>'+
         '<td class="mono" style="color:var(--danger);font-weight:700">'+a+'</td></tr>'
-    }).join('')+'</tbody></table></div></div>'
+    }).join('')+
+    '</tbody></table></div></div>'
+
   $('caUpload').style.display='block'
   $('caUploadTitle').textContent='Upload Attendance — '+fmtD(fromDate)+' to '+fmtD(toDate)
 
