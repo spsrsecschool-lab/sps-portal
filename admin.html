@@ -1524,3 +1524,23 @@ async function commitAttCsv(){
   loadClassAttendance()
 
 }
+// ═══════════ TIMETABLE PAGE INIT ═══════════
+async function loadTimetable(){
+  loadRosters()
+  $('tt_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  $('sub_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  $('tt_cls').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  if($('sub_date'))$('sub_date').value=today()
+}
+
+// ═══════════ SETTINGS PAGE INIT ═══════════
+function loadSettings(){
+  loadSessionList()
+  loadClassesList()
+  loadSubjectsList()
+  loadStreamsList()
+  loadResetList()
+}
+</script>
+</body>
+</html>
