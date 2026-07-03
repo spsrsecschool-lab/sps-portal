@@ -827,6 +827,20 @@ const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 const fmtD=d=>d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—'
 const rel=iso=>{if(!iso)return'';const m=Math.floor((Date.now()-new Date(iso))/60000);if(m<2)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return fmtD(iso.slice(0,10))}
 function ldg(el){el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'}
+function normDate(s){
+  // Already YYYY-MM-DD
+  if(!s||/^\d{4}-\d{2}-\d{2}$/.test(s))return s||null
+  // DD/MM/YYYY or DD-MM-YYYY
+  let m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/)
+  if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')
+  // DD/MM/YY or DD-MM-YY
+  m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2})$/)
+  if(m){const yr=parseInt(m[3]);return (yr>50?'19':'20')+m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')}
+  // MM/DD/YYYY (US)
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if(m&&parseInt(m[1])<=12&&parseInt(m[2])<=31)return m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0')
+  return s
+}
 function emp(el,msg='No records found'){el.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p>'+esc(msg)+'</p></div>'}
 function toast(msg,type='info'){const t=document.createElement('div');t.className='toast-item '+type;const i=type==='success'?'<svg viewBox="0 0 24 24" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>':type==='error'?'<svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>':'';t.innerHTML=i+esc(msg);$('toast').appendChild(t);setTimeout(()=>t.remove(),3800)}
 
@@ -1138,7 +1152,7 @@ async function parseCsv(type,input){
 }
 async function commitImport(count,type){
   const el=$(type==='student'?'previewStudents':'previewTeachers');const rows=el._validRows||[];if(!rows.length){toast('No valid rows','error');return}
-  const ins=type==='student'?rows.map(r=>({student_id:r.student_id||'STU-IMP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),full_name:r.full_name,father_name:r.father_name,mother_name:r.mother_name||null,phone:r.phone||null,aadhar_no:r.aadhar_no||null,dob:r.dob||null,address:r.address||null,family_code:r.family_code||null})):rows.map(r=>({teacher_id:r.employee_code,employee_code:r.employee_code,full_name:r.full_name,designation:r.designation||null,phone:r.phone||null,username:r.username,is_active:true}))
+  const ins=type==='student'?rows.map(r=>({student_id:r.student_id||'STU-IMP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),full_name:r.full_name,father_name:r.father_name,mother_name:r.mother_name||null,phone:r.phone||null,aadhar_no:r.aadhar_no||null,dob:normDate(r.dob)||null,address:r.address||null,family_code:r.family_code||null})):rows.map(r=>({teacher_id:r.employee_code,employee_code:r.employee_code,full_name:r.full_name,designation:r.designation||null,phone:r.phone||null,username:r.username,is_active:true}))
   const{error}=await sb.from(type==='student'?'students':'teachers').upsert(ins,{onConflict:type==='student'?'student_id':'teacher_id',ignoreDuplicates:true})
   if(error){toast('Import error: '+error.message,'error');return}
   toast(rows.length+' records imported','success');await loadGlobals()
