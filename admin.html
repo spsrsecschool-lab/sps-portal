@@ -774,7 +774,8 @@ tbody tr:hover td{background:var(--lav-50)}
     <div id="pm_fields"></div>
     <div id="pm_docs" style="margin-top:14px"></div>
     <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-      <button class="btn btn-ghost btn-sm" onclick="openEditStudentModal()">Edit Demographics</button>
+      <button class="btn btn-ghost btn-sm" onclick="openEditDemoModal()">Edit Demographics</button>
+      <button class="btn btn-ghost btn-sm" onclick="openUploadPhotoModal()">Change Photo</button>
       <button class="btn btn-ghost btn-sm" onclick="openUploadDocModal()">Upload Document</button>
     </div>
   </div>
@@ -990,7 +991,7 @@ async function openProfile(enrollId){
   const{data:e}=await sb.from('student_enrollments').select('*,students(*),classes(name),class_sections(name)').eq('enrollment_id',enrollId).maybeSingle()
   if(!e){$('pm_name').textContent='Not found';return}
   const s=e.students
-  $('pm_av').textContent=ini(s?.full_name||''); $('pm_name').textContent=s?.full_name||'Unknown'
+  if(s?.photo_url){$('pm_av').innerHTML='<img src="'+s.photo_url+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'}else{$('pm_av').textContent=ini(s?.full_name||'')}; $('pm_name').textContent=s?.full_name||'Unknown'
   $('pm_class').textContent='Class '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')+' · Roll '+(e.roll_no||'—')
   $('pm_tags').innerHTML='<span class="pill pill-neutral">'+esc(s?.student_id||'')+'</span><span class="pill pill-neutral">S.No '+esc(e.s_no||'—')+'</span><span class="pill '+(e.status==='active'?'pill-success':'pill-warn')+'">'+esc(e.status||'')+'</span>'
   $('pm_fields').innerHTML='<div class="field-row"><span class="fk">Father\'s Name</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
@@ -998,6 +999,51 @@ async function openProfile(enrollId){
   if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span class="map-tag"><a href="'+esc(d.file_url)+'" target="_blank" style="color:inherit">'+esc(d.file_type||'Doc')+'</a></span>').join('')+'</div>'
 }
 function closeProfile(){$('profileModal').classList.remove('show');_profileEnrollId=null}
+function openUploadPhotoModal(){
+  openModal('Change Profile Photo',
+    '<div style="margin-bottom:14px;text-align:center"><div id="photoPreview" style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);margin:0 auto 10px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--indigo-dark)">'+($('pm_av')?.textContent||'?')+'</div></div><div class="form-row"><div class="fg"><label>Photo (JPG or PNG)</label><input type="file" id="pp_file" accept="image/jpeg,image/png,image/webp" onchange="previewPhoto(this)"></div></div><div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px;font-size:11.5px;color:var(--ink-soft)">Requires <b>school-files</b> bucket in Supabase Storage → set to Public.</div>',
+    '<button class="btn btn-dark" onclick="uploadProfilePhoto()">Upload Photo</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+function previewPhoto(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{$('photoPreview').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">'};reader.readAsDataURL(file)}
+async function uploadProfilePhoto(){
+  const file=$('pp_file')?.files[0];if(!file){toast('Select a photo','error');return}
+  const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
+  const sid=e?.student_id;if(!sid){toast('Student not found','error');return}
+  const path='student-photos/'+sid+'.'+file.name.split('.').pop()
+  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
+  if(upErr){toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create "school-files" bucket in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
+  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{error:dbErr}=await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',sid)
+  if(dbErr){toast('Photo uploaded but DB update failed: '+dbErr.message,'error');return}
+  toast('Photo updated','success');closeModal();openProfile(_profileEnrollId)
+}
+
+function openEditDemoModal(){
+  if(!_profileEnrollId)return
+  const sid=document.querySelector('#pm_fields .field-row .fv')?.closest('#pm_fields')
+  // Grab current values from displayed fields
+  const rows=[...$('pm_fields').querySelectorAll('.field-row')]
+  const vals={}; rows.forEach(r=>{const k=r.querySelector('.fk')?.textContent?.trim();const v=r.querySelector('.fv')?.textContent?.trim();if(k)vals[k]=v==='—'?'':v})
+  openModal('Edit Demographics',
+    '<input type="hidden" id="ed_eid" value="'+_profileEnrollId+'">'+
+    '<div class="form-row"><div class="fg"><label>Full Name *</label><input id="ed_name" value="'+esc(vals["Full Name"]||vals["Full name"]||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Father Name *</label><input id="ed_father" value="'+esc(vals["Father's Name"]||'')+'"></div><div class="fg"><label>Mother Name</label><input id="ed_mother" value="'+esc(vals["Mother's Name"]||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Phone</label><input id="ed_phone" value="'+esc(vals["Phone"]||'')+'"></div><div class="fg"><label>Aadhar No.</label><input id="ed_aadhar" value="'+esc(vals["Aadhar No."]||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Address</label><input id="ed_address" value="'+esc(vals["Address"]||'')+'"></div></div>',
+    '<button class="btn btn-dark" onclick="saveEditDemo()">Save Changes</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveEditDemo(){
+  const eid=$('ed_eid')?.value
+  if(!eid){toast('No enrollment selected','error');return}
+  const{data:enr}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',eid).maybeSingle()
+  const sid=enr?.student_id;if(!sid){toast('Student not found','error');return}
+  const updates={full_name:$('ed_name')?.value?.trim(),father_name:$('ed_father')?.value?.trim(),mother_name:$('ed_mother')?.value?.trim()||null,phone:$('ed_phone')?.value?.trim()||null,aadhar_no:$('ed_aadhar')?.value?.trim()||null,address:$('ed_address')?.value?.trim()||null}
+  if(!updates.full_name||!updates.father_name){toast('Name required','error');return}
+  const{error}=await sb.from('students').update(updates).eq('student_id',sid)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Demographics updated','success');closeModal();openProfile(eid)
+}
+
 function openUploadDocModal(){
   openModal('Upload Document',
     '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:11px;font-size:12px;margin-bottom:14px">Requires a storage bucket named <b>school-files</b> in Supabase → Storage → New bucket → Public → Save.</div><div class="form-row"><div class="fg"><label>Document Type</label><select id="doc_type"><option>Aadhar Card</option><option>Birth Certificate</option><option>Transfer Certificate</option><option>Other</option></select></div></div><div class="form-row"><div class="fg"><label>File (JPG, PNG, PDF)</label><input type="file" id="doc_file" accept="image/*,.pdf"></div></div>',
@@ -1350,7 +1396,7 @@ async function loadClassAttendance(){
   if(secId)q=q.eq('student_enrollments.section_id',secId)
   const{data,error}=await q
   if(error){emp(el,'Error: '+error.message);return}
-  const dates=[];let d=new Date(fromDate+'T00:00:00');const end=new Date(toDate+'T00:00:00');while(d<=end){dates.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}
+  const dates=[];let[_dy,_dm,_dd]=fromDate.split('-').map(Number);const[_ey,_em,_ed]=toDate.split('-').map(Number);while(_dy<_ey||(_dy===_ey&&_dm<_em)||(_dy===_ey&&_dm===_em&&_dd<=_ed)){dates.push(_dy+'-'+String(_dm).padStart(2,'0')+'-'+String(_dd).padStart(2,'0'));_dd++;const dim=new Date(_dy,_dm,0).getDate();if(_dd>dim){_dd=1;_dm++;}if(_dm>12){_dm=1;_dy++;}}
   const students={},statusMap={}
   ;(data||[]).forEach(r=>{const sid=r.student_enrollments?.students?.student_id||r.student_enrollments?.roll_no;if(!students[sid])students[sid]={roll:r.student_enrollments?.roll_no,name:r.student_enrollments?.students?.full_name||'—',section:r.student_enrollments?.class_sections?.name||'—'};statusMap[sid+'_'+r.date]=r.status})
   const sClr={'P':'success','A':'danger','L':'warn','H':'neutral'}
@@ -1361,7 +1407,7 @@ async function loadClassAttendance(){
 async function downloadAttSample(){
   const classId=$('ca_class')?.value,secId=$('ca_section')?.value,fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
   if(!classId||!fromDate||!toDate){toast('Select class and date range first','error');return}
-  const dates=[];let d=new Date(fromDate+'T00:00:00');const end=new Date(toDate+'T00:00:00');while(d<=end){dates.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}
+  const dates=[];let[_dy2,_dm2,_dd2]=fromDate.split('-').map(Number);const[_ey2,_em2,_ed2]=toDate.split('-').map(Number);while(_dy2<_ey2||(_dy2===_ey2&&_dm2<_em2)||(_dy2===_ey2&&_dm2===_em2&&_dd2<=_ed2)){dates.push(_dy2+'-'+String(_dm2).padStart(2,'0')+'-'+String(_dd2).padStart(2,'0'));_dd2++;const dim2=new Date(_dy2,_dm2,0).getDate();if(_dd2>dim2){_dd2=1;_dm2++;}if(_dm2>12){_dm2=1;_dy2++;}}
   let q=sb.from('student_enrollments').select('roll_no,s_no,students(full_name,student_id)').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').order('roll_no')
   if(secId)q=q.eq('section_id',secId)
   const{data,error}=await q
@@ -1374,7 +1420,7 @@ async function downloadAttSample(){
   toast('Downloaded — fill in P, A, L, or H in each date column','success')
 }
 function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3);const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};valid.push({student_id:sid,roll_no:parseInt(roll)||null,date,status})})});$('caPreview').innerHTML='<h3>Validation Preview</h3><div class="summary-bar" style="margin-top:0"><div><span class="sk">Records</span><span class="sv" style="color:var(--success)">'+valid.length+'</span></div><div><span class="sk">Errors</span><span class="sv" style="color:var(--danger)">'+errors.length+'</span></div></div>'+(errors.length?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Row</th><th>Issue</th></tr></thead><tbody>'+errors.map(e=>'<tr><td>'+e.row+'</td><td>'+esc(e.issue)+'</td></tr>').join('')+'</tbody></table></div>':'')+'<button class="btn btn-success" style="margin-top:14px" onclick="commitAttCsv()">Commit '+valid.length+' Records</button>';$('caPreview')._validRows=valid};reader.readAsText(file)}
-async function commitAttCsv(){const rows=$('caPreview')._validRows||[];if(!rows.length){toast('No valid records','error');return};const classId=$('ca_class')?.value,secId=$('ca_section')?.value;let q=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active');if(secId)q=q.eq('section_id',secId);const{data:enrolled}=await q;const enrollMap={};enrolled?.forEach(e=>{if(e.student_id)enrollMap[String(e.student_id).trim()]=e.enrollment_id;if(e.roll_no!=null)enrollMap[String(e.roll_no)]=e.enrollment_id});const inserts=rows.map(r=>({enrollment_id:enrollMap[String(r.student_id||'').trim()]||enrollMap[String(r.roll_no||'')],date:r.date,status:r.status,marked_by:SPS.admin?.admin_id||'ADMIN-001',submitted_at:new Date().toISOString()})).filter(r=>r.enrollment_id);if(!inserts.length){toast('Could not match any students to enrollment records','error');return};const{error}=await sb.from('student_attendance').upsert(inserts,{onConflict:'enrollment_id,date'});if(error){toast('Failed: '+error.message,'error');return};toast(inserts.length+' attendance records saved','success');loadClassAttendance()}
+async function commitAttCsv(){const rows=$('caPreview')._validRows||[];if(!rows.length){toast('No valid records','error');return};const classId=$('ca_class')?.value,secId=$('ca_section')?.value;let q=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active');if(secId)q=q.eq('section_id',secId);const{data:enrolled}=await q;const enrollMap={};enrolled?.forEach(e=>{if(e.student_id)enrollMap[String(e.student_id).trim()]=e.enrollment_id;if(e.roll_no!=null)enrollMap[String(e.roll_no)]=e.enrollment_id});const inserts=rows.map(r=>({enrollment_id:enrollMap[String(r.student_id||'').trim()]||enrollMap[String(r.roll_no||'')],date:r.date,status:r.status,marked_by:null,submitted_at:new Date().toISOString()})).filter(r=>r.enrollment_id);if(!inserts.length){toast('Could not match any students to enrollment records','error');return};const{error}=await sb.from('student_attendance').upsert(inserts,{onConflict:'enrollment_id,date'});if(error){toast('Failed: '+error.message,'error');return};toast(inserts.length+' attendance records saved','success');loadClassAttendance()}
 
 // ═══════════ SETTINGS ═══════════
 function loadSettings(){loadSessionList();loadClassesList();loadSubjectsList();loadStreamsList();loadResetList()}
