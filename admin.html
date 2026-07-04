@@ -805,6 +805,10 @@ tbody tr:hover td{background:var(--lav-50)}
 </div>
 
 <div id="toast"></div>
+<div id="uploadOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+  <div style="width:52px;height:52px;border:4px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <p id="uploadOverlayMsg" style="color:#fff;font-size:14px;font-weight:600">Uploading…</p>
+</div>
 
 <script>
 // ═══════════ GLOBALS ═══════════
@@ -842,6 +846,8 @@ function normDate(s){
   return s
 }
 function emp(el,msg='No records found'){el.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p>'+esc(msg)+'</p></div>'}
+function showUploadOverlay(msg='Uploading…'){const o=$('uploadOverlay');if(o){o.style.display='flex';const m=$('uploadOverlayMsg');if(m)m.textContent=msg}}
+function hideUploadOverlay(){const o=$('uploadOverlay');if(o)o.style.display='none'}
 function toast(msg,type='info'){const t=document.createElement('div');t.className='toast-item '+type;const i=type==='success'?'<svg viewBox="0 0 24 24" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>':type==='error'?'<svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>':'';t.innerHTML=i+esc(msg);$('toast').appendChild(t);setTimeout(()=>t.remove(),3800)}
 
 // ═══════════ CONFIRM DIALOG ═══════════
@@ -1021,6 +1027,7 @@ function openUploadPhotoModal(){
 function previewPhoto(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{$('photoPreview').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">'};reader.readAsDataURL(file)}
 async function uploadProfilePhoto(){
   const file=$('pp_file')?.files[0];if(!file){toast('Select a photo','error');return}
+  showUploadOverlay('Uploading photo…')
   const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
   const sid=e?.student_id;if(!sid){toast('Student not found','error');return}
   const path='student-photos/'+sid+'.'+file.name.split('.').pop()
@@ -1028,8 +1035,8 @@ async function uploadProfilePhoto(){
   if(upErr){toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create "school-files" bucket in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
   const{error:dbErr}=await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',sid)
-  if(dbErr){toast('Photo uploaded but DB update failed: '+dbErr.message,'error');return}
-  toast('Photo updated','success');closeModal();openProfile(_profileEnrollId)
+  if(dbErr){hideUploadOverlay();toast('Photo uploaded but DB update failed: '+dbErr.message,'error');return}
+  hideUploadOverlay();toast('Photo updated','success');closeModal();openProfile(_profileEnrollId)
 }
 
 function openEditDemoModal(){
@@ -1066,14 +1073,15 @@ function openUploadDocModal(){
 async function uploadDoc(){
   const file=$('doc_file')?.files[0],type=$('doc_type')?.value
   if(!file){toast('Select a file','error');return}
+  showUploadOverlay('Uploading document…')
   const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
   const sid=e?.student_id;if(!sid){toast('Student not found','error');return}
   const path='student-docs/'+sid+'/'+Date.now()+'.'+file.name.split('.').pop()
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file)
-  if(upErr){toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create a bucket called "school-files" in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
+  if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create a bucket called "school-files" in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
   await sb.from('student_documents').insert({student_id:sid,file_url:publicUrl,file_type:type,uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id,uploaded_at:new Date().toISOString()})
-  toast('Document uploaded','success');closeModal();openProfile(_profileEnrollId)
+  hideUploadOverlay();toast('Document uploaded','success');closeModal();openProfile(_profileEnrollId)
 }
 
 // ═══════════ NEW ADMISSION ═══════════
@@ -1735,6 +1743,213 @@ async function commitAttCsv(){
     if($('ca_section')&&_sec)$('ca_section').value=_sec
     loadClassAttendance()
   },400)
+}
+
+
+// ═══════════ SETTINGS ═══════════
+async function loadSessionList(){
+  const el=$('sessionList');if(!el)return;ldg(el)
+  const{data,error}=await sb.from('sessions').select('*').order('session_id',{ascending:false})
+  if(error||!data?.length){emp(el,'No sessions yet');return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead><tbody>'+
+    data.map(s=>'<tr><td class="mono">'+esc(s.session_id)+'</td><td>'+fmtD(s.start_date)+'</td><td>'+fmtD(s.end_date)+'</td><td>'+(s.is_current?'<span class="pill pill-success">Current</span>':'<span class="pill pill-neutral">Past</span>')+'</td><td>'+(!s.is_current?'<button class="btn btn-dark btn-xs" onclick="setCurrentSession(\''+s.session_id+'\')">Set Current</button>':'')+'</td></tr>').join('')+
+    '</tbody></table></div>'
+}
+async function createSession(){
+  const id=$('newSessId')?.value?.trim()
+  if(!id){toast('Enter session ID e.g. 2026-2027','error');return}
+  const{error}=await sb.from('sessions').insert({session_id:id,start_date:$('newSessStart')?.value||null,end_date:$('newSessEnd')?.value||null,is_current:false})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Session created','success');if($('newSessId'))$('newSessId').value='';loadSessionList()
+}
+async function setCurrentSession(id){
+  confirmAct('Set '+id+' as current session?','All new data will be tied to this session.',async()=>{
+    await sb.from('sessions').update({is_current:false}).neq('session_id','__none__')
+    const{error}=await sb.from('sessions').update({is_current:true}).eq('session_id',id)
+    if(error){toast('Failed: '+error.message,'error');return}
+    const{data:check}=await sb.from('sessions').select('is_current').eq('session_id',id).maybeSingle()
+    if(!check?.is_current){toast('Update failed — check RLS or try SQL Editor','error');return}
+    toast('Session set to '+id+' — reloading…','success');setTimeout(()=>location.reload(),1500)
+  })
+}
+async function loadClassesList(){
+  const el=$('classList');if(!el)return;ldg(el)
+  const{data}=await sb.from('classes').select('*').order('sort_order')
+  ALL_CLASSES=data||[]
+  ;['adm_class','mo_class','pr_class','ca_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')})
+  if(!data?.length){emp(el,'No classes yet');return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>'+
+    data.map(c=>'<tr style="cursor:pointer" onclick="selectClass(\''+c.class_id+'\',\''+esc(c.name)+'\')"><td id="clsname_'+c.class_id+'">'+esc(c.name)+'</td><td class="mono">'+c.sort_order+'</td><td><span class="pill '+(c.is_active?'pill-success':'pill-neutral')+'">'+(c.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();startRenameClass(\''+c.class_id+'\',\''+esc(c.name)+'\')">Rename</button><button class="btn btn-danger btn-xs" onclick="event.stopPropagation();toggleClass(\''+c.class_id+'\','+c.is_active+')">'+(c.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')+
+    '</tbody></table></div>'
+}
+async function createClass(){
+  const name=$('newClassName')?.value?.trim(),order=parseInt($('newClassOrder')?.value)||99
+  if(!name){toast('Enter class name','error');return}
+  const{error}=await sb.from('classes').insert({name,sort_order:order,is_active:true,created_by:SPS.admin?.admin_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Class added','success');if($('newClassName'))$('newClassName').value='';if($('newClassOrder'))$('newClassOrder').value=''
+  await loadGlobals();loadClassesList()
+}
+async function toggleClass(id,active){await sb.from('classes').update({is_active:!active}).eq('class_id',id);toast(active?'Deactivated':'Activated','success');await loadGlobals();loadClassesList()}
+function startRenameClass(id,cur){
+  const cell=document.getElementById('clsname_'+id);if(!cell)return
+  cell.innerHTML='<input type="text" value="'+esc(cur)+'" id="rename_'+id+'" style="font-family:var(--font);font-size:12.5px;padding:4px 8px;border:1.5px solid var(--indigo);border-radius:6px;width:110px" onclick="event.stopPropagation()"> <button class="btn btn-dark btn-xs" onclick="event.stopPropagation();commitRenameClass(\''+id+'\')">Save</button> <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();loadClassesList()">×</button>'
+  const inp=document.getElementById('rename_'+id);if(inp){inp.focus();inp.select()}
+}
+async function commitRenameClass(id){
+  const n=document.getElementById('rename_'+id)?.value?.trim()
+  if(!n){toast('Enter a name','error');return}
+  const{error}=await sb.from('classes').update({name:n}).eq('class_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Renamed to '+n,'success');await loadGlobals();loadClassesList()
+}
+async function selectClass(classId,className){
+  _selectedClassId=classId;const lbl=$('secLabel');if(lbl)lbl.textContent='for '+className
+  const el=$('sectionList');if(!el)return;ldg(el)
+  if(!SESS){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">No active session.</p>';return}
+  const{data}=await sb.from('class_sections').select('*').eq('class_id',classId).eq('session_id',SESS.session_id).order('name')
+  el.innerHTML=((data||[]).length?
+    '<div class="table-wrap"><table><thead><tr><th>Section</th><th>Status</th><th></th></tr></thead><tbody>'+data.map(s=>'<tr><td>'+esc(s.name)+'</td><td><span class="pill '+(s.is_active?'pill-success':'pill-neutral')+'">'+(s.is_active?'Active':'Inactive')+'</span></td><td><button class="btn btn-danger btn-xs" onclick="toggleSection(\''+s.section_id+'\','+s.is_active+',\''+classId+'\',\''+esc(className)+'\')">'+(s.is_active?'Deactivate':'Restore')+'</button></td></tr>').join('')+'</tbody></table></div>':
+    '<p style="font-size:12.5px;color:var(--ink-faint);margin-bottom:12px">No sections yet.</p>')+
+    '<div style="display:flex;gap:8px;margin-top:12px;align-items:flex-end"><div class="fg" style="max-width:130px"><label>Name</label><input id="newSecName" placeholder="e.g. A"></div><button class="btn btn-dark btn-sm" onclick="createSection(\''+classId+'\',\''+esc(className)+'\')">Add Section</button></div>'
+}
+async function createSection(classId,className){
+  const name=$('newSecName')?.value?.trim()
+  if(!name||!SESS){toast('Enter section name','error');return}
+  const{error}=await sb.from('class_sections').insert({name,class_id:classId,session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Section added','success');selectClass(classId,className)
+}
+async function toggleSection(id,active,cid,cname){await sb.from('class_sections').update({is_active:!active}).eq('section_id',id);toast('Updated','success');selectClass(cid,cname)}
+async function loadSubjectsList(){
+  const el=$('subjectList');if(!el)return;ldg(el)
+  const{data}=await sb.from('subjects').select('*').order('name')
+  ALL_SUBJECTS=data||[]
+  if(!data?.length){emp(el,'No subjects yet');return}
+  el.innerHTML='<div class="map-tags">'+data.map(s=>'<span class="map-tag" style="background:'+(s.is_active?'var(--indigo-100)':'var(--lav-100)')+';color:'+(s.is_active?'var(--indigo-dark)':'var(--ink-faint)')+'">'+esc(s.name)+(s.short_code?' ('+esc(s.short_code)+')':'')+' <button onclick="toggleSubject(\''+s.subject_id+'\','+s.is_active+')" style="background:none;border:none;cursor:pointer;color:inherit;font-size:14px;margin-left:2px">'+(s.is_active?'×':'↩')+'</button></span>').join('')+'</div>'
+}
+async function createSubject(){
+  const name=$('newSubjName')?.value?.trim(),code=$('newSubjCode')?.value?.trim()||null
+  if(!name){toast('Enter subject name','error');return}
+  const{error}=await sb.from('subjects').insert({name,short_code:code,is_active:true,created_by:SPS.admin?.admin_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Subject added','success');if($('newSubjName'))$('newSubjName').value='';if($('newSubjCode'))$('newSubjCode').value=''
+  await loadGlobals();loadSubjectsList()
+}
+async function toggleSubject(id,active){
+  if(active){const{count}=await sb.from('marks').select('*',{count:'exact',head:true}).eq('subject_id',id);if(count>0){toast('Cannot deactivate — '+count+' marks exist','error');return}}
+  await sb.from('subjects').update({is_active:!active}).eq('subject_id',id);toast('Updated','success');loadSubjectsList()
+}
+async function loadStreamsList(){
+  const el=$('streamList');if(!el)return;ldg(el)
+  if(!SESS){emp(el,'No active session');return}
+  const{data}=await sb.from('streams').select('*,classes(name)').eq('session_id',SESS.session_id).order('name')
+  if(!data?.length){emp(el,'No streams yet');return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Stream</th><th>Class</th><th>Status</th><th></th></tr></thead><tbody>'+data.map(s=>'<tr><td>'+esc(s.name)+'</td><td>'+esc(s.classes?.name||'—')+'</td><td><span class="pill '+(s.is_active?'pill-success':'pill-neutral')+'">'+(s.is_active?'Active':'Inactive')+'</span></td><td><button class="btn btn-danger btn-xs" onclick="toggleStream(\''+s.stream_id+'\','+s.is_active+')">'+(s.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')+'</tbody></table></div>'
+}
+async function createStream(){
+  const name=$('newStreamName')?.value?.trim(),classId=$('newStreamClass')?.value
+  if(!name||!classId||!SESS){toast('Name and class required','error');return}
+  const{error}=await sb.from('streams').insert({name,class_id:classId,session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Stream added','success');if($('newStreamName'))$('newStreamName').value='';loadStreamsList()
+}
+async function toggleStream(id,active){await sb.from('streams').update({is_active:!active}).eq('stream_id',id);toast('Updated','success');loadStreamsList()}
+function loadResetList(){const sel=$('resetTeacherSel');if(!sel)return;sel.innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+esc(t.username)+'">'+esc(t.full_name)+'</option>').join('')}
+async function resetTeacherPassword(){
+  const uname=$('resetTeacherSel')?.value
+  if(!uname){toast('Select a teacher','error');return}
+  const{error}=await sb.auth.resetPasswordForEmail(uname+'@'+AUTH_EMAIL_DOMAIN)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Reset email sent','success')
+}
+async function saveThresholds(){
+  const{error}=await sb.from('attendance_thresholds').upsert({shift_start_time:$('threshShift')?.value||'09:00',yellow_zone_lates:parseInt($('threshYellow')?.value||3),red_zone_lates:parseInt($('threshRed')?.value||5),updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Thresholds saved','success')
+}
+function switchSettingsTab(key,btn){
+  document.querySelectorAll('[id^="settingsTab-"]').forEach(t=>t.style.display='none')
+  const tab=$('settingsTab-'+key);if(tab)tab.style.display='block'
+  btn.closest('.tab-row').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'))
+  btn.classList.add('active')
+}
+
+// ═══════════ TIMETABLE ROSTER/SLOT HELPERS ═══════════
+async function activateRoster(id,name){
+  confirmAct('Switch to roster "'+name+'"?','Current entries are preserved.',async()=>{
+    await sb.from('rosters').update({is_active:false}).eq('session_id',SESS.session_id)
+    const{error}=await sb.from('rosters').update({is_active:true}).eq('roster_id',id)
+    if(error){toast('Failed: '+error.message,'error');return}
+    toast('"'+name+'" is now active','success');loadRosters()
+  })
+}
+async function deleteRoster(id,name){
+  const{count:ec}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('roster_id',id)
+  if(ec>0){toast('Cannot delete — '+ec+' entries exist','error');return}
+  confirmAct('Delete roster "'+name+'"?','All slots will also be deleted.',async()=>{
+    await sb.from('time_slots').delete().eq('roster_id',id)
+    const{error}=await sb.from('rosters').delete().eq('roster_id',id)
+    if(error){toast('Failed: '+error.message,'error');return}
+    toast('Roster deleted','success');loadRosters()
+    const sl=$('slotList');if(sl)sl.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Select a roster.</p>';_selectedRosterId=null
+  })
+}
+async function selectRoster(id,name){
+  _selectedRosterId=id;_selectedRosterName=name
+  const lbl=$('slotRosterLabel');if(lbl)lbl.textContent='for '+name
+  const el=$('slotList');if(!el)return;ldg(el)
+  const{data}=await sb.from('time_slots').select('*').eq('roster_id',id).order('sort_order')
+  el.innerHTML=((data||[]).length?
+    '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Start</th><th>End</th><th>Order</th><th></th></tr></thead><tbody>'+
+    data.map(s=>'<tr><td style="font-weight:600">'+esc(s.name)+'</td><td class="mono">'+(s.start_time?.slice(0,5)||'—')+'</td><td class="mono">'+(s.end_time?.slice(0,5)||'—')+'</td><td class="mono">'+s.sort_order+'</td><td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="editSlot(\''+s.slot_id+'\',\''+esc(s.name)+'\',\''+(s.start_time?.slice(0,5)||'')+'\',\''+(s.end_time?.slice(0,5)||'')+'\','+s.sort_order+')">Edit</button><button class="btn btn-danger btn-xs" onclick="deleteSlot(\''+s.slot_id+'\',\''+esc(s.name)+'\')">Delete</button></td></tr>').join('')+
+    '</tbody></table></div>':'<p style="font-size:12.5px;color:var(--ink-faint);margin-bottom:12px">No slots yet.</p>')+
+    '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">'+
+    '<div class="form-row" style="margin-bottom:8px"><div class="fg" style="max-width:130px"><label>Slot Name</label><input id="newSlotName" placeholder="e.g. Period 1"></div><div class="fg" style="max-width:110px"><label>Start</label><input type="time" id="newSlotStart"></div><div class="fg" style="max-width:110px"><label>End</label><input type="time" id="newSlotEnd"></div><div class="fg" style="max-width:90px"><label>Order</label><input type="number" id="newSlotOrder" value="'+((data?.length||0)+1)+'" min="1"></div></div>'+
+    '<button class="btn btn-dark btn-sm" onclick="createSlot()">Add Time Slot</button></div>'
+}
+async function createSlot(){
+  const name=$('newSlotName')?.value?.trim(),start=$('newSlotStart')?.value,end=$('newSlotEnd')?.value,order=parseInt($('newSlotOrder')?.value||99)
+  if(!name||!start||!end||!_selectedRosterId){toast('Fill all slot fields','error');return}
+  const{error}=await sb.from('time_slots').insert({name,start_time:start,end_time:end,sort_order:order,roster_id:_selectedRosterId})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Slot added','success');selectRoster(_selectedRosterId,_selectedRosterName)
+}
+function editSlot(id,name,start,end,order){
+  openModal('Edit Slot — '+name,
+    '<div class="form-row"><div class="fg"><label>Name</label><input id="es_name" value="'+esc(name)+'"></div><div class="fg"><label>Start</label><input type="time" id="es_start" value="'+start+'"></div><div class="fg"><label>End</label><input type="time" id="es_end" value="'+end+'"></div><div class="fg"><label>Order</label><input type="number" id="es_order" value="'+order+'" min="1"></div></div>',
+    '<button class="btn btn-dark" onclick="saveSlot(\''+id+'\')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveSlot(id){
+  const{error}=await sb.from('time_slots').update({name:$('es_name')?.value?.trim(),start_time:$('es_start')?.value,end_time:$('es_end')?.value,sort_order:parseInt($('es_order')?.value||99)}).eq('slot_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Slot updated','success');closeModal();selectRoster(_selectedRosterId,_selectedRosterName)
+}
+async function deleteSlot(id,name){
+  const{count}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('slot_id',id)
+  if(count>0){toast('Cannot delete "'+name+'" — '+count+' entries use this slot','error');return}
+  confirmAct('Delete slot "'+name+'"?','',async()=>{
+    await sb.from('time_slots').delete().eq('slot_id',id);toast('Deleted','success');selectRoster(_selectedRosterId,_selectedRosterName)
+  })
+}
+function renderTTGrid(el,entries,mode){
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat']
+  const slotMap=new Map();entries.forEach(e=>{if(e.time_slots&&!slotMap.has(e.slot_id))slotMap.set(e.slot_id,e.time_slots)})
+  const slots=[...slotMap.entries()].map(([id,s])=>({slot_id:id,...s})).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  if(!slots.length){emp(el,'No timetable entries for the active roster.');return}
+  const lookup={};entries.forEach(e=>{(e.days||[]).forEach(day=>{lookup[e.slot_id+'_'+day]=e})})
+  let html='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>'
+  slots.forEach(slot=>{
+    html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name||'')+'</td><td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
+    days.forEach(day=>{
+      const e=lookup[slot.slot_id+'_'+day]
+      if(!e){html+='<td style="background:var(--lav-50)"></td>';return}
+      const cell=mode==='student'?'<b>'+esc(e.subjects?.name||'—')+'</b><br><span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.teachers?.full_name||'—')+'</span>':'<b>'+esc(e.classes?.name||'—')+'-'+esc(e.class_sections?.name||'')+'</b><br><span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.subjects?.name||'—')+'</span>'
+      html+='<td style="text-align:center;padding:8px">'+cell+'</td>'
+    })
+    html+='</tr>'
+  })
+  el.innerHTML=html+'</tbody></table></div></div>'
 }
 
 // ═══════════ TIMETABLE PAGE INIT ═══════════
