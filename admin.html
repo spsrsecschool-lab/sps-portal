@@ -1087,7 +1087,7 @@ async function submitAdmission(e){
     const{count:sc}=await sb.from('students').select('*',{count:'exact',head:true})
     const studentId='STU-'+String((sc||0)+1).padStart(4,'0')
     let fc=$('adm_family').value.trim()
-    if(!fc){const{count:fcc}=await sb.from('families').select('*',{count:'exact',head:true});fc='F'+String((fcc||0)+1).padStart(3,'0');await sb.from('families').insert({family_code:fc})}
+    if(!fc){const{count:fcc}=await sb.from('families').select('*',{count:'exact',head:true});fc='F'+String((fcc||0)+1).padStart(4,'0');await sb.from('families').insert({family_code:fc})}
     const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,phone:$('adm_phone').value.trim(),alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc})
     if(se)throw se
     const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).not('s_no','is',null)
@@ -1152,7 +1152,14 @@ async function parseCsv(type,input){
 }
 async function commitImport(count,type){
   const el=$(type==='student'?'previewStudents':'previewTeachers');const rows=el._validRows||[];if(!rows.length){toast('No valid rows','error');return}
-  const ins=type==='student'?rows.map(r=>({student_id:r.student_id||'STU-IMP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),full_name:r.full_name,father_name:r.father_name,mother_name:r.mother_name||null,phone:r.phone||null,aadhar_no:r.aadhar_no||null,dob:normDate(r.dob)||null,address:r.address||null,family_code:r.family_code||null})):rows.map(r=>({teacher_id:r.employee_code,employee_code:r.employee_code,full_name:r.full_name,designation:r.designation||null,phone:r.phone||null,username:r.username,is_active:true}))
+  // Auto-create missing families before student insert
+if(type==='student'){
+  const fcodes=[...new Set(rows.map(r=>r.family_code).filter(Boolean))]
+  if(fcodes.length){
+    await sb.from('families').upsert(fcodes.map(fc=>({family_code:fc})),{onConflict:'family_code',ignoreDuplicates:true})
+  }
+}
+const ins=type==='student'?rows.map(r=>({student_id:r.student_id||'STU-IMP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),full_name:r.full_name,father_name:r.father_name,mother_name:r.mother_name||null,phone:r.phone||null,aadhar_no:r.aadhar_no||null,dob:normDate(r.dob)||null,address:r.address||null,family_code:r.family_code||null})):rows.map(r=>({teacher_id:r.employee_code,employee_code:r.employee_code,full_name:r.full_name,designation:r.designation||null,phone:r.phone||null,username:r.username,is_active:true}))
   const{error}=await sb.from(type==='student'?'students':'teachers').upsert(ins,{onConflict:type==='student'?'student_id':'teacher_id',ignoreDuplicates:true})
   if(error){toast('Import error: '+error.message,'error');return}
   toast(rows.length+' records imported','success');await loadGlobals()
