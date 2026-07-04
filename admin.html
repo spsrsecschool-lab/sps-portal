@@ -618,23 +618,45 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
 
       <div id="settingsTab-classes" style="display:none">
-        <div class="grid-2">
-          <div class="card">
-            <h3>Classes</h3>
-            <div id="classList"><div class="loading-row"><div class="spinner"></div></div></div>
-            <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
-              <div class="form-row" style="margin-bottom:8px">
-                <div class="fg"><label>Class Name</label><input type="text" id="newClassName" placeholder="e.g. Nur, 1st, 8th"></div>
-                <div class="fg"><label>Sort Order</label><input type="number" id="newClassOrder" placeholder="1, 2, 3…" min="1"></div>
+
+        <!-- CARD 1: Classes & Sections -->
+        <div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer" onclick="toggleSettingsCard('cs_card1')">
+            <div><div style="font-weight:700;font-size:14px">Classes &amp; Sections</div><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Add, rename, deactivate classes and manage sections per session</div></div>
+            <svg id="cs_card1_chev" viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--ink-faint);fill:none;stroke-width:2;transition:transform 0.2s"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div id="cs_card1" style="display:none;border-top:1px solid var(--line);padding:18px">
+            <div class="grid-2">
+              <div>
+                <h3 style="margin-bottom:12px">Classes</h3>
+                <div id="classList"><div class="loading-row"><div class="spinner"></div></div></div>
+                <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+                  <div class="form-row" style="margin-bottom:8px">
+                    <div class="fg"><label>Class Name</label><input type="text" id="newClassName" placeholder="e.g. Nur, 1st, 8th"></div>
+                    <div class="fg"><label>Sort Order</label><input type="number" id="newClassOrder" placeholder="1"></div>
+                  </div>
+                  <button class="btn btn-dark btn-sm" onclick="createClass()">Add Class</button>
+                </div>
               </div>
-              <button class="btn btn-dark btn-sm" onclick="createClass()">Add Class</button>
+              <div>
+                <h3 style="margin-bottom:12px">Sections <span id="secLabel" style="font-weight:400;color:var(--ink-faint);font-size:13px">(select a class)</span></h3>
+                <div id="sectionList"><p style="font-size:12.5px;color:var(--ink-faint)">Click a class on the left to manage its sections for the current session.</p></div>
+              </div>
             </div>
           </div>
-          <div class="card">
-            <h3>Sections <span id="secLabel" style="font-weight:400;color:var(--ink-faint)">(select a class)</span></h3>
-            <div id="sectionList"><p style="font-size:12.5px;color:var(--ink-faint)">Click a class on the left to manage its sections for the current session.</p></div>
+        </div>
+
+        <!-- CARD 2: Class Teacher Assignment -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer" onclick="toggleSettingsCard('cs_card2');if(document.getElementById('cs_card2').style.display!=='none')loadClassTeacherAssignment()">
+            <div><div style="font-weight:700;font-size:14px">Class Teacher Assignment</div><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Assign or change the class teacher for each class-section</div></div>
+            <svg id="cs_card2_chev" viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--ink-faint);fill:none;stroke-width:2;transition:transform 0.2s"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div id="cs_card2" style="display:none;border-top:1px solid var(--line);padding:18px">
+            <div id="ctAssignList"><div class="loading-row"><div class="spinner"></div></div></div>
           </div>
         </div>
+
       </div>
 
       <div id="settingsTab-subjects" style="display:none">
@@ -1424,7 +1446,6 @@ async function openAddMappingModal(){
   openModal('Add Class-Subject Mapping',
     '<div class="form-row"><div class="fg"><label>Class *</label><select id="mp_class" onchange="mpLoadSections()">'+cls+'</select></div><div class="fg"><label>Section *</label><select id="mp_section" onchange="syncStreamSection(\'section\',\'mp\')"><option value="">Select class first</option></select></div><div class="fg" id="mp_stream_fg" style="display:none"><label>Stream</label><select id="mp_stream" onchange="syncStreamSection(\'stream\',\'mp\')"><option value="">All students (no stream)</option></select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Subject *</label><select id="mp_subject">'+sub+'</select></div><div class="fg"><label>Teacher *</label><select id="mp_teacher">'+tch+'</select></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Also set as Class Teacher?</label><select id="mp_ct"><option value="">No</option><option value="yes">Yes</option></select></div></div>'+
     '<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:14px"><p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px">Timetable (active roster: <b>'+(roster?esc(roster.name):'none')+'</b>)</p>'+
     '<div class="form-row" style="margin-bottom:8px"><div class="fg"><label>Time Slot</label><select id="mp_slot">'+slotOpts+'</select></div></div>'+
     '<div class="fg"><label>Days</label><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">'+dayChks+'</div></div></div>',
@@ -1456,7 +1477,6 @@ async function saveMapping(){
   const streamId=$('mp_stream')?.value||null
   const{error}=await sb.from('teacher_subject_class_map').insert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,stream_id:streamId})
   if(error){toast('Failed: '+error.message,'error');return}
-  if($('mp_ct')?.value==='yes')await sb.from('class_teacher_map').upsert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId},{onConflict:'session_id,section_id'})
   const slotId=$('mp_slot')?.value,days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value),roster=await getActiveRoster()
   if(slotId&&days.length&&roster){const{error:te}=await sb.from('timetable_entries').insert({roster_id:roster.roster_id,slot_id:slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days,stream_id:streamId});if(te)toast('Mapping saved but timetable entry failed: '+te.message,'error');else toast('Mapping and timetable entry added','success')}else toast('Mapping added','success')
   closeModal();loadMapping()
@@ -2516,6 +2536,75 @@ async function toggleProfileAccess(el){
   toast(current?'Access revoked':'Access granted','success')
   loadClassTeacherControl()
 }
+
+function toggleSettingsCard(id){
+  const el=$(id), chev=$(id+'_chev')
+  const isOpen = el.style.display !== 'none'
+  el.style.display = isOpen ? 'none' : 'block'
+  if(chev) chev.style.transform = isOpen ? '' : 'rotate(180deg)'
+}
+
+// ═══════════ CLASS TEACHER ASSIGNMENT ═══════════
+async function loadClassTeacherAssignment(){
+  const el=$('ctAssignList');if(!el)return;ldg(el)
+  if(!SESS){emp(el,'No active session');return}
+  const{data:secs,error}=await sb.from('class_sections').select('section_id,name,class_id,classes(name,sort_order)').eq('session_id',SESS.session_id).eq('is_active',true)
+  if(error||!secs?.length){emp(el,'No active class-sections found.');return}
+  secs.sort((a,b)=>(a.classes?.sort_order||0)-(b.classes?.sort_order||0)||(a.name>b.name?1:-1))
+  const{data:ctData}=await sb.from('class_teacher_map').select('section_id,teacher_id').eq('session_id',SESS.session_id)
+  const ctMap={}; (ctData||[]).forEach(r=>{ctMap[r.section_id]=r.teacher_id})
+  const{data:strData}=await sb.from('streams').select('name,section_id').eq('session_id',SESS.session_id).not('section_id','is',null)
+  const strMap={}; (strData||[]).forEach(s=>{strMap[s.section_id]=s.name})
+  const tchOpts='<option value="">— Not assigned —</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  const rows=secs.map(sec=>{
+    const rowId='cta_'+sec.section_id
+    const assigned=!!ctMap[sec.section_id]
+    return '<tr>'+
+      '<td style="font-weight:600">'+esc(sec.classes?.name||'—')+'</td>'+
+      '<td>'+esc(sec.name)+'</td>'+
+      '<td>'+esc(strMap[sec.section_id]||'—')+'</td>'+
+      '<td><select id="'+rowId+'_sel"'+(assigned?' disabled=true':'')+' style="font-family:var(--font);font-size:12.5px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);width:100%;max-width:220px">'+tchOpts+'</select></td>'+
+      '<td><button id="'+rowId+'_btn" data-rowid="'+rowId+'" data-secid="'+sec.section_id+'" class="btn '+(assigned?'btn-ghost':'btn-dark')+' btn-sm" onclick="'+( assigned?'unlockCTRow':'saveCTRow')+'(this)">'+(assigned?'Change':'Save')+'</button></td>'+
+    '</tr>'
+  })
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Class</th><th>Section</th><th>Stream</th><th>Class Teacher</th><th style="width:110px"></th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div><p style="font-size:11.5px;color:var(--ink-soft);margin-top:12px">Previous class teacher automatically loses class teacher access when changed.</p>'
+  secs.forEach(sec=>{const sel=$('cta_'+sec.section_id+'_sel');if(sel&&ctMap[sec.section_id])sel.value=ctMap[sec.section_id]})
+}
+
+function unlockCTRow(btn){
+  const rowId=btn.dataset.rowid,secId=btn.dataset.secid
+  const sel=$(rowId+'_sel');if(sel)sel.disabled=false
+  btn.textContent='Save';btn.className='btn btn-dark btn-sm'
+  btn.setAttribute('onclick','saveCTRow(this)')
+}
+
+async function saveCTRow(btn){
+  const rowId=btn.dataset.rowid,sectionId=btn.dataset.secid
+  const sel=$(rowId+'_sel'),teacherId=sel?.value
+  btn.textContent='Saving…';btn.disabled=true
+  const{data:sec}=await sb.from('class_sections').select('class_id').eq('section_id',sectionId).maybeSingle()
+  if(!sec){toast('Section not found','error');btn.textContent='Save';btn.disabled=false;return}
+  const{data:oldCT}=await sb.from('class_teacher_map').select('teacher_id').eq('section_id',sectionId).eq('session_id',SESS.session_id).maybeSingle()
+  if(oldCT?.teacher_id&&oldCT.teacher_id!==teacherId){
+    await sb.from('class_teacher_map').update({can_edit_profiles:false}).eq('teacher_id',oldCT.teacher_id).eq('session_id',SESS.session_id)
+  }
+  if(!teacherId){
+    await sb.from('class_teacher_map').delete().eq('section_id',sectionId).eq('session_id',SESS.session_id)
+    toast('Class teacher removed','success');if(sel)sel.disabled=false
+    btn.textContent='Save';btn.className='btn btn-dark btn-sm';btn.disabled=false
+    btn.setAttribute('onclick','saveCTRow(this)');return
+  }
+  const{error}=await sb.from('class_teacher_map').upsert({teacher_id:teacherId,session_id:SESS.session_id,class_id:sec.class_id,section_id:sectionId,can_edit_profiles:false},{onConflict:'session_id,section_id'})
+  if(error){toast('Failed: '+error.message,'error');btn.textContent='Save';btn.disabled=false;return}
+  toast('Class teacher saved','success');if(sel)sel.disabled=true
+  btn.textContent='Change';btn.className='btn btn-ghost btn-sm';btn.disabled=false
+  btn.setAttribute('onclick','unlockCTRow(this)')
+  await loadGlobals()
+}
+
+
+
+
 
 // ═══════════ TIMETABLE PAGE INIT ═══════════
 async function loadTimetable(){
