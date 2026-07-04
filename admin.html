@@ -1094,7 +1094,7 @@ async function submitAdmission(e){
     const maxN=(snos||[]).reduce((m,r)=>{const n=parseInt((r.s_no||'').replace(/\D/g,''))||0;return n>m?n:m},0)
     const{data:rolls}=await sb.from('student_enrollments').select('roll_no').eq('session_id',SESS.session_id).eq('section_id',secId).not('roll_no','is',null)
     const maxR=(rolls||[]).reduce((m,r)=>r.roll_no>m?r.roll_no:m,0)
-    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,roll_no:maxR+1,s_no:'S'+String(maxN+1).padStart(3,'0'),status:'active',is_new_admission:true,readmission_date:today()})
+    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,roll_no:maxR+1,s_no:'S'+String(maxN+1).padStart(4,'0'),status:'active',is_new_admission:true,readmission_date:today()})
     if(ee)throw ee
     // Upload photo if provided
     const photoFile=$('adm_photo')?.files[0]
@@ -1151,18 +1151,126 @@ async function parseCsv(type,input){
   reader.readAsText(file)
 }
 async function commitImport(count,type){
-  const el=$(type==='student'?'previewStudents':'previewTeachers');const rows=el._validRows||[];if(!rows.length){toast('No valid rows','error');return}
-  // Auto-create missing families before student insert
-if(type==='student'){
-  const fcodes=[...new Set(rows.map(r=>r.family_code).filter(Boolean))]
-  if(fcodes.length){
-    await sb.from('families').upsert(fcodes.map(fc=>({family_code:fc})),{onConflict:'family_code',ignoreDuplicates:true})
+  const el=$(type==='student'?'previewStudents':'previewTeachers')
+  const rows=el._validRows||[]
+  if(!rows.length){toast('No valid rows','error');return}
+
+  if(type==='student'){
+    if(!SESS){toast('No active session — cannot create enrollments','error');return}
+
+    // ── Check duplicates: both student_id AND s_no ──────────────────────────
+    const csvStudentIds=rows.map(r=>r.student_id).filter(Boolean)
+    const csvSNos=rows.map(r=>r.s_no).filter(Boolean)
+
+    const[sidCheck,snoCheck]=await Promise.all([
+      csvStudentIds.length ? sb.from('students').select('student_id').in('student_id',csvStudentIds) : Promise.resolve({data:[]}),
+      csvSNos.length ? sb.from('student_enrollments').select('s_no').in('s_no',csvSNos).eq('session_id',SESS.session_id) : Promise.resolve({data:[]})
+    ])
+
+    const dupSids=new Set((sidCheck.data||[]).map(r=>r.student_id))
+    const dupSnos=new Set((snoCheck.data||[]).map(r=>r.s_no))
+
+    // Filter out duplicate rows and report them
+    const valid=[],skipped=[]
+    rows.forEach(r=>{
+      const sidDup=r.student_id&&dupSids.has(r.student_id)
+      const snoDup=r.s_no&&dupSnos.has(r.s_no)
+      if(sidDup||snoDup){
+        skipped.push(r.full_name+' ('+(sidDup?'Student ID '+r.student_id+' exists':'S.No '+r.s_no+' exists')+')')
+      } else {
+        valid.push(r)
+      }
+    })
+
+    if(skipped.length) toast('Skipped '+skipped.length+' duplicate(s): '+skipped.slice(0,3).join('; ')+(skipped.length>3?'…':''),'error')
+    if(!valid.length){toast('All rows were duplicates — nothing imported','error');return}
+
+    // ── Auto-create missing families ────────────────────────────────────────
+    const fcodes=[...new Set(valid.map(r=>r.family_code).filter(Boolean))]
+    if(fcodes.length) await sb.from('families').upsert(fcodes.map(fc=>({family_code:fc})),{onConflict:'family_code',ignoreDuplicates:true})
+
+    // ── Generate student IDs for blank ones ─────────────────────────────────
+    const{count:sc}=await sb.from('students').select('*',{count:'exact',head:true})
+    let scOffset=sc||0
+    const ins=valid.map(r=>({
+      student_id:r.student_id||('STU-'+String(++scOffset).padStart(4,'0')),
+      full_name:r.full_name,father_name:r.father_name,
+      mother_name:r.mother_name||null,phone:r.phone||null,
+      aadhar_no:r.aadhar_no||null,dob:normDate(r.dob)||null,
+      address:r.address||null,family_code:r.family_code||null
+    }))
+
+    // ── Insert students ─────────────────────────────────────────────────────
+    const{error:se}=await sb.from('students').insert(ins)
+    if(se){toast('Student insert failed: '+se.message,'error');return}
+
+    // ── Create enrollment records ───────────────────────────────────────────
+    const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).not('s_no','is',null)
+    let maxN=(snos||[]).reduce((m,r)=>{const n=parseInt((r.s_no||'').replace(/\D/g,'')||'0');return n>m?n:m},0)
+
+    const enrollRows=[]
+    valid.forEach((r,i)=>{
+      if(!r._class_id)return
+      maxN++
+      enrollRows.push({
+        student_id:ins[i].student_id,
+        session_id:SESS.session_id,
+        class_id:r._class_id,
+        section_id:r._section_id||null,
+        roll_no:parseInt(r.roll_no)||null,
+        s_no:r.s_no||('S'+String(maxN).padStart(4,'0')),
+        status:'active',
+        is_new_admission:true
+      })
+    })
+
+    if(enrollRows.length){
+      const{error:ee}=await sb.from('student_enrollments').insert(enrollRows)
+      if(ee)toast('Imported but enrollment failed: '+ee.message,'error')
+      else toast(valid.length+' student(s) imported & enrolled'+(skipped.length?' ('+skipped.length+' skipped)':'')+'✓','success')
+    } else {
+      toast(valid.length+' student(s) imported (no class = enrollment skipped)','success')
+    }
+    await loadGlobals()
+
+  } else {
+    // ── Teachers: check both employee_code AND username ─────────────────────
+    const codes=rows.map(r=>r.employee_code).filter(Boolean)
+    const usernames=rows.map(r=>r.username).filter(Boolean)
+
+    const[codeCheck,userCheck]=await Promise.all([
+      codes.length ? sb.from('teachers').select('employee_code').in('employee_code',codes) : Promise.resolve({data:[]}),
+      usernames.length ? sb.from('teachers').select('username').in('username',usernames) : Promise.resolve({data:[]})
+    ])
+
+    const dupCodes=new Set((codeCheck.data||[]).map(t=>t.employee_code))
+    const dupUsers=new Set((userCheck.data||[]).map(t=>t.username))
+
+    const valid=[],skipped=[]
+    rows.forEach(r=>{
+      const codeDup=dupCodes.has(r.employee_code)
+      const userDup=dupUsers.has(r.username)
+      if(codeDup||userDup){
+        skipped.push(r.full_name+' ('+(codeDup?'Code '+r.employee_code:'Username '+r.username)+' exists)')
+      } else {
+        valid.push(r)
+      }
+    })
+
+    if(skipped.length) toast('Skipped '+skipped.length+' duplicate(s): '+skipped.slice(0,3).join('; ')+(skipped.length>3?'…':''),'error')
+    if(!valid.length){toast('All rows were duplicates — nothing imported','error');return}
+
+    const ins=valid.map(r=>({
+      teacher_id:r.employee_code,employee_code:r.employee_code,
+      full_name:r.full_name,designation:r.designation||null,
+      phone:r.phone||null,username:r.username,is_active:true
+    }))
+    const{error}=await sb.from('teachers').insert(ins)
+    if(error){toast('Import error: '+error.message,'error');return}
+    toast(valid.length+' teacher(s) imported'+(skipped.length?' ('+skipped.length+' skipped)':'')+'✓','success')
+    await loadGlobals()
+    loadStaff()
   }
-}
-const ins=type==='student'?rows.map(r=>({student_id:r.student_id||'STU-IMP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),full_name:r.full_name,father_name:r.father_name,mother_name:r.mother_name||null,phone:r.phone||null,aadhar_no:r.aadhar_no||null,dob:normDate(r.dob)||null,address:r.address||null,family_code:r.family_code||null})):rows.map(r=>({teacher_id:r.employee_code,employee_code:r.employee_code,full_name:r.full_name,designation:r.designation||null,phone:r.phone||null,username:r.username,is_active:true}))
-  const{error}=await sb.from(type==='student'?'students':'teachers').upsert(ins,{onConflict:type==='student'?'student_id':'teacher_id',ignoreDuplicates:true})
-  if(error){toast('Import error: '+error.message,'error');return}
-  toast(rows.length+' records imported','success');await loadGlobals()
 }
 function downloadSampleCsv(type){
   const[h,r]=type==='student'?[['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob','aadhar_no','address','family_code','class','section','roll_no'],['','','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-04-15','1234 5678 9012','House 1, City','F001','8th','A','1']]:[['employee_code','full_name','designation','phone','username'],['SPS-T-001','Rina Mehta','PGT Science','9876543210','SPS-T-001']]
