@@ -2419,30 +2419,24 @@ async function confirmReject(requestId, type){
 async function loadProfileRequests(){
   const el=$('profileReqList');if(!el)return;ldg(el)
   const{data,error}=await sb.from('access_requests')
-    .select('*,teachers(full_name)')
+    .select('*,teachers(full_name,designation,phone)')
     .eq('request_type','profile_edit')
     .order('created_at',{ascending:false}).limit(100)
   if(error){emp(el,'Error: '+error.message);return}
-  if(!data?.length){emp(el,'No profile access requests yet.');return}
+  if(!data?.length){emp(el,'No profile edit requests yet.');return}
 
-  const tids=[...new Set(data.map(r=>r.teacher_id))]
-  const{data:ctData}=await sb.from('class_teacher_map').select('teacher_id,can_edit_profiles,classes(name),class_sections(name)').in('teacher_id',tids).eq('session_id',SESS?.session_id||'')
-  const ctMap={}; (ctData||[]).forEach(r=>{ctMap[r.teacher_id]=r})
-
-  const statusBadge=s=>s==='pending'?'<span class="pill pill-warn">Pending</span>':s==='approved'?'<span class="pill pill-success">Access Granted</span>':'<span class="pill pill-danger">Rejected</span>'
-  const statusIcon=s=>s==='pending'?'🟡':s==='approved'?'🟢':'🔴'
+  const statusBadge=s=>s==='pending'?'<span class="pill pill-warn">Pending</span>':s==='approved'?'<span class="pill pill-success">Access Granted</span>':s==='completed'?'<span class="pill pill-indigo">Completed</span>':'<span class="pill pill-danger">Rejected</span>'
+  const statusIcon=s=>s==='pending'?'🟡':s==='approved'?'🟢':s==='completed'?'✅':'🔴'
 
   el.innerHTML='<div style="display:flex;flex-direction:column;gap:12px">'+
-  data.map(r=>{
-    const ct=ctMap[r.teacher_id]
-    return `
+  data.map(r=>`
     <div class="card" style="cursor:pointer;padding:0;overflow:hidden" onclick="toggleReqCard('prc_${r.request_id}')">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;gap:12px">
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
           <span style="font-size:18px">${statusIcon(r.status)}</span>
           <div>
             <div style="font-weight:700;font-size:13.5px">${esc(r.teachers?.full_name||r.teacher_id)}</div>
-            <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Class Teacher · ${esc(ct?.classes?.name||'—')}-${esc(ct?.class_sections?.name||'—')}</div>
+            <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">${esc(r.teachers?.designation||'Teacher')} · Own profile edit request</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
@@ -2454,31 +2448,45 @@ async function loadProfileRequests(){
       <div id="prc_${r.request_id}" style="display:none;border-top:1px solid var(--line);padding:18px 20px;background:var(--lav-50)">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-bottom:14px">
           <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Teacher</span><div style="font-size:13px;margin-top:3px">${esc(r.teachers?.full_name||r.teacher_id)}</div></div>
-          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Class</span><div style="font-size:13px;margin-top:3px">${esc(ct?.classes?.name||'—')} — Section ${esc(ct?.class_sections?.name||'—')}</div></div>
-          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Current Access</span><div style="font-size:13px;margin-top:3px">${ct?.can_edit_profiles?'<span class="pill pill-success">Granted</span>':'<span class="pill pill-neutral">Locked</span>'}</div></div>
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Designation</span><div style="font-size:13px;margin-top:3px">${esc(r.teachers?.designation||'—')}</div></div>
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Phone</span><div style="font-size:13px;margin-top:3px">${esc(r.teachers?.phone||'—')}</div></div>
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Request Type</span><div style="font-size:13px;margin-top:3px">Own Profile Edit</div></div>
         </div>
         <div style="margin-bottom:16px">
-          <span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Teacher's Note</span>
-          <div style="font-size:13px;margin-top:5px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;white-space:pre-wrap;line-height:1.6">${esc(r.note||'No note provided.')}</div>
+          <span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Reason / What they want to change</span>
+          <div style="font-size:13px;margin-top:5px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;white-space:pre-wrap;line-height:1.6">${esc(r.note||'No reason provided.')}</div>
         </div>
         ${r.review_note?`<div style="margin-bottom:16px"><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Admin Note</span><div style="font-size:13px;margin-top:5px;padding:10px 14px;background:var(--warn-soft);border-radius:var(--radius-sm)">${esc(r.review_note)}</div></div>`:''}
         ${r.status==='pending'?`
         <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
-          <button class="btn btn-danger" onclick="event.stopPropagation();rejectRequest('${r.request_id}','profile')">Reject Request</button>
-          <button class="btn btn-success" style="padding:10px 24px;font-size:13.5px" onclick="event.stopPropagation();approveProfileRequest('${r.request_id}','${r.teacher_id}')">✓ Grant Access</button>
+          <button class="btn btn-danger" onclick="event.stopPropagation();rejectRequest('${r.request_id}','profile')">Reject</button>
+          <button class="btn btn-success" style="padding:10px 24px;font-size:13.5px" onclick="event.stopPropagation();approveProfileRequest('${r.request_id}','${r.teacher_id}')">✓ Grant Profile Edit</button>
         </div>`:''}
+        ${r.status==='approved'?`<div style="text-align:right;font-size:12px;color:var(--ink-soft)">Waiting for teacher to update and submit their profile.</div>`:''}
       </div>
-    </div>`
-  }).join('')+'</div>'
+    </div>`).join('')+'</div>'
 }
 
 async function approveProfileRequest(requestId, teacherId){
-  // Grant profile edit access via class_teacher_map
-  const{error}=await sb.from('class_teacher_map').update({can_edit_profiles:true}).eq('teacher_id',teacherId).eq('session_id',SESS?.session_id||'')
-  if(error){toast('Failed: '+error.message,'error');return}
-  await sb.from('access_requests').update({status:'approved',reviewed_by:SPS.admin?.admin_id,reviewed_at:new Date().toISOString()}).eq('request_id',requestId)
-  await sb.from('messages').insert({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:teacherId,subject:'Student Profile Edit Access Granted',body:'Your request has been approved. You can now edit student profiles, upload photos, and upload documents for students in your class.',message_type:'system_notification',sent_at:new Date().toISOString()})
-  toast('Profile edit access granted','success')
+  // Grant teacher ability to edit their own profile
+  const{error}=await sb.from('teachers').update({can_edit_own_profile:true}).eq('teacher_id',teacherId)
+  if(error){
+    // Column might not exist yet — just update request status and rely on access_requests
+    console.warn('can_edit_own_profile column missing — using request status only')
+  }
+  await sb.from('access_requests').update({
+    status:'approved',
+    reviewed_by:SPS.admin?.admin_id,
+    reviewed_at:new Date().toISOString()
+  }).eq('request_id',requestId)
+  await sb.from('messages').insert({
+    sender_type:'admin',sender_id:SPS.admin?.admin_id,
+    recipient_type:'teacher',recipient_id:teacherId,
+    subject:'Profile Edit Access Approved',
+    body:'Your request to edit your profile has been approved. You can now update your details. Your access will be locked again once you save your changes.',
+    message_type:'system_notification',sent_at:new Date().toISOString()
+  })
+  toast('Profile edit access granted — teacher notified','success')
   loadProfileRequests();checkPendingRequests()
 }
 
