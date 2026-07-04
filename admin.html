@@ -234,6 +234,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-label">Overview</div>
     <div class="sb-item active" onclick="goTo('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</div>
     <div class="sb-item" onclick="goTo('messages',this)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages<span class="bc" id="msgBadge" style="display:none">0</span></div>
+    <div class="sb-item" onclick="goTo('requests',this)"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Requests<span class="bc" id="reqBadge" style="display:none">0</span></div>
     <div class="sb-label">People</div>
     <div class="sb-item" onclick="goTo('staff',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Staff &amp; Teachers</div>
     <div class="sb-item" onclick="goTo('students',this)"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>Students</div>
@@ -578,7 +579,18 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
 
     <!-- SETTINGS -->
-    <div class="page" id="page-settings">
+    <!-- REQUESTS PAGE -->
+  <div class="page" id="page-requests">
+    <div class="page-head"><div><h2>Access Requests</h2><p>Marks edit and profile edit requests from teachers</p></div></div>
+    <div class="tab-row" style="margin-bottom:18px">
+      <button class="tab-btn active" onclick="switchTab('reqTab','marks',this)">Marks Edit Requests</button>
+      <button class="tab-btn" onclick="switchTab('reqTab','profile',this)">Profile Access Requests</button>
+    </div>
+    <div id="reqTab-marks"><div id="marksReqList"><div class="loading-row"><div class="spinner"></div></div></div></div>
+    <div id="reqTab-profile" style="display:none"><div id="profileReqList"><div class="loading-row"><div class="spinner"></div></div></div></div>
+  </div>
+
+  <div class="page" id="page-settings">
       <div class="page-head"><div><h2>Settings</h2><p>Session, structure, subjects, streams and system configuration</p></div></div>
       <div class="tab-row">
         <button class="tab-btn active" onclick="switchTab('settingsTab','session',this)">Session</button>
@@ -670,6 +682,14 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="fg"><label>Red Zone (late days)</label><input type="number" id="threshRed" value="5" min="1"></div>
           </div>
           <button class="btn btn-dark btn-sm" onclick="saveThresholds()">Save Thresholds</button>
+        </div>
+      </div>
+
+      <div id="settingsTab-ctcontrol" style="display:none">
+        <div class="card" style="max-width:720px">
+          <h3 style="margin-bottom:16px">Class Teacher — Student Profile Edit Access</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:16px">Toggle whether a class teacher can edit student profiles, upload photos, and upload documents for students in their class. This also grants or revokes access approved via profile access requests.</p>
+          <div id="ctControlList"><div class="loading-row"><div class="spinner"></div></div></div>
         </div>
       </div>
 
@@ -823,7 +843,7 @@ window._msgStore={}, window._assessMap={}
 
 // ═══════════ INIT ═══════════
 SPS.ready().then(async()=>{
-  await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths()
+  await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths(); checkPendingRequests()
   const cf=document.getElementById('ca_from'),ct=document.getElementById('ca_to')
   if(cf)cf.value=today(); if(ct)ct.value=today()
   document.getElementById('admSessionLabel').textContent=SESS?SESS.session_id:'—'
@@ -921,8 +941,8 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',settings:'Settings'}
-const LAZY={staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,reportcards:loadTemplates,settings:loadSettings}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',settings:'Settings',requests:'Access Requests'}
+const LAZY={staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests}
 function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
@@ -2253,6 +2273,215 @@ async function saveSubstitutions(){
   toast('Substitutions saved'+(notify.length?' & '+notify.length+' notified':''),'success')
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// REQUESTS SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+async function loadRequests(){
+  await Promise.all([loadMarksRequests(), loadProfileRequests()])
+  checkPendingRequests()
+}
+
+async function checkPendingRequests(){
+  const{count}=await sb.from('access_requests').select('*',{count:'exact',head:true}).eq('status','pending')
+  const b=$('reqBadge')
+  if(b){b.textContent=count||0;b.style.display=count>0?'flex':'none'}
+}
+
+// ── MARKS EDIT REQUESTS ──────────────────────────────────────────────────────
+async function loadMarksRequests(){
+  const el=$('marksReqList');if(!el)return;ldg(el)
+  const{data,error}=await sb.from('access_requests')
+    .select('*,teachers(full_name),classes(name),class_sections(name),subjects(name),assessments(name)')
+    .eq('request_type','marks_edit')
+    .order('created_at',{ascending:false})
+    .limit(100)
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!data?.length){emp(el,'No marks edit requests yet.');return}
+
+  // For approved requests, fetch current lock state
+  const approvedIds=data.filter(r=>r.status==='approved').map(r=>r.request_id)
+  let lockMap={}
+  if(approvedIds.length){
+    // Check marks_lock_state for each approved request
+    const lockChecks=await Promise.all(
+      data.filter(r=>r.status==='approved').map(r=>
+        sb.from('marks_lock_state').select('is_locked').eq('teacher_id',r.teacher_id).eq('assessment_id',r.assessment_id).eq('section_id',r.section_id).eq('subject_id',r.subject_id).maybeSingle()
+      )
+    )
+    data.filter(r=>r.status==='approved').forEach((r,i)=>{lockMap[r.request_id]=lockChecks[i]?.data?.is_locked})
+  }
+
+  const statusPill=(r)=>{
+    if(r.status==='pending')return '<span class="pill pill-warn">Pending</span>'
+    if(r.status==='rejected')return '<span class="pill pill-danger">Rejected</span>'
+    if(r.status==='completed')return '<span class="pill pill-success">Completed</span>'
+    // approved — show whether teacher has submitted
+    const locked=lockMap[r.request_id]
+    return locked===true?'<span class="pill pill-success">Submitted & Locked</span>':'<span class="pill pill-indigo">Access Granted</span>'
+  }
+
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr>'+
+    '<th>Teacher</th><th>Assessment</th><th>Class</th><th>Sec</th><th>Subject</th><th>Note</th><th>Status</th><th>Requested</th><th></th>'+
+    '</tr></thead><tbody>'+
+    data.map(r=>'<tr>'+
+      '<td style="font-weight:600">'+esc(r.teachers?.full_name||r.teacher_id)+'</td>'+
+      '<td>'+esc(r.assessments?.name||'—')+'</td>'+
+      '<td>'+esc(r.classes?.name||'—')+'</td>'+
+      '<td>'+esc(r.class_sections?.name||'—')+'</td>'+
+      '<td>'+esc(r.subjects?.name||'—')+'</td>'+
+      '<td style="max-width:180px;font-size:11.5px;color:var(--ink-soft)">'+esc(r.note||'—')+'</td>'+
+      '<td>'+statusPill(r)+'</td>'+
+      '<td style="font-size:11px;color:var(--ink-faint)">'+rel(r.created_at)+'</td>'+
+      '<td style="display:flex;gap:5px">'+
+        (r.status==='pending'?
+          '<button class="btn btn-success btn-xs" data-rid="'+r.request_id+'" onclick="approveMarksRequest(this.dataset.rid)">Approve</button>'+
+          '<button class="btn btn-danger btn-xs" data-rid="'+r.request_id+'" onclick="rejectRequest(this.dataset.rid,\'marks\')">Reject</button>'
+        :'')+(r.status==='approved'?
+          '<button class="btn btn-ghost btn-xs" data-rid="'+r.request_id+'" onclick="revokeMarksAccess(this.dataset.rid)">Revoke</button>'
+        :'')+
+      '</td>'+
+    '</tr>').join('')+
+    '</tbody></table></div></div>'
+}
+
+async function approveMarksRequest(requestId){
+  const{data:req,error}=await sb.from('access_requests').select('*').eq('request_id',requestId).maybeSingle()
+  if(error||!req){toast('Request not found','error');return}
+
+  // Unlock marks for this teacher+assessment+subject+section
+  const{error:le}=await sb.from('marks_lock_state').upsert({
+    teacher_id:req.teacher_id,
+    assessment_id:req.assessment_id,
+    subject_id:req.subject_id,
+    section_id:req.section_id,
+    is_locked:false,
+    locked_at:null
+  },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
+  if(le){toast('Failed to unlock marks: '+le.message,'error');return}
+
+  // Update request status
+  await sb.from('access_requests').update({
+    status:'approved',
+    reviewed_by:SPS.admin?.admin_id,
+    reviewed_at:new Date().toISOString()
+  }).eq('request_id',requestId)
+
+  // Notify teacher
+  await sb.from('messages').insert({
+    sender_type:'admin',sender_id:SPS.admin?.admin_id,
+    recipient_type:'teacher',recipient_id:req.teacher_id,
+    subject:'Marks Edit Access Approved',
+    body:'Your request to edit marks has been approved.\nAssessment: '+req.assessment_id+'\nYou can now edit and submit marks. Access will be locked after submission.',
+    message_type:'system_notification',sent_at:new Date().toISOString()
+  })
+
+  toast('Access granted — teacher notified','success')
+  loadMarksRequests()
+  checkPendingRequests()
+}
+
+async function revokeMarksAccess(requestId){
+  const{data:req}=await sb.from('access_requests').select('*').eq('request_id',requestId).maybeSingle()
+  if(!req)return
+  confirmAct('Revoke marks access?','Teacher will no longer be able to edit marks for this request.',async()=>{
+    await sb.from('marks_lock_state').update({is_locked:true,locked_at:new Date().toISOString()}).eq('teacher_id',req.teacher_id).eq('assessment_id',req.assessment_id).eq('subject_id',req.subject_id).eq('section_id',req.section_id)
+    await sb.from('access_requests').update({status:'completed',marks_submitted_at:new Date().toISOString()}).eq('request_id',requestId)
+    toast('Access revoked','success');loadMarksRequests()
+  })
+}
+
+async function rejectRequest(requestId, type){
+  openModal('Reject Request',
+    '<div class="form-row"><div class="fg"><label>Reason (optional)</label><input id="reject_note" placeholder="e.g. Marks submission deadline has passed"></div></div>',
+    '<button class="btn btn-danger" onclick="confirmReject(\''+requestId+'\',\''+type+'\')">Reject</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  )
+}
+async function confirmReject(requestId, type){
+  const note=$('reject_note')?.value?.trim()
+  await sb.from('access_requests').update({status:'rejected',reviewed_by:SPS.admin?.admin_id,reviewed_at:new Date().toISOString(),review_note:note||null}).eq('request_id',requestId)
+  toast('Request rejected','success');closeModal()
+  if(type==='marks')loadMarksRequests();else loadProfileRequests()
+  checkPendingRequests()
+}
+
+// ── PROFILE ACCESS REQUESTS ──────────────────────────────────────────────────
+async function loadProfileRequests(){
+  const el=$('profileReqList');if(!el)return;ldg(el)
+  const{data,error}=await sb.from('access_requests')
+    .select('*,teachers(full_name)')
+    .eq('request_type','profile_edit')
+    .order('created_at',{ascending:false})
+    .limit(100)
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!data?.length){emp(el,'No profile access requests yet.');return}
+
+  // Get class-teacher info for each teacher
+  const tids=[...new Set(data.map(r=>r.teacher_id))]
+  const{data:ctData}=await sb.from('class_teacher_map').select('teacher_id,can_edit_profiles,classes(name),class_sections(name)').in('teacher_id',tids).eq('session_id',SESS?.session_id||'')
+  const ctMap={}; (ctData||[]).forEach(r=>{ctMap[r.teacher_id]=r})
+
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr>'+
+    '<th>Teacher</th><th>Class</th><th>Section</th><th>Note</th><th>Status</th><th>Requested</th><th></th>'+
+    '</tr></thead><tbody>'+
+    data.map(r=>{
+      const ct=ctMap[r.teacher_id]
+      return '<tr>'+
+        '<td style="font-weight:600">'+esc(r.teachers?.full_name||r.teacher_id)+'</td>'+
+        '<td>'+esc(ct?.classes?.name||'—')+'</td>'+
+        '<td>'+esc(ct?.class_sections?.name||'—')+'</td>'+
+        '<td style="max-width:200px;font-size:11.5px;color:var(--ink-soft)">'+esc(r.note||'—')+'</td>'+
+        '<td>'+(r.status==='pending'?'<span class="pill pill-warn">Pending</span>':r.status==='approved'?'<span class="pill pill-success">Access Granted</span>':'<span class="pill pill-danger">Rejected</span>')+'</td>'+
+        '<td style="font-size:11px;color:var(--ink-faint)">'+rel(r.created_at)+'</td>'+
+        '<td style="display:flex;gap:5px">'+
+          (r.status==='pending'?
+            '<button class="btn btn-success btn-xs" data-rid="'+r.request_id+'" data-tid="'+r.teacher_id+'" onclick="approveProfileRequest(this.dataset.rid,this.dataset.tid)">Grant</button>'+
+            '<button class="btn btn-danger btn-xs" data-rid="'+r.request_id+'" onclick="rejectRequest(this.dataset.rid,\'profile\')">Reject</button>'
+          :'')+
+        '</td>'+
+      '</tr>'
+    }).join('')+
+    '</tbody></table></div></div>'
+}
+
+async function approveProfileRequest(requestId, teacherId){
+  // Grant profile edit access via class_teacher_map
+  const{error}=await sb.from('class_teacher_map').update({can_edit_profiles:true}).eq('teacher_id',teacherId).eq('session_id',SESS?.session_id||'')
+  if(error){toast('Failed: '+error.message,'error');return}
+  await sb.from('access_requests').update({status:'approved',reviewed_by:SPS.admin?.admin_id,reviewed_at:new Date().toISOString()}).eq('request_id',requestId)
+  await sb.from('messages').insert({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:teacherId,subject:'Student Profile Edit Access Granted',body:'Your request has been approved. You can now edit student profiles, upload photos, and upload documents for students in your class.',message_type:'system_notification',sent_at:new Date().toISOString()})
+  toast('Profile edit access granted','success')
+  loadProfileRequests();checkPendingRequests()
+}
+
+// ── CLASS TEACHER CONTROL (settings tab) ─────────────────────────────────────
+async function loadClassTeacherControl(){
+  const el=$('ctControlList');if(!el)return;ldg(el)
+  if(!SESS){emp(el,'No active session');return}
+  const{data,error}=await sb.from('class_teacher_map').select('*,teachers(full_name),classes(name),class_sections(name)').eq('session_id',SESS.session_id)
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!data?.length){emp(el,'No class teachers assigned yet. Go to Class & Subject Mapping to assign class teachers.');return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Class Teacher</th><th>Class</th><th>Section</th><th>Profile Edit Access</th></tr></thead><tbody>'+
+    data.map(ct=>'<tr>'+
+      '<td style="font-weight:600">'+esc(ct.teachers?.full_name||ct.teacher_id)+'</td>'+
+      '<td>'+esc(ct.classes?.name||'—')+'</td>'+
+      '<td>'+esc(ct.class_sections?.name||'—')+'</td>'+
+      '<td><div style="display:flex;align-items:center;gap:10px">'+
+        '<div class="switch '+(ct.can_edit_profiles?'on':'')+'" data-tid="'+ct.teacher_id+'" data-sessid="'+ct.session_id+'" data-current="'+(ct.can_edit_profiles?'true':'false')+'" onclick="toggleProfileAccess(this)"></div>'+
+        '<span style="font-size:12px;color:var(--ink-soft)">'+(ct.can_edit_profiles?'Access granted':'Locked')+'</span>'+
+      '</div></td>'+
+    '</tr>').join('')+'</tbody></table></div>'
+}
+
+async function toggleProfileAccess(el){
+  const tid=el.dataset.tid,sessId=el.dataset.sessid,current=el.dataset.current==='true'
+  const{error}=await sb.from('class_teacher_map').update({can_edit_profiles:!current}).eq('teacher_id',tid).eq('session_id',sessId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(current?'Access revoked':'Access granted','success')
+  loadClassTeacherControl()
+}
+
 // ═══════════ TIMETABLE PAGE INIT ═══════════
 async function loadTimetable(){
   loadRosters()
@@ -2269,6 +2498,7 @@ function loadSettings(){
   loadSubjectsList()
   loadStreamsList()
   loadResetList()
+  loadClassTeacherControl()
 }
 </script>
 </body>
