@@ -1393,7 +1393,7 @@ async function openAddMappingModal(){
   if(roster){const{data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order');slotOpts='<option value="">No timetable slot</option>'+(slots||[]).map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+( s.start_time||'').slice(0,5)+'–'+(s.end_time||'').slice(0,5)+')</option>').join('')}
   const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk" style="accent-color:var(--indigo)"> '+d+'</label>').join('')
   openModal('Add Class-Subject Mapping',
-    '<div class="form-row"><div class="fg"><label>Class *</label><select id="mp_class" onchange="mpLoadSections()">'+cls+'</select></div><div class="fg"><label>Section *</label><select id="mp_section"><option value="">Select class first</option></select></div><div class="fg" style="display:none"><label>Stream</label><select id="mp_stream"><option value="">All students</option></select></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Class *</label><select id="mp_class" onchange="mpLoadSections()">'+cls+'</select></div><div class="fg"><label>Section *</label><select id="mp_section" onchange="syncStreamSection(\'section\',\'mp\')"><option value="">Select class first</option></select></div><div class="fg" id="mp_stream_fg" style="display:none"><label>Stream</label><select id="mp_stream" onchange="syncStreamSection(\'stream\',\'mp\')"><option value="">All students (no stream)</option></select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Subject *</label><select id="mp_subject">'+sub+'</select></div><div class="fg"><label>Teacher *</label><select id="mp_teacher">'+tch+'</select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Also set as Class Teacher?</label><select id="mp_ct"><option value="">No</option><option value="yes">Yes</option></select></div></div>'+
     '<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:14px"><p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px">Timetable (active roster: <b>'+(roster?esc(roster.name):'none')+'</b>)</p>'+
@@ -1402,23 +1402,23 @@ async function openAddMappingModal(){
     '<button class="btn btn-dark" onclick="saveMapping()">Add Mapping</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 async function mpLoadSections(){
-  const cid=$('mp_class')?.value,sel=$('mp_section'),strSel=$('mp_stream')
+  const cid=$('mp_class')?.value
+  const sel=$('mp_section'),strSel=$('mp_stream'),fg=$('mp_stream_fg')
   if(sel)sel.innerHTML='<option value="">Select class first</option>'
   if(strSel)strSel.innerHTML='<option value="">All students (no stream)</option>'
+  if(fg)fg.style.display='none'
   if(!cid)return
   const[secRes,strRes]=await Promise.all([
     sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name'),
-    sb.from('streams').select('*').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+    sb.from('streams').select('stream_id,name').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
   ])
   if(sel)sel.innerHTML='<option value="">Select section</option>'+(secRes.data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
-  if(strSel){
-    const streams=strRes.data||[]
-    if(streams.length){
-      strSel.innerHTML='<option value="">All students (no stream)</option>'+streams.map(s=>'<option value="'+s.stream_id+'">'+esc(s.name)+'</option>').join('')
-      strSel.closest('.fg').style.display=''
-    } else {
-      strSel.closest('.fg').style.display='none'
-    }
+  const streams=strRes.data||[]
+  if(strSel&&streams.length){
+    strSel.innerHTML='<option value="">All students (no stream)</option>'+streams.map(s=>'<option value="'+s.stream_id+'">'+esc(s.name)+'</option>').join('')
+    if(fg)fg.style.display=''
+    // Auto-sync: if section already has a value, pick its linked stream
+    if(sel?.value)syncStreamSection('section','mp')
   }
 }
 async function saveMapping(){
