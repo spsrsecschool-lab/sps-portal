@@ -1952,6 +1952,133 @@ function renderTTGrid(el,entries,mode){
   el.innerHTML=html+'</tbody></table></div></div>'
 }
 
+
+// ═══════════ TIMETABLE CORE ═══════════
+async function getActiveRoster(){
+  if(!SESS)return null
+  const{data}=await sb.from('rosters').select('*').eq('session_id',SESS.session_id).eq('is_active',true).maybeSingle()
+  return data
+}
+
+async function loadRosters(){
+  const el=$('rosterList');if(!el)return;ldg(el)
+  if(!SESS){emp(el,'No active session');return}
+  const{data,error}=await sb.from('rosters').select('*').eq('session_id',SESS.session_id).order('created_at')
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!data?.length){emp(el,'No rosters yet. Create one below.');return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Roster Name</th><th>Status</th><th></th></tr></thead><tbody>'+
+    data.map(r=>'<tr style="cursor:pointer" onclick="selectRoster(\''+r.roster_id+'\',\''+esc(r.name)+'\')">'
+      +'<td style="font-weight:600">'+esc(r.name)+'</td>'
+      +'<td>'+(r.is_active?'<span class="pill pill-success">Active</span>':'<span class="pill pill-neutral">Inactive</span>')+'</td>'
+      +'<td style="display:flex;gap:5px">'
+      +(!r.is_active?'<button class="btn btn-dark btn-xs" onclick="event.stopPropagation();activateRoster(\''+r.roster_id+'\',\''+esc(r.name)+'\')">Set Active</button>':'')
+      +'<button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteRoster(\''+r.roster_id+'\',\''+esc(r.name)+'\')">Delete</button>'
+      +'</td></tr>').join('')
+    +'</tbody></table></div>'
+}
+
+async function createRoster(){
+  const name=$('newRosterName')?.value?.trim()
+  if(!name||!SESS){toast('Enter roster name','error');return}
+  const{error}=await sb.from('rosters').insert({name,session_id:SESS.session_id,is_active:false,created_by:SPS.admin?.admin_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Roster created','success');if($('newRosterName'))$('newRosterName').value='';loadRosters()
+}
+
+async function ttLoadSections(){
+  const cid=$('tt_cls')?.value,sel=$('tt_sec')
+  if(!sel)return
+  sel.innerHTML='<option value="">Select class first</option>'
+  if(!cid||!SESS)return
+  const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+}
+
+async function loadStudentTimetable(){
+  const classId=$('tt_cls')?.value,secId=$('tt_sec')?.value,el=$('studentTTGrid')
+  if(!el)return;ldg(el)
+  if(!classId){emp(el,'Select a class');return}
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster. Create one in Roster Settings and set it active.');return}
+  const{data,error}=await sb.from('timetable_entries')
+    .select('entry_id,days,slot_id,time_slots(name,start_time,end_time,sort_order),subjects(name),teachers(full_name),class_sections(name)')
+    .eq('roster_id',roster.roster_id).eq('class_id',classId)
+  if(error){emp(el,'Error: '+error.message);return}
+  let entries=data||[]
+  if(secId)entries=entries.filter(e=>e.section_id===secId||!e.section_id)
+  renderTTGrid(el,entries,'student')
+}
+
+async function loadTeacherTimetable(){
+  const teacherId=$('tt_teacher')?.value,el=$('teacherTTGrid')
+  if(!el)return;ldg(el)
+  if(!teacherId){emp(el,'Select a teacher');return}
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster.');return}
+  const{data,error}=await sb.from('timetable_entries')
+    .select('entry_id,days,slot_id,time_slots(name,start_time,end_time,sort_order),subjects(name),classes(name),class_sections(name)')
+    .eq('roster_id',roster.roster_id).eq('teacher_id',teacherId)
+  if(error){emp(el,'Error: '+error.message);return}
+  renderTTGrid(el,data||[],'teacher')
+}
+
+async function loadSubstitutionSheet(){
+  const teacherId=$('sub_teacher')?.value,date=$('sub_date')?.value,el=$('subSheet')
+  if(!el)return;ldg(el);const saveRow=$('subSaveRow');if(saveRow)saveRow.style.display='none'
+  if(!teacherId||!date){emp(el,'Select a teacher and date');return}
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster.');return}
+  _subRoster=roster
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(date+'T12:00:00').getDay()]
+  if(dow==='Sun'){emp(el,'Selected date is a Sunday — no schedule.');return}
+  const{data:entries,error}=await sb.from('timetable_entries')
+    .select('entry_id,days,slot_id,time_slots(name,start_time,end_time,sort_order),subjects(name),classes(name),class_sections(name)')
+    .eq('roster_id',roster.roster_id).eq('teacher_id',teacherId)
+  if(error){emp(el,'Error: '+error.message);return}
+  const dayEntries=(entries||[]).filter(e=>(e.days||[]).includes(dow))
+  if(!dayEntries.length){emp(el,'No schedule for this teacher on '+dow+'.');return}
+  _subData=dayEntries.sort((a,b)=>(a.time_slots?.sort_order||0)-(b.time_slots?.sort_order||0))
+  const slotIds=_subData.map(e=>e.slot_id)
+  const{data:busyAll}=await sb.from('timetable_entries').select('slot_id,teacher_id').eq('roster_id',roster.roster_id).in('slot_id',slotIds)
+  const busyBySlot={}
+  ;(busyAll||[]).filter(b=>(b.days||[]).includes(dow)).forEach(b=>{if(!busyBySlot[b.slot_id])busyBySlot[b.slot_id]=[];busyBySlot[b.slot_id].push(b.teacher_id)})
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute</th></tr></thead><tbody>'+
+    _subData.map(e=>{
+      const busy=new Set(busyBySlot[e.slot_id]||[])
+      const free=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!busy.has(t.teacher_id))
+      return '<tr><td style="font-weight:700">'+esc(e.time_slots?.name||'—')+'</td>'
+        +'<td class="mono" style="font-size:11px">'+(e.time_slots?.start_time||'').slice(0,5)+'–'+(e.time_slots?.end_time||'').slice(0,5)+'</td>'
+        +'<td>'+esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||'—'))+'</td>'
+        +'<td>'+esc(e.subjects?.name||'—')+'</td>'
+        +'<td><select class="sub_sel" data-entry-id="'+e.entry_id+'" style="font-family:var(--font);font-size:12px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);width:100%">'
+        +'<option value="">— Unassigned —</option>'+free.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+        +'</select></td></tr>'
+    }).join('')
+    +'</tbody></table></div><p style="font-size:11.5px;color:var(--ink-soft);margin-top:10px">Only teachers free during each slot are shown.</p></div>'
+  if(saveRow)saveRow.style.display='block'
+}
+
+async function saveSubstitutions(){
+  const teacherId=$('sub_teacher')?.value,date=$('sub_date')?.value
+  if(!teacherId||!date||!_subRoster){toast('Missing data','error');return}
+  const rows=[],notify=[]
+  document.querySelectorAll('.sub_sel').forEach(sel=>{
+    const entryId=sel.dataset.entryId,subId=sel.value||null
+    const entry=_subData.find(e=>e.entry_id===entryId);if(!entry)return
+    rows.push({date,absent_teacher_id:teacherId,roster_id:_subRoster.roster_id,slot_id:entry.slot_id,entry_id:entryId,substitute_teacher_id:subId,notification_sent:false,created_by:SPS.admin?.admin_id})
+    if(subId)notify.push({teacherId:subId,slot:entry.time_slots?.name,cls:(entry.classes?.name||'—')+'-'+(entry.class_sections?.name||'—'),subj:entry.subjects?.name})
+  })
+  if(!rows.length){toast('Nothing to save','error');return}
+  const{error}=await sb.from('substitutions').upsert(rows,{onConflict:'date,entry_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  const absentT=ALL_TEACHERS.find(t=>t.teacher_id===teacherId)
+  if(notify.length){
+    const msgs=notify.map(n=>({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:n.teacherId,subject:'Substitution Duty — '+date,body:'You are assigned substitute on '+date+'.\nSlot: '+n.slot+' | Class: '+n.cls+' | Subject: '+n.subj+'\nCovering for: '+(absentT?.full_name||'—'),message_type:'substitution_notice',sent_at:new Date().toISOString()}))
+    await sb.from('messages').insert(msgs)
+  }
+  toast('Substitutions saved'+(notify.length?' & '+notify.length+' notified':''),'success')
+}
+
 // ═══════════ TIMETABLE PAGE INIT ═══════════
 async function loadTimetable(){
   loadRosters()
