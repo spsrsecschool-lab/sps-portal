@@ -377,8 +377,8 @@ tbody tr:hover td{background:var(--lav-50)}
           <h3>Enrollment Details — <span id="admSessionLabel">Current Session</span></h3>
           <div class="form-row">
             <div class="fg"><label>Class *</label><select id="adm_class" required onchange="loadAdmSections()"><option value="">Select class</option></select></div>
-            <div class="fg"><label>Section *</label><select id="adm_section" required><option value="">Select class first</option></select></div>
-          <div class="fg" id="adm_stream_fg" style="display:none"><label>Stream</label><select id="adm_stream"><option value="">Select stream</option></select></div>
+            <div class="fg"><label>Section *</label><select id="adm_section" required onchange="syncStreamSection('section','adm')"><option value="">Select class first</option></select></div>
+          <div class="fg" id="adm_stream_fg" style="display:none"><label>Stream</label><select id="adm_stream" onchange="syncStreamSection('stream','adm')"><option value="">Select stream</option></select></div>
           </div>
           <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--ink-soft)">
             Roll no. is auto-assigned as MAX+1 in the selected section. S.No is auto-generated sequentially for this session. Both can be adjusted after admission.
@@ -479,8 +479,8 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="card" style="margin-bottom:18px">
         <div class="form-row" style="margin-bottom:0">
           <div class="fg"><label>Class</label><select id="mo_class" onchange="moLoadSections()"><option value="">Select class</option></select></div>
-          <div class="fg"><label>Section</label><select id="mo_section"><option value="">All sections</option></select></div>
-          <div class="fg" id="mo_stream_fg" style="display:none"><label>Stream</label><select id="mo_stream"><option value="">All streams</option></select></div>
+          <div class="fg"><label>Section</label><select id="mo_section" onchange="syncStreamSection('section','mo')"><option value="">All sections</option></select></div>
+          <div class="fg" id="mo_stream_fg" style="display:none"><label>Stream</label><select id="mo_stream" onchange="syncStreamSection('stream','mo')"><option value="">All streams</option></select></div>
           <div class="fg"><label>Subject</label><select id="mo_subject"><option value="">All subjects</option></select></div>
           <div class="fg"><label>Assessments</label>
             <div id="mo_assessments_wrap" style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px;max-height:120px;overflow-y:auto;min-width:180px">
@@ -506,8 +506,8 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="card" style="margin-bottom:18px">
         <div class="form-row" style="margin-bottom:0">
           <div class="fg"><label>Class</label><select id="pr_class" onchange="promoLoadSections()"><option value="">Select class</option></select></div>
-          <div class="fg"><label>Section</label><select id="pr_section"><option value="">Select class first</option></select></div>
-          <div class="fg" id="pr_stream_fg" style="display:none"><label>Stream</label><select id="pr_stream"><option value="">All streams</option></select></div>
+          <div class="fg"><label>Section</label><select id="pr_section" onchange="syncStreamSection('section','pr')"><option value="">Select class first</option></select></div>
+          <div class="fg" id="pr_stream_fg" style="display:none"><label>Stream</label><select id="pr_stream" onchange="syncStreamSection('stream','pr')"><option value="">All streams</option></select></div>
           <button class="btn btn-soft" style="align-self:flex-end" onclick="loadPromotionStudents()">Load Students</button>
         </div>
       </div>
@@ -552,8 +552,8 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="card" style="margin-bottom:18px">
         <div class="form-row" style="margin-bottom:0">
           <div class="fg"><label>Class</label><select id="ca_class" onchange="caLoadSections()"><option value="">Select class</option></select></div>
-          <div class="fg"><label>Section</label><select id="ca_section"><option value="">Select class first</option></select></div>
-          <div class="fg" id="ca_stream_fg" style="display:none"><label>Stream</label><select id="ca_stream"><option value="">All streams</option></select></div>
+          <div class="fg"><label>Section</label><select id="ca_section" onchange="caLoadSections();syncStreamSection('section','ca')"><option value="">Select class first</option></select></div>
+          <div class="fg" id="ca_stream_fg" style="display:none"><label>Stream</label><select id="ca_stream" onchange="syncStreamSection('stream','ca')"><option value="">All streams</option></select></div>
           <div class="fg"><label>Date From</label><input type="date" id="ca_from"></div>
           <div class="fg"><label>Date To</label><input type="date" id="ca_to"></div>
           <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load</button><button class="btn btn-ghost" style="align-self:flex-end" onclick="debugAttendance()">🔍 Debug</button>
@@ -730,8 +730,8 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="card" style="margin-bottom:18px">
           <div class="form-row" style="margin-bottom:0">
             <div class="fg"><label>Class</label><select id="tt_cls" onchange="ttLoadSections()"><option value="">Select class</option></select></div>
-            <div class="fg"><label>Section</label><select id="tt_sec" onchange="ttLoadStreams()"><option value="">Select class first</option></select></div>
-            <div class="fg"><label>Stream</label><select id="tt_stream"><option value="">All streams</option></select></div>
+            <div class="fg"><label>Section</label><select id="tt_sec" onchange="ttLoadStreams();syncStreamSection('section','tt')"><option value="">Select class first</option></select></div>
+            <div class="fg"><label>Stream</label><select id="tt_stream" onchange="syncStreamSection('stream','tt')"><option value="">All streams</option></select></div>
             <button class="btn btn-soft" style="align-self:flex-end" onclick="loadStudentTimetable()">View Timetable</button>
           </div>
         </div>
@@ -823,11 +823,44 @@ window._msgStore={}, window._assessMap={}
 
 // ═══════════ INIT ═══════════
 SPS.ready().then(async()=>{
-  await loadGlobals(); renderDashboard(); populateCalMonths()
+  await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths()
   const cf=document.getElementById('ca_from'),ct=document.getElementById('ca_to')
   if(cf)cf.value=today(); if(ct)ct.value=today()
   document.getElementById('admSessionLabel').textContent=SESS?SESS.session_id:'—'
 })
+
+// ═══════════ STREAM ↔ SECTION AUTO-LINK MAP ═══════════
+let _streamToSection={}, _sectionToStream={}  // stream_id→section_id, section_id→stream_id
+
+async function loadStreamSectionMap(){
+  if(!SESS)return
+  const{data}=await sb.from('streams').select('stream_id,section_id,class_id').eq('session_id',SESS.session_id).not('section_id','is',null)
+  _streamToSection={}; _sectionToStream={}
+  ;(data||[]).forEach(s=>{
+    _streamToSection[s.stream_id]=s.section_id
+    _sectionToStream[s.section_id]=s.stream_id
+  })
+}
+
+// Call when section OR stream changes — auto-fills the other
+function syncStreamSection(changedType, prefix){
+  // changedType: 'section' or 'stream'
+  const secEl=$(prefix+'_section'), strEl=$(prefix+'_stream')
+  if(!secEl||!strEl)return
+  if(changedType==='section'){
+    const secId=secEl.value
+    const linkedStream=_sectionToStream[secId]
+    if(linkedStream&&strEl.querySelector('option[value="'+linkedStream+'"]')){
+      strEl.value=linkedStream
+    }
+  } else {
+    const strId=strEl.value
+    const linkedSec=_streamToSection[strId]
+    if(linkedSec&&secEl.querySelector('option[value="'+linkedSec+'"]')){
+      secEl.value=linkedSec
+    }
+  }
+}
 
 // ═══════════ SHARED: LOAD STREAMS FOR A CLASS ═══════════
 async function loadStreamsFor(classId, targetSelectId){
@@ -841,6 +874,10 @@ async function loadStreamsFor(classId, targetSelectId){
   if(data?.length){
     sel.innerHTML='<option value="">All streams</option>'+data.map(s=>'<option value="'+s.stream_id+'">'+esc(s.name)+'</option>').join('')
     if(fg)fg.style.display=''
+    // Auto-sync: if section already has a value, select its linked stream
+    const prefix=targetSelectId.replace('_stream','')
+    const secEl=$(prefix+'_section')
+    if(secEl?.value)syncStreamSection('section',prefix)
   }
 }
 
@@ -1901,10 +1938,38 @@ async function toggleSubject(id,active){
 async function loadStreamsList(){
   const el=$('streamList');if(!el)return;ldg(el)
   if(!SESS){emp(el,'No active session');return}
-  const{data}=await sb.from('streams').select('*,classes(name)').eq('session_id',SESS.session_id).order('name')
+  const{data}=await sb.from('streams').select('*,classes(name),class_sections(name)').eq('session_id',SESS.session_id).order('name')
   if(!data?.length){emp(el,'No streams yet');return}
-  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Stream</th><th>Class</th><th>Status</th><th></th></tr></thead><tbody>'+data.map(s=>'<tr><td>'+esc(s.name)+'</td><td>'+esc(s.classes?.name||'—')+'</td><td><span class="pill '+(s.is_active?'pill-success':'pill-neutral')+'">'+(s.is_active?'Active':'Inactive')+'</span></td><td><button class="btn btn-danger btn-xs" onclick="toggleStream(\''+s.stream_id+'\','+s.is_active+')">'+(s.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')+'</tbody></table></div>'
+  const{data:allSecs}=await sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  const secsByClass={}
+  ;(allSecs||[]).forEach(s=>{if(!secsByClass[s.class_id])secsByClass[s.class_id]=[];secsByClass[s.class_id].push(s)})
+  const rows=data.map(s=>{
+    const secs=secsByClass[s.class_id]||[]
+    let secOpts='<option value="">Not linked</option>'
+    secs.forEach(sec=>{secOpts+='<option value="'+sec.section_id+'"'+(s.section_id===sec.section_id?' selected':'')+'>'+esc(sec.name)+'</option>'})
+    const linked=s.class_sections?'<span class="pill pill-success" style="font-size:10px">'+esc(s.class_sections.name)+'</span>':'<span style="font-size:11px;color:var(--ink-faint)">unlinked</span>'
+    return '<tr>'+
+      '<td style="font-weight:600">'+esc(s.name)+'</td>'+
+      '<td>'+esc(s.classes?.name||'—')+'</td>'+
+      '<td><div style="display:flex;gap:6px;align-items:center">'+
+        '<select data-sid="'+s.stream_id+'" onchange="linkStreamSection(this.dataset.sid,this.value)" style="font-family:var(--font);font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--white)">'+secOpts+'</select>'+
+        linked+
+      '</div></td>'+
+      '<td><span class="pill '+(s.is_active?'pill-success':'pill-neutral')+'">'+(s.is_active?'Active':'Inactive')+'</span></td>'+
+      '<td><button class="btn btn-danger btn-xs" data-strid="'+s.stream_id+'" data-active="'+s.is_active+'" onclick="toggleStream(this.dataset.strid,this.dataset.active===\'true\')">'+(s.is_active?'Deactivate':'Activate')+'</button></td>'+
+    '</tr>'
+  })
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Stream</th><th>Class</th><th>Linked Section</th><th>Status</th><th></th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div><p style="font-size:11.5px;color:var(--ink-soft);margin-top:12px">Link a section to a stream so selecting one auto-fills the other throughout the portal.</p>'
 }
+async function linkStreamSection(streamId, sectionId){
+  const{error}=await sb.from('streams').update({section_id:sectionId||null}).eq('stream_id',streamId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(sectionId?'Section linked to stream':'Stream unlinked','success')
+  loadStreamsList()
+  // Refresh global stream-section map
+  await loadStreamSectionMap()
+}
+
 async function createStream(){
   const name=$('newStreamName')?.value?.trim(),classId=$('newStreamClass')?.value
   if(!name||!classId||!SESS){toast('Name and class required','error');return}
