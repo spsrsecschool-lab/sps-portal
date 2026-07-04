@@ -552,7 +552,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="card" style="margin-bottom:18px">
         <div class="form-row" style="margin-bottom:0">
           <div class="fg"><label>Class</label><select id="ca_class" onchange="caLoadSections()"><option value="">Select class</option></select></div>
-          <div class="fg"><label>Section</label><select id="ca_section" onchange="caLoadSections();syncStreamSection('section','ca')"><option value="">Select class first</option></select></div>
+          <div class="fg"><label>Section</label><select id="ca_section" onchange="syncStreamSection('section','ca')"><option value="">Select class first</option></select></div>
           <div class="fg" id="ca_stream_fg" style="display:none"><label>Stream</label><select id="ca_stream" onchange="syncStreamSection('stream','ca')"><option value="">All streams</option></select></div>
           <div class="fg"><label>Date From</label><input type="date" id="ca_from"></div>
           <div class="fg"><label>Date To</label><input type="date" id="ca_to"></div>
@@ -731,7 +731,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="form-row" style="margin-bottom:0">
             <div class="fg"><label>Class</label><select id="tt_cls" onchange="ttLoadSections()"><option value="">Select class</option></select></div>
             <div class="fg"><label>Section</label><select id="tt_sec" onchange="ttLoadStreams();syncStreamSection('section','tt')"><option value="">Select class first</option></select></div>
-            <div class="fg"><label>Stream</label><select id="tt_stream" onchange="syncStreamSection('stream','tt')"><option value="">All streams</option></select></div>
+            <div class="fg" id="tt_stream_fg" style="display:none"><label>Stream</label><select id="tt_stream" onchange="syncStreamSection('stream','tt')"><option value="">All streams</option></select></div>
             <button class="btn btn-soft" style="align-self:flex-end" onclick="loadStudentTimetable()">View Timetable</button>
           </div>
         </div>
@@ -1195,10 +1195,12 @@ async function parseCsv(type,input){
     const headers=lines[0].split(',').map(h=>h.trim())
     const required=type==='student'?['full_name','father_name']:['employee_code','full_name','username']
     const valid=[],errors=[],autoCreated=[]
-    const classNameMap={},sectionMap={}
+    const classNameMap={},sectionMap={},streamNameMap={}
     ALL_CLASSES.forEach(c=>{classNameMap[c.name.toLowerCase()]=c.class_id})
     const{data:allSecs}=await sb.from('class_sections').select('*').eq('session_id',SESS?.session_id||'')
     ;(allSecs||[]).forEach(s=>{sectionMap[s.class_id+'_'+s.name.toLowerCase()]=s.section_id})
+    const{data:allStrs}=await sb.from('streams').select('stream_id,name,class_id').eq('session_id',SESS?.session_id||'')
+    ;(allStrs||[]).forEach(s=>{streamNameMap[s.class_id+'_'+s.name.toLowerCase()]=s.stream_id})
     for(let i=0;i<lines.slice(1).length;i++){
       const vals=lines.slice(1)[i].split(',').map(v=>v.trim());const obj={};headers.forEach((h,j)=>obj[h]=vals[j]||'')
       const miss=required.filter(k=>!obj[k])
@@ -1209,11 +1211,17 @@ async function parseCsv(type,input){
         if(obj.section&&classNameMap[ck]){const sk=classNameMap[ck]+'_'+obj.section.toLowerCase();if(!sectionMap[sk]&&SESS){const{data:ns}=await sb.from('class_sections').insert({name:obj.section,class_id:classNameMap[ck],session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id}).select().single();if(ns){sectionMap[sk]=ns.section_id;autoCreated.push('Section: '+obj.class+'-'+obj.section)}}}
         obj._class_id=classNameMap[ck]||null
         obj._section_id=obj.section&&classNameMap[ck]?sectionMap[classNameMap[ck]+'_'+obj.section.toLowerCase()]||null:null
-        // Resolve stream
+        // Resolve stream — auto-create if missing
+        obj._stream_id=null
         if(obj.stream&&classNameMap[ck]&&SESS){
-          const{data:strData}=await sb.from('streams').select('stream_id').eq('class_id',classNameMap[ck]).eq('session_id',SESS.session_id).ilike('name',obj.stream).maybeSingle()
-          obj._stream_id=strData?.stream_id||null
-        }else{obj._stream_id=null}
+          const streamKey=classNameMap[ck]+'_'+obj.stream.toLowerCase()
+          if(streamNameMap[streamKey]){
+            obj._stream_id=streamNameMap[streamKey]
+          } else {
+            const{data:ns}=await sb.from('streams').insert({name:obj.stream,class_id:classNameMap[ck],session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id}).select().single()
+            if(ns){streamNameMap[streamKey]=ns.stream_id;obj._stream_id=ns.stream_id;autoCreated.push('Stream: '+obj.stream+' ('+obj.class+')')}
+          }
+        }
       }
       valid.push(obj)
     }
@@ -1347,8 +1355,18 @@ async function commitImport(count,type){
   }
 }
 function downloadSampleCsv(type){
-  const[h,r]=type==='student'?[['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob','aadhar_no','address','family_code','class','section','roll_no'],['','','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-04-15','1234 5678 9012','House 1, City','F001','8th','A','1']]:[['employee_code','full_name','designation','phone','username'],['SPS-T-001','Rina Mehta','PGT Science','9876543210','SPS-T-001']]
-  const a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent([h.join(','),r.join(',')].join('\n'));a.download='sample_'+type+'s.csv';a.click()
+  const[h,r]=type==='student'
+    ?[
+      ['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob','aadhar_no','address','family_code','class','section','stream','roll_no'],
+      ['','','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','15-Aug-2012','1234 5678 9012','House 1 City','F0001','11th','A','Commerce','1']
+    ]
+    :[
+      ['employee_code','full_name','designation','phone','username'],
+      ['SPS-T-001','Rina Mehta','PGT Science','9876543210','SPS-T-001']
+    ]
+  const a=document.createElement('a')
+  a.href='data:text/csv,'+encodeURIComponent([h.join(','),r.join(',')].join('\n'))
+  a.download='sample_'+type+'s.csv';a.click()
 }
 
 // ═══════════ MAPPING ═══════════
@@ -2130,9 +2148,11 @@ async function ttLoadSections(){
   if(!sel)return
   sel.innerHTML='<option value="">Select class first</option>'
   if(str)str.innerHTML='<option value="">All streams</option>'
+  const fg=$('tt_stream_fg');if(fg)fg.style.display='none'
   if(!cid||!SESS)return
   const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
   sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+  await loadStreamsFor(cid,'tt_stream')
 }
 async function ttLoadStreams(){
   const cid=$('tt_cls')?.value,str=$('tt_stream')
