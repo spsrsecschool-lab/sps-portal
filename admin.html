@@ -2361,6 +2361,7 @@ async function approveMarksRequest(requestId){
   const{error:le}=await sb.from('marks_lock_state').upsert({
     teacher_id:req.teacher_id,
     assessment_id:req.assessment_id,
+    class_id:req.class_id,
     subject_id:req.subject_id,
     section_id:req.section_id,
     session_id:req.session_id||SESS?.session_id,
