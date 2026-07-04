@@ -1425,15 +1425,28 @@ let _mappingRaw=[]
 function populateMapFilter(){const sel=$('mapClassFilter');if(sel.options.length>1)return;sel.innerHTML='<option value="">All Classes</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')}
 async function loadMapping(){
   ldg($('mappingBody'))
-  const{data,error}=await sb.from('teacher_subject_class_map').select('map_id,class_id,section_id,classes(name),class_sections(name),subjects(name),teachers(full_name,teacher_id)').eq('session_id',SESS?.session_id||'')
+  const{data,error}=await sb.from('teacher_subject_class_map').select('map_id,class_id,section_id,stream_id,subject_id,teacher_id,classes(name),class_sections(name),subjects(name,subject_id),teachers(full_name,teacher_id),streams(name)').eq('session_id',SESS?.session_id||'')
   if(error){toast('Failed','error');return}; _mappingRaw=data||[]
   const{data:ct}=await sb.from('class_teacher_map').select('section_id,teachers(full_name)').eq('session_id',SESS?.session_id||'')
   const ctF={}; ct?.forEach(r=>{ctF[r.section_id]=r.teachers?.full_name||''})
   const fcls=$('mapClassFilter')?.value||''
   const rows=fcls?_mappingRaw.filter(r=>r.class_id===fcls):_mappingRaw
   const body=$('mappingBody')
-  if(!rows.length){body.innerHTML='<tr><td colspan="6"><div class="empty-state"><p>No mappings yet.</p></div></td></tr>';return}
-  body.innerHTML=rows.map(r=>'<tr><td>'+esc(r.classes?.name||'—')+'</td><td>'+esc(r.class_sections?.name||'—')+'</td><td>'+esc(r.subjects?.name||'—')+'</td><td>'+esc(r.teachers?.full_name||'—')+'</td><td>'+esc(ctF[r.section_id]||'—')+'</td><td><button class="btn btn-danger btn-xs" onclick="removeMapping(\''+r.map_id+'\')">Remove</button></td></tr>').join('')
+  if(!rows.length){body.innerHTML='<tr><td colspan="7"><div class="empty-state"><p>No mappings yet.</p></div></td></tr>';return}
+  body.innerHTML=rows.map(r=>{
+    const mid=r.map_id
+    return '<tr>'+
+      '<td>'+esc(r.classes?.name||'—')+'</td>'+
+      '<td>'+esc(r.class_sections?.name||'—')+'</td>'+
+      '<td>'+esc(r.subjects?.name||'—')+'</td>'+
+      '<td>'+esc(r.teachers?.full_name||'—')+'</td>'+
+      '<td>'+esc(ctF[r.section_id]||'—')+'</td>'+
+      '<td style="display:flex;gap:5px">'+
+        '<button class="btn btn-ghost btn-xs" data-mid="'+mid+'" onclick="editMapping(this.dataset.mid)">Edit</button>'+
+        '<button class="btn btn-danger btn-xs" data-mid="'+mid+'" onclick="removeMapping(this.dataset.mid)">Remove</button>'+
+      '</td>'+
+    '</tr>'
+  }).join('')
 }
 async function openAddMappingModal(){
   const cls=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
@@ -1478,10 +1491,96 @@ async function saveMapping(){
   const{error}=await sb.from('teacher_subject_class_map').insert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,stream_id:streamId})
   if(error){toast('Failed: '+error.message,'error');return}
   const slotId=$('mp_slot')?.value,days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value),roster=await getActiveRoster()
+  if(!slotId){toast('Select a time slot','error');return}
+  if(!days.length){toast('Select at least one day','error');return}
+  if(!roster){toast('No active roster — create and activate one in Timetable first','error');return}
   if(slotId&&days.length&&roster){const{error:te}=await sb.from('timetable_entries').insert({roster_id:roster.roster_id,slot_id:slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days,stream_id:streamId});if(te)toast('Mapping saved but timetable entry failed: '+te.message,'error');else toast('Mapping and timetable entry added','success')}else toast('Mapping added','success')
   closeModal();loadMapping()
 }
 async function removeMapping(id){confirmAct('Remove this mapping?','Teacher loses access to this class-subject.',async()=>{await sb.from('teacher_subject_class_map').delete().eq('map_id',id);toast('Removed','success');loadMapping()})}
+
+async function editMapping(mapId){
+  const r=_mappingRaw.find(m=>m.map_id===mapId)
+  if(!r){toast('Mapping not found','error');return}
+  const roster=await getActiveRoster()
+  let slotOpts='<option value="">No active roster</option>'
+  let existingSlotId='',existingDays=[]
+  if(roster){
+    const{data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order')
+    slotOpts='<option value="">Select time slot *</option>'+(slots||[]).map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+s.start_time?.slice(0,5)+'–'+s.end_time?.slice(0,5)+')</option>').join('')
+    const{data:te}=await sb.from('timetable_entries').select('slot_id,days').eq('roster_id',roster.roster_id).eq('section_id',r.section_id).eq('subject_id',r.subject_id).eq('teacher_id',r.teacher_id).maybeSingle()
+    if(te){existingSlotId=te.slot_id||'';existingDays=te.days||[]}
+  }
+  const{data:secs}=await sb.from('class_sections').select('*').eq('class_id',r.class_id).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  const secOpts=(secs||[]).map(s=>'<option value="'+s.section_id+'"'+(s.section_id===r.section_id?' selected':'')+'>'+esc(s.name)+'</option>').join('')
+  const{data:strs}=await sb.from('streams').select('*').eq('class_id',r.class_id).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  const hasStreams=strs?.length>0
+  const strOpts='<option value="">All students (no stream)</option>'+(strs||[]).map(s=>'<option value="'+s.stream_id+'"'+(s.stream_id===r.stream_id?' selected':'')+'>'+esc(s.name)+'</option>').join('')
+  const cls=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'"'+(c.class_id===r.class_id?' selected':'')+'>'+esc(c.name)+'</option>').join('')
+  const tch=ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'"'+(t.teacher_id===r.teacher_id?' selected':'')+'>'+esc(t.full_name)+'</option>').join('')
+  const sub=ALL_SUBJECTS.filter(s=>s.is_active).map(s=>'<option value="'+s.subject_id+'"'+(s.subject_id===r.subject_id?' selected':'')+'>'+esc(s.name)+'</option>').join('')
+  const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk"'+(existingDays.includes(d)?' checked':'')+' style="accent-color:var(--indigo)"> '+d+'</label>').join('')
+  openModal('Edit Class-Subject Mapping',
+    '<input type="hidden" id="mp_edit_id" value="'+mapId+'">'+
+    '<div class="form-row">'+
+      '<div class="fg"><label>Class *</label><select id="mp_class">'+cls+'</select></div>'+
+      '<div class="fg"><label>Section *</label><select id="mp_section">'+secOpts+'</select></div>'+
+      '<div class="fg" id="mp_stream_fg"'+(hasStreams?'':' style="display:none"')+'><label>Stream</label><select id="mp_stream">'+strOpts+'</select></div>'+
+    '</div>'+
+    '<div class="form-row">'+
+      '<div class="fg"><label>Subject *</label><select id="mp_subject">'+sub+'</select></div>'+
+      '<div class="fg"><label>Teacher *</label><select id="mp_teacher">'+tch+'</select></div>'+
+    '</div>'+
+    '<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:14px">'+
+      '<p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px">Timetable (active roster: <b>'+(roster?esc(roster.name):'none')+'</b>)</p>'+
+      '<div class="form-row" style="margin-bottom:8px"><div class="fg"><label>Time Slot *</label><select id="mp_slot">'+slotOpts+'</select></div></div>'+
+      '<div class="fg"><label>Days *</label><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">'+dayChks+'</div></div>'+
+    '</div>',
+    '<button class="btn btn-dark" onclick="updateMapping()">Save Changes</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  )
+  // Wire class change after modal renders
+  setTimeout(()=>{
+    const mc=$('mp_class'),sl=$('mp_slot')
+    if(mc)mc.onchange=mpLoadSections
+    if(sl&&existingSlotId)sl.value=existingSlotId
+  },50)
+}
+
+async function updateMapping(){
+  const mapId=$('mp_edit_id')?.value
+  const classId=$('mp_class')?.value,secId=$('mp_section')?.value
+  const subId=$('mp_subject')?.value,tchId=$('mp_teacher')?.value
+  const slotId=$('mp_slot')?.value,days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value)
+  const streamId=$('mp_stream')?.value||null
+
+  if(!classId||!secId||!subId||!tchId){toast('Class, section, subject and teacher are required','error');return}
+  if(!slotId){toast('Select a time slot','error');return}
+  if(!days.length){toast('Select at least one day','error');return}
+
+  // Update teacher_subject_class_map
+  const{error}=await sb.from('teacher_subject_class_map').update({
+    class_id:classId,section_id:secId,subject_id:subId,
+    teacher_id:tchId,stream_id:streamId
+  }).eq('map_id',mapId)
+  if(error){toast('Failed to update mapping: '+error.message,'error');return}
+
+  // Update timetable entry — find existing and update or insert new
+  const roster=await getActiveRoster()
+  if(roster){
+    // Get old mapping to find existing entry
+    const old=_mappingRaw.find(m=>m.map_id===mapId)
+    if(old){
+      const{data:existing}=await sb.from('timetable_entries').select('entry_id').eq('roster_id',roster.roster_id).eq('section_id',old.section_id).eq('subject_id',old.subject_id).eq('teacher_id',old.teacher_id).maybeSingle()
+      if(existing){
+        await sb.from('timetable_entries').update({slot_id:slotId,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days,stream_id:streamId}).eq('entry_id',existing.entry_id)
+      } else {
+        await sb.from('timetable_entries').insert({roster_id:roster.roster_id,slot_id:slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days,stream_id:streamId})
+      }
+    }
+  }
+
+  toast('Mapping updated','success');closeModal();loadMapping()
+}
 
 // ═══════════ ASSESSMENTS ═══════════
 async function loadAssessments(){
