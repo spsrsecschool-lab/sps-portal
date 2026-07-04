@@ -910,6 +910,14 @@ const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 const fmtD=d=>d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—'
 const rel=iso=>{if(!iso)return'';const m=Math.floor((Date.now()-new Date(iso))/60000);if(m<2)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return fmtD(iso.slice(0,10))}
 function ldg(el){el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'}
+function toggleReqCard(id){
+  const el=$(id);if(!el)return
+  const isOpen=el.style.display!=='none'
+  el.style.display=isOpen?'none':'block'
+  // rotate chevron
+  const chevron=el.previousElementSibling?.querySelector('svg:last-child')
+  if(chevron)chevron.style.transform=isOpen?'':'rotate(180deg)'
+}
 function normDate(s){
   // Already YYYY-MM-DD
   if(!s||/^\d{4}-\d{2}-\d{2}$/.test(s))return s||null
@@ -2296,55 +2304,53 @@ async function loadMarksRequests(){
   const{data,error}=await sb.from('access_requests')
     .select('*,teachers(full_name),classes(name),class_sections(name),subjects(name),assessments(name)')
     .eq('request_type','marks_edit')
-    .order('created_at',{ascending:false})
-    .limit(100)
+    .order('created_at',{ascending:false}).limit(100)
   if(error){emp(el,'Error: '+error.message);return}
   if(!data?.length){emp(el,'No marks edit requests yet.');return}
 
-  // For approved requests, fetch current lock state
-  const approvedIds=data.filter(r=>r.status==='approved').map(r=>r.request_id)
-  let lockMap={}
-  if(approvedIds.length){
-    // Check marks_lock_state for each approved request
-    const lockChecks=await Promise.all(
-      data.filter(r=>r.status==='approved').map(r=>
-        sb.from('marks_lock_state').select('is_locked').eq('teacher_id',r.teacher_id).eq('assessment_id',r.assessment_id).eq('section_id',r.section_id).eq('subject_id',r.subject_id).maybeSingle()
-      )
-    )
-    data.filter(r=>r.status==='approved').forEach((r,i)=>{lockMap[r.request_id]=lockChecks[i]?.data?.is_locked})
-  }
+  const statusBadge=s=>s==='pending'?'<span class="pill pill-warn">Pending</span>':s==='approved'?'<span class="pill pill-indigo">Access Granted</span>':s==='completed'?'<span class="pill pill-success">Completed</span>':'<span class="pill pill-danger">Rejected</span>'
+  const statusIcon=s=>s==='pending'?'🟡':s==='approved'?'🔵':s==='completed'?'🟢':'🔴'
 
-  const statusPill=(r)=>{
-    if(r.status==='pending')return '<span class="pill pill-warn">Pending</span>'
-    if(r.status==='rejected')return '<span class="pill pill-danger">Rejected</span>'
-    if(r.status==='completed')return '<span class="pill pill-success">Completed</span>'
-    // approved — show whether teacher has submitted
-    const locked=lockMap[r.request_id]
-    return locked===true?'<span class="pill pill-success">Submitted & Locked</span>':'<span class="pill pill-indigo">Access Granted</span>'
-  }
-
-  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr>'+
-    '<th>Teacher</th><th>Assessment</th><th>Class</th><th>Sec</th><th>Subject</th><th>Note</th><th>Status</th><th>Requested</th><th></th>'+
-    '</tr></thead><tbody>'+
-    data.map(r=>'<tr>'+
-      '<td style="font-weight:600">'+esc(r.teachers?.full_name||r.teacher_id)+'</td>'+
-      '<td>'+esc(r.assessments?.name||'—')+'</td>'+
-      '<td>'+esc(r.classes?.name||'—')+'</td>'+
-      '<td>'+esc(r.class_sections?.name||'—')+'</td>'+
-      '<td>'+esc(r.subjects?.name||'—')+'</td>'+
-      '<td style="max-width:180px;font-size:11.5px;color:var(--ink-soft)">'+esc(r.note||'—')+'</td>'+
-      '<td>'+statusPill(r)+'</td>'+
-      '<td style="font-size:11px;color:var(--ink-faint)">'+rel(r.created_at)+'</td>'+
-      '<td style="display:flex;gap:5px">'+
-        (r.status==='pending'?
-          '<button class="btn btn-success btn-xs" data-rid="'+r.request_id+'" onclick="approveMarksRequest(this.dataset.rid)">Approve</button>'+
-          '<button class="btn btn-danger btn-xs" data-rid="'+r.request_id+'" onclick="rejectRequest(this.dataset.rid,\'marks\')">Reject</button>'
-        :'')+(r.status==='approved'?
-          '<button class="btn btn-ghost btn-xs" data-rid="'+r.request_id+'" onclick="revokeMarksAccess(this.dataset.rid)">Revoke</button>'
-        :'')+
-      '</td>'+
-    '</tr>').join('')+
-    '</tbody></table></div></div>'
+  el.innerHTML='<div style="display:flex;flex-direction:column;gap:12px">'+
+  data.map(r=>`
+    <div class="card" style="cursor:pointer;padding:0;overflow:hidden" onclick="toggleReqCard('mrc_${r.request_id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+          <span style="font-size:18px">${statusIcon(r.status)}</span>
+          <div style="min-width:0">
+            <div style="font-weight:700;font-size:13.5px">${esc(r.teachers?.full_name||r.teacher_id)}</div>
+            <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">${esc(r.assessments?.name||'—')} · ${esc(r.classes?.name||'—')}-${esc(r.class_sections?.name||'—')} · ${esc(r.subjects?.name||'—')}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+          ${statusBadge(r.status)}
+          <span style="font-size:11px;color:var(--ink-faint)">${rel(r.created_at)}</span>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--ink-faint);fill:none;stroke-width:2;flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+      <div id="mrc_${r.request_id}" style="display:none;border-top:1px solid var(--line);padding:18px 20px;background:var(--lav-50)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-bottom:14px">
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Teacher</span><div style="font-size:13px;margin-top:3px">${esc(r.teachers?.full_name||r.teacher_id)}</div></div>
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Assessment</span><div style="font-size:13px;margin-top:3px">${esc(r.assessments?.name||'—')}</div></div>
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Class & Section</span><div style="font-size:13px;margin-top:3px">${esc(r.classes?.name||'—')} — Section ${esc(r.class_sections?.name||'—')}</div></div>
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Subject</span><div style="font-size:13px;margin-top:3px">${esc(r.subjects?.name||'—')}</div></div>
+        </div>
+        <div style="margin-bottom:16px">
+          <span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Teacher's Note</span>
+          <div style="font-size:13px;margin-top:5px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;white-space:pre-wrap;line-height:1.6">${esc(r.note||'No note provided.')}</div>
+        </div>
+        ${r.review_note?`<div style="margin-bottom:16px"><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Admin Note</span><div style="font-size:13px;margin-top:5px;padding:10px 14px;background:var(--warn-soft);border-radius:var(--radius-sm)">${esc(r.review_note)}</div></div>`:''}
+        ${r.status==='pending'?`
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+          <button class="btn btn-danger" onclick="event.stopPropagation();rejectRequest('${r.request_id}','marks')">Reject Request</button>
+          <button class="btn btn-success" style="padding:10px 24px;font-size:13.5px" onclick="event.stopPropagation();approveMarksRequest('${r.request_id}')">✓ Approve & Unlock</button>
+        </div>`:''}
+        ${r.status==='approved'?`
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+          <button class="btn btn-ghost" onclick="event.stopPropagation();revokeMarksAccess('${r.request_id}')">Revoke Access</button>
+        </div>`:''}
+      </div>
+    </div>`).join('')+'</div>'
 }
 
 async function approveMarksRequest(requestId){
@@ -2357,6 +2363,7 @@ async function approveMarksRequest(requestId){
     assessment_id:req.assessment_id,
     subject_id:req.subject_id,
     section_id:req.section_id,
+    session_id:req.session_id||SESS?.session_id,
     is_locked:false,
     locked_at:null
   },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
@@ -2413,37 +2420,55 @@ async function loadProfileRequests(){
   const{data,error}=await sb.from('access_requests')
     .select('*,teachers(full_name)')
     .eq('request_type','profile_edit')
-    .order('created_at',{ascending:false})
-    .limit(100)
+    .order('created_at',{ascending:false}).limit(100)
   if(error){emp(el,'Error: '+error.message);return}
   if(!data?.length){emp(el,'No profile access requests yet.');return}
 
-  // Get class-teacher info for each teacher
   const tids=[...new Set(data.map(r=>r.teacher_id))]
   const{data:ctData}=await sb.from('class_teacher_map').select('teacher_id,can_edit_profiles,classes(name),class_sections(name)').in('teacher_id',tids).eq('session_id',SESS?.session_id||'')
   const ctMap={}; (ctData||[]).forEach(r=>{ctMap[r.teacher_id]=r})
 
-  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr>'+
-    '<th>Teacher</th><th>Class</th><th>Section</th><th>Note</th><th>Status</th><th>Requested</th><th></th>'+
-    '</tr></thead><tbody>'+
-    data.map(r=>{
-      const ct=ctMap[r.teacher_id]
-      return '<tr>'+
-        '<td style="font-weight:600">'+esc(r.teachers?.full_name||r.teacher_id)+'</td>'+
-        '<td>'+esc(ct?.classes?.name||'—')+'</td>'+
-        '<td>'+esc(ct?.class_sections?.name||'—')+'</td>'+
-        '<td style="max-width:200px;font-size:11.5px;color:var(--ink-soft)">'+esc(r.note||'—')+'</td>'+
-        '<td>'+(r.status==='pending'?'<span class="pill pill-warn">Pending</span>':r.status==='approved'?'<span class="pill pill-success">Access Granted</span>':'<span class="pill pill-danger">Rejected</span>')+'</td>'+
-        '<td style="font-size:11px;color:var(--ink-faint)">'+rel(r.created_at)+'</td>'+
-        '<td style="display:flex;gap:5px">'+
-          (r.status==='pending'?
-            '<button class="btn btn-success btn-xs" data-rid="'+r.request_id+'" data-tid="'+r.teacher_id+'" onclick="approveProfileRequest(this.dataset.rid,this.dataset.tid)">Grant</button>'+
-            '<button class="btn btn-danger btn-xs" data-rid="'+r.request_id+'" onclick="rejectRequest(this.dataset.rid,\'profile\')">Reject</button>'
-          :'')+
-        '</td>'+
-      '</tr>'
-    }).join('')+
-    '</tbody></table></div></div>'
+  const statusBadge=s=>s==='pending'?'<span class="pill pill-warn">Pending</span>':s==='approved'?'<span class="pill pill-success">Access Granted</span>':'<span class="pill pill-danger">Rejected</span>'
+  const statusIcon=s=>s==='pending'?'🟡':s==='approved'?'🟢':'🔴'
+
+  el.innerHTML='<div style="display:flex;flex-direction:column;gap:12px">'+
+  data.map(r=>{
+    const ct=ctMap[r.teacher_id]
+    return `
+    <div class="card" style="cursor:pointer;padding:0;overflow:hidden" onclick="toggleReqCard('prc_${r.request_id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+          <span style="font-size:18px">${statusIcon(r.status)}</span>
+          <div>
+            <div style="font-weight:700;font-size:13.5px">${esc(r.teachers?.full_name||r.teacher_id)}</div>
+            <div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Class Teacher · ${esc(ct?.classes?.name||'—')}-${esc(ct?.class_sections?.name||'—')}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+          ${statusBadge(r.status)}
+          <span style="font-size:11px;color:var(--ink-faint)">${rel(r.created_at)}</span>
+          <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--ink-faint);fill:none;stroke-width:2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+      <div id="prc_${r.request_id}" style="display:none;border-top:1px solid var(--line);padding:18px 20px;background:var(--lav-50)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-bottom:14px">
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Teacher</span><div style="font-size:13px;margin-top:3px">${esc(r.teachers?.full_name||r.teacher_id)}</div></div>
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Class</span><div style="font-size:13px;margin-top:3px">${esc(ct?.classes?.name||'—')} — Section ${esc(ct?.class_sections?.name||'—')}</div></div>
+          <div><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Current Access</span><div style="font-size:13px;margin-top:3px">${ct?.can_edit_profiles?'<span class="pill pill-success">Granted</span>':'<span class="pill pill-neutral">Locked</span>'}</div></div>
+        </div>
+        <div style="margin-bottom:16px">
+          <span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Teacher's Note</span>
+          <div style="font-size:13px;margin-top:5px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;white-space:pre-wrap;line-height:1.6">${esc(r.note||'No note provided.')}</div>
+        </div>
+        ${r.review_note?`<div style="margin-bottom:16px"><span style="font-size:11px;text-transform:uppercase;color:var(--ink-faint);font-weight:600">Admin Note</span><div style="font-size:13px;margin-top:5px;padding:10px 14px;background:var(--warn-soft);border-radius:var(--radius-sm)">${esc(r.review_note)}</div></div>`:''}
+        ${r.status==='pending'?`
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+          <button class="btn btn-danger" onclick="event.stopPropagation();rejectRequest('${r.request_id}','profile')">Reject Request</button>
+          <button class="btn btn-success" style="padding:10px 24px;font-size:13.5px" onclick="event.stopPropagation();approveProfileRequest('${r.request_id}','${r.teacher_id}')">✓ Grant Access</button>
+        </div>`:''}
+      </div>
+    </div>`
+  }).join('')+'</div>'
 }
 
 async function approveProfileRequest(requestId, teacherId){
