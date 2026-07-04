@@ -330,7 +330,8 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="page-head"><div><h2>Students</h2><p>All enrolled students — current session</p></div></div>
       <div class="search-bar">
         <div class="fg" style="max-width:280px"><label>Search</label><input type="text" id="studentSearch" placeholder="Name, Student ID, S.No…" oninput="filterStudents()"></div>
-        <div class="fg" style="max-width:160px"><label>Class</label><select id="studentClassFilter" onchange="filterStudents()"><option value="">All Classes</option></select></div>
+        <div class="fg" style="max-width:160px"><label>Class</label><select id="studentClassFilter" onchange="filterStudents();loadStreamsFor(this.value,'studentStreamFilter')"><option value="">All Classes</option></select></div>
+        <div class="fg" id="studentStreamFilter_fg" style="display:none;max-width:150px"><label>Stream</label><select id="studentStreamFilter" onchange="filterStudents()"><option value="">All streams</option></select></div>
         <div class="fg" style="max-width:160px"><label>Status</label><select id="studentStatusFilter" onchange="filterStudents()"><option value="">All</option><option value="active">Active</option><option value="left">Left</option></select></div>
       </div>
       <div class="card"><div class="table-wrap"><table>
@@ -377,6 +378,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="form-row">
             <div class="fg"><label>Class *</label><select id="adm_class" required onchange="loadAdmSections()"><option value="">Select class</option></select></div>
             <div class="fg"><label>Section *</label><select id="adm_section" required><option value="">Select class first</option></select></div>
+          <div class="fg" id="adm_stream_fg" style="display:none"><label>Stream</label><select id="adm_stream"><option value="">Select stream</option></select></div>
           </div>
           <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--ink-soft)">
             Roll no. is auto-assigned as MAX+1 in the selected section. S.No is auto-generated sequentially for this session. Both can be adjusted after admission.
@@ -478,6 +480,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="form-row" style="margin-bottom:0">
           <div class="fg"><label>Class</label><select id="mo_class" onchange="moLoadSections()"><option value="">Select class</option></select></div>
           <div class="fg"><label>Section</label><select id="mo_section"><option value="">All sections</option></select></div>
+          <div class="fg" id="mo_stream_fg" style="display:none"><label>Stream</label><select id="mo_stream"><option value="">All streams</option></select></div>
           <div class="fg"><label>Subject</label><select id="mo_subject"><option value="">All subjects</option></select></div>
           <div class="fg"><label>Assessments</label>
             <div id="mo_assessments_wrap" style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px;max-height:120px;overflow-y:auto;min-width:180px">
@@ -504,6 +507,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="form-row" style="margin-bottom:0">
           <div class="fg"><label>Class</label><select id="pr_class" onchange="promoLoadSections()"><option value="">Select class</option></select></div>
           <div class="fg"><label>Section</label><select id="pr_section"><option value="">Select class first</option></select></div>
+          <div class="fg" id="pr_stream_fg" style="display:none"><label>Stream</label><select id="pr_stream"><option value="">All streams</option></select></div>
           <button class="btn btn-soft" style="align-self:flex-end" onclick="loadPromotionStudents()">Load Students</button>
         </div>
       </div>
@@ -549,6 +553,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="form-row" style="margin-bottom:0">
           <div class="fg"><label>Class</label><select id="ca_class" onchange="caLoadSections()"><option value="">Select class</option></select></div>
           <div class="fg"><label>Section</label><select id="ca_section"><option value="">Select class first</option></select></div>
+          <div class="fg" id="ca_stream_fg" style="display:none"><label>Stream</label><select id="ca_stream"><option value="">All streams</option></select></div>
           <div class="fg"><label>Date From</label><input type="date" id="ca_from"></div>
           <div class="fg"><label>Date To</label><input type="date" id="ca_to"></div>
           <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load</button><button class="btn btn-ghost" style="align-self:flex-end" onclick="debugAttendance()">🔍 Debug</button>
@@ -725,7 +730,8 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="card" style="margin-bottom:18px">
           <div class="form-row" style="margin-bottom:0">
             <div class="fg"><label>Class</label><select id="tt_cls" onchange="ttLoadSections()"><option value="">Select class</option></select></div>
-            <div class="fg"><label>Section</label><select id="tt_sec"><option value="">Select class first</option></select></div>
+            <div class="fg"><label>Section</label><select id="tt_sec" onchange="ttLoadStreams()"><option value="">Select class first</option></select></div>
+            <div class="fg"><label>Stream</label><select id="tt_stream"><option value="">All streams</option></select></div>
             <button class="btn btn-soft" style="align-self:flex-end" onclick="loadStudentTimetable()">View Timetable</button>
           </div>
         </div>
@@ -822,6 +828,21 @@ SPS.ready().then(async()=>{
   if(cf)cf.value=today(); if(ct)ct.value=today()
   document.getElementById('admSessionLabel').textContent=SESS?SESS.session_id:'—'
 })
+
+// ═══════════ SHARED: LOAD STREAMS FOR A CLASS ═══════════
+async function loadStreamsFor(classId, targetSelectId){
+  const sel=$(targetSelectId)
+  const fg=$(targetSelectId+'_fg')
+  if(!sel)return
+  sel.innerHTML='<option value="">All streams</option>'
+  if(fg)fg.style.display='none'
+  if(!classId||!SESS)return
+  const{data}=await sb.from('streams').select('stream_id,name').eq('class_id',classId).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  if(data?.length){
+    sel.innerHTML='<option value="">All streams</option>'+data.map(s=>'<option value="'+s.stream_id+'">'+esc(s.name)+'</option>').join('')
+    if(fg)fg.style.display=''
+  }
+}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -991,7 +1012,7 @@ async function toggleTeacher(id,active){confirmAct((active?'Deactivate':'Activat
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
   if(!SESS)return; ldg($('studentBody'))
-  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(500)
+  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,stream_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(500)
   if(error){toast('Failed to load students','error');return}
   _studentsRaw=data||[]
   const uniq=[...new Map(_studentsRaw.map(e=>[e.classes?.class_id,e.classes?.name])).entries()]
@@ -1000,7 +1021,8 @@ async function loadStudents(){
 }
 function filterStudents(){
   const s=$('studentSearch')?.value?.toLowerCase()||'',cls=$('studentClassFilter')?.value||'',stat=$('studentStatusFilter')?.value||''
-  const rows=(_studentsRaw||[]).filter(e=>{const st=e.students;return(!s||st?.full_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))&&(!cls||e.classes?.class_id===cls)&&(!stat||e.status===stat)})
+  const streamF=$('studentStreamFilter')?.value||''
+  const rows=(_studentsRaw||[]).filter(e=>{const st=e.students;return(!s||st?.full_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))&&(!cls||e.classes?.class_id===cls)&&(!stat||e.status===stat)&&(!streamF||e.stream_id===streamF)})
   const body=$('studentBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="9"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/></svg><p>No students found.</p></div></td></tr>';return}
   body.innerHTML=rows.slice(0,250).map(e=>{const s=e.students;return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
@@ -1085,7 +1107,7 @@ async function uploadDoc(){
 }
 
 // ═══════════ NEW ADMISSION ═══════════
-async function loadAdmSections(){const cid=$('adm_class')?.value,sel=$('adm_section');sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');sel.innerHTML='<option value="">Select section</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')}
+async function loadAdmSections(){const cid=$('adm_class')?.value,sel=$('adm_section');if(sel)sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');if(sel)sel.innerHTML='<option value="">Select section</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('');await loadStreamsFor(cid,'adm_stream')}
 async function submitAdmission(e){
   e.preventDefault();const btn=$('admitBtn');btn.disabled=true;btn.textContent='Admitting…'
   try{
@@ -1102,7 +1124,8 @@ async function submitAdmission(e){
     const maxN=(snos||[]).reduce((m,r)=>{const n=parseInt((r.s_no||'').replace(/\D/g,''))||0;return n>m?n:m},0)
     const{data:rolls}=await sb.from('student_enrollments').select('roll_no').eq('session_id',SESS.session_id).eq('section_id',secId).not('roll_no','is',null)
     const maxR=(rolls||[]).reduce((m,r)=>r.roll_no>m?r.roll_no:m,0)
-    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,roll_no:maxR+1,s_no:'S'+String(maxN+1).padStart(4,'0'),status:'active',is_new_admission:true,readmission_date:today()})
+    const streamId=$('adm_stream')?.value||null
+    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:'S'+String(maxN+1).padStart(4,'0'),status:'active',is_new_admission:true,readmission_date:today()})
     if(ee)throw ee
     // Upload photo if provided
     const photoFile=$('adm_photo')?.files[0]
@@ -1149,6 +1172,11 @@ async function parseCsv(type,input){
         if(obj.section&&classNameMap[ck]){const sk=classNameMap[ck]+'_'+obj.section.toLowerCase();if(!sectionMap[sk]&&SESS){const{data:ns}=await sb.from('class_sections').insert({name:obj.section,class_id:classNameMap[ck],session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id}).select().single();if(ns){sectionMap[sk]=ns.section_id;autoCreated.push('Section: '+obj.class+'-'+obj.section)}}}
         obj._class_id=classNameMap[ck]||null
         obj._section_id=obj.section&&classNameMap[ck]?sectionMap[classNameMap[ck]+'_'+obj.section.toLowerCase()]||null:null
+        // Resolve stream
+        if(obj.stream&&classNameMap[ck]&&SESS){
+          const{data:strData}=await sb.from('streams').select('stream_id').eq('class_id',classNameMap[ck]).eq('session_id',SESS.session_id).ilike('name',obj.stream).maybeSingle()
+          obj._stream_id=strData?.stream_id||null
+        }else{obj._stream_id=null}
       }
       valid.push(obj)
     }
@@ -1225,6 +1253,7 @@ async function commitImport(count,type){
         session_id:SESS.session_id,
         class_id:r._class_id,
         section_id:r._section_id||null,
+        stream_id:r._stream_id||null,
         roll_no:parseInt(r.roll_no)||null,
         s_no:r.s_no||('S'+String(maxN).padStart(4,'0')),
         status:'active',
@@ -1309,7 +1338,7 @@ async function openAddMappingModal(){
   if(roster){const{data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order');slotOpts='<option value="">No timetable slot</option>'+(slots||[]).map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+( s.start_time||'').slice(0,5)+'–'+(s.end_time||'').slice(0,5)+')</option>').join('')}
   const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk" style="accent-color:var(--indigo)"> '+d+'</label>').join('')
   openModal('Add Class-Subject Mapping',
-    '<div class="form-row"><div class="fg"><label>Class *</label><select id="mp_class" onchange="mpLoadSections()">'+cls+'</select></div><div class="fg"><label>Section *</label><select id="mp_section"><option value="">Select class first</option></select></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Class *</label><select id="mp_class" onchange="mpLoadSections()">'+cls+'</select></div><div class="fg"><label>Section *</label><select id="mp_section"><option value="">Select class first</option></select></div><div class="fg" style="display:none"><label>Stream</label><select id="mp_stream"><option value="">All students</option></select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Subject *</label><select id="mp_subject">'+sub+'</select></div><div class="fg"><label>Teacher *</label><select id="mp_teacher">'+tch+'</select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Also set as Class Teacher?</label><select id="mp_ct"><option value="">No</option><option value="yes">Yes</option></select></div></div>'+
     '<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:14px"><p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px">Timetable (active roster: <b>'+(roster?esc(roster.name):'none')+'</b>)</p>'+
@@ -1317,15 +1346,35 @@ async function openAddMappingModal(){
     '<div class="fg"><label>Days</label><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">'+dayChks+'</div></div></div>',
     '<button class="btn btn-dark" onclick="saveMapping()">Add Mapping</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
-async function mpLoadSections(){const cid=$('mp_class')?.value,sel=$('mp_section');sel.innerHTML='<option value="">Select class first</option>';if(!cid)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name');sel.innerHTML='<option value="">Select section</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')}
+async function mpLoadSections(){
+  const cid=$('mp_class')?.value,sel=$('mp_section'),strSel=$('mp_stream')
+  if(sel)sel.innerHTML='<option value="">Select class first</option>'
+  if(strSel)strSel.innerHTML='<option value="">All students (no stream)</option>'
+  if(!cid)return
+  const[secRes,strRes]=await Promise.all([
+    sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name'),
+    sb.from('streams').select('*').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  ])
+  if(sel)sel.innerHTML='<option value="">Select section</option>'+(secRes.data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+  if(strSel){
+    const streams=strRes.data||[]
+    if(streams.length){
+      strSel.innerHTML='<option value="">All students (no stream)</option>'+streams.map(s=>'<option value="'+s.stream_id+'">'+esc(s.name)+'</option>').join('')
+      strSel.closest('.fg').style.display=''
+    } else {
+      strSel.closest('.fg').style.display='none'
+    }
+  }
+}
 async function saveMapping(){
   const classId=$('mp_class')?.value,secId=$('mp_section')?.value,subId=$('mp_subject')?.value,tchId=$('mp_teacher')?.value
   if(!classId||!secId||!subId||!tchId){toast('All fields required','error');return}
-  const{error}=await sb.from('teacher_subject_class_map').insert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId})
+  const streamId=$('mp_stream')?.value||null
+  const{error}=await sb.from('teacher_subject_class_map').insert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,stream_id:streamId})
   if(error){toast('Failed: '+error.message,'error');return}
   if($('mp_ct')?.value==='yes')await sb.from('class_teacher_map').upsert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId},{onConflict:'session_id,section_id'})
   const slotId=$('mp_slot')?.value,days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value),roster=await getActiveRoster()
-  if(slotId&&days.length&&roster){const{error:te}=await sb.from('timetable_entries').insert({roster_id:roster.roster_id,slot_id:slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days});if(te)toast('Mapping saved but timetable entry failed: '+te.message,'error');else toast('Mapping and timetable entry added','success')}else toast('Mapping added','success')
+  if(slotId&&days.length&&roster){const{error:te}=await sb.from('timetable_entries').insert({roster_id:roster.roster_id,slot_id:slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days,stream_id:streamId});if(te)toast('Mapping saved but timetable entry failed: '+te.message,'error');else toast('Mapping and timetable entry added','success')}else toast('Mapping added','success')
   closeModal();loadMapping()
 }
 async function removeMapping(id){confirmAct('Remove this mapping?','Teacher loses access to this class-subject.',async()=>{await sb.from('teacher_subject_class_map').delete().eq('map_id',id);toast('Removed','success');loadMapping()})}
@@ -1449,6 +1498,7 @@ async function moLoadSections(){
     sb.from('assessment_classes').select('assessment_id,assessments(assessment_id,name,commencement_date)').eq('class_id',cid)
   ])
   $('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+  await loadStreamsFor(cid,'mo_stream')
   $('mo_subject').innerHTML='<option value="">All subjects</option>'+(subs||[]).map(s=>'<option value="'+s.subjects.subject_id+'">'+esc(s.subjects.name)+'</option>').join('')
   const asmtList=(acRows||[]).map(r=>r.assessments).filter(Boolean)
   if(!asmtList.length){$('mo_assessments_wrap').innerHTML='<p style="font-size:11.5px;color:var(--ink-faint)">No assessments for this class</p>';return}
@@ -1473,13 +1523,15 @@ async function loadMarksTable(){
 
 // ═══════════ PROMOTION ═══════════
 async function loadPromotionShell(){$('pr_class').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'" data-name="'+esc(c.name)+'">'+esc(c.name)+'</option>').join('')}
-async function promoLoadSections(){const cid=$('pr_class')?.value,sel=$('pr_section');sel.innerHTML='<option value="">All sections</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')}
+async function promoLoadSections(){const cid=$('pr_class')?.value,sel=$('pr_section');if(sel)sel.innerHTML='<option value="">All sections</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');if(sel)sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('');await loadStreamsFor(cid,'pr_stream')}
 async function loadPromotionStudents(){
   const classId=$('pr_class')?.value,secId=$('pr_section')?.value
   if(!classId){toast('Select a class','error');return}
   const el=$('promoTable');ldg(el);$('promoConfirm').style.display='none'
+  const promoStreamId=$('pr_stream')?.value||null
   let q=sb.from('student_enrollments').select('enrollment_id,roll_no,status,students(full_name,student_id),class_sections(name),classes(name)').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').order('roll_no')
   if(secId)q=q.eq('section_id',secId)
+  if(promoStreamId)q=q.eq('stream_id',promoStreamId)
   const{data,error}=await q
   if(error||!data?.length){emp(el,'No active students found.');return}
   _promoStudents=data
@@ -1523,7 +1575,7 @@ async function toggleHoliday(date,isHol){if(isHol){const h=(await sb.from('holid
 async function removeHoliday(id){await sb.from('holidays').delete().eq('holiday_id',id);toast('Holiday removed','success');renderCalendar()}
 
 // ═══════════ CLASS ATTENDANCE ═══════════
-async function caLoadSections(){const cid=$('ca_class')?.value,sel=$('ca_section');sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')}
+async function caLoadSections(){const cid=$('ca_class')?.value,sel=$('ca_section');if(sel)sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');if(sel)sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('');await loadStreamsFor(cid,'ca_stream')}
 async function debugAttendance(){
   const classId=$('ca_class')?.value,secId=$('ca_section')?.value
   const fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
@@ -1560,12 +1612,14 @@ async function loadClassAttendance(){
   const el=$('caTable');ldg(el)
 
   // STEP 1 — Get enrollment IDs for this class (simple query, no joins)
+  const streamId=$('ca_stream')?.value||null
   let eq=sb.from('student_enrollments')
-    .select('enrollment_id,roll_no,student_id,section_id')
+    .select('enrollment_id,roll_no,student_id,section_id,stream_id')
     .eq('session_id',SESS?.session_id||'')
     .eq('class_id',classId)
     .eq('status','active')
   if(secId) eq=eq.eq('section_id',secId)
+  if(streamId) eq=eq.eq('stream_id',streamId)
   const{data:enrollments,error:ee}=await eq
   if(ee||!enrollments?.length){
     emp(el,ee?'Error: '+ee.message:'No enrolled students found.');
@@ -1658,8 +1712,10 @@ async function downloadAttSample(){
   }
 
   // Get enrollments (no join)
+  const dlStreamId=$('ca_stream')?.value||null
   let q=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').order('roll_no')
   if(secId)q=q.eq('section_id',secId)
+  if(dlStreamId)q=q.eq('stream_id',dlStreamId)
   const{data:enrs,error}=await q
   if(error||!enrs?.length){toast('No students found','error');return}
 
@@ -1690,8 +1746,10 @@ async function commitAttCsv(){
   const classId=$('ca_class')?.value,secId=$('ca_section')?.value
   if(!classId){toast('Select a class first','error');return}
 
+  const attStreamId=$('ca_stream')?.value||null
   let eq=sb.from('student_enrollments').select('enrollment_id,roll_no,student_id').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active')
   if(secId)eq=eq.eq('section_id',secId)
+  if(attStreamId)eq=eq.eq('stream_id',attStreamId)
   const{data:enrolled,error:eqErr}=await eq
   if(eqErr){toast('Enrollment lookup failed: '+eqErr.message,'error');return}
   if(!enrolled?.length){toast('No enrolled students found','error');return}
@@ -1934,19 +1992,36 @@ async function deleteSlot(id,name){
 }
 function renderTTGrid(el,entries,mode){
   const days=['Mon','Tue','Wed','Thu','Fri','Sat']
-  const slotMap=new Map();entries.forEach(e=>{if(e.time_slots&&!slotMap.has(e.slot_id))slotMap.set(e.slot_id,e.time_slots)})
+  const slotMap=new Map()
+  entries.forEach(e=>{if(e.time_slots&&!slotMap.has(e.slot_id))slotMap.set(e.slot_id,e.time_slots)})
   const slots=[...slotMap.entries()].map(([id,s])=>({slot_id:id,...s})).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
   if(!slots.length){emp(el,'No timetable entries for the active roster.');return}
-  const lookup={};entries.forEach(e=>{(e.days||[]).forEach(day=>{lookup[e.slot_id+'_'+day]=e})})
+
+  // Build lookup: slot_id+day → array of entries (multiple = stream split)
+  const lookup={}
+  entries.forEach(e=>{
+    (e.days||[]).forEach(day=>{
+      const key=e.slot_id+'_'+day
+      if(!lookup[key])lookup[key]=[]
+      lookup[key].push(e)
+    })
+  })
+
+  const cellHTML=(entriesArr,mode)=>{
+    if(!entriesArr?.length)return '<td style="background:var(--lav-50)"></td>'
+    const cells=entriesArr.map(e=>{
+      const streamBadge=e.streams?.name?'<div style="font-size:9px;margin-top:2px;background:var(--indigo-100);color:var(--indigo-dark);padding:1px 6px;border-radius:10px;display:inline-block">'+esc(e.streams.name)+'</div>':''
+      if(mode==='student')return '<div style="padding:3px 0;'+(entriesArr.length>1?'border-bottom:1px solid var(--line)':'')+'">'+'<b style="font-size:12px">'+esc(e.subjects?.name||'—')+'</b><br>'+'<span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.teachers?.full_name||'—')+'</span>'+streamBadge+'</div>'
+      return '<div style="padding:3px 0;'+(entriesArr.length>1?'border-bottom:1px solid var(--line)':'')+'">'+'<b style="font-size:12px">'+esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||''))+'</b><br>'+'<span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.subjects?.name||'—')+'</span>'+streamBadge+'</div>'
+    }).join('')
+    return '<td style="text-align:center;padding:6px 4px;vertical-align:top">'+cells+'</td>'
+  }
+
   let html='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>'
   slots.forEach(slot=>{
-    html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name||'')+'</td><td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
-    days.forEach(day=>{
-      const e=lookup[slot.slot_id+'_'+day]
-      if(!e){html+='<td style="background:var(--lav-50)"></td>';return}
-      const cell=mode==='student'?'<b>'+esc(e.subjects?.name||'—')+'</b><br><span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.teachers?.full_name||'—')+'</span>':'<b>'+esc(e.classes?.name||'—')+'-'+esc(e.class_sections?.name||'')+'</b><br><span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.subjects?.name||'—')+'</span>'
-      html+='<td style="text-align:center;padding:8px">'+cell+'</td>'
-    })
+    html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name||'')+'</td>'
+      +'<td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
+    days.forEach(day=>{html+=cellHTML(lookup[slot.slot_id+'_'+day],mode)})
     html+='</tr>'
   })
   el.innerHTML=html+'</tbody></table></div></div>'
@@ -1986,26 +2061,40 @@ async function createRoster(){
 }
 
 async function ttLoadSections(){
-  const cid=$('tt_cls')?.value,sel=$('tt_sec')
+  const cid=$('tt_cls')?.value,sel=$('tt_sec'),str=$('tt_stream')
   if(!sel)return
   sel.innerHTML='<option value="">Select class first</option>'
+  if(str)str.innerHTML='<option value="">All streams</option>'
   if(!cid||!SESS)return
   const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
   sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
 }
+async function ttLoadStreams(){
+  const cid=$('tt_cls')?.value,str=$('tt_stream')
+  if(!str)return
+  str.innerHTML='<option value="">All streams</option>'
+  if(!cid||!SESS)return
+  const{data}=await sb.from('streams').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  if(data?.length)str.innerHTML='<option value="">All streams</option>'+(data||[]).map(s=>'<option value="'+s.stream_id+'">'+esc(s.name)+'</option>').join('')
+}
+
 
 async function loadStudentTimetable(){
-  const classId=$('tt_cls')?.value,secId=$('tt_sec')?.value,el=$('studentTTGrid')
+  const classId=$('tt_cls')?.value,secId=$('tt_sec')?.value
+  const streamId=$('tt_stream')?.value,el=$('studentTTGrid')
   if(!el)return;ldg(el)
   if(!classId){emp(el,'Select a class');return}
   const roster=await getActiveRoster()
   if(!roster){emp(el,'No active roster. Create one in Roster Settings and set it active.');return}
-  const{data,error}=await sb.from('timetable_entries')
-    .select('entry_id,days,slot_id,time_slots(name,start_time,end_time,sort_order),subjects(name),teachers(full_name),class_sections(name)')
+  let q=sb.from('timetable_entries')
+    .select('entry_id,days,slot_id,section_id,stream_id,time_slots(name,start_time,end_time,sort_order),subjects(name),teachers(full_name),class_sections(name),streams(name)')
     .eq('roster_id',roster.roster_id).eq('class_id',classId)
+  const{data,error}=await q
   if(error){emp(el,'Error: '+error.message);return}
   let entries=data||[]
-  if(secId)entries=entries.filter(e=>e.section_id===secId||!e.section_id)
+  if(secId)entries=entries.filter(e=>!e.section_id||e.section_id===secId)
+  // If stream selected: show common (stream_id null) + this stream only
+  if(streamId)entries=entries.filter(e=>!e.stream_id||e.stream_id===streamId)
   renderTTGrid(el,entries,'student')
 }
 
