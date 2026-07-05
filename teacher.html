@@ -1020,41 +1020,64 @@ function meLoadClassesForAssessment(){
   // Check if this is a teacher-created test — auto-fill class and subject
   const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)
   if(assess?.created_by_teacher_id===TEACHER.teacher_id&&assess.class_id){
-    // Auto-fill class
-    const map=MY_MAPPINGS.find(m=>m.class_id===assess.class_id)
-    if(map&&sel){
-      sel.innerHTML='<option value="'+map.section_id+'|'+map.class_id+'">'+esc((map.classes?.name||'?')+'‑'+(map.class_sections?.name||'?'))+'</option>'
-      sel.value=map.section_id+'|'+map.class_id
-      sel.disabled=true
+    // Auto-fill class — if section_id stored use it, else show all sections of that class
+    const mapsForClass=MY_MAPPINGS.filter(m=>m.class_id===assess.class_id)
+    const uniqueSections=[...new Map(mapsForClass.map(m=>[m.section_id,m])).values()]
+    if(assess.section_id){
+      // section stored — find exact match
+      const map=mapsForClass.find(m=>m.section_id===assess.section_id)||mapsForClass[0]
+      if(map&&sel){
+        sel.innerHTML='<option value="'+map.section_id+'|'+map.class_id+'">'+esc((map.classes?.name||'?')+'‑'+(map.class_sections?.name||'?'))+'</option>'
+        sel.value=map.section_id+'|'+map.class_id
+        sel.disabled=true
+      }
+    } else if(uniqueSections.length===1){
+      // only one section — auto-fill
+      const map=uniqueSections[0]
+      if(map&&sel){
+        sel.innerHTML='<option value="'+map.section_id+'|'+map.class_id+'">'+esc((map.classes?.name||'?')+'‑'+(map.class_sections?.name||'?'))+'</option>'
+        sel.value=map.section_id+'|'+map.class_id
+        sel.disabled=true
+      }
+    } else {
+      // multiple sections — show dropdown restricted to this class
+      sel.disabled=false
+      sel.innerHTML='<option value="">Select section</option>'+uniqueSections.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
     }
-    // Auto-fill subject — from stored subject_id or infer from mappings
+    const map=mapsForClass.find(m=>m.section_id===assess.section_id)||uniqueSections[0]
+    // Auto-fill subject — from stored subject_id, or filter by section
     if(subSel){
-      const mapsForClass=MY_MAPPINGS.filter(m=>m.class_id===assess.class_id)
       if(assess.subject_id){
-        // subject stored on test
-        const subMap=mapsForClass.find(m=>m.subject_id===assess.subject_id)
+        // Subject stored on test (new tests)
+        const subMap=MY_MAPPINGS.find(m=>m.subject_id===assess.subject_id&&m.class_id===assess.class_id)
         subSel.innerHTML='<option value="'+assess.subject_id+'">'+(subMap?.subjects?.name||assess.subject_id)+'</option>'
         subSel.value=assess.subject_id
         subSel.disabled=true
-      } else if(mapsForClass.length===1){
-        // only one subject for this class — auto-fill it
-        const m=mapsForClass[0]
-        subSel.innerHTML='<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>'
-        subSel.value=m.subject_id
-        subSel.disabled=true
       } else {
-        // multiple subjects — show dropdown filtered to this class
-        subSel.disabled=false
-        subSel.innerHTML='<option value="">Select subject</option>'+mapsForClass.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>').join('')
+        // Infer subject: filter by section_id (stored on test) or from auto-filled class
+        const secIdToUse=assess.section_id||map?.section_id
+        const mapsForSection=MY_MAPPINGS.filter(m=>m.class_id===assess.class_id&&(!secIdToUse||m.section_id===secIdToUse))
+        // Deduplicate by subject
+        const uniqueSubjects=[...new Map(mapsForSection.map(m=>[m.subject_id,m])).values()]
+        if(uniqueSubjects.length===1){
+          const m=uniqueSubjects[0]
+          subSel.innerHTML='<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>'
+          subSel.value=m.subject_id
+          subSel.disabled=true
+        } else {
+          subSel.disabled=false
+          subSel.innerHTML='<option value="">Select subject</option>'+uniqueSubjects.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>').join('')
+        }
       }
     }
     return
   }
 
-  // Admin assessment — enable dropdowns normally
+  // Admin assessment — enable dropdowns, deduplicate sections
   if(sel)sel.disabled=false
   if(subSel)subSel.disabled=false
-  const opts=MY_MAPPINGS.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
+  const uniqueClsMap=new Map();MY_MAPPINGS.forEach(m=>{const k=m.section_id+'|'+m.class_id;if(!uniqueClsMap.has(k))uniqueClsMap.set(k,m)})
+  const opts=[...uniqueClsMap.values()].map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
   if(sel)sel.innerHTML='<option value="">Select class-section</option>'+opts
 }
 
@@ -1094,12 +1117,17 @@ async function loadMarksTable(){
   const isTeacherTest=assessMeta.created_by_teacher_id===TEACHER.teacher_id
   let lockData=null
   if(!isTeacherTest){
+    // Check if admin has enabled marks entry
+    if(!assessMeta.is_marks_unlocked){
+      el.innerHTML='<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-md);padding:16px 20px;font-size:13px"><b>⏳ Marks entry not yet opened</b><div style="margin-top:4px;color:var(--ink-soft)">Admin has not unlocked marks entry for this assessment yet.</div></div>'
+      return
+    }
     const{data:ld}=await sb.from('marks_lock_state')
       .select('*').eq('teacher_id',TEACHER.teacher_id)
       .eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId).maybeSingle()
     lockData=ld
   }
-  _marksLocked=isTeacherTest?false:(lockData?.is_locked!==false)
+  _marksLocked=isTeacherTest?false:(lockData?.is_locked===true)
 
   // Get students
   const{data:students,error:se}=await sb.from('student_enrollments')
@@ -1532,6 +1560,7 @@ async function createTest(){
   const{error}=await sb.from('assessments').insert({
     name,session_id:SESS?.session_id||'',
     class_id:classId,
+    section_id:secId||null,
     commencement_date:date||null,
     created_by_teacher_id:TEACHER.teacher_id,
     subject_id:subId||null
@@ -1542,16 +1571,29 @@ async function createTest(){
   loadMyTests()
 }
 
+
+async function deleteTest(assessmentId, name){
+  if(!confirm('Delete test "'+name+'"? This cannot be undone.'))return
+  // Check if any marks entered for this test
+  const{data:marks}=await sb.from('marks').select('mark_id').eq('assessment_id',assessmentId).limit(1)
+  if(marks?.length){toast('Cannot delete — marks have already been entered for this test','error');return}
+  const{error}=await sb.from('assessments').delete().eq('assessment_id',assessmentId)
+  if(error){toast('Failed to delete: '+error.message,'error');return}
+  toast('Test deleted','success')
+  loadMyTests()
+}
 async function loadMyTests(){
-  const el=$('myTestsList');if(!el)return;ldg(el)
+  const el=$('myTestsList');if(!el)return
+  el.innerHTML='<div style="text-align:center;padding:16px;color:var(--ink-faint)">Loading…</div>'
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
-  if(!classIds.length){emp(el,'No class assignments.');return}
-  const{data,error}=await sb.from('assessments').select('*,classes(name)')
-    .in('class_id',classIds).eq('session_id',SESS?.session_id||'').order('created_at',{ascending:false})
-  if(!data?.length){emp(el,'No tests created yet.');return}
-  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Subject</th><th>Date</th><th>Max Marks</th></tr></thead><tbody>'+
-    data.map(t=>'<tr><td style="font-weight:600">'+esc(t.name)+'</td><td>'+esc(t.classes?.name||'?')+'</td><td class="mono">'+fmtD(t.commencement_date)+'</td></tr>').join('')+
-    '</tbody></table></div>'
+  if(!classIds.length){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">No class assignments.</p>';return}
+  const{data}=await sb.from('assessments').select('*,classes(name),subjects(name)')
+    .in('class_id',classIds).eq('session_id',SESS?.session_id||'').eq('created_by_teacher_id',TEACHER.teacher_id).order('created_at',{ascending:false})
+  if(!data?.length){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">No tests created yet.</p>';return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Subject</th><th>Date</th><th></th></tr></thead><tbody>'
+    +data.map(t=>'<tr><td style="font-weight:600">'+esc(t.name)+'</td><td>'+esc(t.classes?.name||'?')+'</td><td>'+esc(t.subjects?.name||'—')+'</td><td class="mono">'+fmtD(t.commencement_date)+'</td>'
+      +'<td><button class="btn btn-ghost btn-xs" onclick="deleteTest(\''+t.assessment_id+'\',\''+esc(t.name)+'\')" style="color:var(--danger);border-color:var(--danger)">Delete</button></td></tr>').join('')
+    +'</tbody></table></div>'
 }
 
 async function submitObs(enrollmentId){
