@@ -2789,9 +2789,13 @@ async function setTeacherLogin(teacherId, oldUsername){
       }
     }
 
-    // Update teachers.username
-    const{error:ue}=await sb.from('teachers').update({username}).eq('teacher_id',teacherId)
-    if(ue){toast('Auth created but DB username update failed: '+ue.message,'error');return}
+    // Save auth_user_id + username back to teachers table
+    const authUserId=result?.id||null
+    const{error:ue}=await sb.from('teachers').update({
+      username,
+      auth_user_id:authUserId||undefined
+    }).eq('teacher_id',teacherId)
+    if(ue){toast('Auth created but DB update failed: '+ue.message,'error');return}
 
     toast('Login '+(oldUsername?'updated':'created')+' ✓  Username: '+username+' | Portal: teacher.html','success')
     closeModal()
