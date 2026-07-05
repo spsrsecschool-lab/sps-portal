@@ -779,6 +779,7 @@ function goTo(id,el){
   if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t}
 }
 
+function clearMarksTable(){document.getElementById('marksTableWrap').innerHTML=''}
 function openSub(subId){
   // Sub-pages use inline display style
   ['sub-menu','sub-entry','sub-perf','sub-test','sub-obs'].forEach(id=>{const el=$(id);if(el)el.style.display='none'})
@@ -945,15 +946,23 @@ async function loadMyTimetable(){
 // Marks entry: Assessment → Class → Subject flow
 async function meInitAssessments(){
   const sel=$('me_assessment');if(!sel)return
-  // Load all assessments for classes this teacher teaches
-  const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
-  if(!classIds.length){sel.innerHTML='<option value="">No class assignments found</option>';return}
-  const{data:ac}=await sb.from('assessment_classes').select('assessment_id,class_id').in('class_id',classIds)
-  if(!ac?.length){sel.innerHTML='<option value="">No assessments for your classes</option>';return}
+  sel.innerHTML='<option value="">Loading assessments…</option>'
+  const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id).filter(Boolean))]
+  if(!classIds.length){sel.innerHTML='<option value="">No class assignments</option>';return}
+  // Get assessment IDs linked to teacher's classes
+  const{data:ac,error:ace}=await sb.from('assessment_classes').select('assessment_id,class_id').in('class_id',classIds)
+  console.log('[ASSESS] assessment_classes rows:',ac?.length,'error:',ace?.message)
+  if(!ac?.length){
+    // Fallback: show all session assessments if no assessment_classes entries
+    const{data:all}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+    ALL_ASSESSMENTS=all||[]
+    sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.max_marks?' / Max '+a.max_marks:'')+'</option>').join('')
+    return
+  }
   const assessIds=[...new Set(ac.map(r=>r.assessment_id))]
   const{data:assessments}=await sb.from('assessments').select('*').in('assessment_id',assessIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
   ALL_ASSESSMENTS=assessments||[]
-  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+' / Max: '+(a.max_marks||'?')+'</option>').join('')
+  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.max_marks?' / Max '+a.max_marks:'')+'</option>').join('')
 }
 
 function meLoadClassesForAssessment(){
@@ -990,27 +999,27 @@ function meLoadClasses(){
 }
 
 async function loadMarksTable(){
-  const subId=$('me_subject')?.value
-  const val=$('me_class')?.value
   const assessId=$('me_assessment')?.value
+  const val=$('me_class')?.value
+  const subId=$('me_subject')?.value
   const el=$('marksTableWrap')
-  if(!subId||!val||!assessId){toast('Select subject, class and assessment','error');return}
+  if(!assessId||!val||!subId){toast('Select assessment, class and subject','error');return}
   const[secId,classId]=val.split('|')
-  ldg(el)
+  el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading students…</div>'
   _currentMarksMeta={subId,secId,classId,assessId}
 
   // Check lock state
   const{data:lockData}=await sb.from('marks_lock_state')
     .select('*').eq('teacher_id',TEACHER.teacher_id)
     .eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId).maybeSingle()
-  _marksLocked=lockData?.is_locked!==false  // locked if no record OR is_locked=true
+  _marksLocked=lockData?.is_locked!==false
 
   // Get students
-  const{data:students}=await sb.from('student_enrollments')
+  const{data:students,error:se}=await sb.from('student_enrollments')
     .select('enrollment_id,roll_no,s_no,students(full_name,student_id,father_name)')
     .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active')
     .order('roll_no')
-  if(!students?.length){el.innerHTML='<div class="empty-state"><p>No active students in this class-section.</p></div>';return}
+  if(se||!students?.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">No active students found for this class-section.</div>';return}
 
   // Get existing marks
   const{data:existingMarks}=await sb.from('marks')
@@ -1018,45 +1027,46 @@ async function loadMarksTable(){
     .eq('assessment_id',assessId).eq('subject_id',subId)
   const marksMap={}; (existingMarks||[]).forEach(m=>{marksMap[m.enrollment_id]=m})
 
-  // Get assessment details
   const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
   const maxM=assess.max_marks||100
-  const passM=assess.pass_marks||Math.round(maxM*0.33)
+  const passM=Math.round(maxM*0.33)
 
-  const lockBanner=_marksLocked
-    ?'<div class="marks-lock-banner"><div><b>🔒 Marks Locked</b><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">These marks are confirmed and locked. Request edit access if correction is needed.</div></div><button class="btn btn-warn btn-sm" onclick="requestMarksEdit()">Request Edit Access</button></div>'
-    :(lockData&&!lockData.is_locked?'<div class="marks-lock-banner" style="background:var(--success-soft);border-color:var(--success)"><div><b style="color:var(--success)">🔓 Edit Access Granted</b><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Admin has unlocked marks for editing. Make corrections and Confirm & Save.</div></div></div>':'')
-
-  let html='<div class="card">'+lockBanner
-    +'<div style="display:flex;gap:18px;margin-bottom:14px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap"><span>Max Marks: <b style="color:var(--ink)">'+maxM+'</b></span><span>Pass Marks: <b style="color:var(--ink)">'+passM+'</b></span><span>Students: <b style="color:var(--ink)">'+students.length+'</b></span></div>'
-    +'<div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Marks</th><th>Absent</th><th>Remarks</th></tr></thead><tbody>'
-
+  let html='<div class="card">'
+  if(_marksLocked&&lockData){
+    html+='<div style="background:var(--lav-100);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px"><div><b>🔒 Marks Locked</b><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">These marks are confirmed. Request edit access if a correction is needed.</div></div><button class="btn btn-warn btn-sm" onclick="requestMarksEdit()">Request Edit Access</button></div>'
+  }
+  html+='<div style="display:flex;gap:20px;margin-bottom:14px;font-size:12.5px;color:var(--ink-soft);flex-wrap:wrap">'
+    +'<span>Max Marks: <b style="color:var(--ink)">'+maxM+'</b></span>'
+    +'<span>Pass Marks: <b style="color:var(--ink)">'+passM+'</b></span>'
+    +'<span>Students: <b style="color:var(--ink)">'+students.length+'</b></span>'
+    +'<span style="font-size:11px;color:var(--ink-faint)">Write A for absent</span>'
+    +'</div>'
+  html+='<div class="table-wrap"><table><thead><tr><th style="width:50px">Roll</th><th>Name</th><th>Father&#39;s Name</th><th style="width:110px">Marks / '+maxM+'</th></tr></thead><tbody>'
   html+=students.map((s,i)=>{
     const ex=marksMap[s.enrollment_id]
+    const val=ex?.is_absent?'A':(ex?.marks_obtained!=null?String(ex.marks_obtained):'')
     const fail=ex&&!ex.is_absent&&ex.marks_obtained<passM
-    return '<tr'+(fail?' class="cell-fail"':'')+'>'
-      +'<td class="mono">'+esc(s.roll_no||s.s_no||i+1)+'</td>'
+    return '<tr style="'+(fail?'background:var(--danger-soft)':'')+'"><td class="mono" style="font-weight:700">'+esc(s.roll_no||s.s_no||i+1)+'</td>'
       +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
-      +'<td>'+esc(s.students?.father_name||'—')+'</td>'
-      +'<td><input class="marks-input'+(ex?.is_absent?' absent':'')+'" type="text" data-eid="'+s.enrollment_id+'" id="mk_'+s.enrollment_id+'"'
-        +(_marksLocked?' disabled':'')+' value="'+(ex?.marks_obtained!=null?ex.marks_obtained:'')+'" maxlength="5" placeholder="—"></td>'
-      +'<td><input type="checkbox" data-eid="'+s.enrollment_id+'" class="abs-chk"'+(_marksLocked?' disabled':'')+(ex?.is_absent?' checked':'')+'style="accent-color:var(--danger);transform:scale(1.3)"></td>'
-      +'<td><input type="text" data-eid="'+s.enrollment_id+'" class="rmk-inp" style="font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;width:120px"'+(_marksLocked?' disabled':'')+' value="'+esc(ex?.remarks||'')+'" placeholder="Optional"></td>'
+      +'<td style="color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+      +'<td><input data-eid="'+s.enrollment_id+'" class="marks-input" type="text"'
+        +(_marksLocked?' disabled':'')
+        +' value="'+esc(val)+'" maxlength="4" placeholder="—"'
+        +' style="width:80px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);font-family:var(--mono);font-size:14px;text-align:center;outline:none;background:'+(val==='A'?'var(--warn-soft)':fail?'var(--danger-soft)':'var(--lav-50)')+'"></td>'
       +'</tr>'
   }).join('')
-
   html+='</tbody></table></div>'
-  if(!_marksLocked)html+='<div style="margin-top:16px;display:flex;gap:10px"><button class="btn btn-primary" onclick="confirmMarks()">✓ Confirm &amp; Save</button><button class="btn btn-ghost" onclick="$(&quot;marksTableWrap&quot;).innerHTML=\'\'">Cancel</button></div>'
+  if(!_marksLocked)html+='<div style="margin-top:16px;display:flex;gap:10px"><button class="btn btn-primary" onclick="confirmMarks()">Confirm &amp; Save</button><button class="btn btn-ghost" onclick="clearMarksTable()">Cancel</button></div>'
   html+='</div>'
   el.innerHTML=html
 
-  // Wire absent checkboxes to toggle input
-  document.querySelectorAll('.abs-chk').forEach(chk=>{
-    chk.addEventListener('change',()=>{
-      const inp=document.getElementById('mk_'+chk.dataset.eid)
-      if(!inp)return
-      if(chk.checked){inp.value='';inp.disabled=true;inp.classList.add('absent')}
-      else{inp.disabled=_marksLocked;inp.classList.remove('absent')}
+  // Color on input - A=amber, low=red
+  document.querySelectorAll('.marks-input').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      const v=inp.value.trim().toUpperCase()
+      if(inp.value.trim().toUpperCase()==='A'){inp.style.background='var(--warn-soft)';inp.style.borderColor='var(--warn)'}
+      else if(v&&!isNaN(parseFloat(v))&&parseFloat(v)<passM){inp.style.background='var(--danger-soft)';inp.style.borderColor='var(--danger)'}
+      else{inp.style.background='var(--lav-50)';inp.style.borderColor='var(--line)'}
     })
   })
 }
@@ -1066,34 +1076,35 @@ async function confirmMarks(){
   const inputs=document.querySelectorAll('.marks-input')
   const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
   const maxM=assess.max_marks||100
-  const inserts=[]
-  let valid=true
+  const passM=Math.round(maxM*0.33)
+  const inserts=[];let valid=true
 
   inputs.forEach(inp=>{
     const eid=inp.dataset.eid
-    const absChk=document.querySelector('.abs-chk[data-eid="'+eid+'"]')
-    const rmk=(document.querySelector('.rmk-inp[data-eid="'+eid+'"]')?.value||'').trim()
-    const isAbsent=absChk?.checked
-    if(isAbsent){inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:null,is_absent:true,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()});return}
-    const v=inp.value.trim()
-    if(v===''){toast('Fill marks for all students or mark absent','error');valid=false;inp.style.borderColor='var(--danger)';return}
+    const v=inp.value.trim().toUpperCase()
+    if(v===''||v==='-'||v==='—'){toast('Fill marks for all students (write A for absent)','error');valid=false;inp.style.borderColor='var(--danger)';return}
+    if(v==='A'){
+      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:null,is_absent:true,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
+      return
+    }
     const num=parseFloat(v)
-    if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+')','error');valid=false;inp.style.borderColor='var(--danger)';return}
-    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:num,is_absent:false,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
+    if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+' or A)','error');valid=false;inp.style.borderColor='var(--danger)';return}
+    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:num,is_absent:false,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
   })
 
   if(!valid)return
   const{error}=await sb.from('marks').upsert(inserts,{onConflict:'enrollment_id,assessment_id,subject_id',ignoreDuplicates:false})
-  if(error){toast('Failed to save marks: '+error.message,'error');return}
+  if(error){toast('Failed to save: '+error.message,'error');return}
 
   // Lock marks
-  await sb.from('marks_lock_state').upsert({
+  const{error:le}=await sb.from('marks_lock_state').upsert({
     teacher_id:TEACHER.teacher_id,assessment_id:assessId,subject_id:subId,
-    section_id:secId,class_id:classId,session_id:SESS.session_id,
+    section_id:secId,class_id:classId,session_id:SESS?.session_id||'',
     is_locked:true,locked_at:new Date().toISOString()
   },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
+  if(le)console.warn('Lock failed:',le.message)
 
-  // If this was an approved edit request, mark it completed
+  // Complete any approved edit request
   const{data:req}=await sb.from('access_requests')
     .select('request_id').eq('teacher_id',TEACHER.teacher_id)
     .eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId)
@@ -1102,7 +1113,6 @@ async function confirmMarks(){
 
   toast('Marks confirmed and locked ✓','success')
   loadMarksTable()
-  renderDashboard()
 }
 
 async function requestMarksEdit(){
@@ -1123,10 +1133,7 @@ async function submitMarksEditRequest(){
   // Check if pending request already exists
   const{data:existing}=await sb.from('access_requests').select('request_id').eq('teacher_id',TEACHER.teacher_id).eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId).eq('status','pending').maybeSingle()
   if(existing){toast('You already have a pending request for these marks','error');closeModal();return}
-  const{error}=await sb.from('access_requests').insert({
-    request_type:'marks_edit',teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,
-    assessment_id:assessId,class_id:classId,section_id:secId,subject_id:subId,note
-  })
+  const{error}=await sb.from('access_requests').insert({request_type:'marks_edit',teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id||'',assessment_id:assessId,class_id:classId,section_id:secId,subject_id:subId,note:note})
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Request sent to admin ✓','success');closeModal()
 }
@@ -1450,7 +1457,7 @@ async function submitProfileEditRequest(){
   // Check for existing pending request
   const{data:existing}=await sb.from('access_requests').select('request_id').eq('teacher_id',TEACHER.teacher_id).eq('request_type','profile_edit').eq('status','pending').maybeSingle()
   if(existing){toast('You already have a pending profile edit request','error');closeModal();return}
-  const{error}=await sb.from('access_requests').insert({request_type:'profile_edit',teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id,note})
+  const{error}=await sb.from('access_requests').insert({request_type:'profile_edit',teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id||'',note:note})
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Request sent to admin ✓','success');closeModal()
 }
