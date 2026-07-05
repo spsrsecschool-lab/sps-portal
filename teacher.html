@@ -851,14 +851,13 @@ function openSub(subId){
 SPS.ready().then(async()=>{
   sb=window.sb
 
-  // Verify logged in user is a teacher
-  // Use SPS.teacher from auth.js (looked up by auth_user_id)
-  if(!SPS.teacher){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
-
-  // Fetch full teacher record
-  const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('teacher_id',SPS.teacher.teacher_id).maybeSingle()
-  if(!teacher||te){toast('Could not load teacher profile.','error');setTimeout(()=>SPS.signOut(),2000);return}
-
+  // Always look up teacher by current auth user ID — bypasses stale sessionStorage cache
+  const{data:{session:authSess}}=await sb.auth.getSession()
+  if(!authSess){window.location.href='login.html';return}
+  const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
+  if(!teacher||te){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
+  if(!teacher.is_active){toast('Your account is inactive. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
+  console.log('[INIT] Teacher loaded:',teacher.full_name,teacher.teacher_id)
   TEACHER=teacher
 
   // Get current session
@@ -911,7 +910,7 @@ async function renderDashboard(){
 
   // Get assessments and marks for pending count
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
-  const{data:assessments}=await sb.from('assessments').select('*').in('class_id',classIds).eq('is_active',true)
+  const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true)
   ALL_ASSESSMENTS=assessments||[]
 
   // Check which assessments have marks entered by this teacher
@@ -1020,7 +1019,7 @@ async function meLoadAssessments(){
   $('marksTableWrap').innerHTML=''
   if(!val)return
   const classId=val.split('|')[1]
-  const{data}=await sb.from('assessments').select('*').eq('class_id',classId).eq('is_active',true).order('created_at')
+  const{data}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true).order('commencement_date',{nullsFirst:false})
   ALL_ASSESSMENTS=data||[]
   sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+' (Max: '+a.max_marks+')</option>').join('')
 }
@@ -1289,7 +1288,7 @@ async function loadCriticalStudents(){
   const el=$('criticalList');ldg(el)
   if(!MY_MAPPINGS.length){emp(el,'No assignments.');return}
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
-  const{data:assessments}=await sb.from('assessments').select('*').in('class_id',classIds).eq('is_active',true)
+  const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true)
   const{data:marks}=await sb.from('marks').select('*,student_enrollments(roll_no,students(full_name,father_name),class_sections(name),classes(name))').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
   if(!marks?.length){emp(el,'No marks submitted yet — no critical students to show.');return}
   // Group failing marks by class-subject
