@@ -62,7 +62,7 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .icon-btn .dot{position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:2px solid var(--white)}
 
 .content{padding:26px;flex:1}
-.page{display:none}.page.active{display:block}
+.page{display:none !important}.page.active{display:block !important}
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
 .page-head h2{font-size:21px;font-weight:800;letter-spacing:-.01em}
 .page-head p{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
@@ -140,7 +140,7 @@ tbody tr:hover td{background:var(--lav-50)}
 .btn-sm{padding:6px 12px;font-size:11.5px}
 .btn-xs{padding:4px 9px;font-size:11px}
 
-.sub-page{display:none}.sub-page.active{display:block}
+.sub-page{display:none !important}.sub-page.active{display:block !important}
 .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-soft);background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;margin-bottom:16px}
 .back-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
 .back-btn:hover{color:var(--ink);border-color:var(--ink-faint)}
@@ -159,8 +159,8 @@ tbody tr:hover td{background:var(--lav-50)}
 
 .map-tag{background:var(--indigo-100);color:var(--indigo-dark);font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px;display:inline-block;margin:3px}
 
-.msg-shell{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:#fff;min-height:520px;height:calc(100vh - 200px)}
-.msg-list{border-right:1px solid var(--line);overflow-y:auto;max-height:600px}
+.msg-shell{display:flex;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:#fff;height:calc(100vh - 220px);min-height:500px}
+.msg-list{border-right:1px solid var(--line);overflow-y:auto;width:300px;flex-shrink:0}
 .msg-item{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
 .msg-item:hover{background:var(--lav-50)}
 .msg-item.active{background:var(--indigo-100)}
@@ -169,7 +169,7 @@ tbody tr:hover td{background:var(--lav-50)}
 .msg-item.unread .from{font-weight:800}
 .msg-item .time{font-size:10px;color:var(--ink-faint)}
 .msg-item .preview{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.msg-detail{padding:24px;display:flex;flex-direction:column}
+.msg-detail{padding:24px;display:flex;flex-direction:column;flex:1;overflow-y:auto}
 .msg-detail .subj{font-size:17px;font-weight:800;margin-bottom:6px}
 .msg-detail .meta{font-size:11.5px;color:var(--ink-faint);margin-bottom:18px}
 .msg-detail .body{font-size:13.5px;line-height:1.7;white-space:pre-wrap}
@@ -527,6 +527,8 @@ function goTo(id,el){
   if(el)el.classList.add('active')
   $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb" id="pagecrumb">'+esc($('sbPortalLabel')?.textContent||'Teacher Portal')+'</span>'
   if(window.innerWidth<=760)closeMobileSidebar()
+  // Always reset marks sub-pages when navigating away
+  if(id!=='marks'){document.querySelectorAll('#page-marks .sub-page').forEach(s=>s.classList.remove('active'))}
   if(id==='marks')openSub('sub-menu')
   if(id==='timetable'&&!$('myTimetableGrid').querySelector('table'))loadMyTimetable()
   if(id==='messages')loadMessages()
@@ -646,6 +648,7 @@ async function renderDashboard(){
 // ═══════════════════════════════════════════════════════════════
 async function loadMyTimetable(){
   const el=$('myTimetableGrid');ldg(el)
+  console.log('[TT] SESS:',SESS?.session_id,'TEACHER:',TEACHER?.teacher_id)
   // Get active roster
   const{data:roster}=await sb.from('rosters').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true).maybeSingle()
   if(!roster){emp(el,'No active timetable roster. Ask admin to create and activate one.');return}
