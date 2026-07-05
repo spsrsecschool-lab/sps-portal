@@ -2742,52 +2742,51 @@ async function setTeacherLogin(teacherId, oldUsername){
   if(password!==confirm){toast('Passwords do not match','error');return}
 
   const email=username+'@'+AUTH_EMAIL_DOMAIN
-  const svcKey=SPS.serviceKey
-  const sbUrl=SPS.supabaseUrl
+  const svcKey=SPS.serviceKey, sbUrl=SPS.supabaseUrl
   if(!svcKey){toast('Service role key not configured in auth.js','error');return}
 
   const btn=document.querySelector('#modal-foot .btn-dark')
   if(btn){btn.disabled=true;btn.textContent='Saving…'}
 
-  const headers={'Content-Type':'application/json','apikey':svcKey,'Authorization':'Bearer '+svcKey}
-
   try{
+    // Create a separate admin client using service role key
+    const sbAdmin=supabase.createClient(sbUrl,svcKey,{auth:{autoRefreshToken:false,persistSession:false}})
+
     let authUserId=null
 
-    // Try to find existing auth user by email first
-    const listRes=await fetch(sbUrl+'/auth/v1/admin/users?email='+encodeURIComponent(email),{headers})
-    const listData=await listRes.json()
-    const existingUser=listData?.users?.[0]
+    // Try to create user first
+    const{data:created,error:createErr}=await sbAdmin.auth.admin.createUser({
+      email,password,email_confirm:true,user_metadata:{teacher_id:teacherId}
+    })
 
-    if(existingUser){
-      // User exists — update password
-      const upRes=await fetch(sbUrl+'/auth/v1/admin/users/'+existingUser.id,{
-        method:'PUT',headers,
-        body:JSON.stringify({password,email_confirm:true})
-      })
-      if(!upRes.ok){const e=await upRes.json();toast('Failed to update: '+(e.message||upRes.status),'error');if(btn){btn.disabled=false;btn.textContent='Update Login'};return}
-      authUserId=existingUser.id
-      toast('Password updated ✓','success')
-    } else {
-      // Create new auth user
-      const createRes=await fetch(sbUrl+'/auth/v1/admin/users',{
-        method:'POST',headers,
-        body:JSON.stringify({email,password,email_confirm:true,user_metadata:{teacher_id:teacherId}})
-      })
-      const created=await createRes.json()
-      if(!createRes.ok){toast('Failed to create: '+(created.message||createRes.status),'error');if(btn){btn.disabled=false;btn.textContent='Create Login'};return}
-      authUserId=created.id
+    if(created?.user){
+      // Successfully created new user
+      authUserId=created.user.id
       toast('Login created ✓','success')
+    } else {
+      // User likely already exists — list all and find by email
+      const{data:list}=await sbAdmin.auth.admin.listUsers({perPage:1000})
+      const existing=(list?.users||[]).find(u=>u.email===email)
+      if(!existing){
+        toast('Failed to create: '+(createErr?.message||'Unknown error'),'error')
+        if(btn){btn.disabled=false;btn.textContent=oldUsername?'Update Login':'Create Login'}
+        return
+      }
+      // Update their password
+      const{error:upErr}=await sbAdmin.auth.admin.updateUserById(existing.id,{password,email_confirm:true})
+      if(upErr){toast('Failed to update password: '+upErr.message,'error');if(btn){btn.disabled=false;btn.textContent='Update Login'};return}
+      authUserId=existing.id
+      toast('Password updated ✓','success')
     }
 
     // Save auth_user_id + username to teachers table
-    const{error:ue}=await sb.from('teachers').update({username,auth_user_id:authUserId}).eq('teacher_id',teacherId)
-    if(ue){toast('Auth done but DB update failed: '+ue.message,'error');return}
+    const{error:dbErr}=await sb.from('teachers').update({username,auth_user_id:authUserId}).eq('teacher_id',teacherId)
+    if(dbErr){toast('Auth done but DB save failed: '+dbErr.message,'error');return}
 
-    toast('Done! Username: '+username+' | Email: '+email,'success')
+    toast('Done ✓  '+email+' can now log in to teacher portal','success')
     closeModal();loadStaff()
   }catch(err){
-    toast('Error: '+err.message,'error')
+    toast('Unexpected error: '+err.message,'error')
     if(btn){btn.disabled=false;btn.textContent=oldUsername?'Update Login':'Create Login'}
   }
 }
