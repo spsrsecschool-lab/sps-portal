@@ -348,7 +348,15 @@
 
   /* toggle */
   .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
-  .switch{width:42px;height:24px;border-radius:999px;background:var(--lav-300);position:relative;cursor:pointer;flex-shrink:0}
+  /* Toast */
+#toast{position:fixed;bottom:24px;left:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:360px}
+.toast-item{padding:12px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:slidein .2s ease;display:flex;align-items:center;gap:8px}
+.toast-success{background:var(--success);color:#fff}
+.toast-error{background:var(--danger);color:#fff}
+.toast-info{background:var(--indigo);color:#fff}
+@keyframes slidein{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+.switch{width:42px;height:24px;border-radius:999px;background:var(--lav-300);position:relative;cursor:pointer;flex-shrink:0}
   .switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
   .switch.on{background:var(--indigo)}
   .switch.on::after{left:21px}
@@ -1154,7 +1162,7 @@ async function requestMarksEdit(){
     +'<div><div style="font-size:10.5px;text-transform:uppercase;color:var(--ink-faint);font-weight:700;margin-bottom:4px">Assessment</div><div style="font-size:13.5px;font-weight:700">'+esc(assess?.name||'—')+'</div></div>'
     +'<div><div style="font-size:10.5px;text-transform:uppercase;color:var(--ink-faint);font-weight:700;margin-bottom:4px">Subject</div><div style="font-size:13.5px;font-weight:700">'+esc(MY_MAPPINGS.find(m=>m.subject_id===subId)?.subjects?.name||'—')+'</div></div>'
     +'</div>'
-    +'<div class="fg"><label>Reason for correction *</label><textarea id="editReqNote" placeholder="e.g. Entered roll no. 3 marks incorrectly — should be 18 not 8" style="min-height:90px;margin-top:6px"></textarea></div>',
+    +'<div style="margin-top:4px"><div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Reason for correction *</div><textarea id="editReqNote" placeholder="e.g. Entered roll no. 3 marks incorrectly — should be 18 not 8" style="min-height:90px;width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:10px;resize:vertical;outline:none;color:var(--ink);background:var(--lav-50)"></textarea></div>',
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitMarksEditRequest()">Send Request</button>'
   )
 }
@@ -1463,13 +1471,17 @@ async function createTest(){
   const name=$('ct_name')?.value?.trim(),date=$('ct_date')?.value,marks=parseInt($('ct_marks')?.value)
   if(!classVal||!name||!date||!marks){toast('Fill all required fields','error');return}
   const[secId,classId]=classVal.split('|')
-  const{error}=await sb.from('assessments').insert({
-    name,class_id:classId,section_id:secId||null,subject_id:subId||null,
-    max_marks:marks,pass_marks:Math.round(marks*0.33),
-    created_by:TEACHER.teacher_id,session_id:SESS?.session_id,
-    notes:$('ct_syllabus')?.value?.trim()||null
-  })
+  // Insert assessment
+  const{data:newAssess,error}=await sb.from('assessments').insert({
+    name,session_id:SESS?.session_id||'',
+    commencement_date:date||null,
+    max_marks:marks,pass_marks:Math.round(marks*0.33)
+  }).select().single()
   if(error){toast('Failed: '+error.message,'error');return}
+  // Link to class via assessment_classes
+  if(newAssess?.assessment_id){
+    await sb.from('assessment_classes').insert({assessment_id:newAssess.assessment_id,class_id:classId})
+  }
   toast('Test created ✓','success')
   $('ct_name').value='';$('ct_date').value='';$('ct_marks').value='';$('ct_syllabus').value=''
   loadMyTests()
@@ -1689,7 +1701,7 @@ async function saveProfileEdit(){
 function requestProfileEdit(){
   openModal('Request Profile Edit Access',
     '<p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:12px">Tell admin what you need to update. They will approve and you can edit your profile once.</p>'+
-    '<div class="fg"><label>What do you want to change? *</label><textarea id="preq_note" style="min-height:80px" placeholder="e.g. Phone number changed, need to update profile photo…"></textarea></div>',
+    '<div style="margin-top:4px"><div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">What do you want to change? *</div><textarea id="preq_note" placeholder="e.g. Phone number changed, need to update profile photo…" style="min-height:80px;width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:10px;resize:vertical;outline:none;color:var(--ink);background:var(--lav-50)"></textarea></div>',
     '<button class="btn btn-primary" onclick="submitProfileEditRequest()">Send Request</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   )
 }
