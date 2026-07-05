@@ -349,7 +349,7 @@
   /* toggle */
   .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
   /* Toast */
-#toast{position:fixed;bottom:24px;left:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:360px}
+#toast{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:360px}
 .toast-item{padding:12px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:slidein .2s ease;display:flex;align-items:center;gap:8px}
 .toast-success{background:var(--success);color:#fff}
 .toast-error{background:var(--danger);color:#fff}
@@ -980,23 +980,23 @@ async function loadMyTimetable(){
 // Marks entry: Assessment → Class → Subject flow
 async function meInitAssessments(){
   const sel=$('me_assessment');if(!sel)return
-  sel.innerHTML='<option value="">Loading assessments…</option>'
+  sel.innerHTML='<option value="">Loading…</option>'
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id).filter(Boolean))]
   if(!classIds.length){sel.innerHTML='<option value="">No class assignments</option>';return}
-  // Get assessment IDs linked to teacher's classes
-  const{data:ac,error:ace}=await sb.from('assessment_classes').select('assessment_id,class_id').in('class_id',classIds)
-  console.log('[ASSESS] assessment_classes rows:',ac?.length,'error:',ace?.message)
-  if(!ac?.length){
-    // Fallback: show all session assessments if no assessment_classes entries
-    const{data:all}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-    ALL_ASSESSMENTS=all||[]
-    sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.max_marks?' / Max '+a.max_marks:'')+'</option>').join('')
-    return
+  // Admin assessments via assessment_classes
+  const{data:ac}=await sb.from('assessment_classes').select('assessment_id').in('class_id',classIds)
+  const adminIds=[...new Set((ac||[]).map(r=>r.assessment_id))]
+  let adminList=[]
+  if(adminIds.length){
+    const{data}=await sb.from('assessments').select('*').in('assessment_id',adminIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+    adminList=data||[]
   }
-  const assessIds=[...new Set(ac.map(r=>r.assessment_id))]
-  const{data:assessments}=await sb.from('assessments').select('*').in('assessment_id',assessIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  ALL_ASSESSMENTS=assessments||[]
-  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.max_marks?' / Max '+a.max_marks:'')+'</option>').join('')
+  // Teacher's own tests
+  const{data:myTests}=await sb.from('assessments').select('*').in('class_id',classIds).eq('session_id',SESS?.session_id||'').eq('created_by_teacher_id',TEACHER.teacher_id).order('commencement_date',{nullsFirst:false})
+  ALL_ASSESSMENTS=[...adminList,...(myTests||[])]
+  sel.innerHTML='<option value="">Select assessment</option>'
+    +adminList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.max_marks?' / Max '+a.max_marks:'')+'</option>').join('')
+    +((myTests?.length)?'<optgroup label="── My Class Tests ──">'+myTests.map(a=>'<option value="'+a.assessment_id+'">🧪 '+esc(a.name)+(a.commencement_date?' ('+fmtD(a.commencement_date)+')':'')+'</option>').join('')+'</optgroup>':'')
 }
 
 function meLoadClassesForAssessment(){
@@ -1042,11 +1042,17 @@ async function loadMarksTable(){
   el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading students…</div>'
   _currentMarksMeta={subId,secId,classId,assessId}
 
-  // Check lock state
-  const{data:lockData}=await sb.from('marks_lock_state')
-    .select('*').eq('teacher_id',TEACHER.teacher_id)
-    .eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId).maybeSingle()
-  _marksLocked=lockData?.is_locked!==false
+  // Teacher-created tests are always editable — no lock
+  const assessMeta=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
+  const isTeacherTest=assessMeta.created_by_teacher_id===TEACHER.teacher_id
+  let lockData=null
+  if(!isTeacherTest){
+    const{data:ld}=await sb.from('marks_lock_state')
+      .select('*').eq('teacher_id',TEACHER.teacher_id)
+      .eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId).maybeSingle()
+    lockData=ld
+  }
+  _marksLocked=isTeacherTest?false:(lockData?.is_locked!==false)
 
   // Get students
   const{data:students,error:se}=await sb.from('student_enrollments')
@@ -1061,12 +1067,14 @@ async function loadMarksTable(){
     .eq('assessment_id',assessId).eq('subject_id',subId)
   const marksMap={}; (existingMarks||[]).forEach(m=>{marksMap[m.enrollment_id]=m})
 
-  const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
-  const maxM=assess.max_marks||100
+  const assessData=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
+  const maxM=(assessMeta.max_marks||assessData?.max_marks||100)
   const passM=Math.round(maxM*0.33)
 
   let html='<div class="card">'
-  if(_marksLocked&&lockData){
+  if(isTeacherTest){
+    html+='<div style="background:var(--success-soft);border:1px solid var(--success);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--success)">🧪 <b>Your class test</b> — marks can be edited anytime. Admin can view these marks.</div>'
+  } else if(_marksLocked&&lockData){
     html+='<div style="background:var(--lav-100);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px"><div><b>🔒 Marks Locked</b><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">These marks are confirmed. Request edit access if a correction is needed.</div></div><button class="btn btn-warn btn-sm" onclick="requestMarksEdit()">Request Edit Access</button></div>'
   }
   html+='<div style="display:flex;gap:20px;margin-bottom:14px;font-size:12.5px;color:var(--ink-soft);flex-wrap:wrap">'
@@ -1110,7 +1118,7 @@ async function confirmMarks(){
   const{subId,secId,classId,assessId}=_currentMarksMeta
   const inputs=document.querySelectorAll('.marks-input')
   const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
-  const maxM=assess.max_marks||100
+  const maxM=(assessMeta.max_marks||assessData?.max_marks||100)
   const passM=Math.round(maxM*0.33)
   const inserts=[];let valid=true
 
@@ -1133,13 +1141,16 @@ async function confirmMarks(){
   const{error}=await sb.from('marks').upsert(inserts,{onConflict:'enrollment_id,assessment_id,subject_id',ignoreDuplicates:false})
   if(error){toast('Failed to save: '+error.message,'error');return}
 
-  // Lock marks
-  const{error:le}=await sb.from('marks_lock_state').upsert({
-    teacher_id:TEACHER.teacher_id,assessment_id:assessId,subject_id:subId,
-    section_id:secId,class_id:classId,session_id:SESS?.session_id||'',
-    is_locked:true,locked_at:new Date().toISOString()
-  },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
-  if(le)console.warn('Lock failed:',le.message)
+  // Lock only admin assessments — teacher tests stay freely editable
+  const assessForLock=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
+  if(assessForLock.created_by_teacher_id!==TEACHER.teacher_id){
+    const{error:le}=await sb.from('marks_lock_state').upsert({
+      teacher_id:TEACHER.teacher_id,assessment_id:assessId,subject_id:subId,
+      section_id:secId,class_id:classId,session_id:SESS?.session_id||'',
+      is_locked:true,locked_at:new Date().toISOString()
+    },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
+    if(le)console.warn('Lock failed:',le.message)
+  }
 
   // Complete any approved edit request
   const{data:req}=await sb.from('access_requests')
@@ -1471,17 +1482,13 @@ async function createTest(){
   const name=$('ct_name')?.value?.trim(),date=$('ct_date')?.value,marks=parseInt($('ct_marks')?.value)
   if(!classVal||!name||!date||!marks){toast('Fill all required fields','error');return}
   const[secId,classId]=classVal.split('|')
-  // Insert assessment
-  const{data:newAssess,error}=await sb.from('assessments').insert({
+  const{error}=await sb.from('assessments').insert({
     name,session_id:SESS?.session_id||'',
+    class_id:classId,
     commencement_date:date||null,
-    max_marks:marks,pass_marks:Math.round(marks*0.33)
-  }).select().single()
+    created_by_teacher_id:TEACHER.teacher_id
+  })
   if(error){toast('Failed: '+error.message,'error');return}
-  // Link to class via assessment_classes
-  if(newAssess?.assessment_id){
-    await sb.from('assessment_classes').insert({assessment_id:newAssess.assessment_id,class_id:classId})
-  }
   toast('Test created ✓','success')
   $('ct_name').value='';$('ct_date').value='';$('ct_marks').value='';$('ct_syllabus').value=''
   loadMyTests()
@@ -1491,11 +1498,11 @@ async function loadMyTests(){
   const el=$('myTestsList');if(!el)return;ldg(el)
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
   if(!classIds.length){emp(el,'No class assignments.');return}
-  const{data,error}=await sb.from('assessments').select('*,classes(name),class_sections(name),subjects(name)')
-    .in('class_id',classIds).eq('session_id',SESS?.session_id||'').eq('assessment_type','class_test').order('created_at',{ascending:false})
+  const{data,error}=await sb.from('assessments').select('*,classes(name)')
+    .in('class_id',classIds).eq('session_id',SESS?.session_id||'').order('created_at',{ascending:false})
   if(!data?.length){emp(el,'No tests created yet.');return}
   el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Subject</th><th>Date</th><th>Max Marks</th></tr></thead><tbody>'+
-    data.map(t=>'<tr><td style="font-weight:600">'+esc(t.name)+'</td><td>'+esc((t.classes?.name||'?')+'‑'+(t.class_sections?.name||'?'))+'</td><td>'+esc(t.subjects?.name||'—')+'</td><td class="mono">'+fmtD(t.notes)+'</td><td class="mono">'+t.max_marks+'</td></tr>').join('')+
+    data.map(t=>'<tr><td style="font-weight:600">'+esc(t.name)+'</td><td>'+esc(t.classes?.name||'?')+'</td><td class="mono">'+fmtD(t.commencement_date)+'</td></tr>').join('')+
     '</tbody></table></div>'
 }
 
