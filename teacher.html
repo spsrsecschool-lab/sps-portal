@@ -6,6 +6,8 @@
 <title>Teacher Portal — Shiv Public School</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>window.PORTAL_KEY = "main_teacher"</script>
+<script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
 <style>
@@ -104,7 +106,7 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .pill-neutral{background:var(--lav-100);color:var(--ink-soft)}
 .pill-indigo{background:var(--indigo-100);color:var(--indigo-dark)}
 
-.menu-board{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.menu-board{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .menu-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
 .menu-card:hover{transform:translateY(-3px);box-shadow:0 16px 30px -16px rgba(91,79,232,.35);border-color:var(--indigo)}
 .menu-card .ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
@@ -358,6 +360,10 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="ic" style="background:linear-gradient(135deg,#E5556B,#C73E54)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
             <h4>Observations</h4><p>Write behaviour &amp; discipline remarks for a student</p>
           </div>
+          <div class="menu-card" onclick="openSub('sub-test')">
+            <div class="ic" style="background:linear-gradient(135deg,#E8A23D,#D6862A)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+            <h4>Create Test</h4><p>Set up a new class test or surprise test</p>
+          </div>
         </div>
       </div>
 
@@ -404,7 +410,28 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
     </div>
 
-    <!-- CRITICAL STUDENTS -->
+          <!-- CREATE TEST -->
+      <div class="sub-page" id="sub-test">
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div class="page-head"><div><h2>Create Test</h2><p>Set up a class test or surprise test</p></div></div>
+        <div class="card" style="max-width:680px;margin-bottom:18px">
+          <div class="form-row">
+            <div class="fg"><label>Class — Section</label><select id="ct_class"><option value="">Select class</option></select></div>
+            <div class="fg"><label>Max Marks *</label><input type="number" id="ct_marks" placeholder="20" min="1"></div>
+          </div>
+          <div class="form-row">
+            <div class="fg"><label>Test Name *</label><input id="ct_name" placeholder="e.g. Surprise Test — Acids &amp; Bases"></div>
+            <div class="fg"><label>Date *</label><input type="date" id="ct_date"></div>
+          </div>
+          <div class="form-row">
+            <div class="fg"><label>Syllabus / Topics</label><textarea id="ct_syllabus" placeholder="Topics covered…"></textarea></div>
+          </div>
+          <button class="btn btn-primary" onclick="createTest()">Create Test</button>
+        </div>
+        <div class="card"><h3>My Tests This Session</h3><div id="myTestsList"><div class="loading-row"><div class="spinner"></div></div></div></div>
+      </div>
+
+<!-- CRITICAL STUDENTS -->
     <div class="page" id="page-critical">
       <div class="page-head"><div><h2>Critical Students</h2><p>Students failing in any of your subjects across assessments</p></div></div>
       <div id="criticalList"><div class="loading-row"><div class="spinner"></div></div></div>
@@ -514,7 +541,7 @@ function openSub(subId){
 // AUTH & INIT
 // ═══════════════════════════════════════════════════════════════
 SPS.ready().then(async()=>{
-  sb=SPS.sb
+  sb=window.sb
 
   // Verify logged in user is a teacher
   // Use SPS.teacher from auth.js (looked up by auth_user_id)
@@ -558,6 +585,8 @@ SPS.ready().then(async()=>{
   const obsClasses=[...new Map(MY_MAPPINGS.map(m=>[(m.class_id||'')+'_'+(m.section_id||''),m])).values()]
   const obsOpts=obsClasses.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'-'+(m.class_sections?.name||'?'))+'</option>').join('')
   const obsSel=$('obs_class');if(obsSel)obsSel.innerHTML='<option value="">Select class</option>'+obsOpts
+  const ctClassSel=$('ct_class');if(ctClassSel)ctClassSel.innerHTML='<option value="">Select class</option>'+obsOpts
+  // Also populate create test class dropdown
 
   await Promise.all([renderDashboard(), checkUnreadMessages()])
 })
@@ -885,6 +914,36 @@ function openObsModal(eid,name){
     '<button class="btn btn-primary" onclick="submitObs(\''+eid+'\')">Save Observation</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   )
 }
+async function createTest(){
+  const classVal=$('ct_class')?.value,subId=$('ct_subject')?.value
+  const name=$('ct_name')?.value?.trim(),date=$('ct_date')?.value,marks=parseInt($('ct_marks')?.value)
+  if(!classVal||!name||!date||!marks){toast('Fill all required fields','error');return}
+  const[secId,classId]=classVal.split('|')
+  const{error}=await sb.from('assessments').insert({
+    name,class_id:classId,section_id:secId||null,subject_id:subId||null,
+    max_marks:marks,pass_marks:Math.round(marks*0.33),
+    assessment_type:'class_test',is_active:true,
+    created_by:TEACHER.teacher_id,session_id:SESS?.session_id,
+    notes:$('ct_syllabus')?.value?.trim()||null
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Test created ✓','success')
+  $('ct_name').value='';$('ct_date').value='';$('ct_marks').value='';$('ct_syllabus').value=''
+  loadMyTests()
+}
+
+async function loadMyTests(){
+  const el=$('myTestsList');if(!el)return;ldg(el)
+  const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
+  if(!classIds.length){emp(el,'No class assignments.');return}
+  const{data,error}=await sb.from('assessments').select('*,classes(name),class_sections(name),subjects(name)')
+    .in('class_id',classIds).eq('session_id',SESS?.session_id||'').eq('assessment_type','class_test').order('created_at',{ascending:false})
+  if(!data?.length){emp(el,'No tests created yet.');return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Subject</th><th>Date</th><th>Max Marks</th></tr></thead><tbody>'+
+    data.map(t=>'<tr><td style="font-weight:600">'+esc(t.name)+'</td><td>'+esc((t.classes?.name||'?')+'‑'+(t.class_sections?.name||'?'))+'</td><td>'+esc(t.subjects?.name||'—')+'</td><td class="mono">'+fmtD(t.notes)+'</td><td class="mono">'+t.max_marks+'</td></tr>').join('')+
+    '</tbody></table></div>'
+}
+
 async function submitObs(enrollmentId){
   const text=$('obs_text')?.value?.trim(),type=$('obs_type')?.value
   if(!text){toast('Write a remark first','error');return}
