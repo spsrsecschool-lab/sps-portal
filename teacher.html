@@ -517,12 +517,12 @@ SPS.ready().then(async()=>{
   sb=SPS.sb
 
   // Verify logged in user is a teacher
-  const{data:{session}}=await sb.auth.getSession()
-  if(!session){window.location.href='login.html';return}
+  // Use SPS.teacher from auth.js (looked up by auth_user_id)
+  if(!SPS.teacher){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
 
-  const username=session.user.email.split('@')[0]
-  const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('username',username).maybeSingle()
-  if(!teacher||te){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>sb.auth.signOut().then(()=>location.href='login.html'),2000);return}
+  // Fetch full teacher record
+  const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('teacher_id',SPS.teacher.teacher_id).maybeSingle()
+  if(!teacher||te){toast('Could not load teacher profile.','error');setTimeout(()=>SPS.signOut(),2000);return}
 
   TEACHER=teacher
 
@@ -1111,8 +1111,7 @@ function switchToClassView(){
 }
 
 async function logout(){
-  await SPS.sb.auth.signOut()
-  window.location.href='login.html'
+  SPS.signOut()
 }
 </script>
 </body>
