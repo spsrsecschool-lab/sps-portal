@@ -3,245 +3,425 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Teacher Portal — Shiv Public School</title>
+<title>Main Teacher Portal — Shiv Public School</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script>window.PORTAL_KEY = "main_teacher"</script>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{
-  --lav-50:#F7F6FD;--lav-100:#F1EFFC;--lav-200:#E4E0FA;--lav-300:#CFC9F5;
-  --ink:#221F35;--ink-soft:#6B6685;--ink-faint:#A8A3C2;
-  --indigo:#5B4FE8;--indigo-dark:#4A3FD6;--indigo-100:#EDEBFE;
-  --white:#FFFFFF;--line:#E7E3F8;
-  --success:#2BB673;--success-soft:#E4F7EE;
-  --warn:#E8A23D;--warn-soft:#FCF1E0;
-  --danger:#E5556B;--danger-soft:#FCE7EA;
-  --radius-lg:22px;--radius-md:14px;--radius-sm:10px;
-  --font:'Plus Jakarta Sans',sans-serif;--mono:'DM Mono',monospace;
-  --sbw:248px;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-height:100vh;overflow-x:hidden}
+  :root{
+    --lav-50:#F7F6FD;
+    --lav-100:#F1EFFC;
+    --lav-200:#E4E0FA;
+    --lav-300:#CFC9F5;
+    --ink:#221F35;
+    --ink-soft:#6B6685;
+    --ink-faint:#A8A3C2;
+    --indigo:#5B4FE8;
+    --indigo-dark:#4A3FD6;
+    --indigo-100:#EDEBFE;
+    --white:#FFFFFF;
+    --line:#E7E3F8;
+    --success:#2BB673;
+    --success-soft:#E4F7EE;
+    --warn:#E8A23D;
+    --warn-soft:#FCF1E0;
+    --danger:#E5556B;
+    --danger-soft:#FCE7EA;
+    --radius-lg:22px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --font:'Plus Jakarta Sans',sans-serif;
+    --mono:'DM Mono',monospace;
+    --sbw:248px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font);
+    background:var(--lav-50);
+    color:var(--ink);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
 
-#sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sbw);background:var(--white);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:200;transition:transform .28s cubic-bezier(.4,0,.2,1)}
-#sidebar.collapsed{transform:translateX(-100%)}
-.sb-brand{display:flex;align-items:center;gap:11px;padding:22px 20px 18px;border-bottom:1px solid var(--line)}
-.sb-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--indigo),var(--indigo-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14.5px;flex-shrink:0}
-.sb-brand-text .name{font-size:13px;font-weight:700;line-height:1.25}
-.sb-brand-text .sub{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
-.sb-scroll{flex:1;overflow-y:auto;padding:16px 12px}
-.sb-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);padding:6px 10px 8px}
-.sb-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:var(--radius-sm);color:var(--ink-soft);font-size:13px;font-weight:500;cursor:pointer;margin-bottom:2px;transition:background .14s,color .14s;position:relative}
-.sb-item svg{width:17px;height:17px;stroke:currentColor;fill:none;flex-shrink:0;stroke-width:1.8}
-.sb-item:hover{background:var(--lav-100);color:var(--ink)}
-.sb-item.active{background:var(--indigo-100);color:var(--indigo-dark);font-weight:700}
-.sb-item .bc{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px}
-.sb-foot{padding:14px 16px 18px;border-top:1px solid var(--line)}
-.sb-switch-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--lav-100);border:1px solid var(--line);color:var(--indigo-dark);font-family:var(--font);font-size:12px;font-weight:700;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;margin-bottom:10px}
-.sb-switch-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
-.sb-logout{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:1px solid var(--line);color:var(--ink-soft);font-family:var(--font);font-size:12px;font-weight:600;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer}
-.sb-logout svg{width:14px;height:14px;stroke:currentColor;fill:none}
+  /* ═══════ SIDEBAR ═══════ */
+  #sidebar{
+    position:fixed;top:0;left:0;bottom:0;
+    width:var(--sbw);
+    background:var(--white);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    z-index:200;
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+  }
+  #sidebar.collapsed{transform:translateX(-100%)}
 
-#main{margin-left:var(--sbw);transition:margin-left .28s cubic-bezier(.4,0,.2,1);min-height:100vh;display:flex;flex-direction:column}
-#main.full{margin-left:0}
-.topbar{height:64px;background:rgba(247,246,253,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 26px;position:sticky;top:0;z-index:90}
-.sb-toggle{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-.sb-toggle svg{width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8}
-.topbar-title{font-size:15px;font-weight:700;flex:1}
-.topbar-title .crumb{font-size:11.5px;color:var(--ink-faint);font-weight:500;display:block;margin-top:1px}
-.user-chip{display:flex;align-items:center;gap:9px;padding:5px 12px 5px 5px;border:1px solid var(--line);background:var(--white);border-radius:999px}
-.avatar-sm{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7B6EF6,var(--indigo));color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
-.user-chip .uname{font-size:12.5px;font-weight:700;line-height:1.2}
-.user-chip .urole{font-size:10px;color:var(--ink-faint)}
-.icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
-.icon-btn svg{width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8}
-.icon-btn .dot{position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:2px solid var(--white)}
+  .sb-brand{
+    display:flex;align-items:center;gap:11px;
+    padding:22px 20px 18px;
+    border-bottom:1px solid var(--line);
+  }
+  .sb-mark{
+    width:36px;height:36px;border-radius:10px;
+    background:linear-gradient(135deg,var(--indigo),var(--indigo-dark));
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:14.5px;flex-shrink:0;
+  }
+  .sb-brand-text .name{font-size:13px;font-weight:700;line-height:1.25}
+  .sb-brand-text .sub{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
 
-.content{padding:26px;flex:1}
-.page{display:none !important}.page.active{display:block !important}
-.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
-.page-head h2{font-size:21px;font-weight:800;letter-spacing:-.01em}
-.page-head p{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+  .sb-scroll{flex:1;overflow-y:auto;padding:16px 12px}
+  .sb-label{
+    font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-faint);
+    padding:6px 10px 8px;
+  }
+  .sb-item{
+    display:flex;align-items:center;gap:11px;
+    padding:10px 12px;
+    border-radius:var(--radius-sm);
+    color:var(--ink-soft);
+    font-size:13px;font-weight:500;
+    cursor:pointer;
+    margin-bottom:2px;
+    transition:background .14s, color .14s;
+    position:relative;
+  }
+  .sb-item svg{width:17px;height:17px;stroke:currentColor;fill:none;flex-shrink:0;stroke-width:1.8}
+  .sb-item:hover{background:var(--lav-100);color:var(--ink)}
+  .sb-item.active{background:var(--indigo-100);color:var(--indigo-dark);font-weight:700}
+  .sb-item .badge-count{
+    margin-left:auto;
+    background:var(--danger);color:#fff;
+    font-size:10px;font-weight:700;
+    min-width:18px;height:18px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;
+    padding:0 5px;
+  }
 
-.card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px}
-.card h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:14px}
-.grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-.stack{display:flex;flex-direction:column;gap:18px}
+  .sb-foot{
+    padding:14px 16px 18px;
+    border-top:1px solid var(--line);
+  }
+  .sb-switch-btn{
+    width:100%;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--lav-100);
+    border:1px solid var(--line);
+    color:var(--indigo-dark);
+    font-family:var(--font);font-size:12px;font-weight:700;
+    padding:10px 12px;border-radius:var(--radius-sm);
+    cursor:pointer;margin-bottom:10px;
+  }
+  .sb-switch-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+  .sb-logout{
+    width:100%;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    background:transparent;border:1px solid var(--line);
+    color:var(--ink-soft);font-family:var(--font);font-size:12px;font-weight:600;
+    padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer;
+  }
+  .sb-logout svg{width:14px;height:14px;stroke:currentColor;fill:none}
 
-.banner{background:linear-gradient(120deg,var(--indigo) 0%,#4A3FD6 100%);border-radius:var(--radius-lg);padding:22px 26px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px;position:relative;overflow:hidden}
-.banner::after{content:'';position:absolute;width:220px;height:220px;border-radius:50%;border:1px solid rgba(255,255,255,.16);right:-90px;bottom:-110px}
-.banner-text{position:relative;z-index:1}
-.banner-text .eyebrow{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.7);font-weight:700}
-.banner-text h3{font-size:18px;font-weight:800;margin-top:5px}
-.banner-text p{font-size:12.5px;color:rgba(255,255,255,.78);margin-top:5px}
-.banner-cta{position:relative;z-index:1;background:#fff;color:var(--indigo-dark);font-weight:700;font-size:12.5px;padding:10px 18px;border-radius:var(--radius-sm);border:none;cursor:pointer;white-space:nowrap;font-family:var(--font)}
+  /* ═══════ MAIN ═══════ */
+  #main{
+    margin-left:var(--sbw);
+    transition:margin-left .28s cubic-bezier(.4,0,.2,1);
+    min-height:100vh;
+    display:flex;flex-direction:column;
+  }
+  #main.full{margin-left:0}
 
-.stat-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:6px}
-.stat-card .lbl{font-size:11px;color:var(--ink-faint);font-weight:600;display:flex;align-items:center;gap:6px}
-.stat-card .lbl svg{width:14px;height:14px;stroke:currentColor;fill:none}
-.stat-card .val{font-size:25px;font-weight:800;font-family:var(--mono)}
-.stat-card .sub{font-size:11px;color:var(--ink-faint)}
+  .topbar{
+    height:64px;
+    background:rgba(247,246,253,.85);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;
+    padding:0 26px;
+    position:sticky;top:0;z-index:90;
+  }
+  .sb-toggle{
+    width:36px;height:36px;border-radius:10px;
+    border:1px solid var(--line);background:var(--white);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;flex-shrink:0;
+  }
+  .sb-toggle svg{width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8}
+  .topbar-title{font-size:15px;font-weight:700;flex:1}
+  .topbar-title .crumb{font-size:11.5px;color:var(--ink-faint);font-weight:500;display:block;margin-top:1px}
 
-.log-row{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
-.log-row:last-child{border-bottom:none}
-.log-dot{width:7px;height:7px;border-radius:50%;background:var(--indigo);margin-top:6px;flex-shrink:0}
-.log-row .txt{font-size:12.5px;color:var(--ink)}
-.log-row .ts{font-size:10.5px;color:var(--ink-faint);font-family:var(--mono);margin-top:2px}
+  .icon-btn{
+    width:38px;height:38px;border-radius:10px;
+    border:1px solid var(--line);background:var(--white);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;position:relative;
+  }
+  .icon-btn svg{width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8}
+  .icon-btn .dot{
+    position:absolute;top:7px;right:7px;
+    width:8px;height:8px;border-radius:50%;
+    background:var(--danger);border:2px solid var(--white);
+  }
+  .theme-pill{
+    display:flex;align-items:center;gap:6px;
+    border:1px solid var(--line);background:var(--white);
+    border-radius:999px;padding:4px;
+  }
+  .theme-pill button{
+    width:28px;height:28px;border-radius:50%;border:none;background:transparent;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-faint);
+  }
+  .theme-pill button.active{background:var(--indigo);color:#fff}
+  .theme-pill svg{width:14px;height:14px;stroke:currentColor;fill:none}
 
-.sched-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line);font-size:12.5px;gap:10px}
-.sched-row:last-child{border-bottom:none}
-.sched-row .cls{font-weight:700;min-width:60px}
-.sched-row .subj{color:var(--ink-soft);flex:1}
+  .user-chip{
+    display:flex;align-items:center;gap:9px;
+    padding:5px 12px 5px 5px;
+    border:1px solid var(--line);background:var(--white);
+    border-radius:999px;cursor:pointer;
+  }
+  .avatar-sm{
+    width:30px;height:30px;border-radius:50%;
+    background:linear-gradient(135deg,#7B6EF6,var(--indigo));
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;
+  }
+  .user-chip .uname{font-size:12.5px;font-weight:700;line-height:1.2}
+  .user-chip .urole{font-size:10px;color:var(--ink-faint)}
 
-.pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;letter-spacing:.02em;white-space:nowrap}
-.pill-success{background:var(--success-soft);color:var(--success)}
-.pill-warn{background:var(--warn-soft);color:var(--warn)}
-.pill-danger{background:var(--danger-soft);color:var(--danger)}
-.pill-neutral{background:var(--lav-100);color:var(--ink-soft)}
-.pill-indigo{background:var(--indigo-100);color:var(--indigo-dark)}
+  .content{padding:26px;flex:1}
+  .page{display:none}
+  .page.active{display:block}
 
-.menu-board{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-.menu-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
-.menu-card:hover{transform:translateY(-3px);box-shadow:0 16px 30px -16px rgba(91,79,232,.35);border-color:var(--indigo)}
-.menu-card .ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
-.menu-card .ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8}
-.menu-card h4{font-size:14px;font-weight:700;margin-bottom:5px}
-.menu-card p{font-size:11.5px;color:var(--ink-soft);line-height:1.5}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+  .page-head h2{font-size:21px;font-weight:800;letter-spacing:-.01em}
+  .page-head p{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
 
-.table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:11px 14px;text-align:left;white-space:nowrap}
-tbody td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle}
-tbody tr:hover td{background:var(--lav-50)}
-.cell-fail{background:var(--danger-soft) !important}
-.mono{font-family:var(--mono)}
+  /* ═══════ CARDS / GRID ═══════ */
+  .card{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:var(--radius-lg);
+    padding:20px;
+  }
+  .card h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:14px}
 
-.form-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.fg{display:flex;flex-direction:column;gap:6px;flex:1;min-width:140px}
-.fg label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
-.fg input,.fg select,.fg textarea{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px 13px;outline:none}
-.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--indigo);background:#fff}
-.fg textarea{resize:vertical;min-height:80px}
+  .grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .stack{display:flex;flex-direction:column;gap:18px}
 
-.btn{font-family:var(--font);font-size:12.5px;font-weight:700;border-radius:var(--radius-sm);padding:10px 18px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-.btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
-.btn-primary{background:var(--indigo);color:#fff}
-.btn-ghost{background:var(--white);color:var(--ink-soft);border:1px solid var(--line)}
-.btn-soft{background:var(--indigo-100);color:var(--indigo-dark)}
-.btn-success{background:var(--success);color:#fff}
-.btn-danger{background:var(--danger);color:#fff}
-.btn-warn{background:var(--warn);color:#fff}
-.btn-sm{padding:6px 12px;font-size:11.5px}
-.btn-xs{padding:4px 9px;font-size:11px}
+  /* Banner */
+  .banner{
+    background:linear-gradient(120deg,var(--indigo) 0%, #4A3FD6 100%);
+    border-radius:var(--radius-lg);
+    padding:22px 26px;
+    color:#fff;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:20px;
+    margin-bottom:20px;
+    position:relative;overflow:hidden;
+  }
+  .banner::after{content:'';position:absolute;width:220px;height:220px;border-radius:50%;border:1px solid rgba(255,255,255,.16);right:-90px;bottom:-110px}
+  .banner-text{position:relative;z-index:1}
+  .banner-text .eyebrow{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.7);font-weight:700}
+  .banner-text h3{font-size:18px;font-weight:800;margin-top:5px}
+  .banner-text p{font-size:12.5px;color:rgba(255,255,255,.78);margin-top:5px}
+  .banner-cta{
+    position:relative;z-index:1;
+    background:#fff;color:var(--indigo-dark);
+    font-weight:700;font-size:12.5px;
+    padding:10px 18px;border-radius:var(--radius-sm);
+    border:none;cursor:pointer;white-space:nowrap;
+  }
 
-.sub-page{display:none !important}.sub-page.active{display:block !important}
-.back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-soft);background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;margin-bottom:16px}
-.back-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
-.back-btn:hover{color:var(--ink);border-color:var(--ink-faint)}
+  /* stat cards */
+  .stat-card{
+    background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:18px;display:flex;flex-direction:column;gap:6px;
+  }
+  .stat-card .lbl{font-size:11px;color:var(--ink-faint);font-weight:600;display:flex;align-items:center;gap:6px}
+  .stat-card .lbl svg{width:14px;height:14px;stroke:currentColor;fill:none}
+  .stat-card .val{font-size:25px;font-weight:800;font-family:var(--mono)}
+  .stat-card .sub{font-size:11px;color:var(--ink-faint)}
 
-.profile-hero{display:flex;align-items:center;gap:18px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px;margin-bottom:18px}
-.avatar-lg{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#7B6EF6,var(--indigo));color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex-shrink:0;overflow:hidden}
-.avatar-lg img{width:100%;height:100%;object-fit:cover;border-radius:50%}
-.profile-hero h3{font-size:18px;font-weight:800}
-.profile-hero .desig{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
-.profile-hero .tag-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  /* activity */
+  .log-row{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .log-row:last-child{border-bottom:none}
+  .log-dot{width:7px;height:7px;border-radius:50%;background:var(--indigo);margin-top:6px;flex-shrink:0}
+  .log-row .txt{font-size:12.5px;color:var(--ink)}
+  .log-row .ts{font-size:10.5px;color:var(--ink-faint);font-family:var(--mono);margin-top:2px}
 
-.field-row{display:flex;flex-direction:column;gap:4px;padding:11px 0;border-bottom:1px solid var(--line)}
-.field-row:last-child{border-bottom:none}
-.field-row .k{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
-.field-row .v{font-size:13.5px;font-weight:600}
+  /* schedule matrix */
+  .sched-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .sched-row:last-child{border-bottom:none}
+  .sched-row .cls{font-weight:700}
+  .sched-row .subj{color:var(--ink-soft)}
 
-.map-tag{background:var(--indigo-100);color:var(--indigo-dark);font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px;display:inline-block;margin:3px}
+  .pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;letter-spacing:.02em}
+  .pill-success{background:var(--success-soft);color:var(--success)}
+  .pill-warn{background:var(--warn-soft);color:var(--warn)}
+  .pill-danger{background:var(--danger-soft);color:var(--danger)}
+  .pill-neutral{background:var(--lav-100);color:var(--ink-soft)}
 
-.msg-shell{display:flex;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:#fff;height:calc(100vh - 220px);min-height:500px}
-.msg-list{border-right:1px solid var(--line);overflow-y:auto;width:300px;flex-shrink:0}
-.msg-item{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
-.msg-item:hover{background:var(--lav-50)}
-.msg-item.active{background:var(--indigo-100)}
-.msg-item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.msg-item .from{font-size:12.5px;font-weight:600}
-.msg-item.unread .from{font-weight:800}
-.msg-item .time{font-size:10px;color:var(--ink-faint)}
-.msg-item .preview{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.msg-detail{padding:24px;display:flex;flex-direction:column;flex:1;overflow-y:auto}
-.msg-detail .subj{font-size:17px;font-weight:800;margin-bottom:6px}
-.msg-detail .meta{font-size:11.5px;color:var(--ink-faint);margin-bottom:18px}
-.msg-detail .body{font-size:13.5px;line-height:1.7;white-space:pre-wrap}
+  /* menu board cards (marks entry & assessment) */
+  .menu-board{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .menu-card{
+    background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:22px;cursor:pointer;transition:transform .15s, box-shadow .15s, border-color .15s;
+  }
+  .menu-card:hover{transform:translateY(-3px);box-shadow:0 16px 30px -16px rgba(91,79,232,.35);border-color:var(--indigo)}
+  .menu-card .ic{
+    width:42px;height:42px;border-radius:12px;
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:14px;
+  }
+  .menu-card .ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8}
+  .menu-card h4{font-size:14px;font-weight:700;margin-bottom:5px}
+  .menu-card p{font-size:11.5px;color:var(--ink-soft);line-height:1.5}
 
-.att-strip{display:flex;gap:6px;flex-wrap:wrap}
-.att-day{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;font-family:var(--mono)}
+  /* table */
+  .table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  thead th{
+    background:var(--lav-100);color:var(--ink-soft);
+    font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+    padding:11px 14px;text-align:left;white-space:nowrap;
+  }
+  tbody td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle}
+  tbody tr:hover td{background:var(--lav-50)}
+  .cell-fail{background:var(--danger-soft) !important}
+  .mono-num{font-family:var(--mono)}
 
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:50px 20px;color:var(--ink-faint);text-align:center}
-.empty-state svg{width:38px;height:38px;stroke:var(--lav-300);fill:none;margin-bottom:10px}
-.empty-state p{font-size:12.5px;max-width:240px}
-.loading-row{display:flex;align-items:center;justify-content:center;padding:30px}
-.spinner{width:28px;height:28px;border:3px solid var(--lav-200);border-top-color:var(--indigo);border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+  /* form */
+  .form-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .field-grp{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px}
+  .field-grp label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+  .field-grp input,.field-grp select,.field-grp textarea{
+    font-family:var(--font);font-size:13px;color:var(--ink);
+    background:var(--lav-50);border:1.5px solid var(--line);
+    border-radius:var(--radius-sm);padding:10px 13px;outline:none;
+  }
+  .field-grp input:focus,.field-grp select:focus,.field-grp textarea:focus{border-color:var(--indigo);background:#fff}
+  .field-grp textarea{resize:vertical;min-height:80px}
 
-/* marks input */
-.marks-input{width:70px;padding:6px 8px;border-radius:6px;border:1.5px solid var(--line);font-family:var(--mono);font-size:13px;text-align:center;outline:none}
-.marks-input:focus{border-color:var(--indigo)}
-.marks-input.absent{background:var(--danger-soft);border-color:var(--danger)}
-.marks-lock-banner{background:var(--lav-100);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .btn{
+    font-family:var(--font);font-size:12.5px;font-weight:700;
+    border-radius:var(--radius-sm);padding:10px 18px;border:none;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;
+  }
+  .btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+  .btn-primary{background:var(--indigo);color:#fff}
+  .btn-ghost{background:var(--white);color:var(--ink-soft);border:1px solid var(--line)}
+  .btn-soft{background:var(--indigo-100);color:var(--indigo-dark)}
+  .btn-success{background:var(--success);color:#fff}
+  .btn-sm{padding:6px 12px;font-size:11.5px}
 
-/* timetable grid */
-.tt-grid{overflow-x:auto}
-.tt-grid table{min-width:600px}
-.tt-cell{text-align:center;padding:8px 6px;vertical-align:top}
-.tt-entry{background:var(--indigo-100);border-radius:8px;padding:6px 8px;font-size:11.5px}
-.tt-entry b{display:block;font-size:12px;color:var(--indigo-dark)}
-.tt-entry span{color:var(--ink-soft)}
+  /* profile */
+  .profile-hero{
+    display:flex;align-items:center;gap:18px;
+    background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:22px;margin-bottom:18px;
+  }
+  .avatar-lg{
+    width:68px;height:68px;border-radius:50%;
+    background:linear-gradient(135deg,#7B6EF6,var(--indigo));
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:22px;font-weight:800;flex-shrink:0;
+  }
+  .profile-hero h3{font-size:18px;font-weight:800}
+  .profile-hero .desig{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+  .profile-hero .tag-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
-/* modal */
-#modal-overlay{position:fixed;inset:0;background:rgba(34,31,53,.5);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
-#modal-overlay.open{display:flex}
-#modal-box{background:#fff;border-radius:var(--radius-lg);width:100%;max-width:520px;box-shadow:0 24px 60px -12px rgba(34,31,53,.3);overflow:hidden;max-height:90vh;display:flex;flex-direction:column}
-#modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line);flex-shrink:0}
-#modal-head h4{font-size:15px;font-weight:800}
-#modal-close{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:20px;line-height:1}
-#modal-body{padding:20px 22px;overflow-y:auto;flex:1}
-#modal-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
+  .field-row{display:flex;flex-direction:column;gap:4px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .field-row:last-child{border-bottom:none}
+  .field-row .k{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .field-row .v{font-size:13.5px;font-weight:600}
 
-/* toast */
-#toast{position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;gap:8px}
-.toast-item{padding:12px 18px;border-radius:var(--radius-md);font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.15);animation:slidein .2s ease;max-width:300px}
-.toast-success{background:var(--success);color:#fff}
-.toast-error{background:var(--danger);color:#fff}
-.toast-info{background:var(--indigo);color:#fff}
-@keyframes slidein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .mapping-tags{display:flex;flex-wrap:wrap;gap:8px}
+  .map-tag{background:var(--indigo-100);color:var(--indigo-dark);font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px}
 
-.switch{width:42px;height:24px;border-radius:999px;background:var(--lav-300);position:relative;cursor:pointer;flex-shrink:0;display:inline-block}
-.switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-.switch.on{background:var(--indigo)}.switch.on::after{left:21px}
+  /* toggle */
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
+  .switch{width:42px;height:24px;border-radius:999px;background:var(--lav-300);position:relative;cursor:pointer;flex-shrink:0}
+  .switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .switch.on{background:var(--indigo)}
+  .switch.on::after{left:21px}
 
-#scrim{position:fixed;inset:0;background:rgba(34,31,53,.35);z-index:150;display:none}
-#scrim.show{display:block}
+  /* messages */
+  .msg-shell{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:#fff}
+  .msg-list{border-right:1px solid var(--line);max-height:560px;overflow-y:auto}
+  .msg-item{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+  .msg-item:hover{background:var(--lav-50)}
+  .msg-item.active{background:var(--indigo-100)}
+  .msg-item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .msg-item .from{font-size:12.5px;font-weight:700}
+  .msg-item.unread .from{font-weight:800}
+  .msg-item .time{font-size:10px;color:var(--ink-faint)}
+  .msg-item .preview{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .msg-item.unread::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--indigo);display:inline-block;margin-right:6px}
+  .msg-detail{padding:24px}
+  .msg-detail .subj{font-size:17px;font-weight:800;margin-bottom:6px}
+  .msg-detail .meta{font-size:11.5px;color:var(--ink-faint);margin-bottom:18px}
+  .msg-detail .body{font-size:13.5px;line-height:1.7;color:var(--ink)}
 
-@media(max-width:1080px){.menu-board{grid-template-columns:repeat(2,1fr)}.grid-4{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
-@media(max-width:760px){#sidebar{transform:translateX(-100%)}#sidebar.show{transform:translateX(0);box-shadow:20px 0 60px rgba(34,31,53,.25)}#main{margin-left:0}.content{padding:16px}.topbar{padding:0 14px;gap:10px}.user-chip .uname,.user-chip .urole{display:none}.user-chip{padding:5px}.banner{flex-direction:column;align-items:flex-start}.msg-shell{grid-template-columns:1fr}.msg-list{max-height:240px;border-right:none;border-bottom:1px solid var(--line)}.grid-2{grid-template-columns:1fr}}
+  /* attendance calendar mini */
+  .att-strip{display:flex;gap:6px;flex-wrap:wrap}
+  .att-day{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;font-family:var(--mono)}
+
+  .sub-page{display:none}
+  .sub-page.active{display:block}
+  .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-soft);background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;margin-bottom:16px}
+  .back-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+  .back-btn:hover{color:var(--ink);border-color:var(--ink-faint)}
+
+  .empty-state{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:50px 20px;color:var(--ink-faint);text-align:center;
+  }
+  .empty-state svg{width:38px;height:38px;stroke:var(--lav-300);fill:none;margin-bottom:10px}
+  .empty-state p{font-size:12.5px;max-width:240px}
+
+  /* ═══════ RESPONSIVE ═══════ */
+  @media (max-width:1080px){
+    .menu-board{grid-template-columns:repeat(2,1fr)}
+    .grid-3{grid-template-columns:repeat(2,1fr)}
+    .grid-4{grid-template-columns:repeat(2,1fr)}
+    .grid-2{grid-template-columns:1fr}
+  }
+  @media (max-width:760px){
+    #sidebar{transform:translateX(-100%);box-shadow:0 0 0 9999px rgba(34,31,53,0);}
+    #sidebar.show{transform:translateX(0);box-shadow:20px 0 60px rgba(34,31,53,.25)}
+    #main{margin-left:0}
+    .content{padding:16px}
+    .menu-board{grid-template-columns:1fr 1fr}
+    .grid-3,.grid-4{grid-template-columns:1fr}
+    .topbar{padding:0 14px;gap:10px}
+    .user-chip .uname,.user-chip .urole{display:none}
+    .user-chip{padding:5px}
+    .theme-pill{display:none}
+    .banner{flex-direction:column;align-items:flex-start}
+    .msg-shell{grid-template-columns:1fr}
+    .msg-list{max-height:240px;border-right:none;border-bottom:1px solid var(--line)}
+    .profile-hero{flex-wrap:wrap}
+  }
+  @media (max-width:480px){
+    .menu-board{grid-template-columns:1fr}
+  }
+
+  #scrim{position:fixed;inset:0;background:rgba(34,31,53,.35);z-index:150;display:none}
+  #scrim.show{display:block}
 </style>
 </head>
 <body>
 
 <div id="scrim" onclick="closeMobileSidebar()"></div>
-<div id="toast"></div>
 
-<!-- MODAL -->
-<div id="modal-overlay">
-  <div id="modal-box">
-    <div id="modal-head"><h4 id="modal-title">Modal</h4><button id="modal-close" onclick="closeModal()">×</button></div>
-    <div id="modal-body"></div>
-    <div id="modal-foot" id="modal-foot"></div>
-  </div>
-</div>
-
-<!-- SIDEBAR -->
+<!-- ═══════ SIDEBAR ═══════ -->
 <aside id="sidebar">
   <div class="sb-brand">
     <div class="sb-mark">SP</div>
@@ -250,43 +430,45 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="sub" id="sbPortalLabel">Teacher Portal</div>
     </div>
   </div>
-  <div class="sb-scroll" id="sbNav">
+
+  <div class="sb-scroll">
     <div class="sb-label">Overview</div>
     <div class="sb-item active" onclick="goTo('dashboard',this)">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
       Dashboard
     </div>
     <div class="sb-item" onclick="goTo('messages',this)">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Messages<span class="bc" id="msgBadge" style="display:none">0</span>
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Messages
+      <span class="badge-count">2</span>
     </div>
+
     <div class="sb-label">Academics</div>
-    <div class="sb-item" onclick="goTo('timetable',this)">
-      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      My Timetable
-    </div>
     <div class="sb-item" onclick="goTo('marks',this)">
-      <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-      Marks Entry
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Marks Entry &amp; Assessment
     </div>
     <div class="sb-item" onclick="goTo('critical',this)">
-      <svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      Critical Students<span class="bc" id="critBadge" style="display:none">0</span>
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Critical Students
+      <span class="badge-count">3</span>
     </div>
+
     <div class="sb-label">My Space</div>
-    <div class="sb-item" onclick="goTo('myattendance',this)">
-      <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    <div class="sb-item" onclick="goTo('attendance',this)">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       My Attendance
     </div>
     <div class="sb-item" onclick="goTo('profile',this)">
-      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Profile
     </div>
   </div>
+
   <div class="sb-foot">
     <button class="sb-switch-btn" id="switchCTBtn" style="display:none" onclick="switchToClassView()">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 16V4M7 4 3 8M7 4l4 4"/><path d="M17 8v12M17 20l4-4M17 20l-4-4"/></svg>
-      <span id="switchBtnLabel">Switch to Class View</span>
+      Switch to Class View
     </button>
     <button class="sb-logout" onclick="logout()">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -295,183 +477,337 @@ tbody tr:hover td{background:var(--lav-50)}
   </div>
 </aside>
 
-<!-- MAIN -->
+<!-- ═══════ MAIN ═══════ -->
 <div id="main">
   <header class="topbar">
     <div class="sb-toggle" onclick="toggleSidebar()">
       <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
     </div>
     <div class="topbar-title" id="pageTitle">Dashboard<span class="crumb" id="pagecrumb">Teacher Portal</span></div>
-    <div class="icon-btn" onclick="goTo('messages',document.querySelector('.sb-item[onclick*=messages]'))">
-      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span class="dot" id="msgDot" style="display:none"></span>
+
+    <div class="theme-pill">
+      <button class="active" title="Light"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+      <button title="Dark"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
     </div>
+
+    <div class="icon-btn" onclick="goTo('messages',null)" style="cursor:pointer"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="dot" id="msgDot" style="display:none"></span></div>
+
     <div class="user-chip">
       <div class="avatar-sm" id="topAvatar">?</div>
-      <div><div class="uname" id="topName">Loading…</div><div class="urole" id="topRole"></div></div>
+      <div>
+        <div class="uname" id="topName">Loading…</div>
+        <div class="urole" id="topRole"></div>
+      </div>
     </div>
   </header>
 
   <div class="content">
 
     <!-- DASHBOARD -->
-    <div class="page active" id="page-dashboard" style="display:block">
+    <div class="page active" id="page-dashboard">
       <div id="dashBanner" style="display:none" class="banner">
         <div class="banner-text">
           <div class="eyebrow" id="bannerEyebrow"></div>
           <h3 id="bannerTitle">Marks Pending</h3>
           <p id="bannerSub"></p>
         </div>
-        <button class="banner-cta" onclick="goTo('marks',document.querySelector('.sb-item[onclick*=marks]'))">Enter Marks Now →</button>
+        <button class="banner-cta" onclick="goTo('marks',null)">Enter Marks Now →</button>
       </div>
       <div class="grid-4" style="margin-bottom:18px">
-        <div class="stat-card"><span class="lbl"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Pending Marks</span><span class="val" id="statPending">—</span><span class="sub" id="statPendingSub">Assessments awaiting entry</span></div>
-        <div class="stat-card"><span class="lbl"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages</span><span class="val" id="statMsgs">—</span><span class="sub">Unread messages</span></div>
-        <div class="stat-card"><span class="lbl"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>My Classes</span><span class="val" id="statClasses">—</span><span class="sub">Active class assignments</span></div>
-        <div class="stat-card"><span class="lbl"><svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg>Critical Students</span><span class="val" id="statCrit">—</span><span class="sub">Failing in your subjects</span></div>
+        <div class="stat-card"><span class="lbl">Pending Marks</span><span class="val" id="statPending">—</span><span class="sub">Assessments awaiting entry</span></div>
+        <div class="stat-card"><span class="lbl">Messages</span><span class="val" id="statMsgs">—</span><span class="sub">Unread messages</span></div>
+        <div class="stat-card"><span class="lbl">My Classes</span><span class="val" id="statClasses">—</span><span class="sub">Active assignments</span></div>
+        <div class="stat-card"><span class="lbl">Critical Students</span><span class="val" id="statCrit">—</span><span class="sub">Failing in your subjects</span></div>
       </div>
       <div class="grid-2">
-        <div class="card"><h3>My Assignments</h3><div id="dashAssignments"><div class="loading-row"><div class="spinner"></div></div></div></div>
-        <div class="card"><h3>Recent Activity</h3><div id="dashActivity"><div class="loading-row"><div class="spinner"></div></div></div></div>
+        <div class="card"><h3>My Assignments</h3><div id="dashAssignments"><div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div></div></div>
+        <div class="card"><h3>Recent Activity</h3><div id="dashActivity"><div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div></div></div>
       </div>
     </div>
 
-    <!-- TIMETABLE -->
-    <div class="page" id="page-timetable" style="display:none">
-      <div class="page-head"><div><h2>My Timetable</h2><p>Your weekly schedule from the active roster</p></div></div>
-      <div id="myTimetableGrid"><div class="loading-row"><div class="spinner"></div></div></div>
-    </div>
+    <!-- ═══════ MARKS ENTRY & ASSESSMENT (menu board) ═══════ -->
+    <div class="page" id="page-marks">
 
-    <!-- MARKS ENTRY -->
-    <div class="page" id="page-marks" style="display:none">
       <!-- MENU -->
       <div class="sub-page active" id="sub-menu">
-        <div class="page-head"><div><h2>Marks Entry &amp; Assessment</h2><p>Choose an action to continue</p></div></div>
+        <div class="page-head">
+          <div><h2>Marks Entry &amp; Assessment</h2><p>Choose an action to continue</p></div>
+        </div>
         <div class="menu-board">
           <div class="menu-card" onclick="openSub('sub-entry')">
             <div class="ic" style="background:linear-gradient(135deg,#5B4FE8,#4A3FD6)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
-            <h4>Enter Marks</h4><p>Enter or update marks for a class, subject &amp; assessment</p>
+            <h4>Marks Entry</h4>
+            <p>Enter marks for a class, subject &amp; assessment</p>
           </div>
           <div class="menu-card" onclick="openSub('sub-perf')">
             <div class="ic" style="background:linear-gradient(135deg,#3AB6E0,#2D8FC4)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg></div>
-            <h4>Performance Analysis</h4><p>Class &amp; student-level mark statistics and trends</p>
-          </div>
-          <div class="menu-card" onclick="openSub('sub-obs')">
-            <div class="ic" style="background:linear-gradient(135deg,#E5556B,#C73E54)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-            <h4>Observations</h4><p>Write behaviour &amp; discipline remarks for a student</p>
+            <h4>Performance Analysis</h4>
+            <p>Class &amp; student-level statistics, trends</p>
           </div>
           <div class="menu-card" onclick="openSub('sub-test')">
             <div class="ic" style="background:linear-gradient(135deg,#E8A23D,#D6862A)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
-            <h4>Create Test</h4><p>Set up a new class test or surprise test</p>
+            <h4>Create Test</h4>
+            <p>Set up a new class test or surprise test</p>
+          </div>
+          <div class="menu-card" onclick="openSub('sub-obs')">
+            <div class="ic" style="background:linear-gradient(135deg,#E5556B,#C73E54)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+            <h4>Teacher's Observation</h4>
+            <p>Write behaviour &amp; discipline remarks</p>
           </div>
         </div>
       </div>
 
-      <!-- MARKS ENTRY TABLE -->
+      <!-- MARKS ENTRY -->
       <div class="sub-page" id="sub-entry">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
-        <div class="page-head"><div><h2>Enter Marks</h2><p>Select class, subject &amp; assessment</p></div></div>
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Marks Entry &amp; Assessment</button>
+        <div class="page-head"><div><h2>Marks Entry</h2><p>Select class, subject &amp; assessment to begin</p></div></div>
         <div class="card" style="margin-bottom:18px">
           <div class="form-row" style="margin-bottom:0">
-            <div class="fg"><label>Subject</label><select id="me_subject" onchange="meLoadClasses()"><option value="">Select subject</option></select></div>
-            <div class="fg"><label>Class — Section</label><select id="me_class" onchange="meLoadAssessments()"><option value="">Select subject first</option></select></div>
-            <div class="fg"><label>Assessment</label><select id="me_assessment"><option value="">Select class first</option></select></div>
-            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMarksTable()">Load Students</button>
+            <div class="field-grp"><label>Subject</label><select><option>Science</option><option>Chemistry</option></select></div>
+            <div class="field-grp"><label>Class</label><select><option>7th A</option><option>7th B</option><option>9th B</option><option>10th A</option></select></div>
+            <div class="field-grp"><label>Assessment</label><select><option>UT2</option><option>UT1</option><option>Term 1</option></select></div>
+            <button class="btn btn-soft">Load Students</button>
           </div>
         </div>
-        <div id="marksTableWrap"></div>
+        <div class="card">
+          <h3>7th A · Science · UT2</h3>
+          <div style="display:flex;gap:18px;margin-bottom:14px;font-size:12px;color:var(--ink-soft)">
+            <span>Max Marks: <b style="color:var(--ink)">25</b></span>
+            <span>Pass Marks: <b style="color:var(--ink)">9</b></span>
+            <span>Total Students: <b style="color:var(--ink)">38</b></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>S.No</th><th>Name</th><th>Father's Name</th><th>Marks Obtained</th><th>Save</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Aarav Singh</td><td>Rakesh Singh</td><td class="mono-num">21</td><td><span class="pill pill-success">Saved</span></td></tr>
+                <tr><td>2</td><td>Bhavya Kapoor</td><td>Manish Kapoor</td><td class="mono-num">8</td><td><span class="pill pill-success">Saved</span></td></tr>
+                <tr class="cell-fail"><td>3</td><td>Chirag Mehta</td><td>Sanjay Mehta</td><td class="mono-num">6</td><td><span class="pill pill-success">Saved</span></td></tr>
+                <tr><td>4</td><td>Diya Patel</td><td>Ashok Patel</td><td><input type="text" placeholder="—" style="width:60px;padding:5px 8px;border-radius:6px;border:1px solid var(--line)"></td><td><button class="btn btn-soft btn-sm">Tick</button></td></tr>
+                <tr><td>5</td><td>Esha Rao</td><td>Vikram Rao</td><td><input type="text" placeholder="A" style="width:60px;padding:5px 8px;border-radius:6px;border:1px solid var(--line)"></td><td><button class="btn btn-soft btn-sm">Tick</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:16px"><button class="btn btn-primary">Confirm &amp; Save</button></div>
+        </div>
       </div>
 
       <!-- PERFORMANCE ANALYSIS -->
       <div class="sub-page" id="sub-perf">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
-        <div class="page-head"><div><h2>Performance Analysis</h2><p>Select a class and subject to view trends</p></div></div>
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Marks Entry &amp; Assessment</button>
+        <div class="page-head"><div><h2>Performance Analysis</h2><p>Select class &amp; subject, or search a student directly</p></div></div>
         <div class="card" style="margin-bottom:18px">
-          <div class="form-row" style="margin-bottom:0">
-            <div class="fg"><label>Subject</label><select id="pa_subject" onchange="paLoadClasses()"><option value="">Select subject</option></select></div>
-            <div class="fg"><label>Class — Section</label><select id="pa_class"><option value="">Select subject first</option></select></div>
-            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadPerfAnalysis()">Analyse</button>
+          <div class="form-row" style="margin-bottom:10px">
+            <div class="field-grp"><label>Subject</label><select><option>Science</option><option>Chemistry</option></select></div>
+            <div class="field-grp"><label>Class</label><select><option>7th A</option><option>9th B</option></select></div>
+            <div class="field-grp"><label>Search Student</label><input type="text" placeholder="Search by name across your classes…"></div>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft)">
+            <label><input type="checkbox" checked> UT1</label>
+            <label><input type="checkbox" checked> UT2</label>
+            <label><input type="checkbox"> Term 1</label>
           </div>
         </div>
-        <div id="perfResult"></div>
-      </div>
-
-      <!-- OBSERVATIONS -->
-      <div class="sub-page" id="sub-obs">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
-        <div class="page-head"><div><h2>Teacher's Observations</h2><p>Behaviour and discipline remarks by student</p></div></div>
-        <div class="card" style="margin-bottom:18px">
-          <div class="form-row" style="margin-bottom:0">
-            <div class="fg"><label>Class — Section</label><select id="obs_class" onchange="obsLoadStudents()"><option value="">Select class</option></select></div>
-            <div class="fg"><label>Or Search Student</label><input id="obs_search" placeholder="Name or roll…" oninput="obsFilterStudents()"></div>
+        <div class="card">
+          <h3>7th A · Class Average: 74%</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Roll</th><th>Name</th><th>Father's Name</th><th>UT1 <span style="opacity:.6">/25</span></th><th>UT2 <span style="opacity:.6">/25</span></th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Aarav Singh</td><td>Rakesh Singh</td><td class="mono-num">21</td><td class="mono-num">22</td></tr>
+                <tr><td>3</td><td>Chirag Mehta</td><td>Sanjay Mehta</td><td class="cell-fail mono-num">6</td><td class="mono-num">14</td></tr>
+              </tbody>
+            </table>
           </div>
+          <p style="font-size:11.5px;color:var(--ink-faint);margin-top:14px">Scroll down for bell curve, standard deviation &amp; section comparison.</p>
         </div>
-        <div id="obsStudentList"></div>
       </div>
-    
 
-
-          <!-- CREATE TEST -->
+      <!-- CREATE TEST -->
       <div class="sub-page" id="sub-test">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Marks Entry &amp; Assessment</button>
         <div class="page-head"><div><h2>Create Test</h2><p>Set up a class test or surprise test</p></div></div>
         <div class="card" style="max-width:680px;margin-bottom:18px">
           <div class="form-row">
-            <div class="fg"><label>Class — Section</label><select id="ct_class"><option value="">Select class</option></select></div>
-            <div class="fg"><label>Max Marks *</label><input type="number" id="ct_marks" placeholder="20" min="1"></div>
+            <div class="field-grp"><label>Class</label><select><option>7th A</option><option>9th B</option></select></div>
+            <div class="field-grp"><label>Subject</label><select><option>Science</option><option>Chemistry</option></select></div>
           </div>
           <div class="form-row">
-            <div class="fg"><label>Test Name *</label><input id="ct_name" placeholder="e.g. Surprise Test — Acids &amp; Bases"></div>
-            <div class="fg"><label>Date *</label><input type="date" id="ct_date"></div>
+            <div class="field-grp"><label>Test Name</label><input type="text" placeholder="e.g. Surprise Test — Acids & Bases"></div>
+            <div class="field-grp"><label>Date</label><input type="date"></div>
+            <div class="field-grp"><label>Max Marks</label><input type="text" placeholder="e.g. 20"></div>
           </div>
           <div class="form-row">
-            <div class="fg"><label>Syllabus / Topics</label><textarea id="ct_syllabus" placeholder="Topics covered…"></textarea></div>
+            <div class="field-grp"><label>Syllabus</label><textarea placeholder="Topics covered…"></textarea></div>
           </div>
-          <button class="btn btn-primary" onclick="createTest()">Create Test</button>
+          <button class="btn btn-primary">Create Test</button>
         </div>
-        <div class="card"><h3>My Tests This Session</h3><div id="myTestsList"><div class="loading-row"><div class="spinner"></div></div></div></div>
+        <div class="card">
+          <h3>Your Tests</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Class</th><th>Subject</th><th>Date</th><th>Max Marks</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>Surprise Test — Acids &amp; Bases</td><td>9th B</td><td>Chemistry</td><td class="mono-num">28 Jun 2026</td><td class="mono-num">20</td><td><button class="btn btn-ghost btn-sm">Edit</button> <button class="btn btn-danger btn-sm">Delete</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <!-- TEACHER'S OBSERVATION -->
+      <div class="sub-page" id="sub-obs">
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Marks Entry &amp; Assessment</button>
+        <div class="page-head"><div><h2>Teacher's Observation</h2><p>Write behaviour, discipline or class remarks for a student</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="field-grp"><label>Class</label><select><option>7th A</option><option>9th B</option></select></div>
+            <div class="field-grp"><label>Or Search Student</label><input type="text" placeholder="Search by name…"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Roll</th><th>Name</th><th>Father's Name</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Aarav Singh</td><td>Rakesh Singh</td><td><button class="btn btn-soft btn-sm">Write Review</button></td></tr>
+                <tr><td>3</td><td>Chirag Mehta</td><td>Sanjay Mehta</td><td><button class="btn btn-soft btn-sm">Write Review</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- CRITICAL STUDENTS -->
-    <div class="page" id="page-critical" style="display:none">
-      <div class="page-head"><div><h2>Critical Students</h2><p>Students failing in any of your subjects across assessments</p></div></div>
-      <div id="criticalList"><div class="loading-row"><div class="spinner"></div></div></div>
+    <div class="page" id="page-critical">
+      <div class="page-head"><div><h2>Critical Students</h2><p>Students failing in any of your subjects</p></div></div>
+      <div id="criticalList"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
     </div>
 
-    <!-- MY ATTENDANCE -->
-    <div class="page" id="page-myattendance" style="display:none">
-      <div class="page-head"><div><h2>My Attendance</h2><p>Your daily attendance record</p></div></div>
-      <div class="form-row" style="max-width:400px;margin-bottom:18px">
-        <div class="fg"><label>From</label><input type="date" id="att_from"></div>
-        <div class="fg"><label>To</label><input type="date" id="att_to"></div>
-        <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMyAttendance()">Load</button>
+    <!-- ═══════ MY ATTENDANCE ═══════ -->
+    <div class="page" id="page-myattendance">
+      <div class="page-head">
+        <div><h2>My Attendance</h2><p>Your daily in/out record from staff attendance</p></div>
       </div>
-      <div id="myAttResult"><div class="empty-state"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg><p>Select a date range and click Load.</p></div></div>
+      <div class="form-row" style="max-width:420px">
+        <div class="field-grp"><label>From</label><input type="date" value="2026-06-01"></div>
+        <div class="field-grp"><label>To</label><input type="date" value="2026-06-30"></div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <h3>June 2026 — Overview</h3>
+        <div class="att-strip">
+          <div class="att-day" style="background:var(--success-soft);color:var(--success)">1</div>
+          <div class="att-day" style="background:var(--success-soft);color:var(--success)">2</div>
+          <div class="att-day" style="background:var(--warn-soft);color:var(--warn)">3</div>
+          <div class="att-day" style="background:var(--success-soft);color:var(--success)">4</div>
+          <div class="att-day" style="background:var(--lav-100);color:var(--ink-faint)">5</div>
+          <div class="att-day" style="background:var(--lav-100);color:var(--ink-faint)">6</div>
+          <div class="att-day" style="background:var(--success-soft);color:var(--success)">8</div>
+          <div class="att-day" style="background:var(--success-soft);color:var(--success)">9</div>
+          <div class="att-day" style="background:var(--danger-soft);color:var(--danger)">10</div>
+          <div class="att-day" style="background:var(--success-soft);color:var(--success)">11</div>
+          <div class="att-day" style="background:var(--success-soft);color:var(--success)">12</div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:16px;font-size:11.5px;color:var(--ink-soft)">
+          <span><span class="att-day" style="display:inline-flex;width:14px;height:14px;background:var(--success);vertical-align:middle;margin-right:5px;border-radius:4px"></span>On Time</span>
+          <span><span class="att-day" style="display:inline-flex;width:14px;height:14px;background:var(--warn);vertical-align:middle;margin-right:5px;border-radius:4px"></span>Late</span>
+          <span><span class="att-day" style="display:inline-flex;width:14px;height:14px;background:var(--danger);vertical-align:middle;margin-right:5px;border-radius:4px"></span>Absent</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Daily In / Out Time</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Time In</th><th>Time Out</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="mono-num">01 Jun</td><td class="mono-num">08:52</td><td class="mono-num">15:40</td><td><span class="pill pill-success">On Time</span></td></tr>
+              <tr><td class="mono-num">02 Jun</td><td class="mono-num">08:47</td><td class="mono-num">15:35</td><td><span class="pill pill-success">On Time</span></td></tr>
+              <tr><td class="mono-num">03 Jun</td><td class="mono-num">09:24</td><td class="mono-num">15:42</td><td><span class="pill pill-warn">Late</span></td></tr>
+              <tr><td class="mono-num">04 Jun</td><td class="mono-num">08:55</td><td class="mono-num">15:38</td><td><span class="pill pill-success">On Time</span></td></tr>
+              <tr><td class="mono-num">10 Jun</td><td>—</td><td>—</td><td><span class="pill pill-danger">Absent</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- MESSAGES -->
-    <div class="page" id="page-messages" style="display:none">
+    <div class="page" id="page-messages">
       <div class="page-head"><div><h2>Messages</h2><p>Internal school communication</p></div>
         <button class="btn btn-primary" onclick="openComposeModal()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
       </div>
       <div class="msg-shell">
-        <div class="msg-list" id="msgList"><div class="loading-row"><div class="spinner"></div></div></div>
-        <div class="msg-detail" id="msgDetail"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>Select a message to read it.</p></div></div>
+        <div class="msg-list" id="msgList"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
+        <div class="msg-detail" id="msgDetail"><div style="text-align:center;padding:40px;color:var(--ink-faint)">Select a message.</div></div>
       </div>
     </div>
 
+    <!-- TIMETABLE -->
+    <div class="page" id="page-timetable">
+      <div class="page-head"><div><h2>My Timetable</h2><p>Your weekly schedule from the active roster</p></div></div>
+      <div id="myTimetableGrid"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
+    </div>
+
     <!-- MY PROFILE -->
-    <div class="page" id="page-profile" style="display:none">
+    <div class="page" id="page-profile">
       <div class="page-head"><div><h2>My Profile</h2><p>Your details on record with the school</p></div></div>
-      <div id="profileContent"><div class="loading-row"><div class="spinner"></div></div></div>
+      <div id="profileContent"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
     </div>
 
   </div>
 </div>
 
+<div id="toast" style="position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;gap:8px"></div>
+
+<div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(34,31,53,.5);z-index:500;align-items:center;justify-content:center;padding:20px">
+  <div id="modal-box" style="background:#fff;border-radius:22px;width:100%;max-width:520px;box-shadow:0 24px 60px -12px rgba(34,31,53,.3);overflow:hidden;max-height:90vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line);flex-shrink:0">
+      <h4 id="modal-title" style="font-size:15px;font-weight:800"></h4>
+      <button onclick="closeModal()" style="background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:22px;line-height:1">&times;</button>
+    </div>
+    <div id="modal-body" style="padding:20px 22px;overflow-y:auto;flex:1"></div>
+    <div id="modal-foot" style="padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0"></div>
+  </div>
+</div>
+
+
+    const sb = document.getElementById('sidebar');
+    const main = document.getElementById('main');
+    const scrim = document.getElementById('scrim');
+    if(window.innerWidth <= 760){
+      sb.classList.toggle('show');
+      scrim.classList.toggle('show');
+    } else {
+      sb.classList.toggle('collapsed');
+      main.classList.toggle('full');
+    }
+  }
+  function closeMobileSidebar(){
+    document.getElementById('sidebar').classList.remove('show');
+    document.getElementById('scrim').classList.remove('show');
+  }
+  const titles = {
+    dashboard:'Dashboard', marks:'Marks Entry & Assessment', critical:'Critical Students',
+    attendance:'My Attendance', messages:'Messages', profile:'My Profile'
+  };
+  function goTo(id, el){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('page-'+id).classList.add('active');
+    document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+    if(el) el.classList.add('active');
+    document.getElementById('pageTitle').innerHTML = titles[id] + '<span class="crumb">Main Teacher Portal</span>';
+    if(window.innerWidth <= 760) closeMobileSidebar();
+    if(id === 'marks') openSub('sub-menu');
+  }
+  function openSub(subId){
+    document.querySelectorAll('#page-marks .sub-page').forEach(s=>s.classList.remove('active'));
+    document.getElementById(subId).classList.add('active');
+  }
+
 <script>
+
 // ═══════════════════════════════════════════════════════════════
 // GLOBALS
 // ═══════════════════════════════════════════════════════════════
@@ -521,17 +857,15 @@ function toggleSidebar(){
 function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
 
 function goTo(id,el){
-  // Use inline styles for reliable show/hide across all environments
-  document.querySelectorAll('.page').forEach(p=>{p.style.display='none';p.classList.remove('active')})
-  const pg=$('page-'+id)
-  if(pg){pg.style.display='block';pg.classList.add('active')}
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
+  const pg=$('page-'+id);if(pg)pg.classList.add('active')
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'))
   if(el)el.classList.add('active')
   $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb" id="pagecrumb">'+esc($('sbPortalLabel')?.textContent||'Teacher Portal')+'</span>'
   if(window.innerWidth<=760)closeMobileSidebar()
-  if(id!=='marks')document.querySelectorAll('#page-marks .sub-page').forEach(s=>s.classList.remove('active'))
-  if(id==='marks')openSub('sub-menu')
-  if(id==='timetable'&&!$('myTimetableGrid').querySelector('table'))loadMyTimetable()
+  if(id!=='marks')['sub-menu','sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'})
+  if(id==='marks'){['sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'});const sm=$('sub-menu');if(sm)sm.style.display='block'}
+  if(id==='timetable')loadMyTimetable()
   if(id==='messages')loadMessages()
   if(id==='profile')loadProfile()
   if(id==='critical')loadCriticalStudents()
@@ -539,9 +873,9 @@ function goTo(id,el){
 }
 
 function openSub(subId){
-  document.querySelectorAll('#page-marks .sub-page').forEach(s=>{s.style.display='none';s.classList.remove('active')})
-  const sp=$(subId)
-  if(sp){sp.style.display='block';sp.classList.add('active')}
+  // Sub-pages use inline display style
+  ['sub-menu','sub-entry','sub-perf','sub-test','sub-obs'].forEach(id=>{const el=$(id);if(el)el.style.display='none'})
+  const sp=$(subId);if(sp)sp.style.display='block'
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -657,22 +991,36 @@ async function getActiveRoster(){
 async function loadMyTimetable(){
   const el=$('myTimetableGrid');ldg(el)
   console.log('[TT] SESS:',SESS?.session_id,'TEACHER:',TEACHER?.teacher_id)
-  // Get active roster
-  const{data:roster}=await sb.from('rosters').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true).maybeSingle()
-  if(!roster){emp(el,'No active timetable roster. Ask admin to create and activate one.');return}
-  const{data:entries}=await sb.from('timetable_entries')
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster. Go to admin → Timetable → create and activate a roster.');return}
+  console.log('[TT] Roster:',roster.roster_id,roster.name)
+  const{data:entries,error}=await sb.from('timetable_entries')
     .select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)')
     .eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id)
-  if(!entries?.length){emp(el,'No timetable entries found for you in the active roster.');return}
+  console.log('[TT] Entries:',entries?.length,'error:',error)
+  if(!entries?.length){emp(el,'No timetable entries found. Ask admin to assign time slots to your class-subject mappings.');return}
+
+  // Check if entries have time_slots linked
+  const withSlots=entries.filter(e=>e.time_slots)
+  console.log('[TT] Entries with slots:',withSlots.length,'of',entries.length)
+  if(!withSlots.length){
+    // Entries exist but no time slots — show subject list instead
+    const rows=[...new Map(entries.map(e=>[(e.class_id||'')+'_'+(e.subject_id||''),e])).values()]
+    el.innerHTML='<div class="card"><div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:var(--ink)">⚠️ Your timetable entries exist but have no time slots assigned. Ask admin to edit each mapping and assign a time slot.</div>'
+      +'<h3>Your Assigned Classes</h3>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px">'+rows.map(e=>'<span class="map-tag">'+esc(e.subjects?.name||'?')+' · '+esc((e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'))+'</span>').join('')+'</div></div>'
+    return
+  }
+
   const days=['Mon','Tue','Wed','Thu','Fri','Sat']
   const slotMap=new Map()
-  entries.forEach(e=>{if(e.time_slots&&!slotMap.has(e.slot_id))slotMap.set(e.slot_id,e.time_slots)})
+  withSlots.forEach(e=>{if(!slotMap.has(e.slot_id))slotMap.set(e.slot_id,{...e.time_slots,slot_id:e.slot_id})})
   const slots=[...slotMap.values()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
   const lookup={}
-  entries.forEach(e=>{(e.days||[]).forEach(d=>{const k=e.slot_id+'_'+d;if(!lookup[k])lookup[k]=[];lookup[k].push(e)})})
+  withSlots.forEach(e=>{(e.days||[]).forEach(d=>{const k=e.slot_id+'_'+d;if(!lookup[k])lookup[k]=[];lookup[k].push(e)})})
   let html='<div class="card tt-grid"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>'
   slots.forEach(slot=>{
-    html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name)+'</td><td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
+    html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name||'')+'</td><td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
     days.forEach(d=>{
       const es=lookup[slot.slot_id+'_'+d]||[]
       if(!es.length){html+='<td style="background:var(--lav-50)"></td>';return}
@@ -1187,6 +1535,7 @@ function switchToClassView(){
 async function logout(){
   SPS.signOut()
 }
+
 </script>
 </body>
 </html>
