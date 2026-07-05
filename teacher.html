@@ -431,7 +431,7 @@
     </div>
   </div>
 
-  <div class="sb-scroll">
+  <div class="sb-scroll" id="sbNav">
     <div class="sb-label">Overview</div>
     <div class="sb-item active" onclick="goTo('dashboard',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
@@ -439,24 +439,24 @@
     </div>
     <div class="sb-item" onclick="goTo('messages',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Messages
-      <span class="badge-count">2</span>
+      Messages<span class="badge-count" id="msgBadge" style="display:none">0</span>
     </div>
-
     <div class="sb-label">Academics</div>
+    <div class="sb-item" onclick="goTo('timetable',this)">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      My Timetable
+    </div>
     <div class="sb-item" onclick="goTo('marks',this)">
-      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      Marks Entry &amp; Assessment
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      Marks Entry
     </div>
     <div class="sb-item" onclick="goTo('critical',this)">
-      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      Critical Students
-      <span class="badge-count">3</span>
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg>
+      Critical Students<span class="badge-count" id="critBadge" style="display:none">0</span>
     </div>
-
     <div class="sb-label">My Space</div>
-    <div class="sb-item" onclick="goTo('attendance',this)">
-      <svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <div class="sb-item" onclick="goTo('myattendance',this)">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       My Attendance
     </div>
     <div class="sb-item" onclick="goTo('profile',this)">
@@ -773,39 +773,6 @@
 </div>
 
 
-    const sb = document.getElementById('sidebar');
-    const main = document.getElementById('main');
-    const scrim = document.getElementById('scrim');
-    if(window.innerWidth <= 760){
-      sb.classList.toggle('show');
-      scrim.classList.toggle('show');
-    } else {
-      sb.classList.toggle('collapsed');
-      main.classList.toggle('full');
-    }
-  }
-  function closeMobileSidebar(){
-    document.getElementById('sidebar').classList.remove('show');
-    document.getElementById('scrim').classList.remove('show');
-  }
-  const titles = {
-    dashboard:'Dashboard', marks:'Marks Entry & Assessment', critical:'Critical Students',
-    attendance:'My Attendance', messages:'Messages', profile:'My Profile'
-  };
-  function goTo(id, el){
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-    document.getElementById('page-'+id).classList.add('active');
-    document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
-    if(el) el.classList.add('active');
-    document.getElementById('pageTitle').innerHTML = titles[id] + '<span class="crumb">Main Teacher Portal</span>';
-    if(window.innerWidth <= 760) closeMobileSidebar();
-    if(id === 'marks') openSub('sub-menu');
-  }
-  function openSub(subId){
-    document.querySelectorAll('#page-marks .sub-page').forEach(s=>s.classList.remove('active'));
-    document.getElementById(subId).classList.add('active');
-  }
-
 <script>
 
 // ═══════════════════════════════════════════════════════════════
@@ -994,6 +961,7 @@ async function loadMyTimetable(){
   const roster=await getActiveRoster()
   if(!roster){emp(el,'No active roster. Go to admin → Timetable → create and activate a roster.');return}
   console.log('[TT] Roster:',roster.roster_id,roster.name)
+  console.log('[TT] Querying entries for roster:',roster.roster_id,'teacher:',TEACHER.teacher_id)
   const{data:entries,error}=await sb.from('timetable_entries')
     .select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)')
     .eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id)
