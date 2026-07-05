@@ -2736,72 +2736,58 @@ async function setTeacherLogin(teacherId, oldUsername){
   const username=document.getElementById('sl_username')?.value?.trim().toLowerCase()
   const password=document.getElementById('sl_password')?.value
   const confirm=document.getElementById('sl_confirm')?.value
-
   if(!username){toast('Enter a username','error');return}
   if(!/^[a-z0-9._-]+$/.test(username)){toast('Username can only contain lowercase letters, numbers, dots, hyphens','error');return}
   if(!password||password.length<8){toast('Password must be at least 8 characters','error');return}
   if(password!==confirm){toast('Passwords do not match','error');return}
 
-  const email=username+'@spsrsec.school'
-  const svcKey=SPS.serviceKey  // service role key from auth.js
-
-  if(!svcKey){toast('Service role key not configured in auth.js — see console','error');console.error('Add SPS.serviceKey in auth.js');return}
+  const email=username+'@'+AUTH_EMAIL_DOMAIN
+  const svcKey=SPS.serviceKey
+  const sbUrl=SPS.supabaseUrl
+  if(!svcKey){toast('Service role key not configured in auth.js','error');return}
 
   const btn=document.querySelector('#modal-foot .btn-dark')
-  if(btn){btn.disabled=true;btn.textContent='Creating…'}
+  if(btn){btn.disabled=true;btn.textContent='Saving…'}
+
+  const headers={'Content-Type':'application/json','apikey':svcKey,'Authorization':'Bearer '+svcKey}
 
   try{
-    // Check if user already exists by looking up username in teachers table
-    if(oldUsername&&oldUsername!==username){
-      // Username changed — we'd need to update auth email too
-      // Easiest: create new auth user, delete old logic handled by Supabase
+    let authUserId=null
+
+    // Try to find existing auth user by email first
+    const listRes=await fetch(sbUrl+'/auth/v1/admin/users?email='+encodeURIComponent(email),{headers})
+    const listData=await listRes.json()
+    const existingUser=listData?.users?.[0]
+
+    if(existingUser){
+      // User exists — update password
+      const upRes=await fetch(sbUrl+'/auth/v1/admin/users/'+existingUser.id,{
+        method:'PUT',headers,
+        body:JSON.stringify({password,email_confirm:true})
+      })
+      if(!upRes.ok){const e=await upRes.json();toast('Failed to update: '+(e.message||upRes.status),'error');if(btn){btn.disabled=false;btn.textContent='Update Login'};return}
+      authUserId=existingUser.id
+      toast('Password updated ✓','success')
+    } else {
+      // Create new auth user
+      const createRes=await fetch(sbUrl+'/auth/v1/admin/users',{
+        method:'POST',headers,
+        body:JSON.stringify({email,password,email_confirm:true,user_metadata:{teacher_id:teacherId}})
+      })
+      const created=await createRes.json()
+      if(!createRes.ok){toast('Failed to create: '+(created.message||createRes.status),'error');if(btn){btn.disabled=false;btn.textContent='Create Login'};return}
+      authUserId=created.id
+      toast('Login created ✓','success')
     }
 
-    // Create auth user via Supabase Admin API
-    const res=await fetch(SPS.supabaseUrl+'/auth/v1/admin/users',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','apikey':svcKey,'Authorization':'Bearer '+svcKey},
-      body:JSON.stringify({email,password,email_confirm:true,user_metadata:{teacher_id:teacherId}})
-    })
-    const result=await res.json()
+    // Save auth_user_id + username to teachers table
+    const{error:ue}=await sb.from('teachers').update({username,auth_user_id:authUserId}).eq('teacher_id',teacherId)
+    if(ue){toast('Auth done but DB update failed: '+ue.message,'error');return}
 
-    if(!res.ok){
-      // If user already exists (409), update their password instead
-      if(res.status===422||result?.code==='email_exists'||(result?.message||'').includes('already')){
-        // Get user by email and update password
-        const listRes=await fetch(SPS.supabaseUrl+'/auth/v1/admin/users?email='+encodeURIComponent(email),{
-          headers:{'apikey':svcKey,'Authorization':'Bearer '+svcKey}
-        })
-        const listData=await listRes.json()
-        const existingUser=listData?.users?.[0]
-        if(existingUser){
-          const upRes=await fetch(SPS.supabaseUrl+'/auth/v1/admin/users/'+existingUser.id,{
-            method:'PUT',
-            headers:{'Content-Type':'application/json','apikey':svcKey,'Authorization':'Bearer '+svcKey},
-            body:JSON.stringify({password,email_confirm:true})
-          })
-          if(!upRes.ok){const e=await upRes.json();toast('Failed to update password: '+(e.message||upRes.status),'error');if(btn){btn.disabled=false;btn.textContent='Update Login'};return}
-        } else {
-          toast('User not found in auth: '+(result?.message||res.status),'error');if(btn){btn.disabled=false;btn.textContent='Create Login'};return
-        }
-      } else {
-        toast('Auth error: '+(result?.message||result?.msg||res.status),'error');if(btn){btn.disabled=false;btn.textContent='Create Login'};return
-      }
-    }
-
-    // Save auth_user_id + username back to teachers table
-    const authUserId=result?.id||null
-    const{error:ue}=await sb.from('teachers').update({
-      username,
-      auth_user_id:authUserId||undefined
-    }).eq('teacher_id',teacherId)
-    if(ue){toast('Auth created but DB update failed: '+ue.message,'error');return}
-
-    toast('Login '+(oldUsername?'updated':'created')+' ✓  Username: '+username+' | Portal: teacher.html','success')
-    closeModal()
-    loadStaff()
-  } catch(err){
-    toast('Unexpected error: '+err.message,'error')
+    toast('Done! Username: '+username+' | Email: '+email,'success')
+    closeModal();loadStaff()
+  }catch(err){
+    toast('Error: '+err.message,'error')
     if(btn){btn.disabled=false;btn.textContent=oldUsername?'Update Login':'Create Login'}
   }
 }
