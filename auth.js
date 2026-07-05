@@ -203,8 +203,8 @@
     SPS._resolveReady = resolve
   })
   SPS.ready = () => SPS._ready
-SPS.serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhZmlnb2hwaGNlZ252dmNvamJ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjkxMzI4OSwiZXhwIjoyMDk4NDg5Mjg5fQ.vVrXctA7VIInyTdpSq0xq8yrFMfr9lksRgDERg3HMHA'  // Supabase → Settings → API → service_role
-SPS.supabaseUrl = 'https://ldfurnvaeelvcdjfuunb.supabase.co'  
+SPS.serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhZmlnb2hwaGNlZ252dmNvamJ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjkxMzI4OSwiZXhwIjoyMDk4NDg5Mjg5fQ.vVrXctA7VIInyTdpSq0xq8yrFMfr9lksRgDERg3HMHA'
+SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'  
  
   // ── HELPERS PORTALS CAN USE ──────────────────────────────────
   SPS.isAdmin        = () => SPS.portals.includes('admin')
