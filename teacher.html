@@ -752,9 +752,9 @@ function openModal(title,body,foot){
   $('modal-title').textContent=title
   $('modal-body').innerHTML=body
   $('modal-foot').innerHTML=foot||''
-  $('modal-overlay').classList.add('open')
+  const mo=$('modal-overlay');if(mo){mo.style.display='flex'}
 }
-function closeModal(){$('modal-overlay').classList.remove('open')}
+function closeModal(){const mo=$('modal-overlay');if(mo)mo.style.display='none'}
 
 function toggleSidebar(){
   const sb=$('sidebar'),main=$('main'),scrim=$('scrim')
@@ -1041,7 +1041,7 @@ async function loadMarksTable(){
     +'<span>Students: <b style="color:var(--ink)">'+students.length+'</b></span>'
     +'<span style="font-size:11px;color:var(--ink-faint)">Write A for absent</span>'
     +'</div>'
-  html+='<div class="table-wrap"><table><thead><tr><th style="width:50px">Roll</th><th>Name</th><th>Father&#39;s Name</th><th style="width:110px">Marks / '+maxM+'</th></tr></thead><tbody>'
+  html+='<div class="table-wrap"><table><thead><tr><th style="width:50px">Roll</th><th>Name</th><th>Father&#39;s Name</th><th style="width:110px">Marks / '+maxM+'</th><th>Remarks</th></tr></thead><tbody>'
   html+=students.map((s,i)=>{
     const ex=marksMap[s.enrollment_id]
     const val=ex?.is_absent?'A':(ex?.marks_obtained!=null?String(ex.marks_obtained):'')
@@ -1053,6 +1053,7 @@ async function loadMarksTable(){
         +(_marksLocked?' disabled':'')
         +' value="'+esc(val)+'" maxlength="4" placeholder="—"'
         +' style="width:80px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);font-family:var(--mono);font-size:14px;text-align:center;outline:none;background:'+(val==='A'?'var(--warn-soft)':fail?'var(--danger-soft)':'var(--lav-50)')+'"></td>'
+      +'<td><input data-rmk=\"'+s.enrollment_id+'\" type=\"text\" style=\"width:130px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--line);font-family:var(--font);font-size:12px;outline:none\"'+(_marksLocked?' disabled':'')+' value=\"'+(ex?.remarks||'')+'\" placeholder=\"Optional…\"></td>'
       +'</tr>'
   }).join('')
   html+='</tbody></table></div>'
@@ -1084,12 +1085,14 @@ async function confirmMarks(){
     const v=inp.value.trim().toUpperCase()
     if(v===''||v==='-'||v==='—'){toast('Fill marks for all students (write A for absent)','error');valid=false;inp.style.borderColor='var(--danger)';return}
     if(v==='A'){
-      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:null,is_absent:true,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
+      const rmk=document.querySelector('[data-rmk="'+eid+'"]')?.value?.trim()||null
+      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:null,is_absent:true,remarks:rmk,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
       return
     }
     const num=parseFloat(v)
     if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+' or A)','error');valid=false;inp.style.borderColor='var(--danger)';return}
-    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:num,is_absent:false,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
+    const rmk2=document.querySelector('[data-rmk="'+eid+'"]')?.value?.trim()||null
+      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:num,is_absent:false,remarks:rmk2,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
   })
 
   if(!valid)return
