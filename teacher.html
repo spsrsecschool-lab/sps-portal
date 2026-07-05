@@ -558,9 +558,21 @@
       </div>
 
       <!-- MARKS ENTRY -->
-      <div class="sub-page" id="sub-entry">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Marks Entry &amp; Assessment</button>
-        <div class="page-head"><div><h2>Marks Entry</h2><p>Select class, subject &amp; assessment to begin</p></div></div>
+      <div class="sub-pa<div id="sub-entry" style="display:none">
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div class="page-head"><div><h2>Enter Marks</h2><p>Select assessment, then class and subject</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:10px">
+            <div class="field-grp" style="max-width:360px"><label>1. Assessment *</label><select id="me_assessment" onchange="meLoadClassesForAssessment()"><option value="">Select assessment</option></select></div>
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <div class="field-grp"><label>2. Class — Section *</label><select id="me_class" onchange="meLoadSubjectsForClass()"><option value="">Select assessment first</option></select></div>
+            <div class="field-grp"><label>3. Subject *</label><select id="me_subject"><option value="">Select class first</option></select></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMarksTable()">Load Students</button>
+          </div>
+        </div>
+        <div id="marksTableWrap"></div>
+      </div>
         <div class="card" style="margin-bottom:18px">
           <div class="form-row" style="margin-bottom:0">
             <div class="field-grp"><label>Subject</label><select><option>Science</option><option>Chemistry</option></select></div>
@@ -831,7 +843,7 @@ function goTo(id,el){
   $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb" id="pagecrumb">'+esc($('sbPortalLabel')?.textContent||'Teacher Portal')+'</span>'
   if(window.innerWidth<=760)closeMobileSidebar()
   if(id!=='marks')['sub-menu','sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'})
-  if(id==='marks'){['sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'});const sm=$('sub-menu');if(sm)sm.style.display='block'}
+  if(id==='marks'){['sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'});const sm=$('sub-menu');if(sm)sm.style.display='block';meInitAssessments()}
   if(id==='timetable')loadMyTimetable()
   if(id==='messages')loadMessages()
   if(id==='profile')loadProfile()
@@ -867,14 +879,14 @@ SPS.ready().then(async()=>{
   // Get class-subject assignments
   const{data:maps}=await sb.from('teacher_subject_class_map')
     .select('*,classes(name,class_id),class_sections(name,section_id),subjects(name,subject_id),streams(name)')
-    .eq('entered_by',TEACHER.teacher_id)
+    .eq('teacher_id',TEACHER.teacher_id)
   MY_MAPPINGS=maps||[]
   console.log('[INIT] MY_MAPPINGS:',MY_MAPPINGS.length,'subjects:',[...new Set(MY_MAPPINGS.map(m=>m.subjects?.name||m.subject_id))].join(','))
 
   // Check if class teacher
   const{data:ct}=await sb.from('class_teacher_map')
     .select('*,classes(name),class_sections(name,section_id)')
-    .eq('entered_by',TEACHER.teacher_id).maybeSingle()
+    .eq('teacher_id',TEACHER.teacher_id).maybeSingle()
   _isClassTeacher=!!ct; _myClassTeacher=ct
 
   // Update UI
@@ -1002,31 +1014,51 @@ async function loadMyTimetable(){
 // ═══════════════════════════════════════════════════════════════
 // MARKS ENTRY
 // ═══════════════════════════════════════════════════════════════
-function meLoadClasses(){
-  const subId=$('me_subject')?.value,sel=$('me_class')
-  if(!sel)return
-  sel.innerHTML='<option value="">Select class-section</option>'
-  $('me_assessment').innerHTML='<option value="">Select class first</option>'
-  $('marksTableWrap').innerHTML=''
-  if(!subId)return
-  const maps=MY_MAPPINGS.filter(m=>m.subject_id===subId)
-  sel.innerHTML='<option value="">Select class-section</option>'+maps.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
+// Marks entry: Assessment → Class → Subject flow
+async function meInitAssessments(){
+  const sel=$('me_assessment');if(!sel)return
+  // Load all assessments for classes this teacher teaches
+  const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
+  if(!classIds.length){sel.innerHTML='<option value="">No class assignments found</option>';return}
+  const{data:ac}=await sb.from('assessment_classes').select('assessment_id,class_id').in('class_id',classIds)
+  if(!ac?.length){sel.innerHTML='<option value="">No assessments for your classes</option>';return}
+  const assessIds=[...new Set(ac.map(r=>r.assessment_id))]
+  const{data:assessments}=await sb.from('assessments').select('*').in('assessment_id',assessIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+  ALL_ASSESSMENTS=assessments||[]
+  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+' / Max: '+(a.max_marks||'?')+'</option>').join('')
 }
 
-async function meLoadAssessments(){
-  const val=$('me_class')?.value,sel=$('me_assessment')
+function meLoadClassesForAssessment(){
+  const assessId=$('me_assessment')?.value,sel=$('me_class'),subSel=$('me_subject')
+  if(sel)sel.innerHTML='<option value="">Select assessment first</option>'
+  if(subSel)subSel.innerHTML='<option value="">Select class first</option>'
+  $('marksTableWrap').innerHTML=''
+  if(!assessId)return
+  // Show only classes from teacher's mappings that have this assessment linked
+  const maps=MY_MAPPINGS
+  const opts=maps.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
+  if(sel)sel.innerHTML='<option value="">Select class-section</option>'+opts
+}
+
+function meLoadSubjectsForClass(){
+  const val=$('me_class')?.value,sel=$('me_subject')
   if(!sel)return
   sel.innerHTML='<option value="">Select class first</option>'
   $('marksTableWrap').innerHTML=''
   if(!val)return
-  const classId=val.split('|')[1]
-  // Get assessments linked to this class via assessment_classes junction
-  const{data:ac}=await sb.from('assessment_classes').select('assessment_id').eq('class_id',classId)
-  if(!ac?.length){sel.innerHTML='<option value="">No assessments for this class</option>';ALL_ASSESSMENTS=[];return}
-  const assessIds=ac.map(r=>r.assessment_id)
-  const{data}=await sb.from('assessments').select('*').in('assessment_id',assessIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  ALL_ASSESSMENTS=data||[]
-  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+' / Max: '+a.max_marks+'</option>').join('')
+  const[secId,classId]=val.split('|')
+  const maps=MY_MAPPINGS.filter(m=>m.class_id===classId&&m.section_id===secId)
+  sel.innerHTML='<option value="">Select subject</option>'+maps.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>').join('')
+}
+
+async function meLoadAssessments(){
+  // Legacy - now handled by meInitAssessments
+  await meInitAssessments()
+}
+
+function meLoadClasses(){
+  // Legacy - now handled by meLoadClassesForAssessment
+  meLoadClassesForAssessment()
 }
 
 async function loadMarksTable(){
