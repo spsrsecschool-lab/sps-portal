@@ -1190,8 +1190,14 @@ async function confirmMarks(){
   })
 
   if(!valid)return
-  console.log('[SAVE] Inserting',inserts.length,'mark records')
-  const{error}=await sb.from('marks').upsert(inserts,{onConflict:'enrollment_id,assessment_id,subject_id',ignoreDuplicates:false})
+  console.log('[SAVE] Saving',inserts.length,'mark records')
+  // Delete existing marks for this teacher/assessment/subject first
+  const eids=inserts.map(r=>r.enrollment_id)
+  const{error:de}=await sb.from('marks').delete()
+    .eq('assessment_id',assessId).eq('subject_id',subId).in('enrollment_id',eids)
+  if(de)console.warn('[SAVE] Delete warning:',de.message)
+  // Insert fresh
+  const{error}=await sb.from('marks').insert(inserts)
   if(error){toast('Failed to save: '+error.message,'error');console.error('[SAVE] Error:',error);return}
 
   // Lock only admin assessments
