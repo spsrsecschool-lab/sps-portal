@@ -528,65 +528,55 @@
     <!-- ═══════ MARKS ENTRY & ASSESSMENT (menu board) ═══════ -->
     <div class="page" id="page-marks">
 
-      <!-- MENU -->
-      <div class="sub-page active" id="sub-menu">
-        <div class="page-head">
-          <div><h2>Marks Entry &amp; Assessment</h2><p>Choose an action to continue</p></div>
-        </div>
+      <!-- SUB-MENU -->
+      <div id="sub-menu" style="display:block">
+        <div class="page-head"><div><h2>Marks Entry &amp; Assessment</h2><p>Choose an action to continue</p></div></div>
         <div class="menu-board">
           <div class="menu-card" onclick="openSub('sub-entry')">
             <div class="ic" style="background:linear-gradient(135deg,#5B4FE8,#4A3FD6)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
-            <h4>Marks Entry</h4>
-            <p>Enter marks for a class, subject &amp; assessment</p>
+            <h4>Enter Marks</h4><p>Enter or update marks for a class, subject &amp; assessment</p>
           </div>
           <div class="menu-card" onclick="openSub('sub-perf')">
             <div class="ic" style="background:linear-gradient(135deg,#3AB6E0,#2D8FC4)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg></div>
-            <h4>Performance Analysis</h4>
-            <p>Class &amp; student-level statistics, trends</p>
+            <h4>Performance Analysis</h4><p>Class &amp; student-level mark statistics and trends</p>
           </div>
           <div class="menu-card" onclick="openSub('sub-test')">
             <div class="ic" style="background:linear-gradient(135deg,#E8A23D,#D6862A)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
-            <h4>Create Test</h4>
-            <p>Set up a new class test or surprise test</p>
+            <h4>Create Test</h4><p>Set up a new class test or surprise test</p>
           </div>
           <div class="menu-card" onclick="openSub('sub-obs')">
             <div class="ic" style="background:linear-gradient(135deg,#E5556B,#C73E54)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-            <h4>Teacher's Observation</h4>
-            <p>Write behaviour &amp; discipline remarks</p>
+            <h4>Observations</h4><p>Write behaviour &amp; discipline remarks for a student</p>
           </div>
         </div>
       </div>
 
-      <!-- MARKS ENTRY -->
-      <div class="sub-pa<div id="sub-entry" style="display:none">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+      <!-- ENTER MARKS -->
+      <div id="sub-entry" style="display:none">
+        <button class="back-btn" onclick="openSub('sub-menu')">&#8592; Back</button>
         <div class="page-head"><div><h2>Enter Marks</h2><p>Select assessment, then class and subject</p></div></div>
         <div class="card" style="margin-bottom:18px">
           <div class="form-row" style="margin-bottom:10px">
-            <div class="field-grp" style="max-width:360px"><label>1. Assessment *</label><select id="me_assessment" onchange="meLoadClassesForAssessment()"><option value="">Select assessment</option></select></div>
+            <div class="field-grp" style="max-width:360px"><label>1. Assessment *</label>
+              <select id="me_assessment" onchange="meLoadClassesForAssessment()"><option value="">Select assessment</option></select>
+            </div>
           </div>
           <div class="form-row" style="margin-bottom:0">
-            <div class="field-grp"><label>2. Class — Section *</label><select id="me_class" onchange="meLoadSubjectsForClass()"><option value="">Select assessment first</option></select></div>
-            <div class="field-grp"><label>3. Subject *</label><select id="me_subject"><option value="">Select class first</option></select></div>
+            <div class="field-grp"><label>2. Class — Section *</label>
+              <select id="me_class" onchange="meLoadSubjectsForClass()"><option value="">Select assessment first</option></select>
+            </div>
+            <div class="field-grp"><label>3. Subject *</label>
+              <select id="me_subject"><option value="">Select class first</option></select>
+            </div>
             <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMarksTable()">Load Students</button>
           </div>
         </div>
         <div id="marksTableWrap"></div>
       </div>
-        <div class="card" style="margin-bottom:18px">
-          <div class="form-row" style="margin-bottom:0">
-            <div class="field-grp"><label>Subject</label><select><option>Science</option><option>Chemistry</option></select></div>
-            <div class="field-grp"><label>Class</label><select><option>7th A</option><option>7th B</option><option>9th B</option><option>10th A</option></select></div>
-            <div class="field-grp"><label>Assessment</label><select><option>UT2</option><option>UT1</option><option>Term 1</option></select></div>
-            <button class="btn btn-soft">Load Students</button>
-          </div>
-        </div>
-        
-      </div>
 
       <!-- PERFORMANCE ANALYSIS -->
-      <div class="sub-pa<div id="sub-perf" style="display:none">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+      <div id="sub-perf" style="display:none">
+        <button class="back-btn" onclick="openSub('sub-menu')">&#8592; Back</button>
         <div class="page-head"><div><h2>Performance Analysis</h2><p>Select a class and subject to view trends</p></div></div>
         <div class="card" style="margin-bottom:18px"><div class="form-row" style="margin-bottom:0">
           <div class="field-grp"><label>Subject</label><select id="pa_subject" onchange="paLoadClasses()"><option value="">Select subject</option></select></div>
@@ -595,64 +585,37 @@
         </div></div>
         <div id="perfResult"></div>
       </div>
-        <div class="card" style="margin-bottom:18px">
-          <div class="form-row" style="margin-bottom:10px">
-            <div class="field-grp"><label>Subject</label><select><option>Science</option><option>Chemistry</option></select></div>
-            <div class="field-grp"><label>Class</label><select><option>7th A</option><option>9th B</option></select></div>
-            <div class="field-grp"><label>Search Student</label><input type="text" placeholder="Search by name across your classes…"></div>
-          </div>
-          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft)">
-            <label><input type="checkbox" checked> UT1</label>
-            <label><input type="checkbox" checked> UT2</label>
-            <label><input type="checkbox"> Term 1</label>
-          </div>
-        </div>
-        
-      </div>
 
       <!-- CREATE TEST -->
-      <div class="sub-page" id="sub-test">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Marks Entry &amp; Assessment</button>
+      <div id="sub-test" style="display:none">
+        <button class="back-btn" onclick="openSub('sub-menu')">&#8592; Back</button>
         <div class="page-head"><div><h2>Create Test</h2><p>Set up a class test or surprise test</p></div></div>
         <div class="card" style="max-width:680px;margin-bottom:18px">
           <div class="form-row">
-            <div class="field-grp"><label>Class</label><select><option>7th A</option><option>9th B</option></select></div>
-            <div class="field-grp"><label>Subject</label><select><option>Science</option><option>Chemistry</option></select></div>
+            <div class="field-grp"><label>Class — Section *</label><select id="ct_class"><option value="">Select class</option></select></div>
+            <div class="field-grp"><label>Max Marks *</label><input type="number" id="ct_marks" placeholder="20" min="1"></div>
           </div>
           <div class="form-row">
-            <div class="field-grp"><label>Test Name</label><input type="text" placeholder="e.g. Surprise Test — Acids & Bases"></div>
-            <div class="field-grp"><label>Date</label><input type="date"></div>
-            <div class="field-grp"><label>Max Marks</label><input type="text" placeholder="e.g. 20"></div>
+            <div class="field-grp"><label>Test Name *</label><input id="ct_name" placeholder="e.g. Surprise Test — Acids &amp; Bases"></div>
+            <div class="field-grp"><label>Date *</label><input type="date" id="ct_date"></div>
           </div>
           <div class="form-row">
-            <div class="field-grp"><label>Syllabus</label><textarea placeholder="Topics covered…"></textarea></div>
+            <div class="field-grp"><label>Syllabus / Topics</label><textarea id="ct_syllabus" placeholder="Topics covered…"></textarea></div>
           </div>
-          <button class="btn btn-primary">Create Test</button>
+          <button class="btn btn-primary" onclick="createTest()">Create Test</button>
         </div>
-        <div class="card">
-          <h3>Your Tests</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Name</th><th>Class</th><th>Subject</th><th>Date</th><th>Max Marks</th><th></th></tr></thead>
-              <tbody>
-                <tr><td>Surprise Test — Acids &amp; Bases</td><td>9th B</td><td>Chemistry</td><td class="mono-num">28 Jun 2026</td><td class="mono-num">20</td><td><button class="btn btn-ghost btn-sm">Edit</button> <button class="btn btn-danger btn-sm">Delete</button></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <div class="card"><h3>My Tests This Session</h3><div id="myTestsList"></div></div>
       </div>
 
-      <!-- TEACHER'S OBSERVATION -->
-      <div class="sub-page" id="sub-obs">
-        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Marks Entry &amp; Assessment</button>
-        <div class="page-head"><div><h2>Teacher's Observation</h2><p>Write behaviour, discipline or class remarks for a student</p></div></div>
-        <div class="card" style="margin-bottom:18px">
-          <div class="form-row" style="margin-bottom:0">
-            <div class="field-grp"><label>Class</label><select><option>7th A</option><option>9th B</option></select></div>
-            <div class="field-grp"><label>Or Search Student</label><input type="text" placeholder="Search by name…"></div>
-          </div>
-        </div>
-        
+      <!-- OBSERVATIONS -->
+      <div id="sub-obs" style="display:none">
+        <button class="back-btn" onclick="openSub('sub-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Observations</h2><p>Write behaviour &amp; discipline remarks for a student</p></div></div>
+        <div class="card" style="margin-bottom:18px"><div class="form-row" style="margin-bottom:0">
+          <div class="field-grp"><label>Class — Section</label><select id="obs_class" onchange="obsLoadStudents()"><option value="">Select class</option></select></div>
+          <div class="field-grp"><label>Search Student</label><input id="obs_search" placeholder="Name or roll…" oninput="obsFilterStudents()"></div>
+        </div></div>
+        <div id="obsStudentList"></div>
       </div>
 
     </div>
