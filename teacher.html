@@ -910,11 +910,11 @@ async function renderDashboard(){
 
   // Get assessments and marks for pending count
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
-  const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true)
+  const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'')
   ALL_ASSESSMENTS=assessments||[]
 
   // Check which assessments have marks entered by this teacher
-  const{data:submitted}=await sb.from('marks').select('assessment_id,subject_id,enrollment_id').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+  const{data:submitted}=await sb.from('marks').select('assessment_id,subject_id,enrollment_id').eq('teacher_id',TEACHER.teacher_id)
   const submittedKeys=new Set((submitted||[]).map(m=>m.assessment_id+'_'+m.subject_id))
 
   let pending=0
@@ -940,9 +940,9 @@ async function renderDashboard(){
 
   // Activity — recent marks
   const actEl=$('dashActivity')
-  const{data:recent}=await sb.from('marks').select('entered_at,assessments(name),subjects(name)').eq('teacher_id',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(5)
+  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id').eq('teacher_id',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(5)
   if(!recent?.length){emp(actEl,'No marks submitted yet.');return}
-  actEl.innerHTML=recent.map(m=>'<div class="log-row"><div class="log-dot"></div><div><div class="txt">Submitted marks — '+esc(m.assessments?.name||'?')+' · '+esc(m.subjects?.name||'?')+'</div><div class="ts">'+rel(m.entered_at)+'</div></div></div>').join('')
+  actEl.innerHTML=recent.map(m=>'<div class="log-row"><div class="log-dot"></div><div><div class="txt">Marks submitted</div><div class="ts">'+rel(m.entered_at)+'</div></div></div>').join('')
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1019,7 +1019,7 @@ async function meLoadAssessments(){
   $('marksTableWrap').innerHTML=''
   if(!val)return
   const classId=val.split('|')[1]
-  const{data}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true).order('commencement_date',{nullsFirst:false})
+  const{data}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
   ALL_ASSESSMENTS=data||[]
   sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+' (Max: '+a.max_marks+')</option>').join('')
 }
@@ -1182,7 +1182,7 @@ async function loadPerfAnalysis(){
   if(!subId||!val){toast('Select subject and class','error');return}
   const[secId,classId]=val.split('|')
   ldg(el)
-  const{data:assessments}=await sb.from('assessments').select('*').eq('class_id',classId).eq('is_active',true).order('created_at')
+  const{data:assessments}=await sb.from('assessments').select('*').eq('class_id',classId).order('commencement_date',{nullsFirst:false})
   const{data:students}=await sb.from('student_enrollments')
     .select('enrollment_id,roll_no,students(full_name,father_name)')
     .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no')
@@ -1288,7 +1288,7 @@ async function loadCriticalStudents(){
   const el=$('criticalList');ldg(el)
   if(!MY_MAPPINGS.length){emp(el,'No assignments.');return}
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
-  const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true)
+  const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'')
   const{data:marks}=await sb.from('marks').select('*,student_enrollments(roll_no,students(full_name,father_name),class_sections(name),classes(name))').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
   if(!marks?.length){emp(el,'No marks submitted yet — no critical students to show.');return}
   // Group failing marks by class-subject
