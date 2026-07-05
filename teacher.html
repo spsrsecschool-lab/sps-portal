@@ -315,7 +315,7 @@ tbody tr:hover td{background:var(--lav-50)}
   <div class="content">
 
     <!-- DASHBOARD -->
-    <div class="page active" id="page-dashboard">
+    <div class="page active" id="page-dashboard" style="display:block">
       <div id="dashBanner" style="display:none" class="banner">
         <div class="banner-text">
           <div class="eyebrow" id="bannerEyebrow"></div>
@@ -337,13 +337,13 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
 
     <!-- TIMETABLE -->
-    <div class="page" id="page-timetable">
+    <div class="page" id="page-timetable" style="display:none">
       <div class="page-head"><div><h2>My Timetable</h2><p>Your weekly schedule from the active roster</p></div></div>
       <div id="myTimetableGrid"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
     <!-- MARKS ENTRY -->
-    <div class="page" id="page-marks">
+    <div class="page" id="page-marks" style="display:none">
       <!-- MENU -->
       <div class="sub-page active" id="sub-menu">
         <div class="page-head"><div><h2>Marks Entry &amp; Assessment</h2><p>Choose an action to continue</p></div></div>
@@ -435,13 +435,13 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
 
     <!-- CRITICAL STUDENTS -->
-    <div class="page" id="page-critical">
+    <div class="page" id="page-critical" style="display:none">
       <div class="page-head"><div><h2>Critical Students</h2><p>Students failing in any of your subjects across assessments</p></div></div>
       <div id="criticalList"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
     <!-- MY ATTENDANCE -->
-    <div class="page" id="page-myattendance">
+    <div class="page" id="page-myattendance" style="display:none">
       <div class="page-head"><div><h2>My Attendance</h2><p>Your daily attendance record</p></div></div>
       <div class="form-row" style="max-width:400px;margin-bottom:18px">
         <div class="fg"><label>From</label><input type="date" id="att_from"></div>
@@ -452,7 +452,7 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
 
     <!-- MESSAGES -->
-    <div class="page" id="page-messages">
+    <div class="page" id="page-messages" style="display:none">
       <div class="page-head"><div><h2>Messages</h2><p>Internal school communication</p></div>
         <button class="btn btn-primary" onclick="openComposeModal()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
       </div>
@@ -463,7 +463,7 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
 
     <!-- MY PROFILE -->
-    <div class="page" id="page-profile">
+    <div class="page" id="page-profile" style="display:none">
       <div class="page-head"><div><h2>My Profile</h2><p>Your details on record with the school</p></div></div>
       <div id="profileContent"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
@@ -521,25 +521,27 @@ function toggleSidebar(){
 function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
 
 function goTo(id,el){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
-  const pg=$('page-'+id);if(pg)pg.classList.add('active')
+  // Use inline styles for reliable show/hide across all environments
+  document.querySelectorAll('.page').forEach(p=>{p.style.display='none';p.classList.remove('active')})
+  const pg=$('page-'+id)
+  if(pg){pg.style.display='block';pg.classList.add('active')}
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'))
   if(el)el.classList.add('active')
   $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb" id="pagecrumb">'+esc($('sbPortalLabel')?.textContent||'Teacher Portal')+'</span>'
   if(window.innerWidth<=760)closeMobileSidebar()
-  // Always reset marks sub-pages when navigating away
-  if(id!=='marks'){document.querySelectorAll('#page-marks .sub-page').forEach(s=>s.classList.remove('active'))}
+  if(id!=='marks')document.querySelectorAll('#page-marks .sub-page').forEach(s=>s.classList.remove('active'))
   if(id==='marks')openSub('sub-menu')
   if(id==='timetable'&&!$('myTimetableGrid').querySelector('table'))loadMyTimetable()
   if(id==='messages')loadMessages()
   if(id==='profile')loadProfile()
   if(id==='critical')loadCriticalStudents()
-  if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=today().slice(0,8)+'01';if($('att_to'))$('att_to').value=t}
+  if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t}
 }
 
 function openSub(subId){
-  document.querySelectorAll('#page-marks .sub-page').forEach(s=>s.classList.remove('active'))
-  const sp=$(subId);if(sp)sp.classList.add('active')
+  document.querySelectorAll('#page-marks .sub-page').forEach(s=>{s.style.display='none';s.classList.remove('active')})
+  const sp=$(subId)
+  if(sp){sp.style.display='block';sp.classList.add('active')}
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -646,6 +648,12 @@ async function renderDashboard(){
 // ═══════════════════════════════════════════════════════════════
 // TIMETABLE
 // ═══════════════════════════════════════════════════════════════
+async function getActiveRoster(){
+  if(!SESS)return null
+  const{data:roster}=await sb.from('rosters').select('*').eq('session_id',SESS.session_id).eq('is_active',true).maybeSingle()
+  return roster
+}
+
 async function loadMyTimetable(){
   const el=$('myTimetableGrid');ldg(el)
   console.log('[TT] SESS:',SESS?.session_id,'TEACHER:',TEACHER?.teacher_id)
@@ -786,12 +794,12 @@ async function confirmMarks(){
     const absChk=document.querySelector('.abs-chk[data-eid="'+eid+'"]')
     const rmk=(document.querySelector('.rmk-inp[data-eid="'+eid+'"]')?.value||'').trim()
     const isAbsent=absChk?.checked
-    if(isAbsent){inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:null,is_absent:true,remarks:rmk,entered_at:new Date().toISOString(),updated_at:new Date().toISOString()});return}
+    if(isAbsent){inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:null,is_absent:true,remarks:rmk,entered_at:new Date().toISOString()});return}
     const v=inp.value.trim()
     if(v===''){toast('Fill marks for all students or mark absent','error');valid=false;inp.style.borderColor='var(--danger)';return}
     const num=parseFloat(v)
     if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+')','error');valid=false;inp.style.borderColor='var(--danger)';return}
-    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:num,is_absent:false,remarks:rmk,entered_at:new Date().toISOString(),updated_at:new Date().toISOString()})
+    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:num,is_absent:false,remarks:rmk,entered_at:new Date().toISOString()})
   })
 
   if(!valid)return
@@ -1139,7 +1147,7 @@ function renderEditForm(t){
 }
 
 async function saveProfileEdit(){
-  const updates={full_name:$('pf_full_name')?.value?.trim(),designation:$('pf_designation')?.value?.trim(),phone:$('pf_phone')?.value?.trim(),can_edit_own_profile:false,updated_at:new Date().toISOString()}
+  const updates={full_name:$('pf_full_name')?.value?.trim(),designation:$('pf_designation')?.value?.trim(),phone:$('pf_phone')?.value?.trim(),can_edit_own_profile:false}
   if(!updates.full_name){toast('Name is required','error');return}
   const{error}=await sb.from('teachers').update(updates).eq('teacher_id',TEACHER.teacher_id)
   if(error){toast('Failed: '+error.message,'error');return}
