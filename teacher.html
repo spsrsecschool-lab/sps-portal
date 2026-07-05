@@ -867,13 +867,14 @@ SPS.ready().then(async()=>{
   // Get class-subject assignments
   const{data:maps}=await sb.from('teacher_subject_class_map')
     .select('*,classes(name,class_id),class_sections(name,section_id),subjects(name,subject_id),streams(name)')
-    .eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+    .eq('entered_by',TEACHER.teacher_id)
   MY_MAPPINGS=maps||[]
+  console.log('[INIT] MY_MAPPINGS:',MY_MAPPINGS.length,'subjects:',[...new Set(MY_MAPPINGS.map(m=>m.subjects?.name||m.subject_id))].join(','))
 
   // Check if class teacher
   const{data:ct}=await sb.from('class_teacher_map')
     .select('*,classes(name),class_sections(name,section_id)')
-    .eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
+    .eq('entered_by',TEACHER.teacher_id).maybeSingle()
   _isClassTeacher=!!ct; _myClassTeacher=ct
 
   // Update UI
@@ -940,7 +941,7 @@ async function renderDashboard(){
 
   // Activity — recent marks
   const actEl=$('dashActivity')
-  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id').eq('teacher_id',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(5)
+  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id').eq('entered_by',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(5)
   if(!recent?.length){emp(actEl,'No marks submitted yet.');return}
   actEl.innerHTML=recent.map(m=>'<div class="log-row"><div class="log-dot"></div><div><div class="txt">Marks submitted</div><div class="ts">'+rel(m.entered_at)+'</div></div></div>').join('')
 }
@@ -1019,9 +1020,13 @@ async function meLoadAssessments(){
   $('marksTableWrap').innerHTML=''
   if(!val)return
   const classId=val.split('|')[1]
-  const{data}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+  // Get assessments linked to this class via assessment_classes junction
+  const{data:ac}=await sb.from('assessment_classes').select('assessment_id').eq('class_id',classId)
+  if(!ac?.length){sel.innerHTML='<option value="">No assessments for this class</option>';ALL_ASSESSMENTS=[];return}
+  const assessIds=ac.map(r=>r.assessment_id)
+  const{data}=await sb.from('assessments').select('*').in('assessment_id',assessIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
   ALL_ASSESSMENTS=data||[]
-  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+' (Max: '+a.max_marks+')</option>').join('')
+  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+' / Max: '+a.max_marks+'</option>').join('')
 }
 
 async function loadMarksTable(){
@@ -1049,8 +1054,8 @@ async function loadMarksTable(){
 
   // Get existing marks
   const{data:existingMarks}=await sb.from('marks')
-    .select('*').eq('teacher_id',TEACHER.teacher_id)
-    .eq('assessment_id',assessId).eq('subject_id',subId).eq('session_id',SESS?.session_id||'')
+    .select('*').eq('entered_by',TEACHER.teacher_id)
+    .eq('assessment_id',assessId).eq('subject_id',subId)
   const marksMap={}; (existingMarks||[]).forEach(m=>{marksMap[m.enrollment_id]=m})
 
   // Get assessment details
@@ -1109,16 +1114,16 @@ async function confirmMarks(){
     const absChk=document.querySelector('.abs-chk[data-eid="'+eid+'"]')
     const rmk=(document.querySelector('.rmk-inp[data-eid="'+eid+'"]')?.value||'').trim()
     const isAbsent=absChk?.checked
-    if(isAbsent){inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:null,is_absent:true,remarks:rmk,entered_at:new Date().toISOString()});return}
+    if(isAbsent){inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:null,is_absent:true,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()});return}
     const v=inp.value.trim()
     if(v===''){toast('Fill marks for all students or mark absent','error');valid=false;inp.style.borderColor='var(--danger)';return}
     const num=parseFloat(v)
     if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+')','error');valid=false;inp.style.borderColor='var(--danger)';return}
-    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:num,is_absent:false,remarks:rmk,entered_at:new Date().toISOString()})
+    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:num,is_absent:false,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
   })
 
   if(!valid)return
-  const{error}=await sb.from('marks').upsert(inserts,{onConflict:'enrollment_id,assessment_id,subject_id'})
+  const{error}=await sb.from('marks').upsert(inserts,{onConflict:'enrollment_id,assessment_id,subject_id',ignoreDuplicates:false})
   if(error){toast('Failed to save marks: '+error.message,'error');return}
 
   // Lock marks
@@ -1186,7 +1191,7 @@ async function loadPerfAnalysis(){
   const{data:students}=await sb.from('student_enrollments')
     .select('enrollment_id,roll_no,students(full_name,father_name)')
     .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no')
-  const{data:marks}=await sb.from('marks').select('*').eq('subject_id',subId).eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+  const{data:marks}=await sb.from('marks').select('*').eq('subject_id',subId).eq('entered_by',TEACHER.teacher_id)
   if(!students?.length){emp(el,'No students found.');return}
   if(!assessments?.length){emp(el,'No assessments found.');return}
   const marksMap={}; (marks||[]).forEach(m=>{marksMap[m.enrollment_id+'_'+m.assessment_id]=m})
@@ -1289,7 +1294,7 @@ async function loadCriticalStudents(){
   if(!MY_MAPPINGS.length){emp(el,'No assignments.');return}
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
   const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'')
-  const{data:marks}=await sb.from('marks').select('*,student_enrollments(roll_no,students(full_name,father_name),class_sections(name),classes(name))').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+  const{data:marks}=await sb.from('marks').select('*,student_enrollments(roll_no,students(full_name,father_name),class_sections(name),classes(name))').eq('entered_by',TEACHER.teacher_id)
   if(!marks?.length){emp(el,'No marks submitted yet — no critical students to show.');return}
   // Group failing marks by class-subject
   const groups={}
