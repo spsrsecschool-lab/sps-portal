@@ -430,8 +430,9 @@ tbody tr:hover td{background:var(--lav-50)}
         </div>
         <div class="card"><h3>My Tests This Session</h3><div id="myTestsList"><div class="loading-row"><div class="spinner"></div></div></div></div>
       </div>
+    </div>
 
-<!-- CRITICAL STUDENTS -->
+    <!-- CRITICAL STUDENTS -->
     <div class="page" id="page-critical">
       <div class="page-head"><div><h2>Critical Students</h2><p>Students failing in any of your subjects across assessments</p></div></div>
       <div id="criticalList"><div class="loading-row"><div class="spinner"></div></div></div>
@@ -1020,14 +1021,14 @@ async function loadMyAttendance(){
 // ═══════════════════════════════════════════════════════════════
 async function loadMessages(){
   const el=$('msgList');ldg(el)
-  const{data,error}=await sb.from('messages').select('*').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).order('sent_at',{ascending:false}).limit(50)
+  const{data,error}=await sb.from('messages').select('message_id,subject,body,sender_type,sender_id,sender_name,sent_at,is_read,message_type').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).order('sent_at',{ascending:false}).limit(50)
   _msgs=data||[]
   const unread=_msgs.filter(m=>!m.is_read).length
   $('msgBadge').textContent=unread;$('msgBadge').style.display=unread>0?'flex':'none'
   $('msgDot').style.display=unread>0?'block':'none'
   $('statMsgs').textContent=unread
   if(!_msgs.length){el.innerHTML='<div class="empty-state"><p>No messages yet.</p></div>';return}
-  el.innerHTML=_msgs.map(m=>'<div class="msg-item'+(m.is_read?'':' unread')+'" data-mid="'+m.message_id+'" onclick="openMsg(\''+m.message_id+'\',this)"><div class="top"><span class="from">'+esc(m.sender_type==='admin'?'Admin Office':m.sender_name||'Teacher')+'</span><span class="time">'+rel(m.sent_at)+'</span></div><div class="preview">'+esc(m.subject||m.body||'')+'</div></div>').join('')
+  el.innerHTML=_msgs.map(m=>'<div class="msg-item'+(!m.is_read?' unread':'')+'" data-mid="'+m.message_id+'" onclick="openMsg(\''+m.message_id+'\',this)"><div class="top"><span class="from">'+esc(m.sender_type==='admin'?'Admin Office':m.sender_name||'Teacher')+'</span><span class="time">'+rel(m.sent_at)+'</span></div><div class="preview">'+esc(m.subject||m.body||'')+'</div></div>').join('')
   if(_msgs.length)openMsg(_msgs[0].message_id, el.firstChild)
 }
 
@@ -1035,7 +1036,7 @@ async function openMsg(msgId, el){
   const msg=_msgs.find(m=>m.message_id===msgId);if(!msg)return
   document.querySelectorAll('.msg-item').forEach(i=>i.classList.remove('active'))
   if(el)el.classList.add('active')
-  if(!msg.is_read){await sb.from('messages').update({is_read:true}).eq('message_id',msgId);msg.is_read=true;if(el)el.classList.remove('unread')}
+  if(!msg.is_read){const{error:re}=await sb.from('messages').update({is_read:true}).eq('message_id',msgId);if(!re){msg.is_read=true;if(el)el.classList.remove('unread')}}
   const d=$('msgDetail')
   d.innerHTML='<div class="subj">'+esc(msg.subject||'(no subject)')+'</div>'
     +'<div class="meta">From '+esc(msg.sender_type==='admin'?'Admin Office':msg.sender_name||'Teacher')+' · '+rel(msg.sent_at)+'</div>'
@@ -1045,8 +1046,9 @@ async function openMsg(msgId, el){
 
 async function checkUnreadMessages(){
   if(!TEACHER)return
-  const{count}=await sb.from('messages').select('*',{count:'exact',head:true}).eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).eq('is_read',false)
-  $('msgBadge').textContent=count||0;$('msgBadge').style.display=count>0?'flex':'none'
+  const{data:unreadData}=await sb.from('messages').select('message_id').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).eq('is_read',false)
+  const count=unreadData?.length||0
+  $('msgBadge').textContent=count;$('msgBadge').style.display=count>0?'flex':'none'
   $('msgDot').style.display=count>0?'block':'none'
   $('statMsgs').textContent=count||0
 }
