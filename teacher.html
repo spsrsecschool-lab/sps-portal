@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teacher Portal — Shiv Public School</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<style>
+:root{
+  --lav-50:#F7F6FD;--lav-100:#F1EFFC;--lav-200:#E4E0FA;--lav-300:#CFC9F5;
+  --ink:#221F35;--ink-soft:#6B6685;--ink-faint:#A8A3C2;
+  --indigo:#5B4FE8;--indigo-dark:#4A3FD6;--indigo-100:#EDEBFE;
+  --white:#FFFFFF;--line:#E7E3F8;
+  --success:#2BB673;--success-soft:#E4F7EE;
+  --warn:#E8A23D;--warn-soft:#FCF1E0;
+  --danger:#E5556B;--danger-soft:#FCE7EA;
+  --radius-lg:22px;--radius-md:14px;--radius-sm:10px;
+  --font:'Plus Jakarta Sans',sans-serif;--mono:'DM Mono',monospace;
+  --sbw:248px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-height:100vh;overflow-x:hidden}
+
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sbw);background:var(--white);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:200;transition:transform .28s cubic-bezier(.4,0,.2,1)}
+#sidebar.collapsed{transform:translateX(-100%)}
+.sb-brand{display:flex;align-items:center;gap:11px;padding:22px 20px 18px;border-bottom:1px solid var(--line)}
+.sb-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--indigo),var(--indigo-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14.5px;flex-shrink:0}
+.sb-brand-text .name{font-size:13px;font-weight:700;line-height:1.25}
+.sb-brand-text .sub{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+.sb-scroll{flex:1;overflow-y:auto;padding:16px 12px}
+.sb-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);padding:6px 10px 8px}
+.sb-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:var(--radius-sm);color:var(--ink-soft);font-size:13px;font-weight:500;cursor:pointer;margin-bottom:2px;transition:background .14s,color .14s;position:relative}
+.sb-item svg{width:17px;height:17px;stroke:currentColor;fill:none;flex-shrink:0;stroke-width:1.8}
+.sb-item:hover{background:var(--lav-100);color:var(--ink)}
+.sb-item.active{background:var(--indigo-100);color:var(--indigo-dark);font-weight:700}
+.sb-item .bc{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.sb-foot{padding:14px 16px 18px;border-top:1px solid var(--line)}
+.sb-switch-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--lav-100);border:1px solid var(--line);color:var(--indigo-dark);font-family:var(--font);font-size:12px;font-weight:700;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;margin-bottom:10px}
+.sb-switch-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+.sb-logout{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:1px solid var(--line);color:var(--ink-soft);font-family:var(--font);font-size:12px;font-weight:600;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer}
+.sb-logout svg{width:14px;height:14px;stroke:currentColor;fill:none}
+
+#main{margin-left:var(--sbw);transition:margin-left .28s cubic-bezier(.4,0,.2,1);min-height:100vh;display:flex;flex-direction:column}
+#main.full{margin-left:0}
+.topbar{height:64px;background:rgba(247,246,253,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 26px;position:sticky;top:0;z-index:90}
+.sb-toggle{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.sb-toggle svg{width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8}
+.topbar-title{font-size:15px;font-weight:700;flex:1}
+.topbar-title .crumb{font-size:11.5px;color:var(--ink-faint);font-weight:500;display:block;margin-top:1px}
+.user-chip{display:flex;align-items:center;gap:9px;padding:5px 12px 5px 5px;border:1px solid var(--line);background:var(--white);border-radius:999px}
+.avatar-sm{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7B6EF6,var(--indigo));color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.user-chip .uname{font-size:12.5px;font-weight:700;line-height:1.2}
+.user-chip .urole{font-size:10px;color:var(--ink-faint)}
+.icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.icon-btn svg{width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8}
+.icon-btn .dot{position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:2px solid var(--white)}
+
+.content{padding:26px;flex:1}
+.page{display:none}.page.active{display:block}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.page-head h2{font-size:21px;font-weight:800;letter-spacing:-.01em}
+.page-head p{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+
+.card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px}
+.card h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:14px}
+.grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.stack{display:flex;flex-direction:column;gap:18px}
+
+.banner{background:linear-gradient(120deg,var(--indigo) 0%,#4A3FD6 100%);border-radius:var(--radius-lg);padding:22px 26px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px;position:relative;overflow:hidden}
+.banner::after{content:'';position:absolute;width:220px;height:220px;border-radius:50%;border:1px solid rgba(255,255,255,.16);right:-90px;bottom:-110px}
+.banner-text{position:relative;z-index:1}
+.banner-text .eyebrow{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.7);font-weight:700}
+.banner-text h3{font-size:18px;font-weight:800;margin-top:5px}
+.banner-text p{font-size:12.5px;color:rgba(255,255,255,.78);margin-top:5px}
+.banner-cta{position:relative;z-index:1;background:#fff;color:var(--indigo-dark);font-weight:700;font-size:12.5px;padding:10px 18px;border-radius:var(--radius-sm);border:none;cursor:pointer;white-space:nowrap;font-family:var(--font)}
+
+.stat-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:6px}
+.stat-card .lbl{font-size:11px;color:var(--ink-faint);font-weight:600;display:flex;align-items:center;gap:6px}
+.stat-card .lbl svg{width:14px;height:14px;stroke:currentColor;fill:none}
+.stat-card .val{font-size:25px;font-weight:800;font-family:var(--mono)}
+.stat-card .sub{font-size:11px;color:var(--ink-faint)}
+
+.log-row{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.log-row:last-child{border-bottom:none}
+.log-dot{width:7px;height:7px;border-radius:50%;background:var(--indigo);margin-top:6px;flex-shrink:0}
+.log-row .txt{font-size:12.5px;color:var(--ink)}
+.log-row .ts{font-size:10.5px;color:var(--ink-faint);font-family:var(--mono);margin-top:2px}
+
+.sched-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line);font-size:12.5px;gap:10px}
+.sched-row:last-child{border-bottom:none}
+.sched-row .cls{font-weight:700;min-width:60px}
+.sched-row .subj{color:var(--ink-soft);flex:1}
+
+.pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;letter-spacing:.02em;white-space:nowrap}
+.pill-success{background:var(--success-soft);color:var(--success)}
+.pill-warn{background:var(--warn-soft);color:var(--warn)}
+.pill-danger{background:var(--danger-soft);color:var(--danger)}
+.pill-neutral{background:var(--lav-100);color:var(--ink-soft)}
+.pill-indigo{background:var(--indigo-100);color:var(--indigo-dark)}
+
+.menu-board{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.menu-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
+.menu-card:hover{transform:translateY(-3px);box-shadow:0 16px 30px -16px rgba(91,79,232,.35);border-color:var(--indigo)}
+.menu-card .ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.menu-card .ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8}
+.menu-card h4{font-size:14px;font-weight:700;margin-bottom:5px}
+.menu-card p{font-size:11.5px;color:var(--ink-soft);line-height:1.5}
+
+.table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:11px 14px;text-align:left;white-space:nowrap}
+tbody td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle}
+tbody tr:hover td{background:var(--lav-50)}
+.cell-fail{background:var(--danger-soft) !important}
+.mono{font-family:var(--mono)}
+
+.form-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.fg{display:flex;flex-direction:column;gap:6px;flex:1;min-width:140px}
+.fg label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+.fg input,.fg select,.fg textarea{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px 13px;outline:none}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--indigo);background:#fff}
+.fg textarea{resize:vertical;min-height:80px}
+
+.btn{font-family:var(--font);font-size:12.5px;font-weight:700;border-radius:var(--radius-sm);padding:10px 18px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+.btn-primary{background:var(--indigo);color:#fff}
+.btn-ghost{background:var(--white);color:var(--ink-soft);border:1px solid var(--line)}
+.btn-soft{background:var(--indigo-100);color:var(--indigo-dark)}
+.btn-success{background:var(--success);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-warn{background:var(--warn);color:#fff}
+.btn-sm{padding:6px 12px;font-size:11.5px}
+.btn-xs{padding:4px 9px;font-size:11px}
+
+.sub-page{display:none}.sub-page.active{display:block}
+.back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-soft);background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;margin-bottom:16px}
+.back-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+.back-btn:hover{color:var(--ink);border-color:var(--ink-faint)}
+
+.profile-hero{display:flex;align-items:center;gap:18px;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:22px;margin-bottom:18px}
+.avatar-lg{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#7B6EF6,var(--indigo));color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex-shrink:0;overflow:hidden}
+.avatar-lg img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.profile-hero h3{font-size:18px;font-weight:800}
+.profile-hero .desig{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.profile-hero .tag-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+.field-row{display:flex;flex-direction:column;gap:4px;padding:11px 0;border-bottom:1px solid var(--line)}
+.field-row:last-child{border-bottom:none}
+.field-row .k{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.field-row .v{font-size:13.5px;font-weight:600}
+
+.map-tag{background:var(--indigo-100);color:var(--indigo-dark);font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px;display:inline-block;margin:3px}
+
+.msg-shell{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:#fff;min-height:480px}
+.msg-list{border-right:1px solid var(--line);overflow-y:auto;max-height:600px}
+.msg-item{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.msg-item:hover{background:var(--lav-50)}
+.msg-item.active{background:var(--indigo-100)}
+.msg-item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.msg-item .from{font-size:12.5px;font-weight:600}
+.msg-item.unread .from{font-weight:800}
+.msg-item .time{font-size:10px;color:var(--ink-faint)}
+.msg-item .preview{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-detail{padding:24px;display:flex;flex-direction:column}
+.msg-detail .subj{font-size:17px;font-weight:800;margin-bottom:6px}
+.msg-detail .meta{font-size:11.5px;color:var(--ink-faint);margin-bottom:18px}
+.msg-detail .body{font-size:13.5px;line-height:1.7;white-space:pre-wrap}
+
+.att-strip{display:flex;gap:6px;flex-wrap:wrap}
+.att-day{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;font-family:var(--mono)}
+
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:50px 20px;color:var(--ink-faint);text-align:center}
+.empty-state svg{width:38px;height:38px;stroke:var(--lav-300);fill:none;margin-bottom:10px}
+.empty-state p{font-size:12.5px;max-width:240px}
+.loading-row{display:flex;align-items:center;justify-content:center;padding:30px}
+.spinner{width:28px;height:28px;border:3px solid var(--lav-200);border-top-color:var(--indigo);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* marks input */
+.marks-input{width:70px;padding:6px 8px;border-radius:6px;border:1.5px solid var(--line);font-family:var(--mono);font-size:13px;text-align:center;outline:none}
+.marks-input:focus{border-color:var(--indigo)}
+.marks-input.absent{background:var(--danger-soft);border-color:var(--danger)}
+.marks-lock-banner{background:var(--lav-100);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+
+/* timetable grid */
+.tt-grid{overflow-x:auto}
+.tt-grid table{min-width:600px}
+.tt-cell{text-align:center;padding:8px 6px;vertical-align:top}
+.tt-entry{background:var(--indigo-100);border-radius:8px;padding:6px 8px;font-size:11.5px}
+.tt-entry b{display:block;font-size:12px;color:var(--indigo-dark)}
+.tt-entry span{color:var(--ink-soft)}
+
+/* modal */
+#modal-overlay{position:fixed;inset:0;background:rgba(34,31,53,.5);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+#modal-overlay.open{display:flex}
+#modal-box{background:#fff;border-radius:var(--radius-lg);width:100%;max-width:520px;box-shadow:0 24px 60px -12px rgba(34,31,53,.3);overflow:hidden;max-height:90vh;display:flex;flex-direction:column}
+#modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line);flex-shrink:0}
+#modal-head h4{font-size:15px;font-weight:800}
+#modal-close{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:20px;line-height:1}
+#modal-body{padding:20px 22px;overflow-y:auto;flex:1}
+#modal-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
+
+/* toast */
+#toast{position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast-item{padding:12px 18px;border-radius:var(--radius-md);font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.15);animation:slidein .2s ease;max-width:300px}
+.toast-success{background:var(--success);color:#fff}
+.toast-error{background:var(--danger);color:#fff}
+.toast-info{background:var(--indigo);color:#fff}
+@keyframes slidein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.switch{width:42px;height:24px;border-radius:999px;background:var(--lav-300);position:relative;cursor:pointer;flex-shrink:0;display:inline-block}
+.switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.switch.on{background:var(--indigo)}.switch.on::after{left:21px}
+
+#scrim{position:fixed;inset:0;background:rgba(34,31,53,.35);z-index:150;display:none}
+#scrim.show{display:block}
+
+@media(max-width:1080px){.menu-board{grid-template-columns:repeat(2,1fr)}.grid-4{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
+@media(max-width:760px){#sidebar{transform:translateX(-100%)}#sidebar.show{transform:translateX(0);box-shadow:20px 0 60px rgba(34,31,53,.25)}#main{margin-left:0}.content{padding:16px}.topbar{padding:0 14px;gap:10px}.user-chip .uname,.user-chip .urole{display:none}.user-chip{padding:5px}.banner{flex-direction:column;align-items:flex-start}.msg-shell{grid-template-columns:1fr}.msg-list{max-height:240px;border-right:none;border-bottom:1px solid var(--line)}.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="scrim" onclick="closeMobileSidebar()"></div>
+<div id="toast"></div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <div id="modal-head"><h4 id="modal-title">Modal</h4><button id="modal-close" onclick="closeModal()">×</button></div>
+    <div id="modal-body"></div>
+    <div id="modal-foot" id="modal-foot"></div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-mark">SP</div>
+    <div class="sb-brand-text">
+      <div class="name">Shiv Public School</div>
+      <div class="sub" id="sbPortalLabel">Teacher Portal</div>
+    </div>
+  </div>
+  <div class="sb-scroll" id="sbNav">
+    <div class="sb-label">Overview</div>
+    <div class="sb-item active" onclick="goTo('dashboard',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Dashboard
+    </div>
+    <div class="sb-item" onclick="goTo('messages',this)">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Messages<span class="bc" id="msgBadge" style="display:none">0</span>
+    </div>
+    <div class="sb-label">Academics</div>
+    <div class="sb-item" onclick="goTo('timetable',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      My Timetable
+    </div>
+    <div class="sb-item" onclick="goTo('marks',this)">
+      <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      Marks Entry
+    </div>
+    <div class="sb-item" onclick="goTo('critical',this)">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Critical Students<span class="bc" id="critBadge" style="display:none">0</span>
+    </div>
+    <div class="sb-label">My Space</div>
+    <div class="sb-item" onclick="goTo('myattendance',this)">
+      <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      My Attendance
+    </div>
+    <div class="sb-item" onclick="goTo('profile',this)">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      My Profile
+    </div>
+  </div>
+  <div class="sb-foot">
+    <button class="sb-switch-btn" id="switchCTBtn" style="display:none" onclick="switchToClassView()">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M7 16V4M7 4 3 8M7 4l4 4"/><path d="M17 8v12M17 20l4-4M17 20l-4-4"/></svg>
+      <span id="switchBtnLabel">Switch to Class View</span>
+    </button>
+    <button class="sb-logout" onclick="logout()">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Log Out
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div id="main">
+  <header class="topbar">
+    <div class="sb-toggle" onclick="toggleSidebar()">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </div>
+    <div class="topbar-title" id="pageTitle">Dashboard<span class="crumb" id="pagecrumb">Teacher Portal</span></div>
+    <div class="icon-btn" onclick="goTo('messages',document.querySelector('.sb-item[onclick*=messages]'))">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="dot" id="msgDot" style="display:none"></span>
+    </div>
+    <div class="user-chip">
+      <div class="avatar-sm" id="topAvatar">?</div>
+      <div><div class="uname" id="topName">Loading…</div><div class="urole" id="topRole"></div></div>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div id="dashBanner" style="display:none" class="banner">
+        <div class="banner-text">
+          <div class="eyebrow" id="bannerEyebrow"></div>
+          <h3 id="bannerTitle">Marks Pending</h3>
+          <p id="bannerSub"></p>
+        </div>
+        <button class="banner-cta" onclick="goTo('marks',document.querySelector('.sb-item[onclick*=marks]'))">Enter Marks Now →</button>
+      </div>
+      <div class="grid-4" style="margin-bottom:18px">
+        <div class="stat-card"><span class="lbl"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Pending Marks</span><span class="val" id="statPending">—</span><span class="sub" id="statPendingSub">Assessments awaiting entry</span></div>
+        <div class="stat-card"><span class="lbl"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages</span><span class="val" id="statMsgs">—</span><span class="sub">Unread messages</span></div>
+        <div class="stat-card"><span class="lbl"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>My Classes</span><span class="val" id="statClasses">—</span><span class="sub">Active class assignments</span></div>
+        <div class="stat-card"><span class="lbl"><svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg>Critical Students</span><span class="val" id="statCrit">—</span><span class="sub">Failing in your subjects</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><h3>My Assignments</h3><div id="dashAssignments"><div class="loading-row"><div class="spinner"></div></div></div></div>
+        <div class="card"><h3>Recent Activity</h3><div id="dashActivity"><div class="loading-row"><div class="spinner"></div></div></div></div>
+      </div>
+    </div>
+
+    <!-- TIMETABLE -->
+    <div class="page" id="page-timetable">
+      <div class="page-head"><div><h2>My Timetable</h2><p>Your weekly schedule from the active roster</p></div></div>
+      <div id="myTimetableGrid"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- MARKS ENTRY -->
+    <div class="page" id="page-marks">
+      <!-- MENU -->
+      <div class="sub-page active" id="sub-menu">
+        <div class="page-head"><div><h2>Marks Entry &amp; Assessment</h2><p>Choose an action to continue</p></div></div>
+        <div class="menu-board">
+          <div class="menu-card" onclick="openSub('sub-entry')">
+            <div class="ic" style="background:linear-gradient(135deg,#5B4FE8,#4A3FD6)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
+            <h4>Enter Marks</h4><p>Enter or update marks for a class, subject &amp; assessment</p>
+          </div>
+          <div class="menu-card" onclick="openSub('sub-perf')">
+            <div class="ic" style="background:linear-gradient(135deg,#3AB6E0,#2D8FC4)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg></div>
+            <h4>Performance Analysis</h4><p>Class &amp; student-level mark statistics and trends</p>
+          </div>
+          <div class="menu-card" onclick="openSub('sub-obs')">
+            <div class="ic" style="background:linear-gradient(135deg,#E5556B,#C73E54)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+            <h4>Observations</h4><p>Write behaviour &amp; discipline remarks for a student</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- MARKS ENTRY TABLE -->
+      <div class="sub-page" id="sub-entry">
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div class="page-head"><div><h2>Enter Marks</h2><p>Select class, subject &amp; assessment</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg"><label>Subject</label><select id="me_subject" onchange="meLoadClasses()"><option value="">Select subject</option></select></div>
+            <div class="fg"><label>Class — Section</label><select id="me_class" onchange="meLoadAssessments()"><option value="">Select subject first</option></select></div>
+            <div class="fg"><label>Assessment</label><select id="me_assessment"><option value="">Select class first</option></select></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMarksTable()">Load Students</button>
+          </div>
+        </div>
+        <div id="marksTableWrap"></div>
+      </div>
+
+      <!-- PERFORMANCE ANALYSIS -->
+      <div class="sub-page" id="sub-perf">
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div class="page-head"><div><h2>Performance Analysis</h2><p>Select a class and subject to view trends</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg"><label>Subject</label><select id="pa_subject" onchange="paLoadClasses()"><option value="">Select subject</option></select></div>
+            <div class="fg"><label>Class — Section</label><select id="pa_class"><option value="">Select subject first</option></select></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadPerfAnalysis()">Analyse</button>
+          </div>
+        </div>
+        <div id="perfResult"></div>
+      </div>
+
+      <!-- OBSERVATIONS -->
+      <div class="sub-page" id="sub-obs">
+        <button class="back-btn" onclick="openSub('sub-menu')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div class="page-head"><div><h2>Teacher's Observations</h2><p>Behaviour and discipline remarks by student</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg"><label>Class — Section</label><select id="obs_class" onchange="obsLoadStudents()"><option value="">Select class</option></select></div>
+            <div class="fg"><label>Or Search Student</label><input id="obs_search" placeholder="Name or roll…" oninput="obsFilterStudents()"></div>
+          </div>
+        </div>
+        <div id="obsStudentList"></div>
+      </div>
+    </div>
+
+    <!-- CRITICAL STUDENTS -->
+    <div class="page" id="page-critical">
+      <div class="page-head"><div><h2>Critical Students</h2><p>Students failing in any of your subjects across assessments</p></div></div>
+      <div id="criticalList"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- MY ATTENDANCE -->
+    <div class="page" id="page-myattendance">
+      <div class="page-head"><div><h2>My Attendance</h2><p>Your daily attendance record</p></div></div>
+      <div class="form-row" style="max-width:400px;margin-bottom:18px">
+        <div class="fg"><label>From</label><input type="date" id="att_from"></div>
+        <div class="fg"><label>To</label><input type="date" id="att_to"></div>
+        <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMyAttendance()">Load</button>
+      </div>
+      <div id="myAttResult"><div class="empty-state"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg><p>Select a date range and click Load.</p></div></div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div class="page" id="page-messages">
+      <div class="page-head"><div><h2>Messages</h2><p>Internal school communication</p></div>
+        <button class="btn btn-primary" onclick="openComposeModal()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
+      </div>
+      <div class="msg-shell">
+        <div class="msg-list" id="msgList"><div class="loading-row"><div class="spinner"></div></div></div>
+        <div class="msg-detail" id="msgDetail"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>Select a message to read it.</p></div></div>
+      </div>
+    </div>
+
+    <!-- MY PROFILE -->
+    <div class="page" id="page-profile">
+      <div class="page-head"><div><h2>My Profile</h2><p>Your details on record with the school</p></div></div>
+      <div id="profileContent"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// GLOBALS
+// ═══════════════════════════════════════════════════════════════
+let sb, TEACHER=null, SESS=null
+let MY_MAPPINGS=[], ALL_ASSESSMENTS=[], _msgs=[], _obsRaw=[]
+let _isClassTeacher=false, _myClassTeacher=null
+let _marksRaw=[], _marksLocked=false, _currentMarksMeta={}
+let _isClassView=false
+
+const TITLES={
+  dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks Entry & Assessment',
+  critical:'Critical Students',myattendance:'My Attendance',messages:'Messages',profile:'My Profile'
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════
+const $=id=>document.getElementById(id)
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function fmtD(s){if(!s)return '—';try{return new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return s}}
+function rel(s){if(!s)return '';const d=new Date(s),n=new Date(),diff=n-d;if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';return fmtD(s)}
+function today(){return new Date().toISOString().slice(0,10)}
+function initials(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+function ldg(el){if(el)el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'}
+function emp(el,msg){if(el)el.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p>'+esc(msg)+'</p></div>'}
+
+function toast(msg,type='info'){
+  const t=document.createElement('div')
+  t.className='toast-item toast-'+(type==='error'?'error':type==='success'?'success':'info')
+  t.textContent=msg;$('toast').appendChild(t)
+  setTimeout(()=>t.remove(),3500)
+}
+
+function openModal(title,body,foot){
+  $('modal-title').textContent=title
+  $('modal-body').innerHTML=body
+  $('modal-foot').innerHTML=foot||''
+  $('modal-overlay').classList.add('open')
+}
+function closeModal(){$('modal-overlay').classList.remove('open')}
+
+function toggleSidebar(){
+  const sb=$('sidebar'),main=$('main'),scrim=$('scrim')
+  if(window.innerWidth<=760){sb.classList.toggle('show');scrim.classList.toggle('show')}
+  else{sb.classList.toggle('collapsed');main.classList.toggle('full')}
+}
+function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
+
+function goTo(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
+  const pg=$('page-'+id);if(pg)pg.classList.add('active')
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'))
+  if(el)el.classList.add('active')
+  $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb" id="pagecrumb">'+esc($('sbPortalLabel')?.textContent||'Teacher Portal')+'</span>'
+  if(window.innerWidth<=760)closeMobileSidebar()
+  if(id==='marks')openSub('sub-menu')
+  if(id==='timetable'&&!$('myTimetableGrid').querySelector('table'))loadMyTimetable()
+  if(id==='messages')loadMessages()
+  if(id==='profile')loadProfile()
+  if(id==='critical')loadCriticalStudents()
+  if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=today().slice(0,8)+'01';if($('att_to'))$('att_to').value=t}
+}
+
+function openSub(subId){
+  document.querySelectorAll('#page-marks .sub-page').forEach(s=>s.classList.remove('active'))
+  const sp=$(subId);if(sp)sp.classList.add('active')
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTH & INIT
+// ═══════════════════════════════════════════════════════════════
+SPS.ready().then(async()=>{
+  sb=SPS.sb
+
+  // Verify logged in user is a teacher
+  const{data:{session}}=await sb.auth.getSession()
+  if(!session){window.location.href='login.html';return}
+
+  const username=session.user.email.split('@')[0]
+  const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('username',username).maybeSingle()
+  if(!teacher||te){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>sb.auth.signOut().then(()=>location.href='login.html'),2000);return}
+
+  TEACHER=teacher
+
+  // Get current session
+  const{data:sess}=await sb.from('sessions').select('*').eq('is_current',true).maybeSingle()
+  SESS=sess
+
+  // Get class-subject assignments
+  const{data:maps}=await sb.from('teacher_subject_class_map')
+    .select('*,classes(name,class_id),class_sections(name,section_id),subjects(name,subject_id),streams(name)')
+    .eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+  MY_MAPPINGS=maps||[]
+
+  // Check if class teacher
+  const{data:ct}=await sb.from('class_teacher_map')
+    .select('*,classes(name),class_sections(name,section_id)')
+    .eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
+  _isClassTeacher=!!ct; _myClassTeacher=ct
+
+  // Update UI
+  const av=$('topAvatar'),nm=$('topName'),rl=$('topRole')
+  if(av)av.textContent=initials(TEACHER.full_name)
+  if(nm)nm.textContent=TEACHER.full_name||TEACHER.username
+  if(rl)rl.textContent=TEACHER.designation||'Teacher'
+  if(_isClassTeacher&&$('switchCTBtn'))$('switchCTBtn').style.display=''
+
+  // Populate subject dropdowns
+  const subjects=[...new Map(MY_MAPPINGS.map(m=>[m.subject_id,m])).values()]
+  const subOpts=subjects.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||m.subject_id)+'</option>').join('')
+  ;['me_subject','pa_subject'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select subject</option>'+subOpts})
+
+  // Obs class dropdown
+  const obsClasses=[...new Map(MY_MAPPINGS.map(m=>[(m.class_id||'')+'_'+(m.section_id||''),m])).values()]
+  const obsOpts=obsClasses.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'-'+(m.class_sections?.name||'?'))+'</option>').join('')
+  const obsSel=$('obs_class');if(obsSel)obsSel.innerHTML='<option value="">Select class</option>'+obsOpts
+
+  await Promise.all([renderDashboard(), checkUnreadMessages()])
+})
+
+// ═══════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+async function renderDashboard(){
+  // Assignments card
+  const el=$('dashAssignments')
+  if(!MY_MAPPINGS.length){emp(el,'No class assignments for this session.');return}
+  const uniqueSections=[...new Map(MY_MAPPINGS.map(m=>[(m.class_id||'')+'_'+(m.section_id||''),m])).values()]
+  $('statClasses').textContent=uniqueSections.length
+
+  // Get assessments and marks for pending count
+  const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
+  const{data:assessments}=await sb.from('assessments').select('*').in('class_id',classIds).eq('is_active',true)
+  ALL_ASSESSMENTS=assessments||[]
+
+  // Check which assessments have marks entered by this teacher
+  const{data:submitted}=await sb.from('marks').select('assessment_id,subject_id,enrollment_id').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+  const submittedKeys=new Set((submitted||[]).map(m=>m.assessment_id+'_'+m.subject_id))
+
+  let pending=0
+  MY_MAPPINGS.forEach(map=>{
+    const classAssessments=ALL_ASSESSMENTS.filter(a=>a.class_id===map.class_id)
+    classAssessments.forEach(a=>{if(!submittedKeys.has(a.assessment_id+'_'+map.subject_id))pending++})
+  })
+  $('statPending').textContent=pending
+  if(pending>0){
+    $('dashBanner').style.display=''
+    $('bannerEyebrow').textContent=(SESS?.session_id||'')+' · Pending Submissions'
+    $('bannerTitle').textContent=pending+' assessment'+(pending>1?'s':'')+' awaiting marks'
+    $('bannerSub').textContent='Submit marks before the deadline to avoid lock.'
+  }
+
+  // Assignments list
+  const rows=MY_MAPPINGS.map(m=>{
+    const clsAssess=ALL_ASSESSMENTS.filter(a=>a.class_id===m.class_id)
+    const hasPending=clsAssess.some(a=>!submittedKeys.has(a.assessment_id+'_'+m.subject_id))
+    return '<div class="sched-row"><span class="cls">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</span><span class="subj">'+esc(m.subjects?.name||'?')+'</span>'+(hasPending?'<span class="pill pill-warn">Marks Due</span>':'<span class="pill pill-success">Up to Date</span>')+'</div>'
+  }).join('')
+  el.innerHTML=rows||'<p style="font-size:12.5px;color:var(--ink-faint)">No assignments.</p>'
+
+  // Activity — recent marks
+  const actEl=$('dashActivity')
+  const{data:recent}=await sb.from('marks').select('entered_at,assessments(name),subjects(name)').eq('teacher_id',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(5)
+  if(!recent?.length){emp(actEl,'No marks submitted yet.');return}
+  actEl.innerHTML=recent.map(m=>'<div class="log-row"><div class="log-dot"></div><div><div class="txt">Submitted marks — '+esc(m.assessments?.name||'?')+' · '+esc(m.subjects?.name||'?')+'</div><div class="ts">'+rel(m.entered_at)+'</div></div></div>').join('')
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TIMETABLE
+// ═══════════════════════════════════════════════════════════════
+async function loadMyTimetable(){
+  const el=$('myTimetableGrid');ldg(el)
+  // Get active roster
+  const{data:roster}=await sb.from('rosters').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true).maybeSingle()
+  if(!roster){emp(el,'No active timetable roster. Ask admin to create and activate one.');return}
+  const{data:entries}=await sb.from('timetable_entries')
+    .select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)')
+    .eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id)
+  if(!entries?.length){emp(el,'No timetable entries found for you in the active roster.');return}
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat']
+  const slotMap=new Map()
+  entries.forEach(e=>{if(e.time_slots&&!slotMap.has(e.slot_id))slotMap.set(e.slot_id,e.time_slots)})
+  const slots=[...slotMap.values()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  const lookup={}
+  entries.forEach(e=>{(e.days||[]).forEach(d=>{const k=e.slot_id+'_'+d;if(!lookup[k])lookup[k]=[];lookup[k].push(e)})})
+  let html='<div class="card tt-grid"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>'
+  slots.forEach(slot=>{
+    html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name)+'</td><td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
+    days.forEach(d=>{
+      const es=lookup[slot.slot_id+'_'+d]||[]
+      if(!es.length){html+='<td style="background:var(--lav-50)"></td>';return}
+      html+='<td class="tt-cell">'+es.map(e=>'<div class="tt-entry"><b>'+esc((e.classes?.name||'')+'‑'+(e.class_sections?.name||''))+'</b><span>'+esc(e.subjects?.name||'')+'</span></div>').join('')+'</td>'
+    })
+    html+='</tr>'
+  })
+  el.innerHTML=html+'</tbody></table></div></div>'
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MARKS ENTRY
+// ═══════════════════════════════════════════════════════════════
+function meLoadClasses(){
+  const subId=$('me_subject')?.value,sel=$('me_class')
+  if(!sel)return
+  sel.innerHTML='<option value="">Select class-section</option>'
+  $('me_assessment').innerHTML='<option value="">Select class first</option>'
+  $('marksTableWrap').innerHTML=''
+  if(!subId)return
+  const maps=MY_MAPPINGS.filter(m=>m.subject_id===subId)
+  sel.innerHTML='<option value="">Select class-section</option>'+maps.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
+}
+
+async function meLoadAssessments(){
+  const val=$('me_class')?.value,sel=$('me_assessment')
+  if(!sel)return
+  sel.innerHTML='<option value="">Select class first</option>'
+  $('marksTableWrap').innerHTML=''
+  if(!val)return
+  const classId=val.split('|')[1]
+  const{data}=await sb.from('assessments').select('*').eq('class_id',classId).eq('is_active',true).order('created_at')
+  ALL_ASSESSMENTS=data||[]
+  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+' (Max: '+a.max_marks+')</option>').join('')
+}
+
+async function loadMarksTable(){
+  const subId=$('me_subject')?.value
+  const val=$('me_class')?.value
+  const assessId=$('me_assessment')?.value
+  const el=$('marksTableWrap')
+  if(!subId||!val||!assessId){toast('Select subject, class and assessment','error');return}
+  const[secId,classId]=val.split('|')
+  ldg(el)
+  _currentMarksMeta={subId,secId,classId,assessId}
+
+  // Check lock state
+  const{data:lockData}=await sb.from('marks_lock_state')
+    .select('*').eq('teacher_id',TEACHER.teacher_id)
+    .eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId).maybeSingle()
+  _marksLocked=lockData?.is_locked!==false  // locked if no record OR is_locked=true
+
+  // Get students
+  const{data:students}=await sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,s_no,students(full_name,student_id,father_name)')
+    .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active')
+    .order('roll_no')
+  if(!students?.length){el.innerHTML='<div class="empty-state"><p>No active students in this class-section.</p></div>';return}
+
+  // Get existing marks
+  const{data:existingMarks}=await sb.from('marks')
+    .select('*').eq('teacher_id',TEACHER.teacher_id)
+    .eq('assessment_id',assessId).eq('subject_id',subId).eq('session_id',SESS?.session_id||'')
+  const marksMap={}; (existingMarks||[]).forEach(m=>{marksMap[m.enrollment_id]=m})
+
+  // Get assessment details
+  const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
+  const maxM=assess.max_marks||100
+  const passM=assess.pass_marks||Math.round(maxM*0.33)
+
+  const lockBanner=_marksLocked
+    ?'<div class="marks-lock-banner"><div><b>🔒 Marks Locked</b><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">These marks are confirmed and locked. Request edit access if correction is needed.</div></div><button class="btn btn-warn btn-sm" onclick="requestMarksEdit()">Request Edit Access</button></div>'
+    :(lockData&&!lockData.is_locked?'<div class="marks-lock-banner" style="background:var(--success-soft);border-color:var(--success)"><div><b style="color:var(--success)">🔓 Edit Access Granted</b><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Admin has unlocked marks for editing. Make corrections and Confirm & Save.</div></div></div>':'')
+
+  let html='<div class="card">'+lockBanner
+    +'<div style="display:flex;gap:18px;margin-bottom:14px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap"><span>Max Marks: <b style="color:var(--ink)">'+maxM+'</b></span><span>Pass Marks: <b style="color:var(--ink)">'+passM+'</b></span><span>Students: <b style="color:var(--ink)">'+students.length+'</b></span></div>'
+    +'<div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Marks</th><th>Absent</th><th>Remarks</th></tr></thead><tbody>'
+
+  html+=students.map((s,i)=>{
+    const ex=marksMap[s.enrollment_id]
+    const fail=ex&&!ex.is_absent&&ex.marks_obtained<passM
+    return '<tr'+(fail?' class="cell-fail"':'')+'>'
+      +'<td class="mono">'+esc(s.roll_no||s.s_no||i+1)+'</td>'
+      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td>'+esc(s.students?.father_name||'—')+'</td>'
+      +'<td><input class="marks-input'+(ex?.is_absent?' absent':'')+'" type="text" data-eid="'+s.enrollment_id+'" id="mk_'+s.enrollment_id+'"'
+        +(_marksLocked?' disabled':'')+' value="'+(ex?.marks_obtained!=null?ex.marks_obtained:'')+'" maxlength="5" placeholder="—"></td>'
+      +'<td><input type="checkbox" data-eid="'+s.enrollment_id+'" class="abs-chk"'+(_marksLocked?' disabled':'')+(ex?.is_absent?' checked':'')+'style="accent-color:var(--danger);transform:scale(1.3)"></td>'
+      +'<td><input type="text" data-eid="'+s.enrollment_id+'" class="rmk-inp" style="font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;width:120px"'+(_marksLocked?' disabled':'')+' value="'+esc(ex?.remarks||'')+'" placeholder="Optional"></td>'
+      +'</tr>'
+  }).join('')
+
+  html+='</tbody></table></div>'
+  if(!_marksLocked)html+='<div style="margin-top:16px;display:flex;gap:10px"><button class="btn btn-primary" onclick="confirmMarks()">✓ Confirm &amp; Save</button><button class="btn btn-ghost" onclick="$(&quot;marksTableWrap&quot;).innerHTML=\'\'">Cancel</button></div>'
+  html+='</div>'
+  el.innerHTML=html
+
+  // Wire absent checkboxes to toggle input
+  document.querySelectorAll('.abs-chk').forEach(chk=>{
+    chk.addEventListener('change',()=>{
+      const inp=document.getElementById('mk_'+chk.dataset.eid)
+      if(!inp)return
+      if(chk.checked){inp.value='';inp.disabled=true;inp.classList.add('absent')}
+      else{inp.disabled=_marksLocked;inp.classList.remove('absent')}
+    })
+  })
+}
+
+async function confirmMarks(){
+  const{subId,secId,classId,assessId}=_currentMarksMeta
+  const inputs=document.querySelectorAll('.marks-input')
+  const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
+  const maxM=assess.max_marks||100
+  const inserts=[]
+  let valid=true
+
+  inputs.forEach(inp=>{
+    const eid=inp.dataset.eid
+    const absChk=document.querySelector('.abs-chk[data-eid="'+eid+'"]')
+    const rmk=(document.querySelector('.rmk-inp[data-eid="'+eid+'"]')?.value||'').trim()
+    const isAbsent=absChk?.checked
+    if(isAbsent){inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:null,is_absent:true,remarks:rmk,entered_at:new Date().toISOString(),updated_at:new Date().toISOString()});return}
+    const v=inp.value.trim()
+    if(v===''){toast('Fill marks for all students or mark absent','error');valid=false;inp.style.borderColor='var(--danger)';return}
+    const num=parseFloat(v)
+    if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+')','error');valid=false;inp.style.borderColor='var(--danger)';return}
+    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,marks_obtained:num,is_absent:false,remarks:rmk,entered_at:new Date().toISOString(),updated_at:new Date().toISOString()})
+  })
+
+  if(!valid)return
+  const{error}=await sb.from('marks').upsert(inserts,{onConflict:'enrollment_id,assessment_id,subject_id'})
+  if(error){toast('Failed to save marks: '+error.message,'error');return}
+
+  // Lock marks
+  await sb.from('marks_lock_state').upsert({
+    teacher_id:TEACHER.teacher_id,assessment_id:assessId,subject_id:subId,
+    section_id:secId,class_id:classId,session_id:SESS.session_id,
+    is_locked:true,locked_at:new Date().toISOString()
+  },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
+
+  // If this was an approved edit request, mark it completed
+  const{data:req}=await sb.from('access_requests')
+    .select('request_id').eq('teacher_id',TEACHER.teacher_id)
+    .eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId)
+    .eq('status','approved').maybeSingle()
+  if(req)await sb.from('access_requests').update({status:'completed',marks_submitted_at:new Date().toISOString()}).eq('request_id',req.request_id)
+
+  toast('Marks confirmed and locked ✓','success')
+  loadMarksTable()
+  renderDashboard()
+}
+
+async function requestMarksEdit(){
+  const{subId,secId,classId,assessId}=_currentMarksMeta
+  const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)
+  openModal('Request Marks Edit Access',
+    '<p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Your request will be sent to admin for approval. Provide a reason below.</p>'+
+    '<div class="fg"><label>Assessment</label><input value="'+esc(assess?.name||assessId)+'" disabled style="background:var(--lav-50)"></div>'+
+    '<div class="fg" style="margin-top:10px"><label>Reason *</label><textarea id="editReqNote" placeholder="e.g. Data entry error for roll number 5…" style="min-height:90px"></textarea></div>',
+    '<button class="btn btn-primary" onclick="submitMarksEditRequest()">Send Request</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  )
+}
+
+async function submitMarksEditRequest(){
+  const note=$('editReqNote')?.value?.trim()
+  if(!note){toast('Please provide a reason','error');return}
+  const{subId,secId,classId,assessId}=_currentMarksMeta
+  // Check if pending request already exists
+  const{data:existing}=await sb.from('access_requests').select('request_id').eq('teacher_id',TEACHER.teacher_id).eq('assessment_id',assessId).eq('subject_id',subId).eq('section_id',secId).eq('status','pending').maybeSingle()
+  if(existing){toast('You already have a pending request for these marks','error');closeModal();return}
+  const{error}=await sb.from('access_requests').insert({
+    request_type:'marks_edit',teacher_id:TEACHER.teacher_id,session_id:SESS.session_id,
+    assessment_id:assessId,class_id:classId,section_id:secId,subject_id:subId,note
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Request sent to admin ✓','success');closeModal()
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PERFORMANCE ANALYSIS
+// ═══════════════════════════════════════════════════════════════
+function paLoadClasses(){
+  const subId=$('pa_subject')?.value,sel=$('pa_class')
+  if(!sel)return
+  if(!subId){sel.innerHTML='<option value="">Select subject first</option>';return}
+  const maps=MY_MAPPINGS.filter(m=>m.subject_id===subId)
+  sel.innerHTML='<option value="">Select class-section</option>'+maps.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
+}
+
+async function loadPerfAnalysis(){
+  const subId=$('pa_subject')?.value,val=$('pa_class')?.value,el=$('perfResult')
+  if(!subId||!val){toast('Select subject and class','error');return}
+  const[secId,classId]=val.split('|')
+  ldg(el)
+  const{data:assessments}=await sb.from('assessments').select('*').eq('class_id',classId).eq('is_active',true).order('created_at')
+  const{data:students}=await sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,students(full_name,father_name)')
+    .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no')
+  const{data:marks}=await sb.from('marks').select('*').eq('subject_id',subId).eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+  if(!students?.length){emp(el,'No students found.');return}
+  if(!assessments?.length){emp(el,'No assessments found.');return}
+  const marksMap={}; (marks||[]).forEach(m=>{marksMap[m.enrollment_id+'_'+m.assessment_id]=m})
+  let total=0,count=0
+  let html='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th>'
+  html+=assessments.map(a=>'<th>'+esc(a.name)+' <span style="opacity:.6">/'+a.max_marks+'</span></th>').join('')
+  html+='</tr></thead><tbody>'
+  html+=students.map(s=>{
+    const cells=assessments.map(a=>{
+      const mk=marksMap[s.enrollment_id+'_'+a.assessment_id]
+      if(!mk)return '<td style="color:var(--ink-faint)">—</td>'
+      if(mk.is_absent)return '<td><span class="pill pill-neutral">A</span></td>'
+      const fail=mk.marks_obtained<(a.pass_marks||Math.round(a.max_marks*0.33))
+      total+=parseFloat(mk.marks_obtained||0);count++
+      return '<td class="'+(fail?'cell-fail ':'')+' mono">'+mk.marks_obtained+'</td>'
+    }).join('')
+    return '<tr><td class="mono">'+esc(s.roll_no||'')+'</td><td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td><td>'+esc(s.students?.father_name||'—')+'</td>'+cells+'</tr>'
+  }).join('')
+  const avg=count?((total/count).toFixed(1)):0
+  html+='</tbody></table></div>'
+  html+='<div style="display:flex;gap:20px;margin-top:14px;font-size:12.5px;color:var(--ink-soft)"><span>Students: <b style="color:var(--ink)">'+students.length+'</b></span><span>Average Score: <b style="color:var(--ink)">'+avg+'</b></span></div></div>'
+  el.innerHTML=html
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OBSERVATIONS
+// ═══════════════════════════════════════════════════════════════
+async function obsLoadStudents(){
+  const val=$('obs_class')?.value,el=$('obsStudentList')
+  if(!val||!el){emp(el||document.createElement('div'),'Select a class.');return}
+  ldg(el);const[secId,classId]=val.split('|')
+  const{data:students}=await sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,students(full_name,father_name,student_id)')
+    .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no')
+  _obsRaw=students||[]
+  renderObsStudents(_obsRaw)
+}
+function obsFilterStudents(){
+  const q=$('obs_search')?.value?.toLowerCase()||''
+  renderObsStudents(_obsRaw.filter(s=>!q||s.students?.full_name?.toLowerCase().includes(q)||String(s.roll_no).includes(q)))
+}
+function renderObsStudents(students){
+  const el=$('obsStudentList')
+  if(!el)return
+  if(!students.length){emp(el,'No students found.');return}
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th></th></tr></thead><tbody>'
+    +students.map(s=>'<tr><td class="mono">'+esc(s.roll_no||'')+'</td><td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td><td>'+esc(s.students?.father_name||'—')+'</td><td><button class="btn btn-soft btn-sm" data-eid="'+s.enrollment_id+'" data-name="'+esc(s.students?.full_name||'?')+'" onclick="openObsModal(this.dataset.eid,this.dataset.name)">Write Remark</button></td></tr>').join('')
+    +'</tbody></table></div></div>'
+}
+function openObsModal(eid,name){
+  openModal('Observation — '+name,
+    '<div class="fg"><label>Type</label><select id="obs_type"><option>Behaviour</option><option>Discipline</option><option>Academic</option><option>Other</option></select></div>'+
+    '<div class="fg" style="margin-top:10px"><label>Remark *</label><textarea id="obs_text" placeholder="Write your observation…" style="min-height:100px"></textarea></div>',
+    '<button class="btn btn-primary" onclick="submitObs(\''+eid+'\')">Save Observation</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  )
+}
+async function submitObs(enrollmentId){
+  const text=$('obs_text')?.value?.trim(),type=$('obs_type')?.value
+  if(!text){toast('Write a remark first','error');return}
+  const{error}=await sb.from('observations').insert({enrollment_id:enrollmentId,teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id,observation_type:type,remark:text,observed_at:new Date().toISOString()})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Observation saved','success');closeModal()
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CRITICAL STUDENTS
+// ═══════════════════════════════════════════════════════════════
+async function loadCriticalStudents(){
+  const el=$('criticalList');ldg(el)
+  if(!MY_MAPPINGS.length){emp(el,'No assignments.');return}
+  const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
+  const{data:assessments}=await sb.from('assessments').select('*').in('class_id',classIds).eq('is_active',true)
+  const{data:marks}=await sb.from('marks').select('*,student_enrollments(roll_no,students(full_name,father_name),class_sections(name),classes(name))').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+  if(!marks?.length){emp(el,'No marks submitted yet — no critical students to show.');return}
+  // Group failing marks by class-subject
+  const groups={}
+  marks.forEach(m=>{
+    const assess=assessments?.find(a=>a.assessment_id===m.assessment_id)
+    if(!assess)return
+    const pass=assess.pass_marks||Math.round(assess.max_marks*0.33)
+    if(!m.is_absent&&m.marks_obtained<pass){
+      const se=m.student_enrollments
+      const key=(se?.classes?.name||'?')+'-'+(se?.class_sections?.name||'?')+'_'+m.subject_id
+      if(!groups[key])groups[key]={class:(se?.classes?.name||'?')+'‑'+(se?.class_sections?.name||'?'),rows:[]}
+      groups[key].rows.push({roll:se?.roll_no,name:se?.students?.full_name||'?',father:se?.students?.father_name||'—',assess:assess.name,max:assess.max_marks,got:m.marks_obtained})
+    }
+  })
+  const keys=Object.keys(groups)
+  $('statCrit').textContent=[...new Set(Object.values(groups).flatMap(g=>g.rows.map(r=>r.name)))].length
+  $('critBadge').textContent=keys.length;$('critBadge').style.display=keys.length>0?'flex':'none'
+  if(!keys.length){emp(el,'No students failing in your subjects. Great work!');return}
+  el.innerHTML=keys.map(k=>{
+    const g=groups[k]
+    return '<div class="card" style="margin-bottom:14px"><h3>'+esc(g.class)+'</h3><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Assessment</th><th>Marks</th><th>Max</th></tr></thead><tbody>'
+      +g.rows.map(r=>'<tr><td class="mono">'+esc(r.roll||'')+'</td><td style="font-weight:600">'+esc(r.name)+'</td><td>'+esc(r.father)+'</td><td>'+esc(r.assess)+'</td><td class="cell-fail mono">'+r.got+'</td><td class="mono">'+r.max+'</td></tr>').join('')
+      +'</tbody></table></div></div>'
+  }).join('')
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MY ATTENDANCE
+// ═══════════════════════════════════════════════════════════════
+async function loadMyAttendance(){
+  const from=$('att_from')?.value,to=$('att_to')?.value,el=$('myAttResult')
+  if(!from||!to){toast('Select date range','error');return}
+  ldg(el)
+  const{data,error}=await sb.from('teacher_attendance').select('*').eq('teacher_id',TEACHER.teacher_id).gte('date',from).lte('date',to).order('date')
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!data?.length){emp(el,'No attendance records found for this period.');return}
+  const present=data.filter(r=>r.status==='P').length
+  const late=data.filter(r=>r.status==='L').length
+  const absent=data.filter(r=>r.status==='A').length
+  let html='<div class="grid-3" style="margin-bottom:18px">'
+    +'<div class="stat-card"><span class="lbl">Present</span><span class="val" style="color:var(--success)">'+present+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Late</span><span class="val" style="color:var(--warn)">'+late+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Absent</span><span class="val" style="color:var(--danger)">'+absent+'</span></div>'
+    +'</div>'
+    +'<div class="card"><h3>Attendance Log</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>In Time</th><th>Out Time</th><th>Notes</th></tr></thead><tbody>'
+    +data.map(r=>'<tr><td class="mono">'+fmtD(r.date)+'</td>'
+      +'<td>'+(r.status==='P'?'<span class="pill pill-success">Present</span>':r.status==='L'?'<span class="pill pill-warn">Late</span>':'<span class="pill pill-danger">Absent</span>')+'</td>'
+      +'<td class="mono">'+(r.in_time?r.in_time.slice(0,5):'—')+'</td>'
+      +'<td class="mono">'+(r.out_time?r.out_time.slice(0,5):'—')+'</td>'
+      +'<td style="font-size:11.5px;color:var(--ink-soft)">'+esc(r.notes||'—')+'</td></tr>').join('')
+    +'</tbody></table></div></div>'
+  el.innerHTML=html
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MESSAGES
+// ═══════════════════════════════════════════════════════════════
+async function loadMessages(){
+  const el=$('msgList');ldg(el)
+  const{data,error}=await sb.from('messages').select('*').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).order('sent_at',{ascending:false}).limit(50)
+  _msgs=data||[]
+  const unread=_msgs.filter(m=>!m.is_read).length
+  $('msgBadge').textContent=unread;$('msgBadge').style.display=unread>0?'flex':'none'
+  $('msgDot').style.display=unread>0?'block':'none'
+  $('statMsgs').textContent=unread
+  if(!_msgs.length){el.innerHTML='<div class="empty-state"><p>No messages yet.</p></div>';return}
+  el.innerHTML=_msgs.map(m=>'<div class="msg-item'+(m.is_read?'':' unread')+'" data-mid="'+m.message_id+'" onclick="openMsg(\''+m.message_id+'\',this)"><div class="top"><span class="from">'+esc(m.sender_type==='admin'?'Admin Office':m.sender_name||'Teacher')+'</span><span class="time">'+rel(m.sent_at)+'</span></div><div class="preview">'+esc(m.subject||m.body||'')+'</div></div>').join('')
+  if(_msgs.length)openMsg(_msgs[0].message_id, el.firstChild)
+}
+
+async function openMsg(msgId, el){
+  const msg=_msgs.find(m=>m.message_id===msgId);if(!msg)return
+  document.querySelectorAll('.msg-item').forEach(i=>i.classList.remove('active'))
+  if(el)el.classList.add('active')
+  if(!msg.is_read){await sb.from('messages').update({is_read:true}).eq('message_id',msgId);msg.is_read=true;if(el)el.classList.remove('unread')}
+  const d=$('msgDetail')
+  d.innerHTML='<div class="subj">'+esc(msg.subject||'(no subject)')+'</div>'
+    +'<div class="meta">From '+esc(msg.sender_type==='admin'?'Admin Office':msg.sender_name||'Teacher')+' · '+rel(msg.sent_at)+'</div>'
+    +'<div class="body">'+esc(msg.body||'')+'</div>'
+    +'<div style="margin-top:20px"><button class="btn btn-soft btn-sm" onclick="openReplyModal(\''+msgId+'\')">Reply</button></div>'
+}
+
+async function checkUnreadMessages(){
+  if(!TEACHER)return
+  const{count}=await sb.from('messages').select('*',{count:'exact',head:true}).eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).eq('is_read',false)
+  $('msgBadge').textContent=count||0;$('msgBadge').style.display=count>0?'flex':'none'
+  $('msgDot').style.display=count>0?'block':'none'
+  $('statMsgs').textContent=count||0
+}
+
+function openComposeModal(){
+  openModal('Compose Message',
+    '<div class="fg"><label>To</label><select id="msg_to_type" onchange="loadMsgRecipients()"><option value="admin">Admin Office</option><option value="teacher">A Teacher</option></select></div>'+
+    '<div class="fg" id="msg_to_teacher_fg" style="display:none;margin-top:8px"><label>Select Teacher</label><select id="msg_to_id"><option value="">Loading…</option></select></div>'+
+    '<div class="fg" style="margin-top:8px"><label>Subject *</label><input id="msg_subject" placeholder="e.g. Query about timetable"></div>'+
+    '<div class="fg" style="margin-top:8px"><label>Message *</label><textarea id="msg_body" style="min-height:100px" placeholder="Type your message…"></textarea></div>',
+    '<button class="btn btn-primary" onclick="sendMessage()">Send</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  )
+}
+async function loadMsgRecipients(){
+  const type=$('msg_to_type')?.value,fg=$('msg_to_teacher_fg')
+  if(fg)fg.style.display=type==='teacher'?'block':'none'
+  if(type==='teacher'){
+    const{data}=await sb.from('teachers').select('teacher_id,full_name').eq('is_active',true).neq('teacher_id',TEACHER.teacher_id).order('full_name')
+    const sel=$('msg_to_id');if(sel)sel.innerHTML='<option value="">Select teacher</option>'+(data||[]).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  }
+}
+async function sendMessage(){
+  const toType=$('msg_to_type')?.value,subject=$('msg_subject')?.value?.trim(),body=$('msg_body')?.value?.trim()
+  if(!subject||!body){toast('Subject and message are required','error');return}
+  const recipientId=toType==='admin'?'ADMIN-001':$('msg_to_id')?.value
+  if(!recipientId){toast('Select a recipient','error');return}
+  const{error}=await sb.from('messages').insert({sender_type:'teacher',sender_id:TEACHER.teacher_id,sender_name:TEACHER.full_name,recipient_type:toType,recipient_id:recipientId,subject,body,sent_at:new Date().toISOString(),is_read:false})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Message sent ✓','success');closeModal();loadMessages()
+}
+function openReplyModal(origMsgId){
+  const orig=_msgs.find(m=>m.message_id===origMsgId);if(!orig)return
+  openModal('Reply',
+    '<div class="fg"><label>To</label><input value="'+(orig.sender_type==='admin'?'Admin Office':orig.sender_name||'Teacher')+'" disabled style="background:var(--lav-50)"></div>'+
+    '<div class="fg" style="margin-top:8px"><label>Message *</label><textarea id="reply_body" style="min-height:100px" placeholder="Type your reply…"></textarea></div>',
+    '<button class="btn btn-primary" onclick="sendReply(\''+origMsgId+'\')">Send Reply</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  )
+}
+async function sendReply(origMsgId){
+  const body=$('reply_body')?.value?.trim(),orig=_msgs.find(m=>m.message_id===origMsgId)
+  if(!body||!orig){toast('Write a reply first','error');return}
+  const{error}=await sb.from('messages').insert({sender_type:'teacher',sender_id:TEACHER.teacher_id,sender_name:TEACHER.full_name,recipient_type:orig.sender_type,recipient_id:orig.sender_id,subject:'Re: '+(orig.subject||''),body,sent_at:new Date().toISOString(),is_read:false})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Reply sent ✓','success');closeModal()
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MY PROFILE
+// ═══════════════════════════════════════════════════════════════
+async function loadProfile(){
+  const el=$('profileContent');ldg(el)
+  const{data:t}=await sb.from('teachers').select('*').eq('teacher_id',TEACHER.teacher_id).maybeSingle()
+  if(!t){emp(el,'Could not load profile.');return}
+  TEACHER={...TEACHER,...t}
+  const ctInfo=_isClassTeacher?'Class Teacher: '+(_myClassTeacher?.classes?.name||'?')+'‑'+(_myClassTeacher?.class_sections?.name||'?'):'Not a Class Teacher'
+  const av=initials(t.full_name)
+  const photoHtml=t.photo_url?'<img src="'+esc(t.photo_url)+'" alt="photo">':av
+
+  const canEdit=t.can_edit_own_profile
+  const mapTags=MY_MAPPINGS.map(m=>'<span class="map-tag">'+esc(m.subjects?.name||'?')+' · '+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</span>').join('')
+
+  el.innerHTML='<div class="profile-hero"><div class="avatar-lg">'+photoHtml+'</div><div><h3>'+esc(t.full_name||'—')+'</h3><div class="desig">'+esc(t.designation||'Teacher')+' · '+esc(t.employee_code||t.teacher_id)+'</div><div class="tag-row"><span class="pill '+(t.is_active?'pill-success':'pill-danger')+'">'+(t.is_active?'Active':'Inactive')+'</span><span class="pill pill-neutral">'+esc(ctInfo)+'</span></div></div></div>'
+    +'<div class="grid-2">'
+    +'<div class="card"><h3>Details</h3>'
+    +(canEdit?renderEditForm(t):renderViewFields(t))
+    +(canEdit?'<div style="margin-top:14px;display:flex;gap:10px"><button class="btn btn-primary" onclick="saveProfileEdit()">Save Changes</button><button class="btn btn-ghost" onclick="loadProfile()">Cancel</button></div>':'<div style="margin-top:16px"><button class="btn btn-soft btn-sm" onclick="requestProfileEdit()">Request Edit Access</button></div>')
+    +'</div>'
+    +'<div class="stack"><div class="card"><h3>Class-Subject Assignments</h3><div style="display:flex;flex-wrap:wrap;gap:6px">'+( mapTags||'<span style="font-size:12.5px;color:var(--ink-faint)">No assignments yet.</span>')+'</div></div></div>'
+    +'</div>'
+}
+
+function renderViewFields(t){
+  return ['full_name:Full Name','designation:Designation','phone:Phone','employee_code:Employee Code'].map(pair=>{
+    const[key,label]=pair.split(':')
+    return '<div class="field-row"><span class="k">'+label+'</span><span class="v">'+esc(t[key]||'—')+'</span></div>'
+  }).join('')
+}
+function renderEditForm(t){
+  return ['full_name:Full Name','designation:Designation','phone:Phone'].map(pair=>{
+    const[key,label]=pair.split(':')
+    return '<div class="fg" style="margin-bottom:10px"><label>'+label+'</label><input id="pf_'+key+'" value="'+esc(t[key]||'')+'"></div>'
+  }).join('')+'<div class="fg" style="margin-bottom:10px"><label>Employee Code</label><input value="'+esc(t.employee_code||'—')+'" disabled style="background:var(--lav-50)"></div>'
+}
+
+async function saveProfileEdit(){
+  const updates={full_name:$('pf_full_name')?.value?.trim(),designation:$('pf_designation')?.value?.trim(),phone:$('pf_phone')?.value?.trim(),can_edit_own_profile:false,updated_at:new Date().toISOString()}
+  if(!updates.full_name){toast('Name is required','error');return}
+  const{error}=await sb.from('teachers').update(updates).eq('teacher_id',TEACHER.teacher_id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  // Mark profile_edit request as completed
+  const{data:req}=await sb.from('access_requests').select('request_id').eq('teacher_id',TEACHER.teacher_id).eq('request_type','profile_edit').eq('status','approved').maybeSingle()
+  if(req)await sb.from('access_requests').update({status:'completed'}).eq('request_id',req.request_id)
+  toast('Profile updated ✓','success');loadProfile()
+}
+
+function requestProfileEdit(){
+  openModal('Request Profile Edit Access',
+    '<p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:12px">Tell admin what you need to update. They will approve and you can edit your profile once.</p>'+
+    '<div class="fg"><label>What do you want to change? *</label><textarea id="preq_note" style="min-height:80px" placeholder="e.g. Phone number changed, need to update profile photo…"></textarea></div>',
+    '<button class="btn btn-primary" onclick="submitProfileEditRequest()">Send Request</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  )
+}
+async function submitProfileEditRequest(){
+  const note=$('preq_note')?.value?.trim()
+  if(!note){toast('Please describe what you want to change','error');return}
+  // Check for existing pending request
+  const{data:existing}=await sb.from('access_requests').select('request_id').eq('teacher_id',TEACHER.teacher_id).eq('request_type','profile_edit').eq('status','pending').maybeSingle()
+  if(existing){toast('You already have a pending profile edit request','error');closeModal();return}
+  const{error}=await sb.from('access_requests').insert({request_type:'profile_edit',teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id,note})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Request sent to admin ✓','success');closeModal()
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CLASS TEACHER SWITCH (placeholder — full class view built separately)
+// ═══════════════════════════════════════════════════════════════
+function switchToClassView(){
+  if(!_isClassTeacher){toast('You are not assigned as a class teacher','error');return}
+  // Class view pages will be added in class teacher portal
+  toast('Class view coming soon — building next session','info')
+}
+
+async function logout(){
+  await SPS.sb.auth.signOut()
+  window.location.href='login.html'
+}
+</script>
+</body>
+</html>
