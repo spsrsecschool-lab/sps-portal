@@ -1027,12 +1027,26 @@ function meLoadClassesForAssessment(){
       sel.value=map.section_id+'|'+map.class_id
       sel.disabled=true
     }
-    // Auto-fill subject
-    if(assess.subject_id&&subSel){
-      const subMap=MY_MAPPINGS.find(m=>m.subject_id===assess.subject_id&&m.class_id===assess.class_id)
-      subSel.innerHTML='<option value="'+assess.subject_id+'">'+(subMap?.subjects?.name||assess.subject_id)+'</option>'
-      subSel.value=assess.subject_id
-      subSel.disabled=true
+    // Auto-fill subject — from stored subject_id or infer from mappings
+    if(subSel){
+      const mapsForClass=MY_MAPPINGS.filter(m=>m.class_id===assess.class_id)
+      if(assess.subject_id){
+        // subject stored on test
+        const subMap=mapsForClass.find(m=>m.subject_id===assess.subject_id)
+        subSel.innerHTML='<option value="'+assess.subject_id+'">'+(subMap?.subjects?.name||assess.subject_id)+'</option>'
+        subSel.value=assess.subject_id
+        subSel.disabled=true
+      } else if(mapsForClass.length===1){
+        // only one subject for this class — auto-fill it
+        const m=mapsForClass[0]
+        subSel.innerHTML='<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>'
+        subSel.value=m.subject_id
+        subSel.disabled=true
+      } else {
+        // multiple subjects — show dropdown filtered to this class
+        subSel.disabled=false
+        subSel.innerHTML='<option value="">Select subject</option>'+mapsForClass.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>').join('')
+      }
     }
     return
   }
