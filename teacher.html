@@ -626,7 +626,8 @@
         <div class="page-head"><div><h2>Create Test</h2><p>Set up a class test or surprise test</p></div></div>
         <div class="card" style="max-width:680px;margin-bottom:18px">
           <div class="form-row">
-            <div class="field-grp"><label>Class — Section *</label><select id="ct_class"><option value="">Select class</option></select></div>
+            <div class="field-grp"><label>Class — Section *</label><select id="ct_class" onchange="ctLoadSubjects()"><option value="">Select class</option></select></div>
+            <div class="field-grp"><label>Subject *</label><select id="ct_subject"><option value="">Select class first</option></select></div>
             <div class="field-grp"><label>Max Marks *</label><input type="number" id="ct_marks" placeholder="20" min="1"></div>
           </div>
           <div class="form-row">
@@ -978,6 +979,16 @@ async function loadMyTimetable(){
 // MARKS ENTRY
 // ═══════════════════════════════════════════════════════════════
 // Marks entry: Assessment → Class → Subject flow
+
+function ctLoadSubjects(){
+  const val=$('ct_class')?.value,sel=$('ct_subject')
+  if(!sel)return
+  sel.innerHTML='<option value="">Select class first</option>'
+  if(!val)return
+  const[secId,classId]=val.split('|')
+  const maps=MY_MAPPINGS.filter(m=>m.class_id===classId&&(!secId||m.section_id===secId))
+  sel.innerHTML='<option value="">Select subject</option>'+maps.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>').join('')
+}
 async function meInitAssessments(){
   const sel=$('me_assessment');if(!sel)return
   sel.innerHTML='<option value="">Loading…</option>'
@@ -1003,11 +1014,33 @@ function meLoadClassesForAssessment(){
   const assessId=$('me_assessment')?.value,sel=$('me_class'),subSel=$('me_subject')
   if(sel)sel.innerHTML='<option value="">Select assessment first</option>'
   if(subSel)subSel.innerHTML='<option value="">Select class first</option>'
-  $('marksTableWrap').innerHTML=''
+  document.getElementById('marksTableWrap').innerHTML=''
   if(!assessId)return
-  // Show only classes from teacher's mappings that have this assessment linked
-  const maps=MY_MAPPINGS
-  const opts=maps.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
+
+  // Check if this is a teacher-created test — auto-fill class and subject
+  const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)
+  if(assess?.created_by_teacher_id===TEACHER.teacher_id&&assess.class_id){
+    // Auto-fill class
+    const map=MY_MAPPINGS.find(m=>m.class_id===assess.class_id)
+    if(map&&sel){
+      sel.innerHTML='<option value="'+map.section_id+'|'+map.class_id+'">'+esc((map.classes?.name||'?')+'‑'+(map.class_sections?.name||'?'))+'</option>'
+      sel.value=map.section_id+'|'+map.class_id
+      sel.disabled=true
+    }
+    // Auto-fill subject
+    if(assess.subject_id&&subSel){
+      const subMap=MY_MAPPINGS.find(m=>m.subject_id===assess.subject_id&&m.class_id===assess.class_id)
+      subSel.innerHTML='<option value="'+assess.subject_id+'">'+(subMap?.subjects?.name||assess.subject_id)+'</option>'
+      subSel.value=assess.subject_id
+      subSel.disabled=true
+    }
+    return
+  }
+
+  // Admin assessment — enable dropdowns normally
+  if(sel)sel.disabled=false
+  if(subSel)subSel.disabled=false
+  const opts=MY_MAPPINGS.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
   if(sel)sel.innerHTML='<option value="">Select class-section</option>'+opts
 }
 
@@ -1480,13 +1513,14 @@ function openObsModal(eid,name){
 async function createTest(){
   const classVal=$('ct_class')?.value,subId=$('ct_subject')?.value
   const name=$('ct_name')?.value?.trim(),date=$('ct_date')?.value,marks=parseInt($('ct_marks')?.value)
-  if(!classVal||!name||!date||!marks){toast('Fill all required fields','error');return}
+  if(!classVal||!subId||!name||!date){toast('Fill all required fields','error');return}
   const[secId,classId]=classVal.split('|')
   const{error}=await sb.from('assessments').insert({
     name,session_id:SESS?.session_id||'',
     class_id:classId,
     commencement_date:date||null,
-    created_by_teacher_id:TEACHER.teacher_id
+    created_by_teacher_id:TEACHER.teacher_id,
+    subject_id:subId||null
   })
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Test created ✓','success')
