@@ -2749,44 +2749,50 @@ async function setTeacherLogin(teacherId, oldUsername){
   if(btn){btn.disabled=true;btn.textContent='Saving…'}
 
   try{
-    // Create a separate admin client using service role key
     const sbAdmin=supabase.createClient(sbUrl,svcKey,{auth:{autoRefreshToken:false,persistSession:false}})
+
+    // Step 1: Check if user already exists
+    console.log('[SetLogin] Step 1 — listing auth users to find:',email)
+    const{data:listData,error:listErr}=await sbAdmin.auth.admin.listUsers({perPage:1000})
+    if(listErr)console.error('[SetLogin] listUsers error:',listErr)
+    console.log('[SetLogin] Total auth users found:',listData?.users?.length)
+
+    const existingUser=(listData?.users||[]).find(u=>u.email===email)
+    console.log('[SetLogin] Existing user match:',existingUser?.id||'NOT FOUND')
 
     let authUserId=null
 
-    // Try to create user first
-    const{data:created,error:createErr}=await sbAdmin.auth.admin.createUser({
-      email,password,email_confirm:true,user_metadata:{teacher_id:teacherId}
-    })
-
-    if(created?.user){
-      // Successfully created new user
-      authUserId=created.user.id
-      toast('Login created ✓','success')
-    } else {
-      // User likely already exists — list all and find by email
-      const{data:list}=await sbAdmin.auth.admin.listUsers({perPage:1000})
-      const existing=(list?.users||[]).find(u=>u.email===email)
-      if(!existing){
-        toast('Failed to create: '+(createErr?.message||'Unknown error'),'error')
-        if(btn){btn.disabled=false;btn.textContent=oldUsername?'Update Login':'Create Login'}
-        return
-      }
-      // Update their password
-      const{error:upErr}=await sbAdmin.auth.admin.updateUserById(existing.id,{password,email_confirm:true})
-      if(upErr){toast('Failed to update password: '+upErr.message,'error');if(btn){btn.disabled=false;btn.textContent='Update Login'};return}
-      authUserId=existing.id
+    if(existingUser){
+      // User exists — update password
+      console.log('[SetLogin] Step 2 — updating password for user:',existingUser.id)
+      const{data:upData,error:upErr}=await sbAdmin.auth.admin.updateUserById(existingUser.id,{password})
+      console.log('[SetLogin] updateUserById result:',upData?.user?.id,'error:',upErr)
+      if(upErr){toast('Password update failed: '+upErr.message,'error');if(btn){btn.disabled=false;btn.textContent='Update Login'};return}
+      authUserId=existingUser.id
       toast('Password updated ✓','success')
+    } else {
+      // Create new user
+      console.log('[SetLogin] Step 2 — creating new user:',email)
+      const{data:createData,error:createErr}=await sbAdmin.auth.admin.createUser({email,password,email_confirm:true})
+      console.log('[SetLogin] createUser result:',createData?.user?.id,'error:',createErr)
+      if(createErr){toast('Create failed: '+createErr.message,'error');if(btn){btn.disabled=false;btn.textContent='Create Login'};return}
+      authUserId=createData?.user?.id
+      toast('Auth account created ✓','success')
     }
 
-    // Save auth_user_id + username to teachers table
-    const{error:dbErr}=await sb.from('teachers').update({username,auth_user_id:authUserId}).eq('teacher_id',teacherId)
-    if(dbErr){toast('Auth done but DB save failed: '+dbErr.message,'error');return}
+    if(!authUserId){toast('Could not get auth user ID — check console','error');if(btn){btn.disabled=false};return}
 
-    toast('Done ✓  '+email+' can now log in to teacher portal','success')
+    // Step 3: Save to teachers table
+    console.log('[SetLogin] Step 3 — saving auth_user_id:',authUserId,'for teacher:',teacherId)
+    const{error:dbErr}=await sb.from('teachers').update({username,auth_user_id:authUserId}).eq('teacher_id',teacherId)
+    if(dbErr){toast('DB save failed: '+dbErr.message,'error');return}
+    console.log('[SetLogin] DB save successful')
+
+    toast('Done ✓  '+email+'  —  tell teacher to use this username and password','success')
     closeModal();loadStaff()
   }catch(err){
-    toast('Unexpected error: '+err.message,'error')
+    console.error('[SetLogin] Unexpected error:',err)
+    toast('Error: '+err.message,'error')
     if(btn){btn.disabled=false;btn.textContent=oldUsername?'Update Login':'Create Login'}
   }
 }
