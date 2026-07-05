@@ -159,7 +159,7 @@ tbody tr:hover td{background:var(--lav-50)}
 
 .map-tag{background:var(--indigo-100);color:var(--indigo-dark);font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px;display:inline-block;margin:3px}
 
-.msg-shell{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:#fff;min-height:480px}
+.msg-shell{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:#fff;min-height:520px;height:calc(100vh - 200px)}
 .msg-list{border-right:1px solid var(--line);overflow-y:auto;max-height:600px}
 .msg-item{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
 .msg-item:hover{background:var(--lav-50)}
@@ -408,7 +408,8 @@ tbody tr:hover td{background:var(--lav-50)}
         </div>
         <div id="obsStudentList"></div>
       </div>
-    </div>
+    
+
 
           <!-- CREATE TEST -->
       <div class="sub-page" id="sub-test">
@@ -430,6 +431,7 @@ tbody tr:hover td{background:var(--lav-50)}
         </div>
         <div class="card"><h3>My Tests This Session</h3><div id="myTestsList"><div class="loading-row"><div class="spinner"></div></div></div></div>
       </div>
+    </div>
     </div>
 
     <!-- CRITICAL STUDENTS -->
@@ -490,7 +492,7 @@ const TITLES={
 const $=id=>document.getElementById(id)
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtD(s){if(!s)return '—';try{return new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return s}}
-function rel(s){if(!s)return '';const d=new Date(s),n=new Date(),diff=n-d;if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';return fmtD(s)}
+function rel(s){if(!s)return '—';try{const d=new Date(s),n=new Date(),diff=n-d;if(isNaN(diff))return '—';if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';return fmtD(s)}catch{return '—'}}
 function today(){return new Date().toISOString().slice(0,10)}
 function initials(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
 function ldg(el){if(el)el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'}
