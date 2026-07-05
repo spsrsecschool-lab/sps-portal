@@ -1624,7 +1624,7 @@ async function openSubmissionStatus(){
 }
 function openAddAssessmentModal(){
   const clsChecks=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" value="'+c.class_id+'" class="na_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(c.name)+'</span></label>').join('')
-  openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Date</label><input type="date" id="na_date"></div><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
+  openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Date</label><input type="date" id="na_date"></div><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div class="form-row"><div class="fg"><label>Max Marks</label><input id="na_maxmarks" type="number" value="100" min="1"></div><div class="fg"><label>Pass Marks</label><input id="na_passmarks" type="number" value="33" min="1"></div></div><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
     '<button class="btn btn-dark" onclick="createAssessment()">Create Assessment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 async function createAssessment(){
@@ -1632,7 +1632,7 @@ async function createAssessment(){
   const selectedClasses=[...document.querySelectorAll('.na_cls_chk:checked')].map(el=>el.value)
   if(!name){toast('Name required','error');return}
   if(!selectedClasses.length){toast('Select at least one class','error');return}
-  const{data:asmtData,error}=await sb.from('assessments').insert({name,session_id:SESS.session_id,commencement_date:$('na_date')?.value||null,submission_deadline:$('na_dl')?.value?new Date($('na_dl').value).toISOString():null,is_marks_unlocked:false}).select().single()
+  const{data:asmtData,error}=await sb.from('assessments').insert({name,session_id:SESS.session_id,commencement_date:$('na_date')?.value||null,submission_deadline:$('na_dl')?.value?new Date($('na_dl').value).toISOString():null,is_marks_unlocked:false,max_marks:parseInt($('na_maxmarks')?.value)||100,pass_marks:parseInt($('na_passmarks')?.value)||33}).select().single()
   if(error){toast('Failed: '+error.message,'error');return}
   const{error:je}=await sb.from('assessment_classes').insert(selectedClasses.map(class_id=>({assessment_id:asmtData.assessment_id,class_id})))
   if(je){toast('Assessment created but class linking failed: '+je.message,'error');return}
@@ -2748,50 +2748,50 @@ async function setTeacherLogin(teacherId, oldUsername){
   const btn=document.querySelector('#modal-foot .btn-dark')
   if(btn){btn.disabled=true;btn.textContent='Saving…'}
 
+  const headers={'Content-Type':'application/json','apikey':svcKey,'Authorization':'Bearer '+svcKey}
+
   try{
-    const sbAdmin=supabase.createClient(sbUrl,svcKey,{auth:{autoRefreshToken:false,persistSession:false}})
-
-    // Step 1: Check if user already exists
-    console.log('[SetLogin] Step 1 — listing auth users to find:',email)
-    const{data:listData,error:listErr}=await sbAdmin.auth.admin.listUsers({perPage:1000})
-    if(listErr)console.error('[SetLogin] listUsers error:',listErr)
-    console.log('[SetLogin] Total auth users found:',listData?.users?.length)
-
-    const existingUser=(listData?.users||[]).find(u=>u.email===email)
-    console.log('[SetLogin] Existing user match:',existingUser?.id||'NOT FOUND')
+    // Step 1: List users via raw fetch (bypass SDK)
+    const listRes=await fetch(sbUrl+'/auth/v1/admin/users?per_page=1000&page=1',{headers})
+    const listJson=await listRes.json()
+    console.log('[SetLogin] List status:',listRes.status,'users:',listJson?.users?.length)
+    const existingUser=(listJson?.users||[]).find(u=>u.email===email)
+    console.log('[SetLogin] Found existing:',existingUser?.id||'NO')
 
     let authUserId=null
 
     if(existingUser){
-      // User exists — update password
-      console.log('[SetLogin] Step 2 — updating password for user:',existingUser.id)
-      const{data:upData,error:upErr}=await sbAdmin.auth.admin.updateUserById(existingUser.id,{password})
-      console.log('[SetLogin] updateUserById result:',upData?.user?.id,'error:',upErr)
-      if(upErr){toast('Password update failed: '+upErr.message,'error');if(btn){btn.disabled=false;btn.textContent='Update Login'};return}
+      // Update password via raw fetch
+      const upRes=await fetch(sbUrl+'/auth/v1/admin/users/'+existingUser.id,{
+        method:'PUT',headers,
+        body:JSON.stringify({password})
+      })
+      const upJson=await upRes.json()
+      console.log('[SetLogin] Update status:',upRes.status,'response:',JSON.stringify(upJson).slice(0,100))
+      if(!upRes.ok){toast('Update failed ('+upRes.status+'): '+upJson.message,'error');if(btn){btn.disabled=false;btn.textContent='Update Login'};return}
       authUserId=existingUser.id
-      toast('Password updated ✓','success')
     } else {
-      // Create new user
-      console.log('[SetLogin] Step 2 — creating new user:',email)
-      const{data:createData,error:createErr}=await sbAdmin.auth.admin.createUser({email,password,email_confirm:true})
-      console.log('[SetLogin] createUser result:',createData?.user?.id,'error:',createErr)
-      if(createErr){toast('Create failed: '+createErr.message,'error');if(btn){btn.disabled=false;btn.textContent='Create Login'};return}
-      authUserId=createData?.user?.id
-      toast('Auth account created ✓','success')
+      // Create new user via raw fetch
+      const crRes=await fetch(sbUrl+'/auth/v1/admin/users',{
+        method:'POST',headers,
+        body:JSON.stringify({email,password,email_confirm:true})
+      })
+      const crJson=await crRes.json()
+      console.log('[SetLogin] Create status:',crRes.status,'id:',crJson?.id)
+      if(!crRes.ok){toast('Create failed ('+crRes.status+'): '+crJson.message,'error');if(btn){btn.disabled=false;btn.textContent='Create Login'};return}
+      authUserId=crJson.id
     }
 
-    if(!authUserId){toast('Could not get auth user ID — check console','error');if(btn){btn.disabled=false};return}
+    if(!authUserId){toast('No auth user ID returned','error');if(btn){btn.disabled=false};return}
 
-    // Step 3: Save to teachers table
-    console.log('[SetLogin] Step 3 — saving auth_user_id:',authUserId,'for teacher:',teacherId)
+    // Save to DB
     const{error:dbErr}=await sb.from('teachers').update({username,auth_user_id:authUserId}).eq('teacher_id',teacherId)
     if(dbErr){toast('DB save failed: '+dbErr.message,'error');return}
-    console.log('[SetLogin] DB save successful')
 
-    toast('Done ✓  '+email+'  —  tell teacher to use this username and password','success')
+    toast('Done ✓ Login set for '+email,'success')
     closeModal();loadStaff()
   }catch(err){
-    console.error('[SetLogin] Unexpected error:',err)
+    console.error('[SetLogin] Error:',err)
     toast('Error: '+err.message,'error')
     if(btn){btn.disabled=false;btn.textContent=oldUsername?'Update Login':'Create Login'}
   }
