@@ -1010,73 +1010,51 @@ async function meInitAssessments(){
     +((myTests?.length)?'<optgroup label="── My Class Tests ──">'+myTests.map(a=>'<option value="'+a.assessment_id+'">🧪 '+esc(a.name)+(a.commencement_date?' ('+fmtD(a.commencement_date)+')':'')+'</option>').join('')+'</optgroup>':'')
 }
 
-function meLoadClassesForAssessment(){
+async function meLoadClassesForAssessment(){
   const assessId=$('me_assessment')?.value,sel=$('me_class'),subSel=$('me_subject')
   if(sel)sel.innerHTML='<option value="">Select assessment first</option>'
   if(subSel)subSel.innerHTML='<option value="">Select class first</option>'
   document.getElementById('marksTableWrap').innerHTML=''
   if(!assessId)return
 
-  // Check if this is a teacher-created test — auto-fill class and subject
+  // Teacher test — auto-fill
   const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)
   if(assess?.created_by_teacher_id===TEACHER.teacher_id&&assess.class_id){
-    // Auto-fill class — if section_id stored use it, else show all sections of that class
     const mapsForClass=MY_MAPPINGS.filter(m=>m.class_id===assess.class_id)
     const uniqueSections=[...new Map(mapsForClass.map(m=>[m.section_id,m])).values()]
     if(assess.section_id){
-      // section stored — find exact match
       const map=mapsForClass.find(m=>m.section_id===assess.section_id)||mapsForClass[0]
-      if(map&&sel){
-        sel.innerHTML='<option value="'+map.section_id+'|'+map.class_id+'">'+esc((map.classes?.name||'?')+'‑'+(map.class_sections?.name||'?'))+'</option>'
-        sel.value=map.section_id+'|'+map.class_id
-        sel.disabled=true
-      }
+      if(map&&sel){sel.innerHTML='<option value="'+map.section_id+'|'+map.class_id+'">'+esc((map.classes?.name||'?')+'‑'+(map.class_sections?.name||'?'))+'</option>';sel.value=map.section_id+'|'+map.class_id;sel.disabled=true}
     } else if(uniqueSections.length===1){
-      // only one section — auto-fill
       const map=uniqueSections[0]
-      if(map&&sel){
-        sel.innerHTML='<option value="'+map.section_id+'|'+map.class_id+'">'+esc((map.classes?.name||'?')+'‑'+(map.class_sections?.name||'?'))+'</option>'
-        sel.value=map.section_id+'|'+map.class_id
-        sel.disabled=true
-      }
+      if(map&&sel){sel.innerHTML='<option value="'+map.section_id+'|'+map.class_id+'">'+esc((map.classes?.name||'?')+'‑'+(map.class_sections?.name||'?'))+'</option>';sel.value=map.section_id+'|'+map.class_id;sel.disabled=true}
     } else {
-      // multiple sections — show dropdown restricted to this class
       sel.disabled=false
       sel.innerHTML='<option value="">Select section</option>'+uniqueSections.map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
     }
     const map=mapsForClass.find(m=>m.section_id===assess.section_id)||uniqueSections[0]
-    // Auto-fill subject — from stored subject_id, or filter by section
-    if(subSel){
-      if(assess.subject_id){
-        // Subject stored on test (new tests)
-        const subMap=MY_MAPPINGS.find(m=>m.subject_id===assess.subject_id&&m.class_id===assess.class_id)
-        subSel.innerHTML='<option value="'+assess.subject_id+'">'+(subMap?.subjects?.name||assess.subject_id)+'</option>'
-        subSel.value=assess.subject_id
-        subSel.disabled=true
-      } else {
-        // Infer subject: filter by section_id (stored on test) or from auto-filled class
-        const secIdToUse=assess.section_id||map?.section_id
-        const mapsForSection=MY_MAPPINGS.filter(m=>m.class_id===assess.class_id&&(!secIdToUse||m.section_id===secIdToUse))
-        // Deduplicate by subject
-        const uniqueSubjects=[...new Map(mapsForSection.map(m=>[m.subject_id,m])).values()]
-        if(uniqueSubjects.length===1){
-          const m=uniqueSubjects[0]
-          subSel.innerHTML='<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>'
-          subSel.value=m.subject_id
-          subSel.disabled=true
-        } else {
-          subSel.disabled=false
-          subSel.innerHTML='<option value="">Select subject</option>'+uniqueSubjects.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>').join('')
-        }
-      }
+    if(assess.subject_id&&subSel){
+      const subMap=MY_MAPPINGS.find(m=>m.subject_id===assess.subject_id&&m.class_id===assess.class_id)
+      subSel.innerHTML='<option value="'+assess.subject_id+'">'+(subMap?.subjects?.name||assess.subject_id)+'</option>'
+      subSel.value=assess.subject_id;subSel.disabled=true
+    } else if(subSel){
+      const secIdToUse=assess.section_id||map?.section_id
+      const mapsForSection=MY_MAPPINGS.filter(m=>m.class_id===assess.class_id&&(!secIdToUse||m.section_id===secIdToUse))
+      const uniqueSubjects=[...new Map(mapsForSection.map(m=>[m.subject_id,m])).values()]
+      if(uniqueSubjects.length===1){const m=uniqueSubjects[0];subSel.innerHTML='<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>';subSel.value=m.subject_id;subSel.disabled=true}
+      else{subSel.disabled=false;subSel.innerHTML='<option value="">Select subject</option>'+uniqueSubjects.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>').join('')}
     }
     return
   }
 
-  // Admin assessment — enable dropdowns, deduplicate sections
+  // Admin assessment — filter classes by assessment_classes AND teacher's mappings
   if(sel)sel.disabled=false
   if(subSel)subSel.disabled=false
-  const uniqueClsMap=new Map();MY_MAPPINGS.forEach(m=>{const k=m.section_id+'|'+m.class_id;if(!uniqueClsMap.has(k))uniqueClsMap.set(k,m)})
+  const{data:ac}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',assessId)
+  const linkedClassIds=new Set((ac||[]).map(r=>r.class_id))
+  // Intersect with teacher's own classes
+  const filteredMaps=MY_MAPPINGS.filter(m=>linkedClassIds.size===0||linkedClassIds.has(m.class_id))
+  const uniqueClsMap=new Map();filteredMaps.forEach(m=>{const k=m.section_id+'|'+m.class_id;if(!uniqueClsMap.has(k))uniqueClsMap.set(k,m)})
   const opts=[...uniqueClsMap.values()].map(m=>'<option value="'+m.section_id+'|'+m.class_id+'">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</option>').join('')
   if(sel)sel.innerHTML='<option value="">Select class-section</option>'+opts
 }
@@ -1192,8 +1170,8 @@ async function loadMarksTable(){
 async function confirmMarks(){
   const{subId,secId,classId,assessId}=_currentMarksMeta
   const inputs=document.querySelectorAll('.marks-input')
-  const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
-  const maxM=(assessMeta.max_marks||assessData?.max_marks||100)
+  const assessObj=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
+  const maxM=assessObj.max_marks||100
   const passM=Math.round(maxM*0.33)
   const inserts=[];let valid=true
 
@@ -1201,30 +1179,29 @@ async function confirmMarks(){
     const eid=inp.dataset.eid
     const v=inp.value.trim().toUpperCase()
     if(v===''||v==='-'||v==='—'){toast('Fill marks for all students (write A for absent)','error');valid=false;inp.style.borderColor='var(--danger)';return}
+    const rmk=document.querySelector('[data-rmk="'+eid+'"]')?.value?.trim()||null
     if(v==='A'){
-      const rmk=document.querySelector('[data-rmk="'+eid+'"]')?.value?.trim()||null
-      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:null,is_absent:true,remarks:rmk,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
+      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:null,is_absent:true,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
       return
     }
     const num=parseFloat(v)
     if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+' or A)','error');valid=false;inp.style.borderColor='var(--danger)';return}
-    const rmk2=document.querySelector('[data-rmk="'+eid+'"]')?.value?.trim()||null
-      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:num,is_absent:false,remarks:rmk2,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
+    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:num,is_absent:false,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
   })
 
   if(!valid)return
+  console.log('[SAVE] Inserting',inserts.length,'mark records')
   const{error}=await sb.from('marks').upsert(inserts,{onConflict:'enrollment_id,assessment_id,subject_id',ignoreDuplicates:false})
-  if(error){toast('Failed to save: '+error.message,'error');return}
+  if(error){toast('Failed to save: '+error.message,'error');console.error('[SAVE] Error:',error);return}
 
-  // Lock only admin assessments — teacher tests stay freely editable
+  // Lock only admin assessments
   const assessForLock=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
   if(assessForLock.created_by_teacher_id!==TEACHER.teacher_id){
-    const{error:le}=await sb.from('marks_lock_state').upsert({
+    await sb.from('marks_lock_state').upsert({
       teacher_id:TEACHER.teacher_id,assessment_id:assessId,subject_id:subId,
       section_id:secId,class_id:classId,session_id:SESS?.session_id||'',
       is_locked:true,locked_at:new Date().toISOString()
     },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
-    if(le)console.warn('Lock failed:',le.message)
   }
 
   // Complete any approved edit request
@@ -1234,7 +1211,7 @@ async function confirmMarks(){
     .eq('status','approved').maybeSingle()
   if(req)await sb.from('access_requests').update({status:'completed',marks_submitted_at:new Date().toISOString()}).eq('request_id',req.request_id)
 
-  toast('Marks confirmed and locked ✓','success')
+  toast('Marks saved ✓','success')
   loadMarksTable()
 }
 
