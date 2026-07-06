@@ -668,6 +668,12 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
+      <!-- Greeting -->
+      <div id="dashGreeting" style="margin-bottom:20px">
+        <div id="greetingText" style="font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-.01em"></div>
+        <div id="greetingSub" style="font-size:13px;color:var(--ink-soft);margin-top:4px"></div>
+      </div>
+
       <div id="dashBanner" style="display:none;background:#355C7D;border-radius:var(--radius-lg);padding:26px 30px;margin-bottom:20px;position:relative;overflow:hidden;color:#fff">
         <!-- Decorative circles -->
         <div style="position:absolute;width:200px;height:200px;border-radius:50%;border:1px solid rgba(255,255,255,.1);right:-60px;bottom:-100px;pointer-events:none"></div>
@@ -676,7 +682,6 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
         <!-- Content -->
         <div style="position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
           <div>
-            <div id="bannerGreeting" style="font-size:13px;color:rgba(255,255,255,.75);font-weight:500;margin-bottom:6px"></div>
             <div id="bannerEyebrow" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;margin-bottom:4px"></div>
             <div id="bannerTitle" style="font-size:20px;font-weight:800;line-height:1.2">Marks Pending</div>
             <div id="bannerSub" style="font-size:12.5px;color:rgba(255,255,255,.75);margin-top:5px"></div>
@@ -684,6 +689,10 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
           <button onclick="goTo('marks',null)" style="background:#fff;color:#355C7D;border:none;padding:10px 22px;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">Enter Marks →</button>
         </div>
       </div>
+
+      <!-- All-clear message when no pending marks -->
+      <div id="dashAllClear" style="display:none;margin-bottom:20px"></div>
+
       <div class="grid-4" style="margin-bottom:18px">
         <div class="stat-card"><span class="lbl">Pending Marks</span><span class="val" id="statPending">—</span><span class="sub">Assessments awaiting entry</span></div>
         <div class="stat-card"><span class="lbl">Messages</span><span class="val" id="statMsgs">—</span><span class="sub">Unread messages</span></div>
@@ -1079,15 +1088,34 @@ async function renderDashboard(){
   })
   $('statPending').textContent=pending
   if(pending>0){
-    $('dashBanner').style.display='block'
-    // Time-based greeting
+    // Time-based greeting — always shown
     const hr=new Date().getHours()
     const greet=hr<12?'Good Morning':hr<17?'Good Afternoon':'Good Evening'
     const firstName=(TEACHER.full_name||'').split(' ')[0]
-    $('bannerGreeting').textContent=greet+', '+firstName+' 👋'
-    $('bannerEyebrow').textContent=(SESS?.session_id||'')+' · Pending Submissions'
-    $('bannerTitle').textContent=pending+' assessment'+(pending>1?'s':'')+' awaiting marks'
-    $('bannerSub').textContent='Submit marks before the deadline to avoid lock.'
+    const gtEl=$('greetingText'),gsEl=$('greetingSub')
+    if(gtEl)gtEl.textContent=greet+', '+firstName+' 👋'
+    if(gsEl)gsEl.textContent=new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+
+    const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
+    const dayIdx=new Date().getDate()%allClearMsgs.length
+
+    if(pending>0){
+      $('dashBanner').style.display='block'
+      if($('dashAllClear'))$('dashAllClear').style.display='none'
+      $('bannerEyebrow').textContent=(SESS?.session_id||'')+' · Pending Submissions'
+      $('bannerTitle').textContent=pending+' assessment'+(pending>1?'s':'')+' awaiting marks'
+      $('bannerSub').textContent='Submit marks before the deadline to avoid lock.'
+    } else {
+      $('dashBanner').style.display='none'
+      const ac=$('dashAllClear')
+      if(ac){
+        ac.style.display='block'
+        ac.innerHTML='<div style="background:var(--success-soft);border:1px solid var(--success);border-radius:var(--radius-lg);padding:18px 22px;display:flex;align-items:center;gap:14px">'
+          +'<div style="width:36px;height:36px;border-radius:10px;background:var(--success);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox=\"0 0 24 24\" style=\"width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.5\"><polyline points=\"20 6 9 17 4 12\"/></svg></div>'
+          +'<div style=\"font-size:14px;font-weight:600;color:var(--success)\">'+allClearMsgs[dayIdx]+'</div>'
+          +'</div>'
+      }
+    }
   }
 
   // Assignments list
