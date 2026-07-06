@@ -2170,9 +2170,8 @@ async function submitProfileEditRequest(){
 // CLASS TEACHER SWITCH (placeholder — full class view built separately)
 // ═══════════════════════════════════════════════════════════════
 function switchToClassView(){
-  if(!_isClassTeacher){toast('You are not assigned as a class teacher','error');return}
-  // Class view pages will be added in class teacher portal
-  toast('Class view coming soon — building next session','info')
+  if(!_isClassTeacher){toast('You are not assigned as a class teacher this session','error');return}
+  window.location.href='class_teacher.html'
 }
 
 async function logout(){
