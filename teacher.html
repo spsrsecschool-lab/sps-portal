@@ -489,6 +489,87 @@ body.dark [style*="background:var(--warn-soft)"]{background:#2A1A00!important}
 body.dark [style*="background:var(--danger-soft)"]{background:#2A0808!important}
 body.dark [style*="background:var(--indigo-100)"]{background:#0E2030!important}
 
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes fadeUp   {from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn   {from{opacity:0}to{opacity:1}}
+@keyframes scaleIn  {from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@keyframes slideRight{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+@keyframes countUp  {from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* Page switch */
+.page.active{animation:fadeUp .28s cubic-bezier(.4,0,.2,1) both}
+
+/* Cards stagger in */
+.card{animation:fadeUp .3s cubic-bezier(.4,0,.2,1) both}
+.stat-card{animation:fadeUp .3s cubic-bezier(.4,0,.2,1) both}
+.menu-card{animation:scaleIn .25s cubic-bezier(.4,0,.2,1) both}
+.grid-4 .stat-card:nth-child(1){animation-delay:.04s}
+.grid-4 .stat-card:nth-child(2){animation-delay:.08s}
+.grid-4 .stat-card:nth-child(3){animation-delay:.12s}
+.grid-4 .stat-card:nth-child(4){animation-delay:.16s}
+.menu-board .menu-card:nth-child(1){animation-delay:.03s}
+.menu-board .menu-card:nth-child(2){animation-delay:.07s}
+.menu-board .menu-card:nth-child(3){animation-delay:.11s}
+.menu-board .menu-card:nth-child(4){animation-delay:.15s}
+
+/* Table rows stagger */
+tbody tr{animation:fadeUp .2s ease both}
+tbody tr:nth-child(1){animation-delay:.02s}
+tbody tr:nth-child(2){animation-delay:.04s}
+tbody tr:nth-child(3){animation-delay:.06s}
+tbody tr:nth-child(4){animation-delay:.08s}
+tbody tr:nth-child(5){animation-delay:.10s}
+tbody tr:nth-child(n+6){animation-delay:.12s}
+
+/* Sidebar items */
+.sb-item{transition:background .14s,color .14s,transform .1s}
+.sb-item:active{transform:scale(.97)}
+.sb-label{animation:fadeIn .3s ease both}
+
+/* Stat card value */
+.stat-card .val{animation:countUp .4s cubic-bezier(.4,0,.2,1) both;animation-delay:.1s}
+
+/* Modal */
+#modal-box{animation:scaleIn .22s cubic-bezier(.4,0,.2,1) both}
+
+/* Buttons */
+.btn{transition:transform .1s,box-shadow .15s,opacity .15s}
+.btn:active:not(:disabled){transform:scale(.96)}
+.btn-primary:hover:not(:disabled){box-shadow:0 8px 20px -6px rgba(53,92,125,.5)}
+
+/* Banner */
+#dashBanner{animation:fadeUp .3s ease both}
+
+/* Log rows in activity */
+.log-row{animation:slideRight .2s ease both}
+.log-row:nth-child(1){animation-delay:.02s}
+.log-row:nth-child(2){animation-delay:.06s}
+.log-row:nth-child(3){animation-delay:.10s}
+.log-row:nth-child(4){animation-delay:.14s}
+.log-row:nth-child(5){animation-delay:.18s}
+
+/* Message list items */
+.msg-item{animation:fadeIn .2s ease both;transition:background .12s}
+
+/* Topbar user chip */
+.user-chip{transition:box-shadow .15s}
+.user-chip:hover{box-shadow:0 4px 14px rgba(53,92,125,.2)}
+
+/* Marks input focus glow */
+.marks-input{transition:border-color .15s,box-shadow .15s}
+.marks-input:focus{box-shadow:0 0 0 3px rgba(53,92,125,.15)}
+
+/* Toast */
+.toast-item{animation:fadeUp .22s cubic-bezier(.4,0,.2,1) both}
+
+/* Profile hero */
+.profile-hero{animation:fadeUp .3s ease both}
+
+/* Switch to Class button pulse on first load if teacher is CT */
+@keyframes subtlePulse{0%,100%{box-shadow:0 0 0 0 rgba(53,92,125,.3)}50%{box-shadow:0 0 0 6px rgba(53,92,125,.0)}}
+.sb-switch-btn{animation:subtlePulse 2.5s ease 1s 3}
+
 </style>
 </head>
 <body>
@@ -870,7 +951,8 @@ function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?
 
 function goTo(id,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
-  const pg=$('page-'+id);if(pg)pg.classList.add('active')
+  const pg=$('page-'+id)
+  if(pg){pg.style.animation='none';void pg.offsetHeight;pg.style.animation='';pg.classList.add('active')}
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'))
   if(el)el.classList.add('active')
   $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb" id="pagecrumb">'+esc($('sbPortalLabel')?.textContent||'Teacher Portal')+'</span>'
