@@ -488,6 +488,10 @@ body.dark [style*="background:var(--success-soft)"]{background:#0A2A15!important
 body.dark [style*="background:var(--warn-soft)"]{background:#2A1A00!important}
 body.dark [style*="background:var(--danger-soft)"]{background:#2A0808!important}
 body.dark [style*="background:var(--indigo-100)"]{background:#0E2030!important}
+body.dark input,body.dark textarea,body.dark select{color:#F0F0F0!important;background:#1A1A1A!important;border-color:#2A2A2A!important}
+body.dark input::placeholder,body.dark textarea::placeholder{color:#606060!important}
+body.dark [style*="background:#fff"]{background:#111111!important}
+body.dark [style*="background:white"]{background:#111111!important}
 
 
 /* ═══ ANIMATIONS ═══ */
@@ -1510,76 +1514,144 @@ async function paSelectStudent(enrollmentId, name, classId, sectionId){
   await loadStudentPerfAnalysis(enrollmentId, name, classId, sectionId)
 }
 
-async function loadStudentPerfAnalysis(enrollmentId, name){
+async function loadStudentPerfAnalysis(enrollmentId, name, classId, sectionId){
   const el=$('perfResult');ldg2(el)
   const subId=$('pa_subject')?.value
   if(!subId){emp2(el,'Select a subject first');return}
+
   // Get enrollment details
-  const{data:enr}=await sb.from('student_enrollments').select('*,students(full_name,father_name),classes(name),class_sections(name)').eq('enrollment_id',enrollmentId).maybeSingle()
+  const{data:enr}=await sb.from('student_enrollments')
+    .select('*,students(full_name,father_name),classes(name),class_sections(name)')
+    .eq('enrollment_id',enrollmentId).maybeSingle()
   if(!enr){emp2(el,'Student not found');return}
-  // Get all assessments for this class
-  const{data:ac}=await sb.from('assessment_classes').select('assessment_id').eq('class_id',enr.class_id)
+
+  const actualClassId=classId||enr.class_id
+  const actualSecId=sectionId||enr.section_id
+
+  // Get assessments for this class
+  const{data:ac}=await sb.from('assessment_classes').select('assessment_id').eq('class_id',actualClassId)
   const assessIds=(ac||[]).map(r=>r.assessment_id)
-  const{data:assessments}=await sb.from('assessments').select('*').in('assessment_id',assessIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  const selectedIds=getSelectedAssessments(assessIds)
-  const selAssess=(assessments||[]).filter(a=>selectedIds.includes(a.assessment_id))
-  if(!selAssess.length){emp2(el,'No assessments selected');return}
+  if(!assessIds.length){emp2(el,'No assessments linked to this class');return}
+
+  const{data:assessments}=await sb.from('assessments').select('*')
+    .in('assessment_id',assessIds).eq('session_id',SESS?.session_id||'')
+    .order('commencement_date',{nullsFirst:false})
+  if(!assessments?.length){emp2(el,'No assessments found');return}
+
   // Get student marks
-  const{data:marks}=await sb.from('marks').select('*').eq('enrollment_id',enrollmentId).eq('subject_id',subId).in('assessment_id',assessIds)
-  const marksMap={}; (marks||[]).forEach(m=>{marksMap[m.assessment_id]=m})
-  // Get all class marks for percentile
-  const{data:allEnr}=await sb.from('student_enrollments').select('enrollment_id').eq('class_id',enr.class_id).eq('section_id',enr.section_id).eq('session_id',SESS?.session_id||'').eq('status','active')
+  const{data:studentMarks}=await sb.from('marks').select('*')
+    .eq('enrollment_id',enrollmentId).eq('subject_id',subId)
+  const marksMap={};(studentMarks||[]).forEach(m=>{marksMap[m.assessment_id]=m})
+
+  // Get ALL class marks for percentile calculation
+  const{data:allEnr}=await sb.from('student_enrollments').select('enrollment_id')
+    .eq('class_id',actualClassId).eq('section_id',actualSecId)
+    .eq('session_id',SESS?.session_id||'').eq('status','active')
   const allEids=(allEnr||[]).map(e=>e.enrollment_id)
-  const{data:allMarks}=await sb.from('marks').select('*').in('enrollment_id',allEids).eq('subject_id',subId)
-  // Build matrix HTML
-  let html='<div class="card" style="margin-bottom:18px"><h3>'+esc(enr.students?.full_name||'?')+' — '+esc((enr.classes?.name||'?')+'‑'+(enr.class_sections?.name||'?'))+'</h3>'
-  html+='<div style="overflow-x:auto"><table style="min-width:600px;width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>'
-  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;white-space:nowrap;position:sticky;left:0;z-index:2">Roll</th>'
-  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;white-space:nowrap;position:sticky;left:48px;z-index:2">Name</th>'
-  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;white-space:nowrap;position:sticky;left:180px;z-index:2">Father\'s Name</th>'
-  selAssess.forEach(a=>{html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:center;white-space:nowrap">'+esc(a.name)+'<br><span style="font-size:10px;font-weight:400;color:var(--ink-faint)">Max: '+a.max_marks+'</span></th>'})
-  html+='</tr></thead><tbody><tr>'
-  html+='<td style="padding:10px 14px;font-weight:700;position:sticky;left:0;background:#fff;z-index:1">'+esc(enr.roll_no||'')+'</td>'
-  html+='<td style="padding:10px 14px;font-weight:600;position:sticky;left:48px;background:#fff;z-index:1;white-space:nowrap">'+esc(enr.students?.full_name||'?')+'</td>'
-  html+='<td style="padding:10px 14px;color:var(--ink-soft);position:sticky;left:180px;background:#fff;z-index:1;white-space:nowrap">'+esc(enr.students?.father_name||'—')+'</td>'
-  const trendData=[]
-  selAssess.forEach(a=>{
-    const m=marksMap[a.assessment_id]
-    const pass=Math.round(a.max_marks*0.33)
-    if(!m){html+='<td style="padding:10px 14px;text-align:center;color:var(--ink-faint)">—</td>';return}
-    if(m.is_absent){html+='<td style="padding:10px 14px;text-align:center;background:var(--warn-soft)"><b>A</b></td>';return}
-    const pct=Math.round((m.marks_obtained/a.max_marks)*100)
-    const fail=m.marks_obtained<pass
-    html+='<td style="padding:10px 14px;text-align:center;background:'+(fail?'var(--danger-soft)':'')+'"><b>'+m.marks_obtained+'</b><br><span style="font-size:10.5px;color:var(--ink-soft)">'+pct+'%</span></td>'
-    trendData.push({label:a.name,marks:m.marks_obtained,max:a.max_marks,pct})
+  const{data:allMarks}=await sb.from('marks').select('enrollment_id,assessment_id,marks_obtained,is_absent')
+    .in('enrollment_id',allEids).eq('subject_id',subId)
+  const classTotal=allEids.length
+
+  // Build marks matrix
+  let html='<div class="card" style="margin-bottom:16px;overflow-x:auto">'
+  html+='<h3 style="margin-bottom:12px">'+esc(enr.students?.full_name||'?')+' — '+esc((enr.classes?.name||'?')+'‑'+(enr.class_sections?.name||'?'))+'</h3>'
+  html+='<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>'
+  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;position:sticky;left:0;z-index:2;white-space:nowrap">Roll</th>'
+  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;position:sticky;left:50px;z-index:2;white-space:nowrap">Name</th>'
+  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;position:sticky;left:180px;z-index:2;white-space:nowrap">Father&#39;s Name</th>'
+  assessments.forEach(a=>{
+    html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:center;white-space:nowrap">'+esc(a.name)+'<br><span style="font-size:10px;font-weight:400;color:var(--ink-faint)">Max: '+(a.max_marks||'?')+'</span></th>'
   })
-  html+='</tr></tbody></table></div></div>'
-  // Percentile & stats
-  if(allMarks?.length&&trendData.length){
-    const latestAssess=selAssess[selAssess.length-1]
-    const latestMark=marksMap[latestAssess?.assessment_id]
-    if(latestMark&&!latestMark.is_absent){
-      const classScores=(allMarks||[]).filter(m=>m.assessment_id===latestAssess.assessment_id&&!m.is_absent&&m.marks_obtained!=null).map(m=>parseFloat(m.marks_obtained))
-      classScores.sort((a,b)=>a-b)
-      const rank=classScores.filter(s=>s<=latestMark.marks_obtained).length
-      const pctile=Math.round((rank/classScores.length)*100)
-      const avg=(classScores.reduce((a,b)=>a+b,0)/classScores.length).toFixed(1)
-      html+='<div class="card" style="margin-bottom:18px"><h3>Statistics — '+esc(latestAssess.name)+'</h3>'
-        +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">'
-        +'<div style="text-align:center;padding:14px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:11px;color:var(--ink-faint);text-transform:uppercase;font-weight:700">Percentile</div><div style="font-size:26px;font-weight:800;color:var(--indigo);margin-top:4px">'+pctile+'th</div><div style="font-size:11px;color:var(--ink-soft)">Top '+Math.round(100-pctile)+'% of class</div></div>'
-        +'<div style="text-align:center;padding:14px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:11px;color:var(--ink-faint);text-transform:uppercase;font-weight:700">Student Score</div><div style="font-size:26px;font-weight:800;color:var(--ink);margin-top:4px">'+latestMark.marks_obtained+'</div><div style="font-size:11px;color:var(--ink-soft)">Class avg: '+avg+'</div></div>'
-        +'<div style="text-align:center;padding:14px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:11px;color:var(--ink-faint);text-transform:uppercase;font-weight:700">Class Rank</div><div style="font-size:26px;font-weight:800;color:var(--ink);margin-top:4px">'+rank+'</div><div style="font-size:11px;color:var(--ink-soft)">of '+classScores.length+' students</div></div>'
-        +'</div></div>'
-    }
-    // Trend line
-    if(trendData.length>1){
-      const canId='trendChart_'+Date.now()
-      html+='<div class="card"><h3>Performance Trend</h3><canvas id="'+canId+'" height="80"></canvas></div>'
-      el.innerHTML=html
+  html+='</tr></thead><tbody><tr>'
+  html+='<td style="padding:10px 14px;font-weight:700;position:sticky;left:0;background:var(--white);z-index:1;border-top:1px solid var(--line)">'+esc(String(enr.roll_no||''))+'</td>'
+  html+='<td style="padding:10px 14px;font-weight:600;position:sticky;left:50px;background:var(--white);z-index:1;border-top:1px solid var(--line);white-space:nowrap">'+esc(enr.students?.full_name||'?')+'</td>'
+  html+='<td style="padding:10px 14px;color:var(--ink-soft);position:sticky;left:180px;background:var(--white);z-index:1;border-top:1px solid var(--line);white-space:nowrap">'+esc(enr.students?.father_name||'—')+'</td>'
+
+  const trendData=[]
+  assessments.forEach(a=>{
+    const m=marksMap[a.assessment_id]
+    const maxM=a.max_marks||100
+    const pass=Math.round(maxM*0.33)
+    const style='padding:10px 14px;text-align:center;border-top:1px solid var(--line);'
+    if(!m){html+='<td style="'+style+'color:var(--ink-faint)">—</td>';return}
+    if(m.is_absent){html+='<td style="'+style+'background:var(--warn-soft)"><b>A</b></td>';return}
+    const pct=Math.round((m.marks_obtained/maxM)*100)
+    const fail=parseFloat(m.marks_obtained)<pass
+    html+='<td style="'+style+(fail?'background:var(--danger-soft);':'')+'">'
+      +'<b>'+m.marks_obtained+'</b><br>'
+      +'<span style="font-size:10.5px;color:var(--ink-soft)">'+pct+'%</span>'
+      +'</td>'
+    trendData.push({label:a.name,marks:parseFloat(m.marks_obtained),max:maxM,pct,date:a.commencement_date})
+  })
+  html+='</tr></tbody></table></div>'
+
+  // Stats — percentile, rank, class avg per assessment
+  if(trendData.length){
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:16px">'
+    trendData.forEach(td=>{
+      // Percentile for this assessment
+      const aMarks=(allMarks||[]).filter(m=>m.assessment_id===assessments.find(a=>a.name===td.label)?.assessment_id&&!m.is_absent&&m.marks_obtained!=null).map(m=>parseFloat(m.marks_obtained)).sort((a,b)=>a-b)
+      if(!aMarks.length){return}
+      const rank=aMarks.filter(s=>s<=td.marks).length
+      const pctile=Math.round((rank/aMarks.length)*100)
+      const avg=(aMarks.reduce((s,v)=>s+v,0)/aMarks.length).toFixed(1)
+      const clsRank=aMarks.length+1-rank
+      html+='<div class="stat-card">'
+        +'<div style="font-size:11px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin-bottom:8px">'+esc(td.label)+'</div>'
+        +'<div style="display:flex;align-items:flex-end;justify-content:space-between">'
+        +'<div><div style="font-size:28px;font-weight:800;color:var(--indigo)">'+pctile+'<span style="font-size:14px">th</span></div><div style="font-size:11px;color:var(--ink-soft)">Percentile · Top '+(100-pctile)+'%</div></div>'
+        +'<div style="text-align:right"><div style="font-size:13px;font-weight:700">Rank '+clsRank+'/'+aMarks.length+'</div><div style="font-size:11px;color:var(--ink-soft)">Class avg: '+avg+'</div></div>'
+        +'</div>'
+        +'</div>'
+    })
+    html+='</div>'
+  }
+
+  // Trend line chart
+  if(trendData.length>1){
+    const canId='trend_'+Date.now()
+    html+='<div class="card"><h3>Performance Trend</h3><p style="font-size:12px;color:var(--ink-faint);margin-bottom:14px">Score progression across assessments</p><canvas id="'+canId+'" height="80"></canvas></div>'
+    el.innerHTML=html
+    setTimeout(()=>{
       const ctx=document.getElementById(canId)?.getContext('2d')
-      if(ctx&&typeof Chart!=='undefined'){new Chart(ctx,{type:'line',data:{labels:trendData.map(d=>d.label),datasets:[{label:'% Score',data:trendData.map(d=>d.pct),borderColor:'#5B4FE8',backgroundColor:'rgba(53,92,125,.08)',tension:.4,fill:true,pointBackgroundColor:'#5B4FE8',pointRadius:5}]},options:{plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}}}})}
-      return
-    }
+      if(ctx&&typeof Chart!=='undefined'){
+        new Chart(ctx,{
+          type:'line',
+          data:{
+            labels:trendData.map(d=>d.label),
+            datasets:[{
+              label:'Score %',
+              data:trendData.map(d=>d.pct),
+              borderColor:'#355C7D',
+              backgroundColor:'rgba(53,92,125,.1)',
+              tension:.4,fill:true,
+              pointBackgroundColor:'#355C7D',
+              pointRadius:5,pointHoverRadius:7
+            },{
+              label:'Class Avg %',
+              data:trendData.map(td=>{
+                const a=assessments.find(a=>a.name===td.label)
+                if(!a)return null
+                const aM=(allMarks||[]).filter(m=>m.assessment_id===a.assessment_id&&!m.is_absent&&m.marks_obtained!=null).map(m=>parseFloat(m.marks_obtained))
+                return aM.length?Math.round(aM.reduce((s,v)=>s+v,0)/aM.length/(a.max_marks||100)*100):null
+              }),
+              borderColor:'rgba(53,92,125,.35)',
+              borderDash:[6,3],
+              backgroundColor:'transparent',
+              tension:.4,
+              pointRadius:3,
+              pointBackgroundColor:'rgba(53,92,125,.35)'
+            }]
+          },
+          options:{
+            plugins:{legend:{position:'top'}},
+            scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},
+            responsive:true
+          }
+        })
+      }
+    },50)
+    return
   }
   el.innerHTML=html
 }
@@ -1627,9 +1699,9 @@ async function loadPerfAnalysis(){
   html+='</tr></thead><tbody>'
   students.forEach(s=>{
     html+='<tr>'
-    html+='<td style="padding:10px 14px;font-weight:700;position:sticky;left:0;background:#fff;z-index:1;border-top:1px solid var(--line)">'+esc(s.roll_no||'')+'</td>'
-    html+='<td style="padding:10px 14px;font-weight:600;position:sticky;left:48px;background:#fff;z-index:1;border-top:1px solid var(--line);white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
-    html+='<td style="padding:10px 14px;color:var(--ink-soft);position:sticky;left:180px;background:#fff;z-index:1;border-top:1px solid var(--line);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
+    html+='<td style="padding:10px 14px;font-weight:700;position:sticky;left:0;background:var(--white);z-index:1;border-top:1px solid var(--line)">'+esc(s.roll_no||'')+'</td>'
+    html+='<td style="padding:10px 14px;font-weight:600;position:sticky;left:48px;background:var(--white);z-index:1;border-top:1px solid var(--line);white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+    html+='<td style="padding:10px 14px;color:var(--ink-soft);position:sticky;left:180px;background:var(--white);z-index:1;border-top:1px solid var(--line);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
     selAssess.forEach(a=>{
       const m=marksMap[s.enrollment_id+'_'+a.assessment_id]
       const pass=Math.round(a.max_marks*0.33)
