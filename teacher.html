@@ -424,6 +424,22 @@
 
   #scrim{position:fixed;inset:0;background:rgba(34,31,53,.35);z-index:150;display:none}
   #scrim.show{display:block}
+
+/* Dark Mode */
+body.dark{
+  --lav-50:#1A1828;--lav-100:#221F35;--lav-200:#2D2B45;--lav-300:#3D3A5C;
+  --ink:#E8E5FF;--ink-soft:#A8A3C2;--ink-faint:#6B6685;
+  --white:#221F35;--line:#2D2B45;
+  --lav-50:#1A1828;
+}
+body.dark .topbar{background:rgba(26,24,40,.9)}
+body.dark .card{background:#221F35}
+body.dark .msg-shell{background:#221F35}
+body.dark .msg-detail{background:#221F35}
+body.dark thead th{background:#2D2B45}
+body.dark tbody tr:hover td{background:#2D2B45}
+body.dark .field-grp input,body.dark .field-grp select,body.dark .field-grp textarea{background:#2D2B45;color:var(--ink);border-color:var(--line)}
+
 </style>
 </head>
 <body>
@@ -495,13 +511,13 @@
     <div class="topbar-title" id="pageTitle">Dashboard<span class="crumb" id="pagecrumb">Teacher Portal</span></div>
 
     <div class="theme-pill">
-      <button class="active" title="Light"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
-      <button title="Dark"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+      <button class="active" title="Light" onclick="toggleDarkMode(false)"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+      <button title="Dark" onclick="toggleDarkMode(true)"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
     </div>
 
     <div class="icon-btn" onclick="goTo('messages',null)" style="cursor:pointer"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="dot" id="msgDot" style="display:none"></span></div>
 
-    <div class="user-chip">
+    <div class="user-chip" onclick="goTo('profile',document.querySelector('.sb-item[onclick*=profile]'))" style="cursor:pointer">
       <div class="avatar-sm" id="topAvatar">?</div>
       <div>
         <div class="uname" id="topName">Loading…</div>
@@ -814,6 +830,15 @@ function goTo(id,el){
   if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t}
 }
 
+
+function toggleDarkMode(isDark){
+  if(isDark){document.body.classList.add('dark');localStorage.setItem('sps_dark','1')}
+  else{document.body.classList.remove('dark');localStorage.removeItem('sps_dark')}
+  document.querySelectorAll('.theme-pill button').forEach((b,i)=>{b.classList.toggle('active',isDark?(i===1):(i===0))})
+}
+// Apply saved preference on load
+if(localStorage.getItem('sps_dark')==='1')toggleDarkMode(true)
+
 function clearMarksTable(){document.getElementById('marksTableWrap').innerHTML=''}
 function openSub(subId){
   // Sub-pages use inline display style
@@ -917,9 +942,23 @@ async function renderDashboard(){
 
   // Activity — recent marks
   const actEl=$('dashActivity')
-  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id').eq('entered_by',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(5)
-  if(!recent?.length){emp(actEl,'No marks submitted yet.');return}
-  actEl.innerHTML=recent.map(m=>'<div class="log-row"><div class="log-dot"></div><div><div class="txt">Marks submitted</div><div class="ts">'+rel(m.entered_at)+'</div></div></div>').join('')
+  // Get recent marks with assessment and subject names
+  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id,is_absent,marks_obtained,assessments(name),subjects(name),student_enrollments(students(full_name))').eq('entered_by',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(30)
+  // Group by assessment+subject+time (within 10 min window = one submission)
+  const groups=[];const seen=new Set()
+  ;(recent||[]).forEach(m=>{
+    const key=m.assessment_id+'_'+m.subject_id+'_'+Math.floor(new Date(m.entered_at).getTime()/600000)
+    if(!seen.has(key)){seen.add(key);const grp=recent.filter(r=>r.assessment_id===m.assessment_id&&r.subject_id===m.subject_id&&Math.floor(new Date(r.entered_at).getTime()/600000)===Math.floor(new Date(m.entered_at).getTime()/600000));groups.push({key,m,count:grp.length,absent:grp.filter(r=>r.is_absent).length,ts:m.entered_at})}
+  })
+  // Also get recent access requests
+  const{data:reqs}=await sb.from('access_requests').select('created_at,request_type,status,assessments(name),subjects(name)').eq('teacher_id',TEACHER.teacher_id).order('created_at',{ascending:false}).limit(5)
+  // Merge and sort
+  const events=[
+    ...groups.slice(0,5).map(g=>({ts:g.ts,type:'marks',label:'Submitted '+esc(g.m.assessments?.name||'?')+' marks · '+esc(g.m.subjects?.name||'?'),sub:g.count+' students'+(g.absent?' · '+g.absent+' absent':'')})),
+    ...(reqs||[]).map(r=>({ts:r.created_at,type:'request',label:'Requested edit access · '+esc(r.assessments?.name||'?'),sub:r.status}))
+  ].sort((a,b)=>new Date(b.ts)-new Date(a.ts)).slice(0,6)
+  if(!events.length){emp(actEl,'No recent activity.');return}
+  actEl.innerHTML=events.map(e=>'<div class="log-row"><div class="log-dot" style="background:'+(e.type==='marks'?'var(--indigo)':'var(--warn)')+'"></div><div><div class="txt">'+e.label+'</div><div class="ts">'+esc(e.sub||'')+(e.sub?' · ':'')+rel(e.ts)+'</div></div></div>').join('')
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -968,7 +1007,7 @@ async function loadMyTimetable(){
     days.forEach(d=>{
       const es=lookup[slot.slot_id+'_'+d]||[]
       if(!es.length){html+='<td style="background:var(--lav-50)"></td>';return}
-      html+='<td class="tt-cell">'+es.map(e=>'<div class="tt-entry"><b>'+esc((e.classes?.name||'')+'‑'+(e.class_sections?.name||''))+'</b><span>'+esc(e.subjects?.name||'')+'</span></div>').join('')+'</td>'
+      html+='<td style="padding:6px 4px;vertical-align:top;min-width:90px">'+es.map(e=>'<div style="background:var(--indigo-100);border-radius:8px;padding:6px 8px;text-align:center;margin-bottom:3px"><div style="font-size:12px;font-weight:800;color:var(--indigo-dark);white-space:nowrap">'+esc((e.classes?.name||'')+'-'+(e.class_sections?.name||''))+'</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;white-space:nowrap">'+esc(e.subjects?.name||'')+'</div></div>').join('')+'</td>'
     })
     html+='</tr>'
   })
@@ -1628,24 +1667,45 @@ async function loadCriticalStudents(){
 async function loadMyAttendance(){
   const from=$('att_from')?.value,to=$('att_to')?.value,el=$('myAttResult')
   if(!from||!to){toast('Select date range','error');return}
-  ldg(el)
-  const{data,error}=await sb.from('teacher_attendance').select('*').eq('teacher_id',TEACHER.teacher_id).gte('date',from).lte('date',to).order('date')
-  if(error){emp(el,'Error: '+error.message);return}
-  if(!data?.length){emp(el,'No attendance records found for this period.');return}
-  const present=data.filter(r=>r.status==='P').length
-  const late=data.filter(r=>r.status==='L').length
-  const absent=data.filter(r=>r.status==='A').length
-  let html='<div class="grid-3" style="margin-bottom:18px">'
-    +'<div class="stat-card"><span class="lbl">Present</span><span class="val" style="color:var(--success)">'+present+'</span></div>'
+  el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div>'
+  const{data,error}=await sb.from('teacher_attendance')
+    .select('date,status,in_time,out_time,notes')
+    .eq('teacher_id',TEACHER.teacher_id)
+    .gte('date',from).lte('date',to).order('date')
+  if(error){el.innerHTML='<div style="color:var(--danger);padding:20px">Error: '+esc(error.message)+'</div>';return}
+  if(!data?.length){
+    el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)"><svg viewBox="0 0 24 24" style="width:38px;height:38px;stroke:var(--lav-300);fill:none;margin-bottom:10px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg><div style="font-size:13px">No attendance records found for this period.</div><div style="font-size:11.5px;margin-top:6px">Attendance is recorded via the Staff Attendance Portal.</div></div>'
+    return
+  }
+  const present=data.filter(r=>r.status==='P'||r.status==='Present').length
+  const late=data.filter(r=>r.status==='L'||r.status==='Late').length
+  const absent=data.filter(r=>r.status==='A'||r.status==='Absent').length
+  const total=data.length
+  const pct=Math.round((present/total)*100)
+
+  let html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">'
+    +'<div class="stat-card"><span class="lbl">Present</span><span class="val" style="color:var(--success)">'+present+'</span><span class="sub">'+pct+'% attendance</span></div>'
     +'<div class="stat-card"><span class="lbl">Late</span><span class="val" style="color:var(--warn)">'+late+'</span></div>'
     +'<div class="stat-card"><span class="lbl">Absent</span><span class="val" style="color:var(--danger)">'+absent+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Total Days</span><span class="val">'+total+'</span></div>'
     +'</div>'
-    +'<div class="card"><h3>Attendance Log</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>In Time</th><th>Out Time</th><th>Notes</th></tr></thead><tbody>'
-    +data.map(r=>'<tr><td class="mono">'+fmtD(r.date)+'</td>'
-      +'<td>'+(r.status==='P'?'<span class="pill pill-success">Present</span>':r.status==='L'?'<span class="pill pill-warn">Late</span>':'<span class="pill pill-danger">Absent</span>')+'</td>'
-      +'<td class="mono">'+(r.in_time?r.in_time.slice(0,5):'—')+'</td>'
-      +'<td class="mono">'+(r.out_time?r.out_time.slice(0,5):'—')+'</td>'
-      +'<td style="font-size:11.5px;color:var(--ink-soft)">'+esc(r.notes||'—')+'</td></tr>').join('')
+    +'<div class="card"><h3>Attendance Log</h3>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+    +'<thead><tr><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Date</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Status</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">In Time</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Out Time</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Notes</th></tr></thead><tbody>'
+    +data.map(r=>{
+      const statusPill=r.status==='P'||r.status==='Present'
+        ?'<span style="background:var(--success-soft);color:var(--success);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Present</span>'
+        :r.status==='L'||r.status==='Late'
+        ?'<span style="background:var(--warn-soft);color:var(--warn);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Late</span>'
+        :'<span style="background:var(--danger-soft);color:var(--danger);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Absent</span>'
+      return '<tr style="border-top:1px solid var(--line)">'
+        +'<td style="padding:10px 14px;font-weight:600">'+fmtD(r.date)+'</td>'
+        +'<td style="padding:10px 14px">'+statusPill+'</td>'
+        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.in_time?r.in_time.slice(0,5):'—')+'</td>'
+        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.out_time?r.out_time.slice(0,5):'—')+'</td>'
+        +'<td style="padding:10px 14px;color:var(--ink-soft);font-size:12px">'+esc(r.notes||'—')+'</td>'
+        +'</tr>'
+    }).join('')
     +'</tbody></table></div></div>'
   el.innerHTML=html
 }
