@@ -13,16 +13,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --lav-50:#F7F6FD;
-    --lav-100:#F1EFFC;
-    --lav-200:#E4E0FA;
-    --lav-300:#CFC9F5;
+    --lav-50:#FAF8FC;
+    --lav-100:#F3EFF6;
+    --lav-200:#E8E0EE;
+    --lav-300:#C9B8D4;
     --ink:#221F35;
     --ink-soft:#6B6685;
     --ink-faint:#A8A3C2;
-    --indigo:#5B4FE8;
-    --indigo-dark:#4A3FD6;
-    --indigo-100:#EDEBFE;
+    --indigo:#6C5B7B;
+    --indigo-dark:#5A4768;
+    --indigo-100:#F0EBF4;
     --white:#FFFFFF;
     --line:#E7E3F8;
     --success:#2BB673;
@@ -67,7 +67,7 @@
   }
   .sb-mark{
     width:36px;height:36px;border-radius:10px;
-    background:linear-gradient(135deg,var(--indigo),var(--indigo-dark));
+    background:linear-gradient(135deg,#6C5B7B,#5A4768);
     color:#fff;display:flex;align-items:center;justify-content:center;
     font-weight:800;font-size:14.5px;flex-shrink:0;
   }
@@ -187,7 +187,7 @@
   }
   .avatar-sm{
     width:30px;height:30px;border-radius:50%;
-    background:linear-gradient(135deg,#7B6EF6,var(--indigo));
+    background:linear-gradient(135deg,#8B7B9B,var(--indigo));
     color:#fff;display:flex;align-items:center;justify-content:center;
     font-size:11px;font-weight:700;
   }
@@ -275,7 +275,7 @@
     background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);
     padding:22px;cursor:pointer;transition:transform .15s, box-shadow .15s, border-color .15s;
   }
-  .menu-card:hover{transform:translateY(-3px);box-shadow:0 16px 30px -16px rgba(91,79,232,.35);border-color:var(--indigo)}
+  .menu-card:hover{transform:translateY(-3px);box-shadow:0 16px 30px -16px rgba(108,91,123,.35);border-color:var(--indigo)}
   .menu-card .ic{
     width:42px;height:42px;border-radius:12px;
     display:flex;align-items:center;justify-content:center;
@@ -330,7 +330,7 @@
   }
   .avatar-lg{
     width:68px;height:68px;border-radius:50%;
-    background:linear-gradient(135deg,#7B6EF6,var(--indigo));
+    background:linear-gradient(135deg,#8B7B9B,var(--indigo));
     color:#fff;display:flex;align-items:center;justify-content:center;
     font-size:22px;font-weight:800;flex-shrink:0;
   }
@@ -427,18 +427,50 @@
 
 /* Dark Mode */
 body.dark{
-  --lav-50:#1A1828;--lav-100:#221F35;--lav-200:#2D2B45;--lav-300:#3D3A5C;
-  --ink:#E8E5FF;--ink-soft:#A8A3C2;--ink-faint:#6B6685;
-  --white:#221F35;--line:#2D2B45;
-  --lav-50:#1A1828;
+  --lav-50:#1C1820;--lav-100:#251E2B;--lav-200:#31263A;--lav-300:#46364F;
+  --ink:#EDE8F2;--ink-soft:#B8AABF;--ink-faint:#7A6B82;
+  --white:#251E2B;--line:#31263A;--indigo:#9B87A8;--indigo-dark:#B8A8C8;--indigo-100:#3D2F4A;
+  background:var(--lav-50);
 }
-body.dark .topbar{background:rgba(26,24,40,.9)}
-body.dark .card{background:#221F35}
-body.dark .msg-shell{background:#221F35}
-body.dark .msg-detail{background:#221F35}
-body.dark thead th{background:#2D2B45}
-body.dark tbody tr:hover td{background:#2D2B45}
-body.dark .field-grp input,body.dark .field-grp select,body.dark .field-grp textarea{background:#2D2B45;color:var(--ink);border-color:var(--line)}
+body.dark #sidebar{background:#1C1820;border-color:#31263A}
+body.dark .sb-item:hover{background:#31263A}
+body.dark .sb-item.active{background:#3D2F4A;color:#B8A8C8}
+body.dark .sb-brand{border-color:#31263A}
+body.dark .sb-label{color:#7A6B82}
+body.dark .sb-foot{border-color:#31263A}
+body.dark .sb-switch-btn{background:#31263A;border-color:#46364F;color:#B8A8C8}
+body.dark .sb-logout{border-color:#31263A;color:#7A6B82}
+body.dark .topbar{background:rgba(28,24,32,.92);border-color:#31263A}
+body.dark .icon-btn{background:#251E2B;border-color:#31263A}
+body.dark .user-chip{background:#251E2B;border-color:#31263A}
+body.dark .card{background:#251E2B;border-color:#31263A}
+body.dark .stat-card{background:#251E2B;border-color:#31263A}
+body.dark .menu-card{background:#251E2B;border-color:#31263A}
+body.dark .menu-card:hover{border-color:#9B87A8;box-shadow:0 16px 30px -16px rgba(108,91,123,.4)}
+body.dark .table-wrap{border-color:#31263A}
+body.dark thead th{background:#31263A;color:#B8AABF}
+body.dark tbody td{border-color:#31263A}
+body.dark tbody tr:hover td{background:#31263A}
+body.dark .msg-shell{background:#251E2B;border-color:#31263A}
+body.dark .msg-list{border-color:#31263A}
+body.dark .msg-item{border-color:#31263A}
+body.dark .msg-item:hover{background:#31263A}
+body.dark .msg-item.active{background:#3D2F4A}
+body.dark .msg-detail{background:#251E2B;color:#EDE8F2}
+body.dark .field-grp input,body.dark .field-grp select,body.dark .field-grp textarea{background:#31263A;color:#EDE8F2;border-color:#46364F}
+body.dark .field-grp input:focus,body.dark .field-grp select:focus{background:#3D2F4A;border-color:#9B87A8}
+body.dark .btn-ghost{background:#251E2B;border-color:#46364F;color:#B8AABF}
+body.dark .banner{background:linear-gradient(120deg,#5A4768 0%,#6C5B7B 100%)}
+body.dark .profile-hero{background:#251E2B;border-color:#31263A}
+body.dark .field-row{border-color:#31263A}
+body.dark #modal-box{background:#251E2B}
+body.dark #modal-head{border-color:#31263A}
+body.dark #modal-foot{border-color:#31263A}
+body.dark .marks-input{background:#31263A;border-color:#46364F;color:#EDE8F2}
+body.dark .back-btn{background:#251E2B;border-color:#31263A;color:#B8AABF}
+body.dark .pill-neutral{background:#31263A;color:#B8AABF}
+body.dark .pill-indigo{background:#3D2F4A;color:#B8A8C8}
+body.dark [style*="background:var(--indigo-100)"]{background:#3D2F4A!important}
 
 </style>
 </head>
@@ -558,7 +590,7 @@ body.dark .field-grp input,body.dark .field-grp select,body.dark .field-grp text
         <div class="page-head"><div><h2>Marks Entry &amp; Assessment</h2><p>Choose an action to continue</p></div></div>
         <div class="menu-board">
           <div class="menu-card" onclick="openSub('sub-entry')">
-            <div class="ic" style="background:linear-gradient(135deg,#5B4FE8,#4A3FD6)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
+            <div class="ic" style="background:linear-gradient(135deg,#6C5B7B,#5A4768)"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
             <h4>Enter Marks</h4><p>Enter or update marks for a class, subject &amp; assessment</p>
           </div>
           <div class="menu-card" onclick="openSub('sub-perf')">
@@ -786,7 +818,7 @@ const TITLES={
 const $=id=>document.getElementById(id)
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtD(s){if(!s)return '—';try{return new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return s}}
-function rel(s){if(!s)return '—';try{const d=new Date(s),n=new Date(),diff=n-d;if(isNaN(diff))return '—';if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';return fmtD(s)}catch{return '—'}}
+function rel(s){if(!s)return '—';try{const d=new Date(s);if(isNaN(d.getTime()))return fmtD(s)||'—';const diff=Date.now()-d.getTime();if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';if(diff<604800000)return Math.floor(diff/86400000)+'d ago';return fmtD(s)}catch{return '—'}}
 function today(){return new Date().toISOString().slice(0,10)}
 function initials(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
 function ldg(el){if(el)el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'}
@@ -1404,7 +1436,7 @@ async function loadStudentPerfAnalysis(enrollmentId, name){
       html+='<div class="card"><h3>Performance Trend</h3><canvas id="'+canId+'" height="80"></canvas></div>'
       el.innerHTML=html
       const ctx=document.getElementById(canId)?.getContext('2d')
-      if(ctx&&typeof Chart!=='undefined'){new Chart(ctx,{type:'line',data:{labels:trendData.map(d=>d.label),datasets:[{label:'% Score',data:trendData.map(d=>d.pct),borderColor:'#5B4FE8',backgroundColor:'rgba(91,79,232,.08)',tension:.4,fill:true,pointBackgroundColor:'#5B4FE8',pointRadius:5}]},options:{plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}}}})}
+      if(ctx&&typeof Chart!=='undefined'){new Chart(ctx,{type:'line',data:{labels:trendData.map(d=>d.label),datasets:[{label:'% Score',data:trendData.map(d=>d.pct),borderColor:'#5B4FE8',backgroundColor:'rgba(108,91,123,.08)',tension:.4,fill:true,pointBackgroundColor:'#5B4FE8',pointRadius:5}]},options:{plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}}}})}
       return
     }
   }
@@ -1514,7 +1546,7 @@ async function loadPerfAnalysis(){
     vals.forEach(v=>{const b=Math.min(Math.floor(v/bsize),buckets-1);bucketCounts[b]++})
     const canId='bellChart_'+a.assessment_id.replace(/-/g,'')
     const ctx=document.getElementById(canId)?.getContext('2d')
-    if(ctx)new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:bucketCounts,backgroundColor:'rgba(91,79,232,.7)',borderRadius:6}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{stepSize:1}}}}})
+    if(ctx)new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:bucketCounts,backgroundColor:'rgba(108,91,123,.7)',borderRadius:6}]},options:{plugins:{legend:{display:false}},scales:{y:{ticks:{stepSize:1}}}}})
   })
   // Section comparison chart
   if(allSections.length>1){
@@ -1532,7 +1564,7 @@ async function loadPerfAnalysis(){
           })
           return{label:(sec.classes?.name||'?')+'‑'+(sec.class_sections?.name||'?'),avgs}
         }))
-        new Chart(secCtx,{type:'bar',data:{labels:selAssess.map(a=>a.name),datasets:secAvgs.map((s,i)=>({label:s.label,data:s.avgs,backgroundColor:i===0?'rgba(91,79,232,.8)':'rgba(58,182,224,.8)',borderRadius:4}))},options:{plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}})
+        new Chart(secCtx,{type:'bar',data:{labels:selAssess.map(a=>a.name),datasets:secAvgs.map((s,i)=>({label:s.label,data:s.avgs,backgroundColor:i===0?'rgba(108,91,123,.8)':'rgba(58,182,224,.8)',borderRadius:4}))},options:{plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}}}})
       }
     }
   }
