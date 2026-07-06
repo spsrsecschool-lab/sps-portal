@@ -423,7 +423,7 @@ SPS.ready().then(async()=>{
 
   // Load all students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no,s_no)')
+    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -739,8 +739,8 @@ function filterClassList(){
   const f=$('cls_filter')?.value||'all'
   let list=_classRaw
   if(q)list=list.filter(s=>s.students?.full_name?.toLowerCase().includes(q)||s.students?.father_name?.toLowerCase().includes(q)||String(s.roll_no||'').includes(q)||String(s.s_no||'').includes(q))
-  if(f==='has_sno')list=list.filter(s=>s.students?.s_no||s.s_no)
-  if(f==='no_sno')list=list.filter(s=>!s.students?.s_no&&!s.s_no)
+  if(f==='has_sno')list=list.filter(s=>s.s_no)
+  if(f==='no_sno')list=list.filter(s=>!s.s_no)
   renderClassList(list)
 }
 
@@ -752,7 +752,7 @@ function renderClassList(list){
     +list.map(s=>'<tr>'
       +'<td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
-      +'<td style="font-family:var(--mono)">'+(s.s_no||s.students?.s_no?'<span class="pill pill-grn">'+esc(String(s.s_no||s.students?.s_no||'?'))+'</span>':'<span class="pill pill-neutral">—</span>')+'</td>'
+      +'<td style="font-family:var(--mono)">'+(s.s_no?'<span class="pill pill-grn">'+esc(String(s.s_no))+'</span>':'<span class="pill pill-neutral">—</span>')+'</td>'
       +'<td>'+esc(s.students?.father_name||'—')+'</td>'
       +'<td style="font-family:var(--mono)">'+esc(s.students?.phone||'—')+'</td>'
       +'<td style="font-family:var(--mono)">'+esc(s.students?.alt_phone||'—')+'</td>'
@@ -767,7 +767,7 @@ async function viewStudentProfile(eid){
   const s=enr.students||{}
   openModal('Student Profile — '+esc(s.full_name||'?'),
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-    +[['Full Name',s.full_name],['Father\'s Name',s.father_name],['Mother\'s Name',s.mother_name],['Phone',s.phone],['Alt. Phone',s.alt_phone],['Roll No.',enr.roll_no],['S.No.',enr.s_no||s.s_no],['Aadhaar No.',s.aadhar_no]].map(([k,v])=>
+    +[['Full Name',s.full_name],['Father\'s Name',s.father_name],['Mother\'s Name',s.mother_name],['Phone',s.phone],['Alt. Phone',s.alt_phone],['Roll No.',enr.roll_no],['S.No.',enr.s_no],['Aadhaar No.',s.aadhar_no]].map(([k,v])=>
       '<div style="padding:10px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:10px;text-transform:uppercase;font-weight:700;color:var(--ink-faint);margin-bottom:3px">'+k+'</div><div style="font-size:13px;font-weight:600">'+esc(String(v||'—'))+'</div></div>'
     ).join('')
     +'</div>'
@@ -812,7 +812,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no,s_no)')
+    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
