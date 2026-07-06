@@ -487,6 +487,8 @@ body.dark [style*="background:var(--lav-100)"]{background:#111111!important}
 body.dark [style*="background:var(--success-soft)"]{background:#0A2A15!important}
 body.dark [style*="background:var(--warn-soft)"]{background:#2A1A00!important}
 body.dark [style*="background:var(--danger-soft)"]{background:#2A0808!important}
+body.dark .cell-fail{background:#2A0808!important;color:#F0F0F0}
+body.dark tbody tr:hover .cell-fail td{background:#2A0808!important}
 body.dark [style*="background:var(--indigo-100)"]{background:#0E2030!important}
 body.dark input,body.dark textarea,body.dark select{color:#F0F0F0!important;background:#1A1A1A!important;border-color:#2A2A2A!important}
 body.dark input::placeholder,body.dark textarea::placeholder{color:#606060!important}
@@ -666,18 +668,21 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <div id="dashBanner" style="display:none;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px 22px;margin-bottom:18px;display:none;align-items:center;justify-content:space-between;gap:16px;border-left:4px solid var(--indigo)">
-        <div style="display:flex;align-items:center;gap:14px">
-          <div style="width:40px;height:40px;border-radius:10px;background:var(--indigo-100);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-            <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--indigo);fill:none;stroke-width:2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </div>
+      <div id="dashBanner" style="display:none;background:#355C7D;border-radius:var(--radius-lg);padding:26px 30px;margin-bottom:20px;position:relative;overflow:hidden;color:#fff">
+        <!-- Decorative circles -->
+        <div style="position:absolute;width:200px;height:200px;border-radius:50%;border:1px solid rgba(255,255,255,.1);right:-60px;bottom:-100px;pointer-events:none"></div>
+        <div style="position:absolute;width:120px;height:120px;border-radius:50%;border:1px solid rgba(255,255,255,.08);right:20px;bottom:-40px;pointer-events:none"></div>
+        <div style="position:absolute;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.05);right:140px;top:-20px;pointer-events:none"></div>
+        <!-- Content -->
+        <div style="position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
           <div>
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:700" id="bannerEyebrow"></div>
-            <div style="font-size:15px;font-weight:800;color:var(--ink);margin-top:2px" id="bannerTitle">Marks Pending</div>
-            <div style="font-size:12px;color:var(--ink-soft);margin-top:2px" id="bannerSub"></div>
+            <div id="bannerGreeting" style="font-size:13px;color:rgba(255,255,255,.75);font-weight:500;margin-bottom:6px"></div>
+            <div id="bannerEyebrow" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6);font-weight:700;margin-bottom:4px"></div>
+            <div id="bannerTitle" style="font-size:20px;font-weight:800;line-height:1.2">Marks Pending</div>
+            <div id="bannerSub" style="font-size:12.5px;color:rgba(255,255,255,.75);margin-top:5px"></div>
           </div>
+          <button onclick="goTo('marks',null)" style="background:#fff;color:#355C7D;border:none;padding:10px 22px;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">Enter Marks →</button>
         </div>
-        <button onclick="goTo('marks',null)" style="background:var(--indigo);color:#fff;border:none;padding:9px 18px;border-radius:var(--radius-sm);font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">Enter Marks →</button>
       </div>
       <div class="grid-4" style="margin-bottom:18px">
         <div class="stat-card"><span class="lbl">Pending Marks</span><span class="val" id="statPending">—</span><span class="sub">Assessments awaiting entry</span></div>
@@ -1074,7 +1079,12 @@ async function renderDashboard(){
   })
   $('statPending').textContent=pending
   if(pending>0){
-    $('dashBanner').style.display='flex'
+    $('dashBanner').style.display='block'
+    // Time-based greeting
+    const hr=new Date().getHours()
+    const greet=hr<12?'Good Morning':hr<17?'Good Afternoon':'Good Evening'
+    const firstName=(TEACHER.full_name||'').split(' ')[0]
+    $('bannerGreeting').textContent=greet+', '+firstName+' 👋'
     $('bannerEyebrow').textContent=(SESS?.session_id||'')+' · Pending Submissions'
     $('bannerTitle').textContent=pending+' assessment'+(pending>1?'s':'')+' awaiting marks'
     $('bannerSub').textContent='Submit marks before the deadline to avoid lock.'
