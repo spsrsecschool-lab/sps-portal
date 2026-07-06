@@ -1852,9 +1852,22 @@ function renderObsStudents(students){
 }
 function openObsModal(eid,name){
   openModal('Observation — '+name,
-    '<div class="fg"><label>Type</label><select id="obs_type"><option>Behaviour</option><option>Discipline</option><option>Academic</option><option>Other</option></select></div>'+
-    '<div class="fg" style="margin-top:10px"><label>Remark *</label><textarea id="obs_text" placeholder="Write your observation…" style="min-height:100px"></textarea></div>',
-    '<button class="btn btn-primary" onclick="submitObs(\''+eid+'\')">Save Observation</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+    '<div style="margin-bottom:14px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Observation Type</div>'
+    +'<select id="obs_type" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box;cursor:pointer">'
+    +'<option value="Behaviour">🗣 Behaviour</option>'
+    +'<option value="Discipline">⚠️ Discipline</option>'
+    +'<option value="Academic">📚 Academic</option>'
+    +'<option value="Positive Feedback">⭐ Positive Feedback</option>'
+    +'<option value="Other">📝 Other</option>'
+    +'</select>'
+    +'</div>'
+    +'<div>'
+    +'<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Remark *</div>'
+    +'<textarea id="obs_text" placeholder="Write your observation here…" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box;min-height:110px;resize:vertical"></textarea>'
+    +'</div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-primary" onclick="submitObs(\''+eid+'\')">Save Observation</button>'
   )
 }
 async function createTest(){
