@@ -491,6 +491,8 @@ body.dark [style*="background:var(--indigo-100)"]{background:#0E2030!important}
 
 
 /* ═══ ANIMATIONS ═══ */
+/* Disable card animation inside sub-pages to not block inputs */
+#sub-perf .card,#sub-entry .card,#sub-test .card,#sub-obs .card{animation:none!important}
 @keyframes fadeUp   {from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn   {from{opacity:0}to{opacity:1}}
 @keyframes scaleIn  {from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
@@ -501,8 +503,8 @@ body.dark [style*="background:var(--indigo-100)"]{background:#0E2030!important}
 .page.active{animation:fadeUp .28s cubic-bezier(.4,0,.2,1) both}
 
 /* Cards stagger in */
-.card{animation:fadeUp .3s cubic-bezier(.4,0,.2,1) both}
-.stat-card{animation:fadeUp .3s cubic-bezier(.4,0,.2,1) both}
+.card{animation:fadeUp .3s cubic-bezier(.4,0,.2,1) forwards}
+.stat-card{animation:fadeUp .3s cubic-bezier(.4,0,.2,1) forwards}
 .menu-card{animation:scaleIn .25s cubic-bezier(.4,0,.2,1) both}
 .grid-4 .stat-card:nth-child(1){animation-delay:.04s}
 .grid-4 .stat-card:nth-child(2){animation-delay:.08s}
@@ -603,7 +605,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
     </div>
     <div class="sb-item" onclick="goTo('marks',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-      Marks Entry
+      Marks &amp; Assessment
     </div>
     <div class="sb-item" onclick="goTo('critical',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg>
@@ -753,7 +755,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
           <div style="border-top:1px solid var(--line);padding-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <div style="flex:1;min-width:200px;position:relative">
               <label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Or Search Student (by name, father's name or roll no.)</label>
-              <input id="pa_student_search" placeholder="Type student name…" oninput="paStudentSearch()" autocomplete="off" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50)">
+              <input id="pa_student_search" placeholder="Type student name…" oninput="paStudentSearch()" autocomplete="off" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);pointer-events:auto;position:relative;z-index:10;cursor:text">
               <div id="pa_search_results" style="position:absolute;top:100%;left:0;right:0;z-index:999;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.15);max-height:240px;overflow-y:auto;display:none;margin-top:4px"></div>
             </div>
           </div>
@@ -911,7 +913,7 @@ let _marksRaw=[], _marksLocked=false, _currentMarksMeta={}
 let _isClassView=false
 
 const TITLES={
-  dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks Entry & Assessment',
+  dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks & Assessment',
   critical:'Critical Students',myattendance:'My Attendance',messages:'Messages',profile:'My Profile'
 }
 
@@ -976,10 +978,10 @@ function toggleDarkMode(isDark){
 if(localStorage.getItem('sps_dark')==='1')toggleDarkMode(true)
 
 
-document.addEventListener('click',function(e){
+document.addEventListener('mousedown',function(e){
   const sr=$('pa_search_results'),si=$('pa_student_search')
   if(sr&&si&&!sr.contains(e.target)&&e.target!==si)sr.style.display='none'
-})
+},{passive:true})
 
 function clearMarksTable(){document.getElementById('marksTableWrap').innerHTML=''}
 function openSub(subId){
