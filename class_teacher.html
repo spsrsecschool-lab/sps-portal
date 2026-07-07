@@ -404,7 +404,7 @@ const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'At
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-function fmtD(s){if(!s)return '—';try{return new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return s}}
+function fmtD(s){if(!s)return '—';try{const d=s.includes('T')||s.includes('Z')?new Date(s):new Date(s+'T12:00:00');if(isNaN(d))return '—';return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return '—'}}
 function rel(s){if(!s)return '—';try{const d=new Date(s);if(isNaN(d.getTime()))return '—';const diff=Date.now()-d.getTime();if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';if(diff<604800000)return Math.floor(diff/86400000)+'d ago';return fmtD(s)}catch{return '—'}}
 function today(){return new Date().toISOString().slice(0,10)}
 function initials(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
@@ -834,7 +834,7 @@ async function viewStudentProfile(eid){
   ).join('')
 
   const docsHtml=docs?.length
-    ?docs.map(d=>'<a href="'+esc(d.file_url||'#')+'" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--lav-100);border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;color:var(--ink);text-decoration:none;margin:0 6px 6px 0">'+esc(d.file_type||'Doc')+'<span style="font-size:10px;color:var(--ink-faint)">'+(d.uploaded_by_type||'')+' · '+fmtD(d.uploaded_at)+'</span></a>').join('')
+    ?docs.map(d=>{const dt=d.uploaded_at?new Date(d.uploaded_at):null;const dtStr=dt&&!isNaN(dt)?dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'';return '<a href="'+esc(d.file_url||'#')+'" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--lav-100);border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;color:var(--ink);text-decoration:none;margin:0 6px 6px 0">'+esc(d.file_type||'Doc')+'<span style="font-size:10px;color:var(--ink-faint)">'+(d.uploaded_by_type?d.uploaded_by_type+' · ':'')+dtStr+'</span></a>'}  ).join('')
     :'<div style="font-size:12.5px;color:var(--ink-faint)">No documents uploaded.</div>'
 
   let body='<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">'
