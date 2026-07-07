@@ -451,7 +451,7 @@ function goTo(id,el){
 
 // ═══════════ AUTH & INIT ═══════════
 
-const _initTimeout=setTimeout(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},12000)
+// _removed_(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},12000)
 SPS.ready().then(async()=>{
   sb=window.sb
   // Timeout race — if getSession hangs (stale token refresh), clear cache and redirect
@@ -508,10 +508,9 @@ SPS.ready().then(async()=>{
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
-  clearTimeout(_initTimeout)
 
   await renderDashboard()
-}).catch(e=>{console.error('[SPS] Init error:',e);clearTimeout(_initTimeout);Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'})
+})
 
 // ═══════════ DASHBOARD ═══════════
 async function renderDashboard(){
