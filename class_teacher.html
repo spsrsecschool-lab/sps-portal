@@ -423,7 +423,7 @@ SPS.ready().then(async()=>{
 
   // Load all students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no)')
+    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -604,9 +604,7 @@ async function confirmAttSubmit(date){
     enrollment_id:s.enrollment_id,
     date,
     status:_attState[s.enrollment_id]||'A',
-    session_id:SESS?.session_id||'',
-    marked_by:TEACHER.teacher_id,
-    marked_at:new Date().toISOString()
+    session_id:SESS?.session_id||''
   }))
   // Delete existing then batch insert
   await sb.from('student_attendance').delete().in('enrollment_id',records.map(r=>r.enrollment_id)).eq('date',date)
@@ -796,7 +794,7 @@ async function viewStudentProfile(eid){
   ).join('')
 
   const docsHtml=docs?.length
-    ?docs.map(d=>'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px"><div style="flex:1"><div style="font-size:12.5px;font-weight:600">'+esc(d.doc_type||d.file_name||'Doc')+'</div><div style="font-size:11px;color:var(--ink-faint)">'+fmtD(d.uploaded_at||d.created_at)+'</div></div><a href="'+esc(d.file_url||'#')+'" target="_blank" style="font-size:11.5px;color:var(--grn);font-weight:700;text-decoration:none">View</a></div>').join('')
+    ?docs.map(d=>'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px"><div style="flex:1"><div style="font-size:12.5px;font-weight:600">'+esc(d.file_type||d.doc_type||'Document')+'</div><div style="font-size:11px;color:var(--ink-faint)">'+(d.uploaded_by_type?'Uploaded by '+d.uploaded_by_type+' · ':'')+fmtD(d.uploaded_at||d.created_at)+'</div></div><a href="'+esc(d.file_url||'#')+'" target="_blank" style="font-size:11.5px;color:var(--grn);font-weight:700;text-decoration:none">View</a></div>').join('')
     :'<div style="font-size:12.5px;color:var(--ink-faint)">No documents uploaded.</div>'
 
   let body='<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">'
@@ -834,7 +832,7 @@ async function saveStudentProfile(){
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no)')
+    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -862,7 +860,7 @@ async function uploadStudentDoc(sid,input){
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:false})
   if(upErr){toast('Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
-  const{error}=await sb.from('student_documents').insert({student_id:sid,file_name:file.name,file_url:publicUrl,doc_type:file.name.split('.').pop().toUpperCase(),uploaded_by:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
+  const{error}=await sb.from('student_documents').insert({student_id:sid,file_url:publicUrl,file_type:file.name.split('.').pop().toUpperCase(),uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
   if(error){toast('Doc saved failed: '+error.message,'error');return}
   toast('Document uploaded','success')
 }
@@ -899,7 +897,7 @@ async function saveStudentProfile(studentId){
   if(error){toast('Failed to save: '+error.message,'error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no)')
+    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -972,7 +970,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no)')
+    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
