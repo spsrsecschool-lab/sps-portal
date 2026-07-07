@@ -451,22 +451,6 @@ function goTo(id,el){
 
 // ═══════════ AUTH & INIT ═══════════
 
-// ═══ AUTH SAFETY NET ═══
-// If SPS.ready() hangs (stale cache), clear and redirect after 12s
-window._spsAuthTimeout = setTimeout(async () => {
-  console.warn('[AUTH] Timeout — clearing stale session and reloading')
-  try {
-    // Clear Supabase tokens from localStorage
-    Object.keys(localStorage).forEach(k => {
-      if (k.startsWith('sb-') || k.includes('supabase') || k.includes('sps_')) {
-        localStorage.removeItem(k)
-      }
-    })
-    sessionStorage.clear()
-  } catch(e){}
-  window.location.href = 'login.html'
-}, 12000)
-
 SPS.ready().then(async()=>{
   sb=window.sb
   const{data:{session:authSess}}=await sb.auth.getSession()
@@ -480,7 +464,6 @@ SPS.ready().then(async()=>{
   SESS=sess
 
   // Get class teacher assignment
-  clearTimeout(window._spsAuthTimeout)
   const{data:ct}=await sb.from('class_teacher_map')
     .select('*,classes(name,class_id),class_sections(name,section_id)')
     .eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
