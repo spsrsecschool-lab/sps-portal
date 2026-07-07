@@ -1190,6 +1190,7 @@ async function uploadDoc(){
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file)
   if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create a bucket called "school-files" in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',type)
   await sb.from('student_documents').insert({student_id:sid,file_url:publicUrl,file_type:type,uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id,uploaded_at:new Date().toISOString()})
   hideUploadOverlay();toast('Document uploaded','success');closeModal();openProfile(_profileEnrollId)
 }
