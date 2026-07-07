@@ -136,6 +136,14 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 #scrim{position:fixed;inset:0;background:rgba(26,46,32,.35);z-index:150;display:none}
 #scrim.show{display:block}
 @media(max-width:760px){#sidebar{transform:translateX(-100%)}#sidebar.show{transform:translateX(0)}#main{margin-left:0}.content{padding:16px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* Mobile: disable sticky columns — they block content on small screens */
+@media(max-width:760px){
+  [style*="position:sticky"]{position:relative!important;left:auto!important;z-index:auto!important;background:inherit!important}
+  .sticky-col{position:relative!important;left:auto!important;z-index:auto!important}
+  .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
+}
+
 </style>
 </head>
 <body>
@@ -359,7 +367,15 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
   <div style="width:52px;height:52px;border:4px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite"></div>
   <div id="uploadOverlayMsg" style="color:#fff;font-size:14px;font-weight:600">Uploading…</div>
 </div>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+<style>@keyframes spin{to{transform:rotate(360deg)}}
+/* Mobile: disable sticky columns — they block content on small screens */
+@media(max-width:760px){
+  [style*="position:sticky"]{position:relative!important;left:auto!important;z-index:auto!important;background:inherit!important}
+  .sticky-col{position:relative!important;left:auto!important;z-index:auto!important}
+  .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
+}
+
+</style>
 
 <!-- DOC UPLOAD MODAL (sits above profile modal) -->
 <div id="doc-upload-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:600;align-items:center;justify-content:center;padding:20px">
