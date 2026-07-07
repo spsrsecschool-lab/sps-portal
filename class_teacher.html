@@ -499,9 +499,9 @@ async function loadDailyAttendance(){
   ldg(el,'Checking holiday…')
 
   // Check if holiday
-  const{data:holiday}=await sb.from('holidays').select('name,type').eq('date',date).eq('session_id',SESS?.session_id||'').maybeSingle()
+  const{data:holiday}=await sb.from('holidays').select('label').eq('date',date).eq('session_id',SESS?.session_id||'').maybeSingle()
   if(holiday){
-    el.innerHTML='<div class="card" style="background:var(--warn-soft);border-color:var(--warn)"><div style="font-size:14px;font-weight:700;color:var(--warn)">🏖️ Holiday: '+esc(holiday.name||holiday.type||'Holiday')+'</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">This day is marked as a holiday by admin. Attendance cannot be submitted for holidays.</div></div>'
+    el.innerHTML='<div class="card" style="background:var(--warn-soft);border-color:var(--warn)"><div style="font-size:14px;font-weight:700;color:var(--warn)">🏖️ Holiday: '+esc(holiday.label||'Holiday')+'</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">This day is marked as a holiday by admin. Attendance cannot be submitted for holidays.</div></div>'
     return
   }
 
@@ -629,7 +629,7 @@ async function loadAttReport(){
   // Get attendance and holidays
   const[{data:att},{data:hols}]=await Promise.all([
     sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',from).lte('date',to),
-    sb.from('holidays').select('date,name,type').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to)
+    sb.from('holidays').select('date,label').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to)
   ])
 
   const attMap={}; (att||[]).forEach(a=>{if(!attMap[a.enrollment_id])attMap[a.enrollment_id]={};attMap[a.enrollment_id][a.date]=a.status})
@@ -928,8 +928,10 @@ async function uploadStudentDoc(studentId, input){
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:false})
   if(upErr){toast('Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
-  const{error}=await sb.from('student_documents').insert({student_id:studentId,file_name:file.name,file_url:publicUrl,doc_type:file.name.split('.').pop().toUpperCase(),uploaded_by:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
-  if(error){toast('Doc uploaded but record failed: '+error.message,'error');return}
+  const{error}=// Delete existing doc of same type first
+  await sb.from('student_documents').delete().eq('student_id',studentId).eq('file_type',file.name.split('.').pop().toUpperCase())
+  const{error:de2}=await sb.from('student_documents').insert({student_id:studentId,file_url:publicUrl,file_type:file.name.split('.').pop().toUpperCase(),uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
+  if(de2){toast('Doc save failed: '+de2.message,'error');return}
   toast('Document uploaded ✓','success')
 }
 
