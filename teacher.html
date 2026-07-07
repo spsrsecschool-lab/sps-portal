@@ -1019,6 +1019,23 @@ function openSub(subId){
 // ═══════════════════════════════════════════════════════════════
 // AUTH & INIT
 // ═══════════════════════════════════════════════════════════════
+
+// ═══ AUTH SAFETY NET ═══
+// If SPS.ready() hangs (stale cache), clear and redirect after 12s
+window._spsAuthTimeout = setTimeout(async () => {
+  console.warn('[AUTH] Timeout — clearing stale session and reloading')
+  try {
+    // Clear Supabase tokens from localStorage
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('sb-') || k.includes('supabase') || k.includes('sps_')) {
+        localStorage.removeItem(k)
+      }
+    })
+    sessionStorage.clear()
+  } catch(e){}
+  window.location.href = 'login.html'
+}, 12000)
+
 SPS.ready().then(async()=>{
   sb=window.sb
 
@@ -1028,6 +1045,7 @@ SPS.ready().then(async()=>{
   const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
   if(!teacher||te){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
   if(!teacher.is_active){toast('Your account is inactive. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
+  clearTimeout(window._spsAuthTimeout)
   console.log('[INIT] Teacher loaded:',teacher.full_name,teacher.teacher_id)
   TEACHER=teacher
 
@@ -1043,6 +1061,7 @@ SPS.ready().then(async()=>{
   console.log('[INIT] MY_MAPPINGS:',MY_MAPPINGS.length,'subjects:',[...new Set(MY_MAPPINGS.map(m=>m.subjects?.name||m.subject_id))].join(','))
 
   // Check if class teacher
+  clearTimeout(window._spsAuthTimeout)
   const{data:ct}=await sb.from('class_teacher_map')
     .select('*,classes(name),class_sections(name,section_id)')
     .eq('teacher_id',TEACHER.teacher_id).maybeSingle()
