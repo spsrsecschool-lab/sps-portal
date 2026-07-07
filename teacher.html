@@ -578,6 +578,14 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 @keyframes subtlePulse{0%,100%{box-shadow:0 0 0 0 rgba(53,92,125,.3)}50%{box-shadow:0 0 0 6px rgba(53,92,125,.0)}}
 .sb-switch-btn{animation:subtlePulse 2.5s ease 1s 3}
 
+
+/* Mobile: disable sticky columns — they block content on small screens */
+@media(max-width:760px){
+  [style*="position:sticky"]{position:relative!important;left:auto!important;z-index:auto!important;background:inherit!important}
+  .sticky-col{position:relative!important;left:auto!important;z-index:auto!important}
+  .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
+}
+
 </style>
 </head>
 <body>
@@ -940,7 +948,7 @@ const TITLES={
 // ═══════════════════════════════════════════════════════════════
 const $=id=>document.getElementById(id)
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-function fmtD(s){if(!s)return '—';try{return new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return s}}
+function fmtD(s){if(!s)return '—';try{const d=s.includes('T')||s.includes('Z')?new Date(s):new Date(s+'T12:00:00');if(isNaN(d))return '—';return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return '—'}}
 function rel(s){if(!s)return '—';try{const d=new Date(s);if(isNaN(d.getTime()))return fmtD(s)||'—';const diff=Date.now()-d.getTime();if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';if(diff<604800000)return Math.floor(diff/86400000)+'d ago';return fmtD(s)}catch{return '—'}}
 function today(){return new Date().toISOString().slice(0,10)}
 function initials(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
