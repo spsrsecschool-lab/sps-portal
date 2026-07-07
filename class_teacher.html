@@ -354,6 +354,13 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
   </div>
 </div>
+<!-- UPLOAD OVERLAY -->
+<div id="uploadOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+  <div style="width:52px;height:52px;border:4px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <div id="uploadOverlayMsg" style="color:#fff;font-size:14px;font-weight:600">Uploading…</div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+
 
 <script>
 // ═══════════ GLOBALS ═══════════
@@ -808,7 +815,7 @@ async function viewStudentProfile(eid){
     +(!canEdit?'<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;font-size:12.5px;margin-bottom:14px">Profile editing is locked. Request access from admin to make changes.</div>':'')
     +'<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:8px">Documents</div>'
     +docsHtml
-    +(canEdit?'<label style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--lav-100);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft)">Upload Document<input type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="uploadStudentDoc(_profileStudentId,this)"></label>':'')
+    +(canEdit?'<button onclick="openDocUploadModal(_profileStudentId)" style="margin-top:10px;background:var(--lav-100);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);font-family:var(--font)">📎 Upload Document</button>':'')
     +'</div>'
 
   const foot='<button class="btn btn-ghost" onclick="closeModal()">Close</button>'
@@ -855,17 +862,47 @@ async function uploadStudentPhoto(sid,input){
 }
 
 async function uploadStudentDoc(sid,input){
-  const file=input.files?.[0];if(!file)return
-  toast('Uploading...','info')
-  const path='students/'+sid+'/docs/'+Date.now()+'_'+file.name
+  // Ignore direct file input - use modal with type selection instead
+}
+
+function openDocUploadModal(sid){
+  window._profileStudentId=sid
+  openModal('Upload Document',
+    '<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Document Type</div>'
+    +'<select id="doc_type_sel" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);margin-bottom:14px">'
+    +'<option>Aadhar Card</option><option>Birth Certificate</option><option>Transfer Certificate</option><option>Bonafide Certificate</option><option>Other</option>'
+    +'</select>'
+    +'<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">File (JPG, PNG, PDF) *</div>'
+    +'<input type="file" id="doc_file_inp" accept="image/*,.pdf" style="width:100%;font-family:var(--font);font-size:13px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50)">',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-primary" onclick="confirmDocUpload()">Upload</button>'
+  )
+}
+
+async function confirmDocUpload(){
+  const sid=window._profileStudentId
+  const file=document.getElementById('doc_file_inp')?.files?.[0]
+  const docType=document.getElementById('doc_type_sel')?.value
+  if(!file){toast('Select a file first','error');return}
+  closeModal()
+  showUploadOverlay('Uploading '+docType+'…')
+  const ext=file.name.split('.').pop()
+  const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:false})
-  if(upErr){toast('Upload failed: '+upErr.message,'error');return}
+  if(upErr){hideUploadOverlay();toast('Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
-  // Delete existing doc of same type for this student before inserting new one
-  await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',file.name.split('.').pop().toUpperCase())
-  const{error}=await sb.from('student_documents').insert({student_id:sid,file_url:publicUrl,file_type:file.name.split('.').pop().toUpperCase(),uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
+  // Delete any existing doc of same type for this student
+  await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',docType)
+  const{error}=await sb.from('student_documents').insert({
+    student_id:sid,file_url:publicUrl,file_type:docType,
+    uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,
+    uploaded_at:new Date().toISOString()
+  })
+  hideUploadOverlay()
   if(error){toast('Doc save failed: '+error.message,'error');return}
-  toast('Document uploaded','success')
+  toast(docType+' uploaded ✓','success')
+  // Refresh profile
+  viewStudentProfile(CLASS_STUDENTS.find(s=>s.students?.student_id===sid)?.enrollment_id)
 }
 
 async function requestProfileEditAccess(){
