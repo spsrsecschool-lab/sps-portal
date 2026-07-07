@@ -604,8 +604,6 @@ async function confirmAttSubmit(date){
     enrollment_id:s.enrollment_id,
     date,
     status:_attState[s.enrollment_id]||'A',
-    class_id:MY_CLASS.class_id,
-    section_id:MY_CLASS.section_id,
     session_id:SESS?.session_id||'',
     marked_by:TEACHER.teacher_id,
     marked_at:new Date().toISOString()
@@ -763,18 +761,180 @@ function renderClassList(list){
 
 async function viewStudentProfile(eid){
   const enr=CLASS_STUDENTS.find(s=>s.enrollment_id===eid)
-  if(!enr){return}
+  if(!enr)return
   const s=enr.students||{}
-  openModal('Student Profile — '+esc(s.full_name||'?'),
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-    +[['Full Name',s.full_name],['Father\'s Name',s.father_name],['Mother\'s Name',s.mother_name],['Phone',s.phone],['Alt. Phone',s.alt_phone],['Roll No.',enr.roll_no],['S.No.',enr.s_no],['Aadhaar No.',s.aadhar_no]].map(([k,v])=>
-      '<div style="padding:10px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:10px;text-transform:uppercase;font-weight:700;color:var(--ink-faint);margin-bottom:3px">'+k+'</div><div style="font-size:13px;font-weight:600">'+esc(String(v||'—'))+'</div></div>'
-    ).join('')
+  window._profileStudentId=s.student_id
+
+  const{data:ctPerms}=await sb.from('class_teacher_map')
+    .select('can_edit_profiles').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
+  const canEdit=ctPerms?.can_edit_profiles===true
+  const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s.student_id||'')
+
+  const avatarHtml=s.photo_url
+    ?'<img src="'+s.photo_url+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:3px solid var(--grn)">'
+    :'<div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#3A9F60,#216F40);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800">'+initials(s.full_name)+'</div>'
+
+  const lbl='font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px'
+  const inp='width:100%;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box'
+
+  const fields=[
+    {k:'full_name',label:'Full Name',val:s.full_name},
+    {k:'father_name',label:'Fathers Name',val:s.father_name},
+    {k:'mother_name',label:'Mothers Name',val:s.mother_name},
+    {k:'phone',label:'Phone',val:s.phone},
+    {k:'alt_phone',label:'Alt Phone',val:s.alt_phone},
+    {k:'aadhar_no',label:'Aadhaar No',val:s.aadhar_no},
+    {k:'address',label:'Address',val:s.address},
+  ]
+
+  const fieldsHtml=fields.map(f=>
+    '<div style="margin-bottom:12px"><label style="'+lbl+'">'+f.label+'</label>'
+    +(f.k==='address'
+      ?'<textarea id="sp_'+f.k+'" '+(canEdit?'':' disabled')+' style="'+inp+';min-height:60px;resize:vertical">'+esc(f.val||'')+'</textarea>'
+      :'<input id="sp_'+f.k+'" '+(canEdit?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+'">')
     +'</div>'
-    +(s.address?'<div style="margin-top:12px;padding:10px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:10px;text-transform:uppercase;font-weight:700;color:var(--ink-faint);margin-bottom:3px">Address</div><div style="font-size:13px">'+esc(s.address||'—')+'</div></div>':''),
-    '<button class="btn btn-ghost" onclick="closeModal()">Close</button>'
+  ).join('')
+
+  const docsHtml=docs?.length
+    ?docs.map(d=>'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px"><div style="flex:1"><div style="font-size:12.5px;font-weight:600">'+esc(d.doc_type||d.file_name||'Doc')+'</div><div style="font-size:11px;color:var(--ink-faint)">'+fmtD(d.uploaded_at||d.created_at)+'</div></div><a href="'+esc(d.file_url||'#')+'" target="_blank" style="font-size:11.5px;color:var(--grn);font-weight:700;text-decoration:none">View</a></div>').join('')
+    :'<div style="font-size:12.5px;color:var(--ink-faint)">No documents uploaded.</div>'
+
+  let body='<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">'
+    +'<div id="sp_avatar_wrap">'+avatarHtml+'</div>'
+    +'<div><div style="font-size:18px;font-weight:800">'+esc(s.full_name||'?')+'</div>'
+    +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px">Roll: '+esc(String(enr.roll_no||'—'))+' &middot; S.No: '+(enr.s_no?esc(String(enr.s_no)):'—')+'</div>'
+    +(canEdit?'<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer">Change Photo<input type="file" accept="image/*" style="display:none" onchange="uploadStudentPhoto(_profileStudentId,this)"></label>':'')
+    +'</div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
+    +(!canEdit?'<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;font-size:12.5px;margin-bottom:14px">Profile editing is locked. Request access from admin to make changes.</div>':'')
+    +'<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:8px">Documents</div>'
+    +docsHtml
+    +(canEdit?'<label style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--lav-100);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft)">Upload Document<input type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="uploadStudentDoc(_profileStudentId,this)"></label>':'')
+    +'</div>'
+
+  const foot='<button class="btn btn-ghost" onclick="closeModal()">Close</button>'
+    +(canEdit?'<button class="btn btn-primary" onclick="saveStudentProfile()">Save Changes</button>':'')
+    +(!canEdit?'<button class="btn btn-soft" onclick="requestProfileEditAccess()">Request Edit Access</button>':'')
+
+  openModal('Student Profile',body,foot)
+}
+
+async function saveStudentProfile(){
+  const sid=window._profileStudentId;if(!sid)return
+  const updates={
+    full_name:document.getElementById('sp_full_name')?.value?.trim(),
+    father_name:document.getElementById('sp_father_name')?.value?.trim(),
+    mother_name:document.getElementById('sp_mother_name')?.value?.trim(),
+    phone:document.getElementById('sp_phone')?.value?.trim(),
+    alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
+    aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
+    address:document.getElementById('sp_address')?.value?.trim(),
+  }
+  if(!updates.full_name){toast('Name cannot be empty','error');return}
+  const{error}=await sb.from('students').update(updates).eq('student_id',sid)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const{data:students}=await sb.from('student_enrollments')
+    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no)')
+    .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
+    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+  CLASS_STUDENTS=students||[];_classRaw=students||[]
+  toast('Profile saved','success');closeModal()
+}
+
+async function uploadStudentPhoto(sid,input){
+  const file=input.files?.[0];if(!file)return
+  const wrap=document.getElementById('sp_avatar_wrap')
+  if(wrap)wrap.innerHTML='<div style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-faint)">Uploading...</div>'
+  const ext=file.name.split('.').pop()
+  const path='students/'+sid+'/photo.'+ext
+  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
+  if(upErr){toast('Upload failed: '+upErr.message,'error');return}
+  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',sid)
+  if(wrap)wrap.innerHTML='<img src="'+publicUrl+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:3px solid var(--grn)">'
+  toast('Photo updated','success')
+}
+
+async function uploadStudentDoc(sid,input){
+  const file=input.files?.[0];if(!file)return
+  toast('Uploading...','info')
+  const path='students/'+sid+'/docs/'+Date.now()+'_'+file.name
+  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:false})
+  if(upErr){toast('Upload failed: '+upErr.message,'error');return}
+  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{error}=await sb.from('student_documents').insert({student_id:sid,file_name:file.name,file_url:publicUrl,doc_type:file.name.split('.').pop().toUpperCase(),uploaded_by:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
+  if(error){toast('Doc saved failed: '+error.message,'error');return}
+  toast('Document uploaded','success')
+}
+
+async function requestProfileEditAccess(){
+  openModal('Request Profile Edit Access',
+    '<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Reason *</div>'
+    +'<textarea id="preq_reason" placeholder="e.g. Parent provided updated phone number..." style="width:100%;min-height:80px;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical;outline:none;box-sizing:border-box"></textarea>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-primary" onclick="submitProfileEditReq()">Send Request</button>'
   )
 }
+
+async function submitProfileEditReq(){
+  const note=document.getElementById('preq_reason')?.value?.trim()
+  if(!note){toast('Please provide a reason','error');return}
+  const{error}=await sb.from('access_requests').insert({request_type:'profile_edit',teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id||'',note})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Request sent to admin','success');closeModal()
+}
+
+async function saveStudentProfile(studentId){
+  const updates={
+    full_name:document.getElementById('sp_full_name')?.value?.trim(),
+    father_name:document.getElementById('sp_father_name')?.value?.trim(),
+    mother_name:document.getElementById('sp_mother_name')?.value?.trim(),
+    phone:document.getElementById('sp_phone')?.value?.trim(),
+    alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
+    aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
+    address:document.getElementById('sp_address')?.value?.trim(),
+  }
+  if(!updates.full_name){toast("Student name can't be empty",'error');return}
+  const{error}=await sb.from('students').update(updates).eq('student_id',studentId)
+  if(error){toast('Failed to save: '+error.message,'error');return}
+  // Reload students
+  const{data:students}=await sb.from('student_enrollments')
+    .select('*,students(full_name,father_name,mother_name,phone,alt_phone,aadhar_no)')
+    .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
+    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+  CLASS_STUDENTS=students||[];_classRaw=students||[]
+  toast('Profile saved ✓','success');closeModal()
+}
+
+async function uploadStudentPhoto(studentId, input){
+  const file=input.files?.[0];if(!file)return
+  const wrap=document.getElementById('sp_avatar_wrap')
+  if(wrap)wrap.innerHTML='<div style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-faint)">Uploading…</div>'
+  const ext=file.name.split('.').pop(),path='students/'+studentId+'/photo.'+ext
+  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
+  if(upErr){toast('Upload failed: '+upErr.message,'error');return}
+  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{error}=await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',studentId)
+  if(error){toast('Photo uploaded but DB update failed','error');return}
+  if(wrap)wrap.innerHTML='<img src="'+publicUrl+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:3px solid var(--grn)">'
+  toast('Photo updated ✓','success')
+}
+
+async function uploadStudentDoc(studentId, input){
+  const file=input.files?.[0];if(!file)return
+  toast('Uploading document…','info')
+  const path='students/'+studentId+'/docs/'+Date.now()+'_'+file.name
+  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:false})
+  if(upErr){toast('Upload failed: '+upErr.message,'error');return}
+  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{error}=await sb.from('student_documents').insert({student_id:studentId,file_name:file.name,file_url:publicUrl,doc_type:file.name.split('.').pop().toUpperCase(),uploaded_by:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
+  if(error){toast('Doc uploaded but record failed: '+error.message,'error');return}
+  toast('Document uploaded ✓','success')
+}
+
+// requestProfileEditAccess replaced above
+
+// submitProfileEditReq replaced above
 
 // ═══════════ ROLL NUMBERS ═══════════
 async function loadRollNos(){
