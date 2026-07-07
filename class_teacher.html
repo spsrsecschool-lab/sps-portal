@@ -883,26 +883,44 @@ async function confirmDocUpload(){
   const sid=window._profileStudentId
   const file=document.getElementById('doc_file_inp')?.files?.[0]
   const docType=document.getElementById('doc_type_sel')?.value
-  if(!file){toast('Select a file first','error');return}
-  closeModal()
+  if(!sid){toast('No student selected','error');return}
+  if(!file){toast('Please select a file','error');return}
+  if(!docType){toast('Please select document type','error');return}
+
+  // Close modal first, then show overlay
+  const modalOv=$('modal-overlay')
+  if(modalOv)modalOv.style.display='none'
   showUploadOverlay('Uploading '+docType+'…')
-  const ext=file.name.split('.').pop()
-  const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
-  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:false})
-  if(upErr){hideUploadOverlay();toast('Upload failed: '+upErr.message,'error');return}
-  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
-  // Delete any existing doc of same type for this student
-  await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',docType)
-  const{error}=await sb.from('student_documents').insert({
-    student_id:sid,file_url:publicUrl,file_type:docType,
-    uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,
-    uploaded_at:new Date().toISOString()
-  })
-  hideUploadOverlay()
-  if(error){toast('Doc save failed: '+error.message,'error');return}
-  toast(docType+' uploaded ✓','success')
-  // Refresh profile
-  viewStudentProfile(CLASS_STUDENTS.find(s=>s.students?.student_id===sid)?.enrollment_id)
+
+  try{
+    const ext=file.name.split('.').pop()
+    const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
+    const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
+    if(upErr){hideUploadOverlay();toast('Upload failed: '+upErr.message,'error');return}
+
+    const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+    await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',docType)
+    const{error}=await sb.from('student_documents').insert({
+      student_id:sid,file_url:publicUrl,file_type:docType,
+      uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,
+      uploaded_at:new Date().toISOString()
+    })
+    hideUploadOverlay()
+    if(error){toast('Save failed: '+error.message,'error');return}
+    toast(docType+' uploaded ✓','success')
+    // Reload students then reopen profile
+    const{data:students}=await sb.from('student_enrollments')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+      .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
+      .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    CLASS_STUDENTS=students||[];_classRaw=students||[]
+    const eid=CLASS_STUDENTS.find(s=>s.students?.student_id===sid)?.enrollment_id
+    if(eid)viewStudentProfile(eid)
+  }catch(err){
+    hideUploadOverlay()
+    toast('Unexpected error: '+err.message,'error')
+    console.error(err)
+  }
 }
 
 async function requestProfileEditAccess(){
