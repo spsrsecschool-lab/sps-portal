@@ -1024,8 +1024,18 @@ SPS.ready().then(async()=>{
   sb=window.sb
 
   // Always look up teacher by current auth user ID — bypasses stale sessionStorage cache
-  const{data:{session:authSess}}=await sb.auth.getSession()
-  if(!authSess){window.location.href='login.html';return}
+  // Timeout race — if getSession hangs (stale token refresh), clear cache and redirect
+  const _sessionResult = await Promise.race([
+    sb.auth.getSession(),
+    new Promise(resolve=>setTimeout(()=>resolve({data:{session:null},error:{message:'timeout'}}),8000))
+  ])
+  const authSess=_sessionResult?.data?.session
+  if(!authSess){
+    // Clear stale Supabase cache from localStorage
+    Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)})
+    sessionStorage.clear()
+    window.location.href='login.html';return
+  }
   const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
   if(!teacher||te){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
   if(!teacher.is_active){toast('Your account is inactive. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
