@@ -361,6 +361,38 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 </div>
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 
+<!-- DOC UPLOAD MODAL (sits above profile modal) -->
+<div id="doc-upload-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:600;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:22px;width:100%;max-width:460px;box-shadow:0 24px 60px rgba(0,0,0,.25);overflow:hidden;position:relative">
+    <div style="padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+      <h4 style="font-size:15px;font-weight:800">Upload Document</h4>
+      <button onclick="closeDocUploadModal()" style="background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:22px;line-height:1">&times;</button>
+    </div>
+    <div style="padding:20px 22px">
+      <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Document Type *</div>
+      <select id="doc_type_sel" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);margin-bottom:16px">
+        <option>Aadhar Card</option>
+        <option>Birth Certificate</option>
+        <option>Transfer Certificate</option>
+        <option>Bonafide Certificate</option>
+        <option>Mark Sheet</option>
+        <option>Other</option>
+      </select>
+      <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">File (JPG, PNG, PDF) *</div>
+      <input type="file" id="doc_file_inp" accept="image/*,.pdf" style="width:100%;font-family:var(--font);font-size:13px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50)">
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeDocUploadModal()" class="btn btn-ghost">Cancel</button>
+      <button onclick="confirmDocUpload()" class="btn btn-primary">Upload</button>
+    </div>
+    <!-- Spinner overlay within modal -->
+    <div id="doc-upload-spinner" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,0.85);border-radius:22px;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+      <div style="width:40px;height:40px;border:3px solid var(--lav-200);border-top-color:var(--grn);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+      <div id="doc-upload-spinner-msg" style="font-size:13px;font-weight:600;color:var(--ink-soft)">Uploading…</div>
+    </div>
+  </div>
+</div>
+
 
 <script>
 // ═══════════ GLOBALS ═══════════
@@ -867,16 +899,15 @@ async function uploadStudentDoc(sid,input){
 
 function openDocUploadModal(sid){
   window._profileStudentId=sid
-  openModal('Upload Document',
-    '<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Document Type</div>'
-    +'<select id="doc_type_sel" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);margin-bottom:14px">'
-    +'<option>Aadhar Card</option><option>Birth Certificate</option><option>Transfer Certificate</option><option>Bonafide Certificate</option><option>Other</option>'
-    +'</select>'
-    +'<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">File (JPG, PNG, PDF) *</div>'
-    +'<input type="file" id="doc_file_inp" accept="image/*,.pdf" style="width:100%;font-family:var(--font);font-size:13px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50)">',
-    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
-    +'<button class="btn btn-primary" onclick="confirmDocUpload()">Upload</button>'
-  )
+  const ov=$('doc-upload-overlay')
+  if(ov){ov.style.display='flex'}
+  // Reset
+  const fi=$('doc_file_inp');if(fi)fi.value=''
+  const sp=$('doc-upload-spinner');if(sp)sp.style.display='none'
+}
+
+function closeDocUploadModal(){
+  const ov=$('doc-upload-overlay');if(ov)ov.style.display='none'
 }
 
 async function confirmDocUpload(){
@@ -885,19 +916,21 @@ async function confirmDocUpload(){
   const docType=document.getElementById('doc_type_sel')?.value
   if(!sid){toast('No student selected','error');return}
   if(!file){toast('Please select a file','error');return}
-  if(!docType){toast('Please select document type','error');return}
 
-  // Close modal first, then show overlay
-  const modalOv=$('modal-overlay')
-  if(modalOv)modalOv.style.display='none'
-  showUploadOverlay('Uploading '+docType+'…')
+  // Show spinner inside the modal
+  const sp=$('doc-upload-spinner')
+  const sm=$('doc-upload-spinner-msg')
+  if(sp)sp.style.display='flex'
+  if(sm)sm.textContent='Uploading '+docType+'…'
 
   try{
     const ext=file.name.split('.').pop()
     const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
     const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
-    if(upErr){hideUploadOverlay();toast('Upload failed: '+upErr.message,'error');return}
-
+    if(upErr){
+      if(sp)sp.style.display='none'
+      toast('Upload failed: '+upErr.message,'error');return
+    }
     const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
     await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',docType)
     const{error}=await sb.from('student_documents').insert({
@@ -905,20 +938,16 @@ async function confirmDocUpload(){
       uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,
       uploaded_at:new Date().toISOString()
     })
-    hideUploadOverlay()
+    if(sp)sp.style.display='none'
+    closeDocUploadModal()
     if(error){toast('Save failed: '+error.message,'error');return}
     toast(docType+' uploaded ✓','success')
-    // Reload students then reopen profile
-    const{data:students}=await sb.from('student_enrollments')
-      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
-      .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-      .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
-    CLASS_STUDENTS=students||[];_classRaw=students||[]
+    // Refresh profile modal (stays open) — just re-render docs section
     const eid=CLASS_STUDENTS.find(s=>s.students?.student_id===sid)?.enrollment_id
     if(eid)viewStudentProfile(eid)
   }catch(err){
-    hideUploadOverlay()
-    toast('Unexpected error: '+err.message,'error')
+    if(sp)sp.style.display='none'
+    toast('Error: '+err.message,'error')
     console.error(err)
   }
 }
