@@ -7,49 +7,34 @@
  *   2. Checks for a valid session on page load
  *   3. Redirects to login.html if no valid session exists
  *   4. Exposes `sb` (Supabase client) and `SPS` (session helpers) globally
- *
- * Usage in each portal HTML file:
- *   <script src="config.js"></script>       ← project URL + anon key
- *   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
- *   <script src="auth.js"></script>         ← this file
- *   <script>
- *     // Your portal-specific code here.
- *     // `sb` and `SPS` are available immediately after auth.js loads.
- *     // Wait for SPS.ready() before making DB calls.
- *     SPS.ready().then(() => {
- *       // safe to use SPS.user, SPS.teacher, SPS.portals etc.
- *     })
- *   </script>
  */
 
 ;(function() {
   'use strict'
   // ── SUPABASE CLIENT ──────────────────────────────────────────
-  // SUPABASE_URL and SUPABASE_ANON must be declared before this script runs.
-  // They live in config.js (loaded first).
-  window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
+  // FIX: custom no-op `lock` bypasses navigator.locks.
+  // supabase-js v2 wraps auth calls in a browser LockManager lock; on repeat
+  // visits (expired token being auto-refreshed, or a zombie tab holding the
+  // lock) getSession() waits on that lock forever → page stuck on "Loading…".
+  // Bypassing the lock removes the deadlock. Safe for this app.
+  window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      lock: async (_name, _acquireTimeout, fn) => await fn()
+    }
+  })
 
   // ── SPS NAMESPACE ────────────────────────────────────────────
-  // Exposed globally so portal pages can call SPS.user, SPS.teacher, etc.
   window.SPS = {
-    user:     null,   // Supabase auth user object
-    teacher:  null,   // row from teachers table (null if admin)
-    admin:    null,   // row from admins table (null if teacher)
-    portals:  [],     // list of portal keys this user can access
-    session:  null,   // Supabase session object
-    _ready:   null,   // Promise that resolves when auth check is complete
+    user:     null,
+    teacher:  null,
+    admin:    null,
+    portals:  [],
+    session:  null,
+    _ready:   null,
   }
-
-  // ── WHICH PORTAL AM I? ───────────────────────────────────────
-  // Each portal page sets window.PORTAL_KEY before auth.js runs,
-  // so auth.js can verify the user has access to this specific portal.
-  //
-  // Allowed values: 'admin' | 'main_teacher' | 'class_teacher' | 'mother_teacher'
-  //
-  // Example in main-teacher.html:
-  //   <script>window.PORTAL_KEY = 'main_teacher'</script>
-  //   <script src="config.js"></script>
-  //   <script src="auth.js"></script>
 
   // ── SESSION CACHE ────────────────────────────────────────────
   function getLocalUser() {
@@ -76,7 +61,6 @@
   async function detectPortals(userId) {
     const results = { portals: [], teacher: null, admin: null }
 
-    // Check admins table
     const { data: adminRow } = await sb
       .from('admins')
       .select('admin_id')
@@ -89,7 +73,6 @@
       return results
     }
 
-    // Check teachers table
     const { data: teacherRow } = await sb
       .from('teachers')
       .select('teacher_id, full_name, designation, is_active')
@@ -103,7 +86,6 @@
 
     const sessionId = await getCurrentSessionId()
 
-    // Mother teacher check
     const { data: motherRow } = await sb
       .from('mother_teacher_map')
       .select('map_id')
@@ -116,10 +98,8 @@
       return results
     }
 
-    // Main teacher (always available for active teachers)
     results.portals.push('main_teacher')
 
-    // Class teacher check
     const { data: classRow } = await sb
       .from('class_teacher_map')
       .select('map_id')
@@ -133,10 +113,6 @@
   }
 
   // ── ACCESS CHECK ─────────────────────────────────────────────
-  // Called on every portal page load. Verifies the user:
-  //   (a) has a valid Supabase Auth session
-  //   (b) has access to THIS portal (PORTAL_KEY)
-  // Redirects to login.html if either check fails.
   async function checkAccess() {
     const { data: { session } } = await sb.auth.getSession()
 
@@ -148,7 +124,6 @@
     SPS.session = session
     SPS.user = session.user
 
-    // Try local cache first to avoid extra DB round trip
     const cached = getLocalUser()
     if (cached && cached.portals) {
       SPS.teacher = cached.teacher
@@ -166,16 +141,12 @@
       }))
     }
 
-    // Verify this user can actually access THIS portal
     const key = window.PORTAL_KEY
     if (key && !SPS.portals.includes(key)) {
-      // Has a session but not for this portal — redirect to login
-      // (they may have navigated to the wrong URL directly)
       redirectToLogin('access')
       return
     }
 
-    // All good — resolve the ready promise
     SPS._resolveReady()
   }
 
@@ -195,16 +166,14 @@
   }
 
   // ── READY PROMISE ────────────────────────────────────────────
-  // Portal pages await SPS.ready() before rendering data.
-  // This promise resolves once checkAccess() completes successfully.
   SPS._resolveReady = null
   SPS._ready = new Promise(resolve => {
     SPS._resolveReady = resolve
   })
   SPS.ready = () => SPS._ready
 SPS.serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhZmlnb2hwaGNlZ252dmNvamJ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjkxMzI4OSwiZXhwIjoyMDk4NDg5Mjg5fQ.vVrXctA7VIInyTdpSq0xq8yrFMfr9lksRgDERg3HMHA'
-SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'  
- 
+SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'
+
   // ── HELPERS PORTALS CAN USE ──────────────────────────────────
   SPS.isAdmin        = () => SPS.portals.includes('admin')
   SPS.isTeacher      = () => !!SPS.teacher
