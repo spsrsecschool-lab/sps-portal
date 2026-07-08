@@ -1020,37 +1020,14 @@ function openSub(subId){
 // AUTH & INIT
 // ═══════════════════════════════════════════════════════════════
 
-// _removed_(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},12000)
+(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},12000)
 SPS.ready().then(async()=>{
   sb=window.sb
 
-  // Always look up teacher by current auth user ID — bypasses stale sessionStorage cache
-  // Timeout race — if getSession hangs (stale token refresh), clear cache and redirect
-  const _sessionResult = await Promise.race([
-    sb.auth.getSession(),
-    new Promise(resolve=>setTimeout(()=>resolve({data:{session:null},error:{message:'timeout'}}),8000))
-  ])
-  let authSess=_sessionResult?.data?.session
-  if(!authSess){
-    Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)})
-    sessionStorage.clear()
-    window.location.href='login.html';return
-  }
-  // Force token refresh if expired or within 5 min of expiry — prevents stale token DB failures
-  const _tokenExpiry=(authSess.expires_at||0)*1000
-  if(Date.now()>_tokenExpiry-300000){
-    const{data:_refreshed,error:_re}=await Promise.race([
-      sb.auth.refreshSession(),
-      new Promise(r=>setTimeout(()=>r({data:{session:null},error:{message:'refresh timeout'}}),6000))
-    ])
-    if(_refreshed?.session){authSess=_refreshed.session}
-    else if(_re){
-      // Refresh failed — clear cache and send to login
-      Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)})
-      sessionStorage.clear()
-      window.location.href='login.html';return
-    }
-  }
+  // Use the session auth.js already validated — never call getSession() again here
+  // (a second concurrent getSession deadlocks on supabase-js navigator.locks during token refresh)
+  const authSess=SPS.session
+  if(!authSess){window.location.href='login.html';return}
   const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
   if(!teacher||te){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
   if(!teacher.is_active){toast('Your account is inactive. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
