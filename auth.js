@@ -24,7 +24,6 @@
 
 ;(function() {
   'use strict'
-await supabase.auth.getSession() // wait for client to hydrate from localStorage
   // ── SUPABASE CLIENT ──────────────────────────────────────────
   // SUPABASE_URL and SUPABASE_ANON must be declared before this script runs.
   // They live in config.js (loaded first).
