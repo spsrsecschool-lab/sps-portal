@@ -12,29 +12,25 @@
 ;(function() {
   'use strict'
   // ── SUPABASE CLIENT ──────────────────────────────────────────
-  // FIX (v2): a fully no-op lock let getSession() and the background
-  // auto-refresh race each other — on repeat visits the refresh could fail
-  // (already-rotated refresh token) and fire SIGNED_OUT before getSession()
-  // even resolved, causing an instant bounce back to login.html.
-  // This version keeps real serialization (so refresh and getSession queue
-  // properly, like navigator.locks normally does) but adds a hard timeout so
-  // a genuinely stuck/zombie lock can never hang the page forever.
-  let _lockChain = Promise.resolve()
+  // FIX (v3): reverted to a plain no-op lock. This is the workaround
+  // recommended directly by Supabase maintainers for the well-known
+  // navigator.locks deadlock bug (supabase-js #1594, #2013, gotrue-js #213):
+  //   const noOpLock = async (name, acquireTimeout, fn) => await fn()
+  // A prior version here tried to serialize calls through an in-page
+  // Promise chain with a timeout. That doesn't help — a Promise living in
+  // one tab's memory is invisible to another tab, so it could never prevent
+  // a real cross-tab refresh-token race, and its timeout could reject calls
+  // that only needed a bit more time, which is what caused the follow-up
+  // "stuck on Checking session…" bug on login.html.
+  // The actual multi-tab refresh race (two tabs rotating the same refresh
+  // token at once) is handled below by only auto-refreshing from the
+  // foreground/focused tab — see the visibility-gated refresh guard.
   window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,
-      lock: async (_name, acquireTimeout, fn) => {
-        const run = _lockChain.then(() => fn())
-        // Keep the chain alive even if this call fails, so future calls aren't blocked
-        _lockChain = run.catch(() => {})
-        const timeoutMs = (acquireTimeout && acquireTimeout > 0) ? acquireTimeout : 8000
-        return Promise.race([
-          run,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('SPS auth lock timeout')), timeoutMs))
-        ])
-      }
+      lock: async (_name, _acquireTimeout, fn) => await fn()
     }
   })
 
@@ -128,18 +124,29 @@
   let _initDone = false
   async function checkAccess() {
     try {
-      const { data: { session }, error } = await sb.auth.getSession()
+      let { data: { session }, error } = await sb.auth.getSession()
 
-      if (error) {
-        console.warn('[SPS] getSession() error:', error.message)
-        redirectToLogin()
-        return
-      }
-
-      if (!session) {
-        console.warn('[SPS] No session found on init — redirecting to login')
-        redirectToLogin()
-        return
+      // If getSession() came back empty/errored, don't immediately assume
+      // the user is logged out — this is exactly the shape of the known
+      // cross-tab refresh-token race (another tab rotated the token a
+      // moment ago). Fall back to getUser(), which re-validates against
+      // the server rather than trusting potentially-stale local state.
+      if (error || !session) {
+        console.warn('[SPS] getSession() came back empty/errored, retrying via getUser():', error?.message)
+        const { data: { user }, error: userErr } = await sb.auth.getUser()
+        if (userErr || !user) {
+          console.warn('[SPS] getUser() also failed — no valid session:', userErr?.message)
+          redirectToLogin()
+          return
+        }
+        // getUser() succeeded — re-fetch the session now that things have settled
+        const retry = await sb.auth.getSession()
+        session = retry.data.session
+        if (!session) {
+          console.warn('[SPS] getUser() ok but getSession() still empty — redirecting to login')
+          redirectToLogin()
+          return
+        }
       }
 
       SPS.session = session
@@ -172,9 +179,6 @@
       _initDone = true
       SPS._resolveReady()
     } catch (err) {
-      // Covers our new lock timeout, network failures, etc.
-      // Without this catch, SPS.ready() would hang forever and only the
-      // 12s watchdog in the page itself would eventually recover.
       console.error('[SPS] checkAccess() failed:', err.message || err)
       redirectToLogin()
     }
