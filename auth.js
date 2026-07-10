@@ -12,19 +12,12 @@
 ;(function() {
   'use strict'
   // ── SUPABASE CLIENT ──────────────────────────────────────────
-  // FIX (v3): reverted to a plain no-op lock. This is the workaround
-  // recommended directly by Supabase maintainers for the well-known
-  // navigator.locks deadlock bug (supabase-js #1594, #2013, gotrue-js #213):
-  //   const noOpLock = async (name, acquireTimeout, fn) => await fn()
-  // A prior version here tried to serialize calls through an in-page
-  // Promise chain with a timeout. That doesn't help — a Promise living in
-  // one tab's memory is invisible to another tab, so it could never prevent
-  // a real cross-tab refresh-token race, and its timeout could reject calls
-  // that only needed a bit more time, which is what caused the follow-up
-  // "stuck on Checking session…" bug on login.html.
-  // The actual multi-tab refresh race (two tabs rotating the same refresh
-  // token at once) is handled below by only auto-refreshing from the
-  // foreground/focused tab — see the visibility-gated refresh guard.
+  // FIX: custom no-op `lock` bypasses navigator.locks.
+  // supabase-js v2 wraps auth calls in a browser LockManager lock; on repeat
+  // visits (expired token being auto-refreshed, or a zombie tab holding the
+  // lock) getSession() waits on that lock forever → page stuck on "Loading…".
+  // Bypassing the lock removes the deadlock. This is the workaround
+  // recommended by Supabase maintainers for this known issue.
   window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
       persistSession: true,
@@ -121,67 +114,55 @@
   }
 
   // ── ACCESS CHECK ─────────────────────────────────────────────
-  let _initDone = false
   async function checkAccess() {
-    try {
-      let { data: { session }, error } = await sb.auth.getSession()
+    let { data: { session }, error } = await sb.auth.getSession()
 
-      // If getSession() came back empty/errored, don't immediately assume
-      // the user is logged out — this is exactly the shape of the known
-      // cross-tab refresh-token race (another tab rotated the token a
-      // moment ago). Fall back to getUser(), which re-validates against
-      // the server rather than trusting potentially-stale local state.
-      if (error || !session) {
-        console.warn('[SPS] getSession() came back empty/errored, retrying via getUser():', error?.message)
-        const { data: { user }, error: userErr } = await sb.auth.getUser()
-        if (userErr || !user) {
-          console.warn('[SPS] getUser() also failed — no valid session:', userErr?.message)
-          redirectToLogin()
-          return
-        }
-        // getUser() succeeded — re-fetch the session now that things have settled
-        const retry = await sb.auth.getSession()
-        session = retry.data.session
-        if (!session) {
-          console.warn('[SPS] getUser() ok but getSession() still empty — redirecting to login')
-          redirectToLogin()
-          return
-        }
-      }
-
-      SPS.session = session
-      SPS.user = session.user
-
-      const cached = getLocalUser()
-      if (cached && cached.portals) {
-        SPS.teacher = cached.teacher
-        SPS.admin   = cached.admin
-        SPS.portals = cached.portals
-      } else {
-        const detected = await detectPortals(session.user.id)
-        SPS.teacher = detected.teacher
-        SPS.admin   = detected.admin
-        SPS.portals = detected.portals
-        sessionStorage.setItem('sps_user', JSON.stringify({
-          teacher: SPS.teacher,
-          admin:   SPS.admin,
-          portals: SPS.portals,
-        }))
-      }
-
-      const key = window.PORTAL_KEY
-      if (key && !SPS.portals.includes(key)) {
-        console.warn('[SPS] Session valid but lacks portal access for:', key)
-        redirectToLogin('access')
+    // FIX: if getSession() comes back empty or errored, don't immediately
+    // assume the user is logged out. On some repeat visits this can happen
+    // transiently (e.g. a background token refresh mid-flight). Retry via
+    // getUser(), which re-validates directly against the Supabase server,
+    // before giving up and sending the person to the login screen.
+    if (error || !session) {
+      const { data: { user }, error: userErr } = await sb.auth.getUser()
+      if (userErr || !user) {
+        redirectToLogin()
         return
       }
-
-      _initDone = true
-      SPS._resolveReady()
-    } catch (err) {
-      console.error('[SPS] checkAccess() failed:', err.message || err)
-      redirectToLogin()
+      const retry = await sb.auth.getSession()
+      session = retry.data.session
+      if (!session) {
+        redirectToLogin()
+        return
+      }
     }
+
+    SPS.session = session
+    SPS.user = session.user
+
+    const cached = getLocalUser()
+    if (cached && cached.portals) {
+      SPS.teacher = cached.teacher
+      SPS.admin   = cached.admin
+      SPS.portals = cached.portals
+    } else {
+      const detected = await detectPortals(session.user.id)
+      SPS.teacher = detected.teacher
+      SPS.admin   = detected.admin
+      SPS.portals = detected.portals
+      sessionStorage.setItem('sps_user', JSON.stringify({
+        teacher: SPS.teacher,
+        admin:   SPS.admin,
+        portals: SPS.portals,
+      }))
+    }
+
+    const key = window.PORTAL_KEY
+    if (key && !SPS.portals.includes(key)) {
+      redirectToLogin('access')
+      return
+    }
+
+    SPS._resolveReady()
   }
 
   // ── REDIRECT ─────────────────────────────────────────────────
@@ -217,16 +198,8 @@ SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'
     name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   // ── LISTEN FOR SIGN OUT FROM ANOTHER TAB ─────────────────────
-  // IMPORTANT: supabase-js can emit a SIGNED_OUT event during the initial
-  // session-restore/refresh attempt on page load (e.g. an expired refresh
-  // token failing to renew) — not just on a real, intentional logout.
-  // Reacting to that instantly, before checkAccess() has finished its own
-  // getSession() call, is what caused the "loads then immediately bounces
-  // back to login" behavior. We only treat SIGNED_OUT as a real logout once
-  // our own init has completed successfully at least once.
   sb.auth.onAuthStateChange((event) => {
-    console.log('[SPS] auth event:', event, '(init done:', _initDone, ')')
-    if (event === 'SIGNED_OUT' && _initDone) {
+    if (event === 'SIGNED_OUT') {
       sessionStorage.removeItem('sps_user')
       redirectToLogin()
     }
