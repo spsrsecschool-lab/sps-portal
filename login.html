@@ -378,7 +378,14 @@
 <script>
 // ─── INITIALISE SUPABASE ─────────────────────────────────────
 const { createClient } = supabase
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    lock: async (_name, _acquireTimeout, fn) => await fn()
+  }
+})
 
 // ─── HELPERS ─────────────────────────────────────────────────
 const $ = id => document.getElementById(id)
