@@ -377,8 +377,30 @@
 
 <script>
 // ─── INITIALISE SUPABASE ─────────────────────────────────────
+// FIX: login.html previously created a plain client with no custom `lock`,
+// so it was fully exposed to the navigator.locks deadlock (a stuck/zombie
+// lock or a racing background token refresh could make getSession() hang
+// forever, leaving the user stuck on "Checking session…" with no recovery).
+// This mirrors the fix already applied in auth.js: calls are still
+// serialized in order, but a stuck lock times out instead of hanging.
 const { createClient } = supabase
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
+let _loginLockChain = Promise.resolve()
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    lock: async (_name, acquireTimeout, fn) => {
+      const run = _loginLockChain.then(() => fn())
+      _loginLockChain = run.catch(() => {})
+      const timeoutMs = (acquireTimeout && acquireTimeout > 0) ? acquireTimeout : 8000
+      return Promise.race([
+        run,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Login auth lock timeout')), timeoutMs))
+      ])
+    }
+  }
+})
 
 // ─── HELPERS ─────────────────────────────────────────────────
 const $ = id => document.getElementById(id)
@@ -660,25 +682,49 @@ async function signOut() {
 // ─── SESSION CHECK ON LOAD ───────────────────────────────────
 // If the user already has a valid session, skip the login form
 // and route them directly (or show portal selector again).
+// FIX: wrapped in try/catch with an overall timeout — previously an
+// unhandled hang or rejection here (e.g. the lock deadlock) left the
+// "Checking session…" loader on screen forever with no way out.
 async function checkExistingSession() {
-  const { data: { session } } = await sb.auth.getSession()
+  try {
+    const sessionCheck = (async () => {
+      const { data: { session }, error } = await sb.auth.getSession()
+      if (error) throw error
+      return session
+    })()
 
-  if (session) {
-    // Valid session exists — re-detect portals and route
-    const { portals, teacher, admin } = await detectPortals(session.user.id)
-    if (portals.length > 0) {
-      routeToPortal(portals, teacher, admin)
-      return
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Session check timed out')), 8000)
+    )
+
+    const session = await Promise.race([sessionCheck, timeout])
+
+    if (session) {
+      // Valid session exists — re-detect portals and route
+      const { portals, teacher, admin } = await detectPortals(session.user.id)
+      if (portals.length > 0) {
+        routeToPortal(portals, teacher, admin)
+        return
+      }
     }
-  }
 
-  // No valid session — show login form
-  hidePageLoader()
+    // No valid session — show login form
+    hidePageLoader()
+  } catch (err) {
+    console.warn('[Login] checkExistingSession failed or timed out:', err.message || err)
+    // Something went wrong (stuck lock, network issue, stale session).
+    // Clear any local state and fall back to a clean login form rather
+    // than leaving the user stuck on the loading screen.
+    try { await sb.auth.signOut() } catch {}
+    sessionStorage.removeItem('sps_user')
+    hidePageLoader()
+  }
 }
 
 // ─── LISTEN FOR AUTH CHANGES ─────────────────────────────────
 // Handles token refresh, sign-out from another tab, etc.
 sb.auth.onAuthStateChange((event, session) => {
+  console.log('[Login] auth event:', event)
   if (event === 'SIGNED_OUT') {
     sessionStorage.removeItem('sps_user')
     $('portalView').classList.remove('show')
