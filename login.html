@@ -487,58 +487,78 @@ const PORTALS = {
 async function detectPortals(userId) {
   const results = { portals: [], teacher: null, admin: null }
 
-  // 1. Check admins table
-  const { data: adminRow } = await sb
-    .from('admins')
-    .select('admin_id')
-    .eq('auth_user_id', userId)
-    .maybeSingle()
+  try {
+    // 1. Check admins table
+    const { data: adminRow, error: adminErr } = await sb
+      .from('admins')
+      .select('admin_id')
+      .eq('auth_user_id', userId)
+      .maybeSingle()
 
-  if (adminRow) {
-    results.admin = adminRow
-    results.portals.push('admin')
-    return results
-  }
+    if (adminErr) console.warn("Admin query error:", adminErr)
 
-  // 2. Check teachers table
-  const { data: teacherRow } = await sb
-    .from('teachers')
-    .select('teacher_id, full_name, designation, is_active')
-    .eq('auth_user_id', userId)
-    .maybeSingle()
+    if (adminRow) {
+      results.admin = adminRow
+      results.portals.push('admin')
+      return results
+    }
 
-  if (!teacherRow || !teacherRow.is_active) {
-    return results // no access
-  }
-  results.teacher = teacherRow
+    // 2. Check teachers table
+    const { data: teacherRow, error: teachErr } = await sb
+      .from('teachers')
+      .select('teacher_id, full_name, designation, is_active')
+      .eq('auth_user_id', userId)
+      .maybeSingle()
 
-  // 3. Check mother_teacher_map for current session
-  const { data: motherRow } = await sb
-    .from('mother_teacher_map')
-    .select('map_id')
-    .eq('teacher_id', teacherRow.teacher_id)
-    .eq('session_id', await getCurrentSessionId())
-    .maybeSingle()
+    if (teachErr) console.warn("Teacher query error:", teachErr)
 
-  if (motherRow) {
-    // Mother teacher gets the combined portal only — no separate main/class
-    results.portals.push('mother_teacher')
-    return results
-  }
+    if (!teacherRow || !teacherRow.is_active) {
+      return results // no access
+    }
+    results.teacher = teacherRow
 
-  // 4. Main teacher portal — available to all active teachers
-  results.portals.push('main_teacher')
+    const sessionId = await getCurrentSessionId()
+    
+    // Safely fallback to main teacher portal if no session is active in DB,
+    // avoiding passing null to query parameters which crashes PostgREST
+    if (!sessionId) {
+      results.portals.push('main_teacher')
+      return results
+    }
 
-  // 5. Check class_teacher_map for current session
-  const { data: classRow } = await sb
-    .from('class_teacher_map')
-    .select('map_id')
-    .eq('teacher_id', teacherRow.teacher_id)
-    .eq('session_id', await getCurrentSessionId())
-    .maybeSingle()
+    // 3. Check mother_teacher_map for current session
+    const { data: motherRow, error: mothErr } = await sb
+      .from('mother_teacher_map')
+      .select('map_id')
+      .eq('teacher_id', teacherRow.teacher_id)
+      .eq('session_id', sessionId)
+      .maybeSingle()
 
-  if (classRow) {
-    results.portals.push('class_teacher')
+    if (mothErr) console.warn("Mother teacher map query error:", mothErr)
+
+    if (motherRow) {
+      results.portals.push('mother_teacher')
+      return results
+    }
+
+    // 4. Main teacher portal — available to all active teachers
+    results.portals.push('main_teacher')
+
+    // 5. Check class_teacher_map for current session
+    const { data: classRow, error: classErr } = await sb
+      .from('class_teacher_map')
+      .select('map_id')
+      .eq('teacher_id', teacherRow.teacher_id)
+      .eq('session_id', sessionId)
+      .maybeSingle()
+
+    if (classErr) console.warn("Class teacher map query error:", classErr)
+
+    if (classRow) {
+      results.portals.push('class_teacher')
+    }
+  } catch (e) {
+    console.error("Error occurred while detecting portals:", e)
   }
 
   return results
@@ -548,12 +568,22 @@ async function detectPortals(userId) {
 let _currentSessionId = null
 async function getCurrentSessionId() {
   if (_currentSessionId) return _currentSessionId
-  const { data } = await sb
-    .from('sessions')
-    .select('session_id')
-    .eq('is_current', true)
-    .maybeSingle()
-  _currentSessionId = data?.session_id || null
+  try {
+    const { data, error } = await sb
+      .from('sessions')
+      .select('session_id')
+      .eq('is_current', true)
+      .maybeSingle()
+    
+    if (error) {
+      console.warn("Could not retrieve current session ID:", error)
+      return null
+    }
+    _currentSessionId = data?.session_id || null
+  } catch (e) {
+    console.error("Exception in getCurrentSessionId:", e)
+    _currentSessionId = null
+  }
   return _currentSessionId
 }
 
@@ -668,18 +698,22 @@ async function signOut() {
 // If the user already has a valid session, skip the login form
 // and route them directly (or show portal selector again).
 async function checkExistingSession() {
-  const { data: { session } } = await sb.auth.getSession()
+  try {
+    const { data: { session }, error } = await sb.auth.getSession()
+    if (error) throw error
 
-  if (session) {
-    // Valid session exists — re-detect portals and route
-    const { portals, teacher, admin } = await detectPortals(session.user.id)
-    if (portals.length > 0) {
-      routeToPortal(portals, teacher, admin)
-      return
+    if (session) {
+      const { portals, teacher, admin } = await detectPortals(session.user.id)
+      if (portals && portals.length > 0) {
+        routeToPortal(portals, teacher, admin)
+        return
+      }
     }
+  } catch (err) {
+    console.error("Error checking existing session:", err)
   }
 
-  // No valid session — show login form
+  // Safely fallback to showing the login form instead of hanging
   hidePageLoader()
 }
 
