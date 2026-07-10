@@ -377,22 +377,8 @@
 
 <script>
 // ─── INITIALISE SUPABASE ─────────────────────────────────────
-// FIX (v2): reverted to a plain no-op lock — the Supabase-maintainer
-// recommended workaround for the known navigator.locks deadlock bug
-// (supabase-js #1594, #2013, gotrue-js #213). An earlier version tried to
-// serialize calls with an in-page timeout, but that can't prevent a real
-// cross-tab refresh-token race (each tab has its own JS memory), and the
-// timeout could reject calls that only needed more time — which is what
-// caused the "stuck on Checking session…" symptom.
 const { createClient } = supabase
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: false,
-    lock: async (_name, _acquireTimeout, fn) => await fn()
-  }
-})
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
 
 // ─── HELPERS ─────────────────────────────────────────────────
 const $ = id => document.getElementById(id)
@@ -674,62 +660,25 @@ async function signOut() {
 // ─── SESSION CHECK ON LOAD ───────────────────────────────────
 // If the user already has a valid session, skip the login form
 // and route them directly (or show portal selector again).
-// FIX: wrapped in try/catch with an overall timeout — previously an
-// unhandled hang or rejection here (e.g. the lock deadlock) left the
-// "Checking session…" loader on screen forever with no way out.
-// Also mirrors auth.js: if getSession() comes back empty/errored, that
-// doesn't necessarily mean the user is logged out — it can be the known
-// cross-tab refresh-token race — so we retry via getUser() (which
-// re-validates against the server) before giving up.
 async function checkExistingSession() {
-  try {
-    const sessionCheck = (async () => {
-      let { data: { session }, error } = await sb.auth.getSession()
+  const { data: { session } } = await sb.auth.getSession()
 
-      if (error || !session) {
-        console.warn('[Login] getSession() empty/errored, retrying via getUser():', error?.message)
-        const { data: { user }, error: userErr } = await sb.auth.getUser()
-        if (userErr || !user) return null
-        const retry = await sb.auth.getSession()
-        session = retry.data.session
-      }
-      return session
-    })()
-
-    // Last-resort net only — not meant to race the lock, just to make sure
-    // a truly hung network call can't leave the user stuck forever.
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Session check timed out')), 8000)
-    )
-
-    const session = await Promise.race([sessionCheck, timeout])
-
-    if (session) {
-      // Valid session exists — re-detect portals and route
-      const { portals, teacher, admin } = await detectPortals(session.user.id)
-      if (portals.length > 0) {
-        routeToPortal(portals, teacher, admin)
-        return
-      }
+  if (session) {
+    // Valid session exists — re-detect portals and route
+    const { portals, teacher, admin } = await detectPortals(session.user.id)
+    if (portals.length > 0) {
+      routeToPortal(portals, teacher, admin)
+      return
     }
-
-    // No valid session — show login form
-    hidePageLoader()
-  } catch (err) {
-    console.warn('[Login] checkExistingSession failed or timed out:', err.message || err)
-    // Something went wrong (network issue, genuinely dead session).
-    // Clear any local state and fall back to a clean login form rather
-    // than leaving the user stuck on the loading screen.
-    try { await sb.auth.signOut() } catch {}
-    sessionStorage.removeItem('sps_user')
-    hidePageLoader()
   }
+
+  // No valid session — show login form
+  hidePageLoader()
 }
 
 // ─── LISTEN FOR AUTH CHANGES ─────────────────────────────────
 // Handles token refresh, sign-out from another tab, etc.
 sb.auth.onAuthStateChange((event, session) => {
-  console.log('[Login] auth event:', event)
   if (event === 'SIGNED_OUT') {
     sessionStorage.removeItem('sps_user')
     $('portalView').classList.remove('show')
