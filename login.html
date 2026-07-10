@@ -377,28 +377,20 @@
 
 <script>
 // ─── INITIALISE SUPABASE ─────────────────────────────────────
-// FIX: login.html previously created a plain client with no custom `lock`,
-// so it was fully exposed to the navigator.locks deadlock (a stuck/zombie
-// lock or a racing background token refresh could make getSession() hang
-// forever, leaving the user stuck on "Checking session…" with no recovery).
-// This mirrors the fix already applied in auth.js: calls are still
-// serialized in order, but a stuck lock times out instead of hanging.
+// FIX (v2): reverted to a plain no-op lock — the Supabase-maintainer
+// recommended workaround for the known navigator.locks deadlock bug
+// (supabase-js #1594, #2013, gotrue-js #213). An earlier version tried to
+// serialize calls with an in-page timeout, but that can't prevent a real
+// cross-tab refresh-token race (each tab has its own JS memory), and the
+// timeout could reject calls that only needed more time — which is what
+// caused the "stuck on Checking session…" symptom.
 const { createClient } = supabase
-let _loginLockChain = Promise.resolve()
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
-    lock: async (_name, acquireTimeout, fn) => {
-      const run = _loginLockChain.then(() => fn())
-      _loginLockChain = run.catch(() => {})
-      const timeoutMs = (acquireTimeout && acquireTimeout > 0) ? acquireTimeout : 8000
-      return Promise.race([
-        run,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Login auth lock timeout')), timeoutMs))
-      ])
-    }
+    lock: async (_name, _acquireTimeout, fn) => await fn()
   }
 })
 
@@ -685,14 +677,27 @@ async function signOut() {
 // FIX: wrapped in try/catch with an overall timeout — previously an
 // unhandled hang or rejection here (e.g. the lock deadlock) left the
 // "Checking session…" loader on screen forever with no way out.
+// Also mirrors auth.js: if getSession() comes back empty/errored, that
+// doesn't necessarily mean the user is logged out — it can be the known
+// cross-tab refresh-token race — so we retry via getUser() (which
+// re-validates against the server) before giving up.
 async function checkExistingSession() {
   try {
     const sessionCheck = (async () => {
-      const { data: { session }, error } = await sb.auth.getSession()
-      if (error) throw error
+      let { data: { session }, error } = await sb.auth.getSession()
+
+      if (error || !session) {
+        console.warn('[Login] getSession() empty/errored, retrying via getUser():', error?.message)
+        const { data: { user }, error: userErr } = await sb.auth.getUser()
+        if (userErr || !user) return null
+        const retry = await sb.auth.getSession()
+        session = retry.data.session
+      }
       return session
     })()
 
+    // Last-resort net only — not meant to race the lock, just to make sure
+    // a truly hung network call can't leave the user stuck forever.
     const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Session check timed out')), 8000)
     )
@@ -712,7 +717,7 @@ async function checkExistingSession() {
     hidePageLoader()
   } catch (err) {
     console.warn('[Login] checkExistingSession failed or timed out:', err.message || err)
-    // Something went wrong (stuck lock, network issue, stale session).
+    // Something went wrong (network issue, genuinely dead session).
     // Clear any local state and fall back to a clean login form rather
     // than leaving the user stuck on the loading screen.
     try { await sb.auth.signOut() } catch {}
