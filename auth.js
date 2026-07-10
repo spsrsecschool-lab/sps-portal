@@ -51,12 +51,21 @@
   let _sessionId = null
   async function getCurrentSessionId() {
     if (_sessionId) return _sessionId
-    const { data } = await sb
-      .from('sessions')
-      .select('session_id')
-      .eq('is_current', true)
-      .maybeSingle()
-    _sessionId = data?.session_id || null
+    try {
+      const { data, error } = await sb
+        .from('sessions')
+        .select('session_id')
+        .eq('is_current', true)
+        .maybeSingle()
+      if (error) {
+        console.warn("Could not query session ID:", error)
+        return null
+      }
+      _sessionId = data?.session_id || null
+    } catch (e) {
+      console.error("Exception in getCurrentSessionId:", e)
+      _sessionId = null
+    }
     return _sessionId
   }
   SPS.getSessionId = getCurrentSessionId
@@ -65,53 +74,71 @@
   async function detectPortals(userId) {
     const results = { portals: [], teacher: null, admin: null }
 
-    const { data: adminRow } = await sb
-      .from('admins')
-      .select('admin_id')
-      .eq('auth_user_id', userId)
-      .maybeSingle()
+    try {
+      const { data: adminRow, error: adminErr } = await sb
+        .from('admins')
+        .select('admin_id')
+        .eq('auth_user_id', userId)
+        .maybeSingle()
 
-    if (adminRow) {
-      results.admin = adminRow
-      results.portals = ['admin']
-      return results
+      if (adminErr) console.warn("Admin check error:", adminErr)
+
+      if (adminRow) {
+        results.admin = adminRow
+        results.portals = ['admin']
+        return results
+      }
+
+      const { data: teacherRow, error: teachErr } = await sb
+        .from('teachers')
+        .select('teacher_id, full_name, designation, is_active')
+        .eq('auth_user_id', userId)
+        .maybeSingle()
+
+      if (teachErr) console.warn("Teacher check error:", teachErr)
+
+      if (!teacherRow || !teacherRow.is_active) {
+        return results
+      }
+      results.teacher = teacherRow
+
+      const sessionId = await getCurrentSessionId()
+      
+      // Prevent querying subsequent mappings if session is not found
+      if (!sessionId) {
+        results.portals = ['main_teacher']
+        return results
+      }
+
+      const { data: motherRow, error: mothErr } = await sb
+        .from('mother_teacher_map')
+        .select('map_id')
+        .eq('teacher_id', teacherRow.teacher_id)
+        .eq('session_id', sessionId)
+        .maybeSingle()
+
+      if (mothErr) console.warn("Mother teacher map error:", mothErr)
+
+      if (motherRow) {
+        results.portals = ['mother_teacher']
+        return results
+      }
+
+      results.portals.push('main_teacher')
+
+      const { data: classRow, error: classErr } = await sb
+        .from('class_teacher_map')
+        .select('map_id')
+        .eq('teacher_id', teacherRow.teacher_id)
+        .eq('session_id', sessionId)
+        .maybeSingle()
+
+      if (classErr) console.warn("Class teacher map error:", classErr)
+
+      if (classRow) results.portals.push('class_teacher')
+    } catch (e) {
+      console.error("Exception in portal detection:", e)
     }
-
-    const { data: teacherRow } = await sb
-      .from('teachers')
-      .select('teacher_id, full_name, designation, is_active')
-      .eq('auth_user_id', userId)
-      .maybeSingle()
-
-    if (!teacherRow || !teacherRow.is_active) {
-      return results
-    }
-    results.teacher = teacherRow
-
-    const sessionId = await getCurrentSessionId()
-
-    const { data: motherRow } = await sb
-      .from('mother_teacher_map')
-      .select('map_id')
-      .eq('teacher_id', teacherRow.teacher_id)
-      .eq('session_id', sessionId)
-      .maybeSingle()
-
-    if (motherRow) {
-      results.portals = ['mother_teacher']
-      return results
-    }
-
-    results.portals.push('main_teacher')
-
-    const { data: classRow } = await sb
-      .from('class_teacher_map')
-      .select('map_id')
-      .eq('teacher_id', teacherRow.teacher_id)
-      .eq('session_id', sessionId)
-      .maybeSingle()
-
-    if (classRow) results.portals.push('class_teacher')
 
     return results
   }
