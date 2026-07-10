@@ -12,17 +12,29 @@
 ;(function() {
   'use strict'
   // ── SUPABASE CLIENT ──────────────────────────────────────────
-  // FIX: custom no-op `lock` bypasses navigator.locks.
-  // supabase-js v2 wraps auth calls in a browser LockManager lock; on repeat
-  // visits (expired token being auto-refreshed, or a zombie tab holding the
-  // lock) getSession() waits on that lock forever → page stuck on "Loading…".
-  // Bypassing the lock removes the deadlock. Safe for this app.
+  // FIX (v2): a fully no-op lock let getSession() and the background
+  // auto-refresh race each other — on repeat visits the refresh could fail
+  // (already-rotated refresh token) and fire SIGNED_OUT before getSession()
+  // even resolved, causing an instant bounce back to login.html.
+  // This version keeps real serialization (so refresh and getSession queue
+  // properly, like navigator.locks normally does) but adds a hard timeout so
+  // a genuinely stuck/zombie lock can never hang the page forever.
+  let _lockChain = Promise.resolve()
   window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,
-      lock: async (_name, _acquireTimeout, fn) => await fn()
+      lock: async (_name, acquireTimeout, fn) => {
+        const run = _lockChain.then(() => fn())
+        // Keep the chain alive even if this call fails, so future calls aren't blocked
+        _lockChain = run.catch(() => {})
+        const timeoutMs = (acquireTimeout && acquireTimeout > 0) ? acquireTimeout : 8000
+        return Promise.race([
+          run,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('SPS auth lock timeout')), timeoutMs))
+        ])
+      }
     }
   })
 
@@ -113,41 +125,59 @@
   }
 
   // ── ACCESS CHECK ─────────────────────────────────────────────
+  let _initDone = false
   async function checkAccess() {
-    const { data: { session } } = await sb.auth.getSession()
+    try {
+      const { data: { session }, error } = await sb.auth.getSession()
 
-    if (!session) {
+      if (error) {
+        console.warn('[SPS] getSession() error:', error.message)
+        redirectToLogin()
+        return
+      }
+
+      if (!session) {
+        console.warn('[SPS] No session found on init — redirecting to login')
+        redirectToLogin()
+        return
+      }
+
+      SPS.session = session
+      SPS.user = session.user
+
+      const cached = getLocalUser()
+      if (cached && cached.portals) {
+        SPS.teacher = cached.teacher
+        SPS.admin   = cached.admin
+        SPS.portals = cached.portals
+      } else {
+        const detected = await detectPortals(session.user.id)
+        SPS.teacher = detected.teacher
+        SPS.admin   = detected.admin
+        SPS.portals = detected.portals
+        sessionStorage.setItem('sps_user', JSON.stringify({
+          teacher: SPS.teacher,
+          admin:   SPS.admin,
+          portals: SPS.portals,
+        }))
+      }
+
+      const key = window.PORTAL_KEY
+      if (key && !SPS.portals.includes(key)) {
+        console.warn('[SPS] Session valid but lacks portal access for:', key)
+        redirectToLogin('access')
+        return
+      }
+
+      _initDone = true
+      SPS._resolveReady()
+    } catch (err) {
+      // Covers our new lock timeout, network failures, etc.
+      // Without this catch, SPS.ready() would hang forever and only the
+      // 12s watchdog in the page itself would eventually recover.
+      console.error('[SPS] checkAccess() failed:', err.message || err)
       redirectToLogin()
-      return
     }
-
-    SPS.session = session
-    SPS.user = session.user
-
-    const cached = getLocalUser()
-    if (cached && cached.portals) {
-      SPS.teacher = cached.teacher
-      SPS.admin   = cached.admin
-      SPS.portals = cached.portals
-    } else {
-      const detected = await detectPortals(session.user.id)
-      SPS.teacher = detected.teacher
-      SPS.admin   = detected.admin
-      SPS.portals = detected.portals
-      sessionStorage.setItem('sps_user', JSON.stringify({
-        teacher: SPS.teacher,
-        admin:   SPS.admin,
-        portals: SPS.portals,
-      }))
-    }
-
-    const key = window.PORTAL_KEY
-    if (key && !SPS.portals.includes(key)) {
-      redirectToLogin('access')
-      return
-    }
-
-    SPS._resolveReady()
   }
 
   // ── REDIRECT ─────────────────────────────────────────────────
@@ -183,8 +213,16 @@ SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'
     name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   // ── LISTEN FOR SIGN OUT FROM ANOTHER TAB ─────────────────────
+  // IMPORTANT: supabase-js can emit a SIGNED_OUT event during the initial
+  // session-restore/refresh attempt on page load (e.g. an expired refresh
+  // token failing to renew) — not just on a real, intentional logout.
+  // Reacting to that instantly, before checkAccess() has finished its own
+  // getSession() call, is what caused the "loads then immediately bounces
+  // back to login" behavior. We only treat SIGNED_OUT as a real logout once
+  // our own init has completed successfully at least once.
   sb.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_OUT') {
+    console.log('[SPS] auth event:', event, '(init done:', _initDone, ')')
+    if (event === 'SIGNED_OUT' && _initDone) {
       sessionStorage.removeItem('sps_user')
       redirectToLogin()
     }
