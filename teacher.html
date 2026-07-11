@@ -1125,6 +1125,8 @@ function showNotification(title,body){
     const n=new Notification(title,{body,silent:true})
     setTimeout(()=>n.close(),5000)
   }
+  // Refresh messages whenever notification fires
+  try{if(typeof loadMessages==='function')loadMessages()}catch(e){console.warn(e)}
 }
 function subscribeMessages(recipientId){
   if(!recipientId)return
