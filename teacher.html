@@ -630,6 +630,47 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
   .msg-email-wrap{max-height:none!important}
 }
 
+
+/* Broadcast notice banners */
+@keyframes bcPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,85,107,.0)}50%{box-shadow:0 0 0 5px rgba(229,85,107,.15)}}
+@keyframes bcSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.bc-banner{border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:14px;display:flex;align-items:flex-start;gap:14px;animation:bcSlide .3s ease both;position:relative;border:1.5px solid}
+.bc-banner.urgent{background:var(--danger-soft);border-color:var(--danger);animation:bcSlide .3s ease both,bcPulse 1.8s ease-in-out infinite}
+.bc-banner.important{background:var(--warn-soft);border-color:var(--warn)}
+.bc-banner.normal{background:var(--indigo-100);border-color:var(--indigo)}
+.bc-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}
+.bc-banner.urgent .bc-icon{background:var(--danger);color:#fff}
+.bc-banner.important .bc-icon{background:var(--warn);color:#fff}
+.bc-banner.normal .bc-icon{background:var(--indigo);color:#fff}
+.bc-content{flex:1;min-width:0}
+.bc-title{font-size:14.5px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bc-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px}
+.bc-banner.urgent .bc-tag{background:var(--danger);color:#fff}
+.bc-banner.important .bc-tag{background:var(--warn);color:#fff}
+.bc-banner.normal .bc-tag{background:var(--indigo);color:#fff}
+.bc-body{font-size:13px;color:var(--ink-soft);line-height:1.6;margin-top:5px;white-space:pre-wrap}
+.bc-meta{font-size:11px;color:var(--ink-faint);margin-top:8px}
+.bc-dismiss{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:20px;line-height:1;padding:0 4px;flex-shrink:0}
+.bc-dismiss:hover{color:var(--ink)}
+
+
+/* Broadcast notice banners on dashboard */
+#broadcastBanners{margin-bottom:18px}
+.bc-banner{border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:12px;position:relative;display:flex;align-items:flex-start;gap:14px;animation:bcPulse 2s ease-in-out infinite;overflow:hidden}
+.bc-banner.high{background:linear-gradient(120deg,#E5556B,#C73E54);color:#fff}
+.bc-banner.normal{background:linear-gradient(120deg,#355C7D,#2A4A63);color:#fff}
+.bc-banner .bc-icon{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.bc-banner .bc-content{flex:1;min-width:0}
+.bc-banner .bc-title{font-size:15px;font-weight:800;margin-bottom:4px}
+.bc-banner .bc-body{font-size:13px;line-height:1.6;opacity:.95;white-space:pre-wrap}
+.bc-banner .bc-meta{font-size:11px;opacity:.75;margin-top:8px}
+.bc-banner .bc-dismiss{background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:16px;line-height:1;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.bc-banner .bc-dismiss:hover{background:rgba(255,255,255,.35)}
+@keyframes bcPulse{0%,100%{box-shadow:0 0 0 0 rgba(53,92,125,.0)}50%{box-shadow:0 8px 30px -6px rgba(53,92,125,.5)}}
+.bc-banner.high{animation:bcPulseHigh 1.5s ease-in-out infinite}
+@keyframes bcPulseHigh{0%,100%{box-shadow:0 0 0 0 rgba(229,85,107,.0)}50%{box-shadow:0 8px 32px -4px rgba(229,85,107,.6)}}
+.bc-badge{position:absolute;top:10px;right:48px;background:rgba(255,255,255,.25);font-size:9px;font-weight:800;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.05em}
+
 </style>
 </head>
 <body>
@@ -720,6 +761,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
+      <div id="broadcastBanners"></div>
       <!-- Greeting -->
       <div id="dashGreeting" style="margin-bottom:20px">
         <div id="greetingText" style="font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-.01em"></div>
@@ -1251,12 +1293,43 @@ SPS.ready().then(async()=>{
   const ctClassSel=$('ct_class');if(ctClassSel)ctClassSel.innerHTML='<option value="">Select class</option>'+obsOpts
   // Also populate create test class dropdown
 
-  await Promise.all([renderDashboard(), checkUnreadMessages()])
+  await Promise.all([renderDashboard(), checkUnreadMessages(), loadBroadcasts()])
 })
 
 // ═══════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════
+
+async function loadBroadcasts(){
+  const el=$('broadcastBanners')
+  if(!el||!TEACHER)return
+  // Broadcast messages = message_type 'broadcast' sent to this teacher, not yet read
+  const{data:bcs}=await sb.from('messages').select('*')
+    .eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id)
+    .eq('message_type','broadcast').is('read_at',null)
+    .order('sent_at',{ascending:false})
+  if(!bcs?.length){el.innerHTML='';return}
+  el.innerHTML=bcs.map(b=>{
+    const title=(b.subject||'').replace(/^📢\s*/,'')
+    const isHigh=/urgent|high|important|immediately/i.test(b.subject+' '+b.body)
+    return '<div class="bc-banner '+(isHigh?'high':'normal')+'">'
+      +'<div class="bc-icon">📢</div>'
+      +'<div class="bc-content">'
+        +'<div class="bc-title">'+esc(title)+'</div>'
+        +'<div class="bc-body">'+esc(b.body||'')+'</div>'
+        +'<div class="bc-meta">Notice from Admin Office · '+rel(b.sent_at)+'</div>'
+      +'</div>'
+      +'<button class="bc-dismiss" data-mid="'+b.message_id+'" onclick="dismissBroadcast(this.dataset.mid)" title="Dismiss">&times;</button>'
+      +'</div>'
+  }).join('')
+}
+
+async function dismissBroadcast(mid){
+  if(!TEACHER)return
+  await sb.from('messages').update({read_at:new Date().toISOString()}).eq('message_id',mid)
+  loadBroadcasts()
+}
+
 async function renderDashboard(){
   // Assignments card
   const el=$('dashAssignments')
