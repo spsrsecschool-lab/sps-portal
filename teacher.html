@@ -2335,11 +2335,11 @@ async function openThread(idx){
 
 async function checkUnreadMessages(){
   if(!TEACHER)return
-  const{data:unreadData}=await sb.from('messages').select('message_id').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).eq('is_read',false)
+  const{data:unreadData}=await sb.from('messages').select('message_id').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).is('read_at',null)
   const count=unreadData?.length||0
-  $('msgBadge').textContent=count;$('msgBadge').style.display=count>0?'flex':'none'
-  $('msgDot').style.display=count>0?'block':'none'
-  $('statMsgs').textContent=count||0
+  if($('msgBadge')){$('msgBadge').textContent=count;$('msgBadge').style.display=count>0?'flex':'none'}
+  if($('msgDot'))$('msgDot').style.display=count>0?'block':'none'
+  if($('statMsgs'))$('statMsgs').textContent=count||0
 }
 
 function openComposeModal(){
