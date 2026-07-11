@@ -2855,6 +2855,7 @@ async function approveMarksRequest(requestId){
     reviewed_by:SPS.admin?.admin_id,
     reviewed_at:new Date().toISOString()
   }).eq('request_id',requestId)
+  logActivity('teacher',req.teacher_id,'marks_unlock','Admin granted you access to enter/edit marks')
 
   // Notify teacher
   await sb.from('messages').insert({
@@ -2958,6 +2959,7 @@ async function approveProfileRequest(requestId, teacherId){
     reviewed_by:SPS.admin?.admin_id,
     reviewed_at:new Date().toISOString()
   }).eq('request_id',requestId)
+  logActivity('teacher',teacherId,'profile_access','Admin granted you access to edit your profile')
   await sb.from('messages').insert({
     sender_type:'admin',sender_id:SPS.admin?.admin_id,
     recipient_type:'teacher',recipient_id:teacherId,
