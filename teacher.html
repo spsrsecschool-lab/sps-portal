@@ -2078,7 +2078,7 @@ async function renderDashboard(){
   ALL_ASSESSMENTS=assessments||[]
 
   // Check which assessments have marks entered by this teacher
-  const{data:submitted}=await sb.from('marks').select('assessment_id,subject_id,enrollment_id').eq('teacher_id',TEACHER.teacher_id)
+  const{data:submitted}=await sb.from('marks').select('assessment_id,subject_id,enrollment_id').eq('entered_by',TEACHER.teacher_id)
   const submittedKeys=new Set((submitted||[]).map(m=>m.assessment_id+'_'+m.subject_id))
 
   let pending=0
