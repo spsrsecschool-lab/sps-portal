@@ -1715,7 +1715,12 @@ function populateMapFilter(){const sel=$('mapClassFilter');if(sel.options.length
 async function loadMapping(){
   ldg($('mappingBody'))
   const{data,error}=await sb.from('teacher_subject_class_map').select('map_id,class_id,section_id,stream_id,subject_id,teacher_id,classes(name),class_sections(name),subjects(name,subject_id),teachers(full_name,teacher_id),streams(name)').eq('session_id',SESS?.session_id||'')
-  if(error){toast('Failed','error');return}; _mappingRaw=data||[]
+  if(error){
+    const body=$('mappingBody')
+    if(body)body.innerHTML='<tr><td colspan="7"><div class="empty-state"><p>Failed to load mappings: '+esc(error.message)+'</p></div></td></tr>'
+    toast('Failed: '+error.message,'error');return
+  }
+  _mappingRaw=data||[]
   const{data:ct}=await sb.from('class_teacher_map').select('section_id,teachers(full_name)').eq('session_id',SESS?.session_id||'')
   const ctF={}; ct?.forEach(r=>{ctF[r.section_id]=r.teachers?.full_name||''})
   const fcls=$('mapClassFilter')?.value||''
