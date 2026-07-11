@@ -3016,6 +3016,14 @@ function loadSettings(){
   loadResetList()
   loadClassTeacherControl()
 }
+
+// Poll for new messages every 12s when messages tab active
+setInterval(function(){
+  try{
+    if(document.getElementById('page-messages')?.classList.contains('active')&&typeof loadMessages==='function')loadMessages()
+  }catch(e){}
+},12000)
+
 </script>
 </body>
 </html>
