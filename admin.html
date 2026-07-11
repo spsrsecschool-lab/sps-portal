@@ -944,12 +944,27 @@ function showAdminNotification(title,body){
 }
 function subscribeAdminMessages(adminId){
   if(!adminId)return
-  sb.channel('admin_msgs_'+adminId)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+adminId},payload=>{
-      const m=payload.new
-      if(m.sender_type==='admin'&&m.sender_id===adminId)return
-      showAdminNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
-      if(typeof loadMessages==='function')loadMessages()
+  console.log('[Realtime Admin] Subscribing for:', adminId)
+  sb.channel('admin_msgs_' + adminId)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'messages',
+      filter: 'recipient_id=eq.' + adminId
+    }, async payload => {
+      try {
+        const m = payload.new
+        console.log('[Realtime Admin] New message received:', m)
+        if(m.sender_type === 'admin' && m.sender_id === adminId) return
+        
+        showAdminNotification('New message', m.subject || m.body?.slice(0, 80) || 'New message')
+        
+        if (typeof loadMessages === 'function') {
+          await loadMessages()
+        }
+      } catch (err) {
+        console.error('[Realtime Admin] Handler error:', err)
+      }
     }).subscribe()
 }
 initAdminNotifications()
@@ -959,6 +974,11 @@ SPS.ready().then(async()=>{
   const cf=document.getElementById('ca_from'),ct=document.getElementById('ca_to')
   if(cf)cf.value=today(); if(ct)ct.value=today()
   document.getElementById('admSessionLabel').textContent=SESS?SESS.session_id:'—'
+  
+  // Initialize real-time admin subscription
+  if (SPS.admin && SPS.admin.admin_id) {
+    subscribeAdminMessages(SPS.admin.admin_id)
+  }
 })
 
 // ═══════════ STREAM ↔ SECTION AUTO-LINK MAP ═══════════
@@ -1180,6 +1200,7 @@ async function openAdminThread(idx){
   $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
   const el=$('msgBubbles')
   function ini(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+  const el=$('msgBubbles')
   if(el){
     el.innerHTML=thread.messages.map(m=>{
       const isMine=m.sender_type==='admin'
@@ -1196,7 +1217,11 @@ async function openAdminThread(idx){
         +'<div class="msg-email-body">'+esc(m.body||'')+'</div>'
         +'</div>'
     }).join('')
-    el.scrollTop=el.scrollHeight
+    
+    // Add timeout to scroll
+    setTimeout(() => {
+      el.scrollTop = el.scrollHeight
+    }, 50)
   }
   const rb=$('msgReplyBar');if(rb)rb.style.display='block'
   const unreadIds=thread.messages.filter(m=>m.sender_type!=='admin'&&!m.read_at).map(m=>m.message_id)
