@@ -943,9 +943,10 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
           </div>
           <div class="msg-thread-list" id="msgThreadList" style="flex:1;overflow-y:auto"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
         </div>
-        <div id="msgReadPane" style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+        <div id="msgReadPane" style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;position:relative">
+          <button id="msgReopenBtn" onclick="toggleThreadPanel()" style="display:none;position:absolute;top:14px;left:14px;z-index:5;background:var(--indigo-100);color:var(--indigo);border:none;border-radius:8px;padding:7px 12px;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;align-items:center;gap:6px"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg> Threads</button>
           <button class="msg-back-btn" onclick="backToThreadList()"><svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Back to threads</button>
-          <div id="msgThreadHead" style="padding:16px 24px;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--white)">
+          <div id="msgThreadHead" style="padding:16px 24px;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--white);padding-left:24px">
             <div style="font-size:15px;font-weight:800;color:var(--ink)" id="msgThreadSubject">Select a thread</div>
             <div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px" id="msgThreadMeta"></div>
           </div>
@@ -1074,14 +1075,18 @@ document.addEventListener('mousedown',function(e){
 
 
 function toggleThreadPanel(){
-  const panel=$('msgThreadPanel')
-  const btn=panel?.querySelector('button')
+  const panel=$('msgThreadPanel'),reopenBtn=$('msgReopenBtn'),head=$('msgThreadHead')
   if(!panel)return
-  const collapsed=panel.style.width==='36px'
-  panel.style.width=collapsed?'310px':'36px'
-  panel.style.overflow=collapsed?'':'hidden'
-  if($('msgThreadList'))$('msgThreadList').style.display=collapsed?'block':'none'
-  if(btn)btn.innerHTML=collapsed?'&#8249;':'&#8250;'
+  const hidden=panel.style.display==='none'
+  if(hidden){
+    panel.style.display='flex'
+    if(reopenBtn)reopenBtn.style.display='none'
+    if(head)head.style.paddingLeft='24px'
+  }else{
+    panel.style.display='none'
+    if(reopenBtn)reopenBtn.style.display='flex'
+    if(head)head.style.paddingLeft='120px'
+  }
 }
 
 
