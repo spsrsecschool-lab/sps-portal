@@ -1128,14 +1128,32 @@ function showNotification(title,body){
 }
 function subscribeMessages(recipientId){
   if(!recipientId)return
-  sb.channel('msgs_'+recipientId)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+recipientId},payload=>{
-      const m=payload.new
-      if(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)return
-      showNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
-      checkUnreadMessages()
-      if($('page-messages')?.classList.contains('active'))loadMessages()
-    }).subscribe()
+  console.log('[Realtime] Subscribing to messages for recipient:', recipientId)
+  sb.channel('msgs_' + recipientId)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'messages',
+      filter: 'recipient_id=eq.' + recipientId
+    }, async payload => {
+      try {
+        const m = payload.new
+        console.log('[Realtime] New message received:', m)
+        if(m.sender_type === 'teacher' && m.sender_id === TEACHER.teacher_id) return
+        
+        showNotification('New message', m.subject || m.body?.slice(0, 80) || 'New message')
+        await checkUnreadMessages()
+        
+        // Refresh the local message threads to keep everything in sync
+        if (typeof loadMessages === 'function') {
+          await loadMessages()
+        }
+      } catch (err) {
+        console.error('[Realtime] Error in message subscription handler:', err)
+      }
+    }).subscribe((status) => {
+      console.log('[Realtime] Subscription status for messages:', status)
+    })
 }
 initNotifications()
 
@@ -2256,7 +2274,11 @@ async function openThread(idx){
         +'<div class="msg-email-body">'+esc(m.body||'')+'</div>'
         +'</div>'
     }).join('')
-    el.scrollTop=el.scrollHeight
+    
+    // Add a slight timeout here to allow the browser to paint the elements
+    setTimeout(() => {
+      el.scrollTop = el.scrollHeight
+    }, 50)
   }
   const rb=$('msgReplyBar');if(rb)rb.style.display='block'
   const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.read_at).map(m=>m.message_id)
@@ -2274,11 +2296,34 @@ async function openThread(idx){
 
 async function checkUnreadMessages(){
   if(!TEACHER)return
-  const{data:unreadData}=await sb.from('messages').select('message_id').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).eq('is_read',false)
-  const count=unreadData?.length||0
-  $('msgBadge').textContent=count;$('msgBadge').style.display=count>0?'flex':'none'
-  $('msgDot').style.display=count>0?'block':'none'
-  $('statMsgs').textContent=count||0
+  try {
+    const { data: unreadData, error } = await sb.from('messages')
+      .select('message_id')
+      .eq('recipient_type', 'teacher')
+      .eq('recipient_id', TEACHER.teacher_id)
+      .is('read_at', null)
+    
+    if (error) {
+      console.error('[checkUnreadMessages] Database error:', error)
+      return
+    }
+    
+    const count = unreadData?.length || 0
+    
+    const b = $('msgBadge')
+    if (b) {
+      b.textContent = count
+      b.style.display = count > 0 ? 'flex' : 'none'
+    }
+    
+    const d = $('msgDot')
+    if (d) d.style.display = count > 0 ? 'block' : 'none'
+    
+    const s = $('statMsgs')
+    if (s) s.textContent = count
+  } catch (err) {
+    console.error('[checkUnreadMessages] Execution error:', err)
+  }
 }
 
 function openComposeModal(){
