@@ -1002,10 +1002,12 @@ function rerenderAdminMessages(){
   const unreadTotal=threads.reduce((s,th)=>s+th.unread,0)
   const nb=$('msgCount');if(nb){nb.textContent=unreadTotal;nb.style.display=unreadTotal>0?'inline-flex':'none'}
 }
-initAdminNotifications()
 
 SPS.ready().then(async()=>{
   await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths(); checkPendingRequests()
+  // Start message notifications
+  initAdminNotifications()
+  if(SPS.admin?.admin_id){subscribeAdminMessages(SPS.admin.admin_id);console.log('[RT] Admin subscribed:',SPS.admin.admin_id)}
   const cf=document.getElementById('ca_from'),ct=document.getElementById('ca_to')
   if(cf)cf.value=today(); if(ct)ct.value=today()
   document.getElementById('admSessionLabel').textContent=SESS?SESS.session_id:'—'
