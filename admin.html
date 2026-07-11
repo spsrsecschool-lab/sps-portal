@@ -221,6 +221,25 @@ tbody tr:hover td{background:var(--lav-50)}
 }
 #scrim{position:fixed;inset:0;background:rgba(34,31,53,.35);z-index:150;display:none}
 #scrim.show{display:block}
+
+.msg-thread-list{list-style:none;overflow-y:auto;border-right:1px solid var(--line);min-height:480px}
+.msg-thread-item{padding:13px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .1s;display:flex;flex-direction:column;gap:2px}
+.msg-thread-item:hover{background:var(--lav-50)}
+.msg-thread-item.active{background:var(--indigo-100)}
+.msg-thread-item .t-top{display:flex;justify-content:space-between;align-items:center}
+.msg-thread-item .t-from{font-size:12.5px;font-weight:700}
+.msg-thread-item.unread .t-from{font-weight:800}
+.msg-thread-item .t-preview{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.msg-thread-item .t-time{font-size:10px;color:var(--ink-faint)}
+.msg-bubbles{display:flex;flex-direction:column;gap:10px;padding:20px;overflow-y:auto;flex:1;min-height:0;max-height:380px}
+.msg-bubble{max-width:72%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
+.msg-bubble.mine{background:var(--indigo);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.msg-bubble.theirs{background:var(--lav-100);color:var(--ink);align-self:flex-start;border-bottom-left-radius:4px}
+.msg-bubble .b-subj{font-size:10.5px;font-weight:700;opacity:.7;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.msg-bubble .b-time{font-size:10px;opacity:.65;margin-top:5px;text-align:right}
+.msg-reply-bar{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end}
+.msg-reply-bar textarea{flex:1;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;outline:none;min-height:40px;background:var(--lav-50)}
+
 </style>
 </head>
 <body>
@@ -304,9 +323,16 @@ tbody tr:hover td{background:var(--lav-50)}
           <button class="btn btn-dark" onclick="openComposeModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
         </div>
       </div>
-      <div class="msg-shell">
-        <div class="msg-list" id="msgList"><div class="loading-row"><div class="spinner"></div></div></div>
-        <div class="msg-detail" id="msgDetail"><div class="msg-empty">Select a message to read</div></div>
+      <div class="msg-shell" style="display:flex;min-height:480px;overflow:hidden">
+        <div class="msg-thread-list" id="msgThreadList" style="width:290px;flex-shrink:0"></div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <div id="msgThreadHead" style="padding:14px 20px;border-bottom:1px solid var(--line);font-weight:700;font-size:13.5px;flex-shrink:0">Select a conversation</div>
+          <div class="msg-bubbles" id="msgBubbles"><div style="text-align:center;padding:40px;color:var(--ink-faint)">Select a conversation.</div></div>
+          <div class="msg-reply-bar" id="msgReplyBar" style="display:none">
+            <textarea id="msgReplyText" placeholder="Type a reply…" rows="2"></textarea>
+            <button class="btn btn-primary btn-sm" onclick="sendAdminThreadReply()">Send</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -865,6 +891,36 @@ let SESS=null,ALL_CLASSES=[],ALL_SUBJECTS=[],ALL_TEACHERS=[],_staffRaw=[],_stude
 window._msgStore={}, window._assessMap={}
 
 // ═══════════ INIT ═══════════
+
+function initAdminNotifications(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)()
+    window._notifBell=()=>{
+      try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination)
+        o.frequency.setValueAtTime(880,ctx.currentTime);o.frequency.setValueAtTime(1108,ctx.currentTime+0.08)
+        g.gain.setValueAtTime(0.25,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.35)
+        o.start();o.stop(ctx.currentTime+0.35)}catch(e){}
+    }
+  }catch(e){}
+  if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()
+}
+function showAdminNotification(title,body){
+  if(window._notifBell){try{window._notifBell()}catch(e){}}
+  if(Notification.permission==='granted'){
+    const n=new Notification(title,{body,silent:true});setTimeout(()=>n.close(),5000)
+  }
+}
+function subscribeAdminMessages(adminId){
+  if(!adminId)return
+  sb.channel('admin_msgs_'+adminId)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+adminId},payload=>{
+      const m=payload.new
+      showAdminNotification('New message from '+(m.sender_name||'Someone'),m.subject||m.body?.slice(0,80)||'New message')
+      if(typeof loadMessages==='function')loadMessages()
+    }).subscribe()
+}
+initAdminNotifications()
+
 SPS.ready().then(async()=>{
   await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths(); checkPendingRequests()
   const cf=document.getElementById('ca_from'),ct=document.getElementById('ca_to')
@@ -1025,20 +1081,93 @@ async function renderDashboard(){
 
 // ═══════════ MESSAGES ═══════════
 async function loadMessages(){
-  if(!SPS.admin)return; ldg($('msgList'))
-  const{data,error}=await sb.from('messages').select('message_id,sender_type,sender_id,subject,body,sent_at,read_at,message_type').eq('recipient_id',SPS.admin.admin_id).order('sent_at',{ascending:false}).limit(50)
-  if(error||!data?.length){$('msgList').innerHTML='<p style="padding:16px;font-size:12.5px;color:var(--ink-faint)">'+(error?'Error loading.':'Inbox is empty.')+'</p>';return}
-  const ids=[...new Set(data.filter(m=>m.sender_type==='teacher').map(m=>m.sender_id))]
-  let sMap={}
-  if(ids.length){const{data:ts}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',ids);ts?.forEach(t=>{sMap[t.teacher_id]=t.full_name})}
-  window._msgStore={}
-  $('msgList').innerHTML=data.map(m=>{
-    const name=m.sender_type==='admin'?'Admin Office':(sMap[m.sender_id]||m.sender_id)
-    window._msgStore[m.message_id]={...m,senderName:name}
-    const u=!m.read_at
-    return '<div class="msg-item '+(_openMsgId===m.message_id?'active':'')+' '+(u?'unread':'')+'" onclick="openMsgById(\''+m.message_id+'\')">'+'<div class="mfrom">'+(u?'<span class="udot"></span>':'')+esc(name)+'<span class="mtime">'+rel(m.sent_at)+'</span></div>'+'<div class="mprev">'+esc(m.subject||'(no subject)')+'</div></div>'
+  if(!SPS.admin)return
+  const el=$('msgThreadList')
+  if(el)el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div>'
+  const[{data:received},{data:sent}]=await Promise.all([
+    sb.from('messages').select('*').eq('recipient_type','admin').eq('recipient_id',SPS.admin.admin_id).order('sent_at',{ascending:false}).limit(200),
+    sb.from('messages').select('*').eq('sender_type','admin').eq('sender_id',SPS.admin.admin_id).order('sent_at',{ascending:false}).limit(200)
+  ])
+  const allMsgs=[...(received||[]),...(sent||[])]
+  window._adminMsgs=allMsgs
+  const rootSubj=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
+  const threadMap=new Map()
+  allMsgs.forEach(m=>{
+    const key=rootSubj(m.subject)
+    if(!threadMap.has(key))threadMap.set(key,{subject:key,messages:[],unread:0})
+    const thread=threadMap.get(key)
+    thread.messages.push(m)
+    const isMine=m.sender_type==='admin'
+    if(!isMine&&!m.is_read)thread.unread++
+  })
+  const threads=[...threadMap.values()].map(th=>{
+    th.messages.sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at))
+    th.latest=th.messages[th.messages.length-1]
+    return th
+  }).sort((a,b)=>new Date(b.latest?.sent_at)-new Date(a.latest?.sent_at))
+  const unreadTotal=threads.reduce((s,th)=>s+th.unread,0)
+  const nb=$('msgCount');if(nb){nb.textContent=unreadTotal;nb.style.display=unreadTotal>0?'inline-flex':'none'}
+  window._adminThreads=threads
+  if(!threads.length){if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No messages yet.</div>';return}
+  if(el)el.innerHTML=threads.map((th,idx)=>{
+    const last=th.latest
+    const isMine=last?.sender_type==='admin'
+    const otherName=isMine?(last?.recipient_name||last?.recipient_id||'Unknown'):(last?.sender_name||'Unknown')
+    return '<div class="msg-thread-item'+(th.unread>0?' unread':'')+'" data-idx="'+idx+'" onclick="openAdminThread(+this.dataset.idx)">'
+      +'<div class="t-top"><span class="t-from">'+esc(th.subject)+'</span><span class="t-time">'+rel(last?.sent_at)+'</span></div>'
+      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,60)||'')+'</div>'
+      +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
+      +'</div>'
   }).join('')
-  checkUnread()
+  if(threads.length)openAdminThread(0)
+}
+
+let _adminCurrThread=null
+async function openAdminThread(idx){
+  _adminCurrThread=idx
+  document.querySelectorAll('#msgThreadList .msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
+  const thread=window._adminThreads?.[idx];if(!thread)return
+  $('msgThreadHead').innerHTML='<b>'+esc(thread.subject)+'</b><span style="font-size:11px;color:var(--ink-faint);margin-left:8px">'+thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+'</span>'
+  const el=$('msgBubbles')
+  if(el){
+    el.innerHTML=thread.messages.map(m=>{
+      const isMine=m.sender_type==='admin'
+      const from=isMine?'Admin Office':(m.sender_name||'Unknown')
+      return '<div style="display:flex;justify-content:'+(isMine?'flex-end':'flex-start')+';margin-bottom:2px">'
+        +'<div class="msg-bubble '+(isMine?'mine':'theirs')+'">'
+        +'<div style="font-size:10px;opacity:.65;margin-bottom:4px;font-weight:700">'+esc(from)+'</div>'
+        +'<div>'+esc(m.body||'')+'</div>'
+        +'<div class="b-time">'+rel(m.sent_at)+'</div>'
+        +'</div></div>'
+    }).join('')
+    el.scrollTop=el.scrollHeight
+  }
+  const rb=$('msgReplyBar');if(rb)rb.style.display='flex'
+  const unreadIds=thread.messages.filter(m=>m.sender_type!=='admin'&&!m.is_read).map(m=>m.message_id)
+  if(unreadIds.length){
+    await sb.from('messages').update({is_read:true}).in('message_id',unreadIds)
+    thread.unread=0
+  }
+}
+
+
+
+let _adminCurrentConv=null
+
+
+async function sendAdminThreadReply(){
+  const body=$('msgReplyText')?.value?.trim()
+  if(!body){toast('Write a message first','error');return}
+  const conv=window._adminConvs?.find(c=>c.key===_adminCurrentConv);if(!conv)return
+  const{error}=await sb.from('messages').insert({
+    sender_type:'admin',sender_id:SPS.admin.admin_id,sender_name:'Admin Office',
+    recipient_type:conv.partnerType,recipient_id:conv.partnerId,
+    subject:'Re: '+(conv.latest?.subject||'Message'),body,
+    sent_at:new Date().toISOString(),is_read:false
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  if($('msgReplyText'))$('msgReplyText').value=''
+  toast('Sent ✓','success');loadMessages()
 }
 function openMsgById(id){const m=window._msgStore?.[id];if(!m)return;openMsg(m)}
 async function openMsg(m){
@@ -1505,12 +1634,14 @@ async function editMapping(mapId){
   if(!r){toast('Mapping not found','error');return}
   const roster=await getActiveRoster()
   let slotOpts='<option value="">No active roster</option>'
-  let existingSlotId='',existingDays=[]
+  let slots=[]
+  let existingEntries=[]
   if(roster){
-    const{data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order')
-    slotOpts='<option value="">Select time slot *</option>'+(slots||[]).map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+s.start_time?.slice(0,5)+'–'+s.end_time?.slice(0,5)+')</option>').join('')
-    const{data:te}=await sb.from('timetable_entries').select('slot_id,days').eq('roster_id',roster.roster_id).eq('section_id',r.section_id).eq('subject_id',r.subject_id).eq('teacher_id',r.teacher_id).maybeSingle()
-    if(te){existingSlotId=te.slot_id||'';existingDays=te.days||[]}
+    const{data:sl}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order')
+    slots=sl||[]
+    slotOpts='<option value="">Select time slot *</option>'+slots.map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+s.start_time?.slice(0,5)+'–'+s.end_time?.slice(0,5)+')</option>').join('')
+    const{data:tes}=await sb.from('timetable_entries').select('entry_id,slot_id,days,time_slots(name,start_time,end_time)').eq('roster_id',roster.roster_id).eq('section_id',r.section_id).eq('subject_id',r.subject_id).eq('teacher_id',r.teacher_id)
+    existingEntries=tes||[]
   }
   const{data:secs}=await sb.from('class_sections').select('*').eq('class_id',r.class_id).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
   const secOpts=(secs||[]).map(s=>'<option value="'+s.section_id+'"'+(s.section_id===r.section_id?' selected':'')+'>'+esc(s.name)+'</option>').join('')
@@ -1520,9 +1651,20 @@ async function editMapping(mapId){
   const cls=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'"'+(c.class_id===r.class_id?' selected':'')+'>'+esc(c.name)+'</option>').join('')
   const tch=ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'"'+(t.teacher_id===r.teacher_id?' selected':'')+'>'+esc(t.full_name)+'</option>').join('')
   const sub=ALL_SUBJECTS.filter(s=>s.is_active).map(s=>'<option value="'+s.subject_id+'"'+(s.subject_id===r.subject_id?' selected':'')+'>'+esc(s.name)+'</option>').join('')
-  const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk"'+(existingDays.includes(d)?' checked':'')+' style="accent-color:var(--indigo)"> '+d+'</label>').join('')
+
+  // Existing periods list
+  const periodsList=existingEntries.length
+    ?existingEntries.map(e=>'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--lav-50);border-radius:8px;margin-bottom:6px;font-size:12.5px"><div style="flex:1"><b>'+esc(e.time_slots?.name||'?')+'</b> <span style="color:var(--ink-soft)">'+e.time_slots?.start_time?.slice(0,5)+'–'+e.time_slots?.end_time?.slice(0,5)+'</span> · <span style="color:var(--indigo)">'+esc((e.days||[]).join(', '))+'</span></div><button class="btn btn-ghost btn-xs" style="color:var(--danger);border-color:var(--danger)" data-eid="'+e.entry_id+'" onclick="deleteTimetablePeriod(this.dataset.eid)">Remove</button></div>').join('')
+    :'<div style="font-size:12.5px;color:var(--ink-faint);padding:8px 0">No periods assigned yet.</div>'
+
+  const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk" style="accent-color:var(--indigo)"> '+d+'</label>').join('')
+
   openModal('Edit Class-Subject Mapping',
     '<input type="hidden" id="mp_edit_id" value="'+mapId+'">'+
+    '<input type="hidden" id="mp_roster_id" value="'+(roster?.roster_id||'')+'">'+
+    '<input type="hidden" id="mp_section_id" value="'+r.section_id+'">'+
+    '<input type="hidden" id="mp_subject_id" value="'+r.subject_id+'">'+
+    '<input type="hidden" id="mp_teacher_id_h" value="'+r.teacher_id+'">'+
     '<div class="form-row">'+
       '<div class="fg"><label>Class *</label><select id="mp_class">'+cls+'</select></div>'+
       '<div class="fg"><label>Section *</label><select id="mp_section">'+secOpts+'</select></div>'+
@@ -1533,54 +1675,59 @@ async function editMapping(mapId){
       '<div class="fg"><label>Teacher *</label><select id="mp_teacher">'+tch+'</select></div>'+
     '</div>'+
     '<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:14px">'+
-      '<p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px">Timetable (active roster: <b>'+(roster?esc(roster.name):'none')+'</b>)</p>'+
-      '<div class="form-row" style="margin-bottom:8px"><div class="fg"><label>Time Slot *</label><select id="mp_slot">'+slotOpts+'</select></div></div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+        '<p style="font-size:11.5px;color:var(--ink-soft);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Periods (active roster: <b>'+(roster?esc(roster.name):'none')+'</b>)</p>'+
+      '</div>'+
+      '<div id="existingPeriodsWrap">'+periodsList+'</div>'+
+      '<details style="margin-top:10px"><summary style="font-size:12.5px;font-weight:700;color:var(--indigo);cursor:pointer;padding:6px 0">+ Add Period / Slot</summary>'+
+      '<div style="padding-top:10px"><div class="form-row" style="margin-bottom:8px"><div class="fg"><label>Time Slot *</label><select id="mp_slot">'+slotOpts+'</select></div></div>'+
       '<div class="fg"><label>Days *</label><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">'+dayChks+'</div></div>'+
+      '<button class="btn btn-soft btn-sm" style="margin-top:10px" onclick="addTimetablePeriod()">Add This Period</button>'+
+      '</div></details>'+
     '</div>',
-    '<button class="btn btn-dark" onclick="updateMapping()">Save Changes</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-dark" onclick="updateMapping()">Save Changes</button>'
   )
-  // Wire class change after modal renders
-  setTimeout(()=>{
-    const mc=$('mp_class'),sl=$('mp_slot')
-    if(mc)mc.onchange=mpLoadSections
-    if(sl&&existingSlotId)sl.value=existingSlotId
-  },50)
+  setTimeout(()=>{const mc=$('mp_class');if(mc)mc.onchange=mpLoadSections},50)
+}
+
+async function addTimetablePeriod(){
+  const mapId=$('mp_edit_id')?.value,rosterId=$('mp_roster_id')?.value
+  const slotId=$('mp_slot')?.value,days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value)
+  const secId=$('mp_section_id')?.value,subId=$('mp_subject_id')?.value,tchId=$('mp_teacher_id_h')?.value
+  if(!rosterId){toast('No active roster','error');return}
+  if(!slotId){toast('Select a time slot','error');return}
+  if(!days.length){toast('Select at least one day','error');return}
+  const r=_mappingRaw.find(m=>m.map_id===mapId)
+  const{error}=await sb.from('timetable_entries').insert({
+    roster_id:rosterId,slot_id:slotId,session_id:SESS.session_id,
+    class_id:r?.class_id,section_id:secId,subject_id:subId,teacher_id:tchId,days
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Period added ✓','success')
+  editMapping(mapId) // reopen modal to refresh list
+}
+
+async function deleteTimetablePeriod(entryId){
+  if(!confirm('Remove this period from the timetable?'))return
+  const{error}=await sb.from('timetable_entries').delete().eq('entry_id',entryId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Period removed','success')
+  // Refresh existing periods in current modal
+  const mapId=$('mp_edit_id')?.value
+  if(mapId)editMapping(mapId)
 }
 
 async function updateMapping(){
   const mapId=$('mp_edit_id')?.value
   const classId=$('mp_class')?.value,secId=$('mp_section')?.value
   const subId=$('mp_subject')?.value,tchId=$('mp_teacher')?.value
-  const slotId=$('mp_slot')?.value,days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value)
   const streamId=$('mp_stream')?.value||null
-
   if(!classId||!secId||!subId||!tchId){toast('Class, section, subject and teacher are required','error');return}
-  if(!slotId){toast('Select a time slot','error');return}
-  if(!days.length){toast('Select at least one day','error');return}
-
-  // Update teacher_subject_class_map
   const{error}=await sb.from('teacher_subject_class_map').update({
-    class_id:classId,section_id:secId,subject_id:subId,
-    teacher_id:tchId,stream_id:streamId
+    class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,stream_id:streamId
   }).eq('map_id',mapId)
   if(error){toast('Failed to update mapping: '+error.message,'error');return}
-
-  // Update timetable entry — find existing and update or insert new
-  const roster=await getActiveRoster()
-  if(roster){
-    // Get old mapping to find existing entry
-    const old=_mappingRaw.find(m=>m.map_id===mapId)
-    if(old){
-      const{data:existing}=await sb.from('timetable_entries').select('entry_id').eq('roster_id',roster.roster_id).eq('section_id',old.section_id).eq('subject_id',old.subject_id).eq('teacher_id',old.teacher_id).maybeSingle()
-      if(existing){
-        await sb.from('timetable_entries').update({slot_id:slotId,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days,stream_id:streamId}).eq('entry_id',existing.entry_id)
-      } else {
-        await sb.from('timetable_entries').insert({roster_id:roster.roster_id,slot_id:slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days,stream_id:streamId})
-      }
-    }
-  }
-
-  toast('Mapping updated','success');closeModal();loadMapping()
+  toast('Mapping updated ✓','success');closeModal();loadMapping()
 }
 
 // ═══════════ ASSESSMENTS ═══════════
