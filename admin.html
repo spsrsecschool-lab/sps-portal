@@ -947,7 +947,7 @@ function subscribeAdminMessages(adminId){
   sb.channel('admin_msgs_'+adminId)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+adminId},payload=>{
       const m=payload.new
-      showAdminNotification('New message from '+(m.sender_name||'Someone'),m.subject||m.body?.slice(0,80)||'New message')
+      showAdminNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
       if(typeof loadMessages==='function')loadMessages()
     }).subscribe()
 }
@@ -1122,6 +1122,15 @@ async function loadMessages(){
   ])
   const allMsgs=[...(received||[]),...(sent||[])]
   window._adminMsgs=allMsgs
+  // Name lookup for teachers
+  const tchIds=[...new Set(allMsgs.flatMap(m=>[m.sender_type==='teacher'?m.sender_id:null,m.recipient_type==='teacher'?m.recipient_id:null]).filter(Boolean))]
+  const nameMap={}
+  if(tchIds.length){
+    const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',tchIds)
+    ;(tchs||[]).forEach(x=>nameMap[x.teacher_id]=x.full_name)
+  }
+  window._adminMsgNames=nameMap
+  const nm=id=>nameMap[id]||id
   const rootSubj=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
   const threadMap=new Map()
   allMsgs.forEach(m=>{
@@ -1130,7 +1139,7 @@ async function loadMessages(){
     const thread=threadMap.get(key)
     thread.messages.push(m)
     const isMine=m.sender_type==='admin'
-    if(!isMine&&!m.is_read)thread.unread++
+    if(!isMine&&!m.read_at)thread.unread++
   })
   const threads=[...threadMap.values()].map(th=>{
     th.messages.sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at))
@@ -1144,10 +1153,10 @@ async function loadMessages(){
   if(el)el.innerHTML=threads.map((th,idx)=>{
     const last=th.latest
     const isMine=last?.sender_type==='admin'
-    const otherName=isMine?(last?.recipient_name||last?.recipient_id||'Unknown'):(last?.sender_name||'Unknown')
+    const otherName=isMine?(last?.recipient_type==='teacher'?nm(last?.recipient_id):last?.recipient_id||'Unknown'):(last?.sender_type==='teacher'?nm(last?.sender_id):'Unknown')
     return '<div class="msg-thread-item'+(th.unread>0?' unread':'')+'" data-idx="'+idx+'" onclick="openAdminThread(+this.dataset.idx)">'
       +'<div class="t-top"><span class="t-from">'+esc(th.subject)+'</span><span class="t-time">'+rel(last?.sent_at)+'</span></div>'
-      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,60)||'')+'</div>'
+      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,55)||'')+'</div>'
       +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
       +'</div>'
   }).join('')
@@ -1159,6 +1168,7 @@ async function openAdminThread(idx){
   _adminCurrThread=idx
   document.querySelectorAll('#msgThreadList .msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
   const thread=window._adminThreads?.[idx];if(!thread)return
+  const nm=id=>window._adminMsgNames?.[id]||id
   $('msgThreadHead').textContent=thread.subject
   $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
   const el=$('msgBubbles')
@@ -1166,7 +1176,7 @@ async function openAdminThread(idx){
   if(el){
     el.innerHTML=thread.messages.map(m=>{
       const isMine=m.sender_type==='admin'
-      const from=isMine?'Admin Office':(m.sender_name||'Unknown')
+      const from=isMine?'Admin Office':(m.sender_type==='teacher'?nm(m.sender_id):'Unknown')
       const role=isMine?'Admin Office':(m.sender_type==='teacher'?'Teacher':'Unknown')
       return '<div class="msg-email-card">'
         +'<div class="msg-email-header">'
@@ -1182,9 +1192,9 @@ async function openAdminThread(idx){
     el.scrollTop=el.scrollHeight
   }
   const rb=$('msgReplyBar');if(rb)rb.style.display='block'
-  const unreadIds=thread.messages.filter(m=>m.sender_type!=='admin'&&!m.is_read).map(m=>m.message_id)
+  const unreadIds=thread.messages.filter(m=>m.sender_type!=='admin'&&!m.read_at).map(m=>m.message_id)
   if(unreadIds.length){
-    await sb.from('messages').update({is_read:true}).in('message_id',unreadIds)
+    await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unreadIds)
     thread.unread=0
   }
 }
@@ -1197,16 +1207,20 @@ let _adminCurrentConv=null
 async function sendAdminThreadReply(){
   const body=$('msgReplyText')?.value?.trim()
   if(!body){toast('Write a message first','error');return}
-  const conv=window._adminConvs?.find(c=>c.key===_adminCurrentConv);if(!conv)return
+  const thread=window._adminThreads?.[_adminCurrThread];if(!thread)return
+  const last=thread.latest
+  const isMine=last?.sender_type==='admin'
+  const recipientType=isMine?last.recipient_type:last.sender_type
+  const recipientId=isMine?last.recipient_id:last.sender_id
   const{error}=await sb.from('messages').insert({
-    sender_type:'admin',sender_id:SPS.admin.admin_id,sender_name:'Admin Office',
-    recipient_type:conv.partnerType,recipient_id:conv.partnerId,
-    subject:'Re: '+(conv.latest?.subject||'Message'),body,
-    sent_at:new Date().toISOString(),is_read:false
+    sender_type:'admin',sender_id:SPS.admin.admin_id,
+    recipient_type:recipientType,recipient_id:recipientId,
+    subject:'Re: '+thread.subject,body,message_type:'direct',
+    sent_at:new Date().toISOString()
   })
   if(error){toast('Failed: '+error.message,'error');return}
   if($('msgReplyText'))$('msgReplyText').value=''
-  toast('Sent ✓','success');loadMessages()
+  toast('Reply sent ✓','success');loadMessages()
 }
 function openMsgById(id){const m=window._msgStore?.[id];if(!m)return;openMsg(m)}
 async function openMsg(m){
