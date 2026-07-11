@@ -1309,13 +1309,47 @@ function openReplyModal(m){
   openModal('Reply','<div class="form-row"><div class="fg"><label>To</label><input value="'+esc(m.toName||m.to)+'" disabled></div></div><div class="form-row"><div class="fg"><label>Subject</label><input id="msg_subj" value="Re: '+esc(m.subject||'')+'"></div></div><div class="form-row"><div class="fg"><label>Message</label><textarea id="msg_body" style="min-height:100px"></textarea></div></div><input type="hidden" id="msg_to" value="'+esc(m.to)+'"><input type="hidden" id="msg_tot" value="'+esc(m.toType||'teacher')+'">',
     '<button class="btn btn-dark" onclick="sendReply()">Send Reply</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
-function openBroadcastModal(){
-  openModal('Broadcast to All Teachers','<p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Sends to all '+ALL_TEACHERS.filter(t=>t.is_active).length+' active teachers.</p><div class="form-row"><div class="fg"><label>Subject</label><input id="msg_subj" placeholder="e.g. UT2 marks reminder"></div></div><div class="form-row"><div class="fg"><label>Message</label><textarea id="msg_body" style="min-height:90px"></textarea></div></div>',
-    '<button class="btn btn-dark" onclick="sendBroadcast()">Send to All</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+async function openBroadcastModal(){
+  openModal('Broadcast Notice to All Teachers',
+    '<div style="background:var(--indigo-100);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:var(--indigo-dark)">📢 This notice will appear prominently on every teacher\'s dashboard and send them a push notification.</div>'
+    +'<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Title *</div>'
+    +'<input id="bc_title" placeholder="e.g. Staff meeting tomorrow at 10 AM" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);box-sizing:border-box"></div>'
+    +'<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Message *</div>'
+    +'<textarea id="bc_body" placeholder="Write the full notice…" style="width:100%;min-height:100px;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical;outline:none;background:var(--lav-50);box-sizing:border-box"></textarea></div>'
+    +'<div><div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Priority</div>'
+    +'<select id="bc_priority" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50)"><option value="normal">Normal</option><option value="high">High — Urgent</option></select></div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-dark" onclick="sendBroadcast()">Send Broadcast</button>'
+  )
+}
+
+async function sendBroadcast(){
+  const title=$('bc_title')?.value?.trim(),body=$('bc_body')?.value?.trim(),priority=$('bc_priority')?.value||'normal'
+  if(!title||!body){toast('Title and message required','error');return}
+  // Get all active teachers
+  const{data:teachers,error:te}=await sb.from('teachers').select('teacher_id').eq('is_active',true)
+  if(te||!teachers?.length){toast('No active teachers found','error');return}
+  // Insert one broadcast message per teacher (so each gets a push notification)
+  const rows=teachers.map(t=>({
+    sender_type:'admin',sender_id:SPS.admin.admin_id,
+    recipient_type:'teacher',recipient_id:t.teacher_id,
+    subject:'📢 '+title,body,
+    message_type:'broadcast',
+    sent_at:new Date().toISOString()
+  }))
+  const{error}=await sb.from('messages').insert(rows)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Notice broadcast to '+teachers.length+' teachers ✓','success');closeModal()
+}
+
+async function deactivateBroadcast(bid){
+  if(!confirm('Remove this notice from all teacher dashboards?'))return
+  const{error}=await sb.from('broadcasts').update({is_active:false}).eq('broadcast_id',bid)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Notice removed','success');openBroadcastModal()
 }
 async function sendMsg(){const to=$('msg_to')?.value,subj=$('msg_subj')?.value?.trim(),body=$('msg_body')?.value?.trim();if(!subj||!body){toast('Subject and message required','error');return};const{error}=await sb.from('messages').insert({sender_type:'admin',sender_id:SPS.admin.admin_id,recipient_type:'teacher',recipient_id:to,subject:subj,body,message_type:'direct',sent_at:new Date().toISOString()});if(error){toast('Failed: '+error.message,'error');return};toast('Message sent','success');closeModal();loadMessages()}
 async function sendReply(){const to=$('msg_to')?.value,toType=$('msg_tot')?.value||'teacher',subj=$('msg_subj')?.value?.trim(),body=$('msg_body')?.value?.trim();if(!subj||!body){toast('Subject and message required','error');return};const{error}=await sb.from('messages').insert({sender_type:'admin',sender_id:SPS.admin.admin_id,recipient_type:toType,recipient_id:to,subject:subj,body,message_type:'direct',sent_at:new Date().toISOString()});if(error){toast('Failed: '+error.message,'error');return};toast('Reply sent','success');closeModal();loadMessages()}
-async function sendBroadcast(){const subj=$('msg_subj')?.value?.trim(),body=$('msg_body')?.value?.trim();if(!subj||!body){toast('Subject and message required','error');return};const gid=crypto.randomUUID();const rows=ALL_TEACHERS.filter(t=>t.is_active).map(t=>({sender_type:'admin',sender_id:SPS.admin.admin_id,recipient_type:'teacher',recipient_id:t.teacher_id,subject:subj,body,message_type:'broadcast',broadcast_group_id:gid,sent_at:new Date().toISOString()}));if(!rows.length){toast('No active teachers','error');return};const{error}=await sb.from('messages').insert(rows);if(error){toast('Failed: '+error.message,'error');return};toast('Sent to '+rows.length+' teachers','success');closeModal()}
+async 
 LAZY.messages=loadMessages
 
 // ═══════════ STAFF ═══════════
