@@ -10,6 +10,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="push.js"></script>
 <style>
 :root{
   --lav-50:#F7F6FD;--lav-100:#F1EFFC;--lav-200:#E4E0FA;--lav-300:#CFC9F5;
@@ -1010,7 +1011,7 @@ SPS.ready().then(async()=>{
   await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths(); checkPendingRequests()
   // Start message notifications
   initAdminNotifications()
-  if(SPS.admin?.admin_id){subscribeAdminMessages(SPS.admin.admin_id);console.log('[RT] Admin subscribed:',SPS.admin.admin_id)}
+  if(SPS.admin?.admin_id){subscribeAdminMessages(SPS.admin.admin_id);console.log('[RT] Admin subscribed:',SPS.admin.admin_id);if(typeof initPushNotifications==='function')initPushNotifications(sb,'admin',SPS.admin.admin_id)}
   const cf=document.getElementById('ca_from'),ct=document.getElementById('ca_to')
   if(cf)cf.value=today(); if(ct)ct.value=today()
   document.getElementById('admSessionLabel').textContent=SESS?SESS.session_id:'—'
