@@ -586,6 +586,25 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
   .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
 }
 
+
+.msg-thread-list{list-style:none;overflow-y:auto;max-height:560px;border-right:1px solid var(--line)}
+.msg-thread-item{padding:13px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .1s;display:flex;align-items:center;gap:10px}
+.msg-thread-item:hover{background:var(--lav-50)}
+.msg-thread-item.active{background:var(--indigo-100)}
+.msg-thread-item .t-from{font-size:12.5px;font-weight:700;flex:1}
+.msg-thread-item.unread .t-from{font-weight:800}
+.msg-thread-item .t-preview{font-size:11.5px;color:var(--ink-soft);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.msg-thread-item .t-time{font-size:10px;color:var(--ink-faint);white-space:nowrap}
+.msg-bubbles{display:flex;flex-direction:column;gap:10px;padding:20px;overflow-y:auto;flex:1;min-height:0}
+.msg-bubble{max-width:72%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
+.msg-bubble.mine{background:var(--indigo);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.msg-bubble.theirs{background:var(--lav-100);color:var(--ink);align-self:flex-start;border-bottom-left-radius:4px}
+.msg-bubble .b-subj{font-size:10.5px;font-weight:700;opacity:.7;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.msg-bubble .b-time{font-size:10px;opacity:.65;margin-top:5px;text-align:right}
+.msg-reply-bar{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
+.msg-reply-bar textarea{flex:1;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;outline:none;min-height:40px;max-height:120px;background:var(--lav-50)}
+.msg-reply-bar textarea:focus{border-color:var(--indigo);background:#fff}
+
 </style>
 </head>
 <body>
@@ -892,9 +911,16 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <div class="page-head"><div><h2>Messages</h2><p>Internal school communication</p></div>
         <button class="btn btn-primary" onclick="openComposeModal()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
       </div>
-      <div class="msg-shell">
-        <div class="msg-list" id="msgList"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
-        <div class="msg-detail" id="msgDetail"><div style="text-align:center;padding:40px;color:var(--ink-faint)">Select a message.</div></div>
+      <div class="msg-shell" style="display:flex;height:560px;overflow:hidden">
+        <div class="msg-thread-list" id="msgThreadList" style="width:300px;flex-shrink:0"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <div id="msgThreadHead" style="padding:14px 20px;border-bottom:1px solid var(--line);font-weight:700;font-size:13.5px;flex-shrink:0">Select a conversation</div>
+          <div class="msg-bubbles" id="msgBubbles"><div style="text-align:center;padding:40px;color:var(--ink-faint)">Select a conversation.</div></div>
+          <div class="msg-reply-bar" id="msgReplyBar" style="display:none">
+            <textarea id="msgReplyText" placeholder="Type a reply…" rows="2"></textarea>
+            <button class="btn btn-primary btn-sm" onclick="sendThreadReply()">Send</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1020,11 +1046,48 @@ function openSub(subId){
 // AUTH & INIT
 // ═══════════════════════════════════════════════════════════════
 
+(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},12000)
+
+// ═══════════ NOTIFICATIONS ═══════════
+let _notifSound=null
+function initNotifications(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)()
+    _notifSound=()=>{
+      try{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination)
+        o.frequency.setValueAtTime(880,ctx.currentTime);o.frequency.setValueAtTime(1108,ctx.currentTime+0.08)
+        g.gain.setValueAtTime(0.25,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.35)
+        o.start();o.stop(ctx.currentTime+0.35)}catch(e){}
+    }
+  }catch(e){}
+  if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()
+}
+function showNotification(title,body){
+  if(_notifSound){try{_notifSound()}catch(e){}}
+  if(Notification.permission==='granted'){
+    const n=new Notification(title,{body,silent:true})
+    setTimeout(()=>n.close(),5000)
+  }
+}
+function subscribeMessages(recipientId){
+  if(!recipientId)return
+  sb.channel('msgs_'+recipientId)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+recipientId},payload=>{
+      const m=payload.new
+      showNotification('New message from '+(m.sender_name||'Someone'),m.subject||m.body?.slice(0,80)||'New message')
+      checkUnreadMessages()
+      if($('page-messages')?.classList.contains('active'))loadMessages()
+    }).subscribe()
+}
+initNotifications()
+
 SPS.ready().then(async()=>{
   sb=window.sb
 
-  // auth.js has already validated the session by the time SPS.ready() resolves.
+  // Use the session auth.js already validated — never call getSession() again here
+  // (a second concurrent getSession deadlocks on supabase-js navigator.locks during token refresh)
   const authSess=SPS.session
+  if(!authSess){window.location.href='login.html';return}
   const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
   if(!teacher||te){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
   if(!teacher.is_active){toast('Your account is inactive. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
@@ -1054,6 +1117,7 @@ SPS.ready().then(async()=>{
   if(nm)nm.textContent=TEACHER.full_name||TEACHER.username
   if(rl)rl.textContent=TEACHER.designation||'Teacher'
   if(_isClassTeacher&&$('switchCTBtn'))$('switchCTBtn').style.display=''
+  subscribeMessages(TEACHER.teacher_id)
 
   // Populate subject dropdowns
   const subjects=[...new Map(MY_MAPPINGS.map(m=>[m.subject_id,m])).values()]
@@ -2018,29 +2082,147 @@ async function loadMyAttendance(){
 // MESSAGES
 // ═══════════════════════════════════════════════════════════════
 async function loadMessages(){
-  const el=$('msgList');ldg(el)
-  const{data,error}=await sb.from('messages').select('message_id,subject,body,sender_type,sender_id,sender_name,sent_at,is_read,message_type').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).order('sent_at',{ascending:false}).limit(50)
-  _msgs=data||[]
-  const unread=_msgs.filter(m=>!m.is_read).length
-  $('msgBadge').textContent=unread;$('msgBadge').style.display=unread>0?'flex':'none'
-  $('msgDot').style.display=unread>0?'block':'none'
-  $('statMsgs').textContent=unread
-  if(!_msgs.length){el.innerHTML='<div class="empty-state"><p>No messages yet.</p></div>';return}
-  el.innerHTML=_msgs.map(m=>'<div class="msg-item'+(!m.is_read?' unread':'')+'" data-mid="'+m.message_id+'" onclick="openMsg(\''+m.message_id+'\',this)"><div class="top"><span class="from">'+esc(m.sender_type==='admin'?'Admin Office':m.sender_name||'Teacher')+'</span><span class="time">'+rel(m.sent_at)+'</span></div><div class="preview">'+esc(m.subject||m.body||'')+'</div></div>').join('')
-  if(_msgs.length)openMsg(_msgs[0].message_id, el.firstChild)
+  const el=$('msgThreadList')
+  if(el)el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div>'
+  // Fetch ALL messages (sent + received)
+  const[{data:received},{data:sent}]=await Promise.all([
+    sb.from('messages').select('*').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).order('sent_at',{ascending:false}).limit(200),
+    sb.from('messages').select('*').eq('sender_type','teacher').eq('sender_id',TEACHER.teacher_id).order('sent_at',{ascending:false}).limit(200)
+  ])
+  const allMsgs=[...(received||[]),...(sent||[])]
+  _msgs=allMsgs
+  // Group by root subject (strip "Re: " prefix)
+  const rootSubj=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
+  const threadMap=new Map()
+  allMsgs.forEach(m=>{
+    const key=rootSubj(m.subject)
+    if(!threadMap.has(key))threadMap.set(key,{subject:key,messages:[],unread:0})
+    const thread=threadMap.get(key)
+    thread.messages.push(m)
+    const isMine=m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id
+    if(!isMine&&!m.is_read)thread.unread++
+  })
+  // Sort threads by latest message, messages within thread chronologically
+  const threads=[...threadMap.values()].map(th=>{
+    th.messages.sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at))
+    th.latest=th.messages[th.messages.length-1]
+    return th
+  }).sort((a,b)=>new Date(b.latest?.sent_at)-new Date(a.latest?.sent_at))
+  const unreadTotal=threads.reduce((s,th)=>s+th.unread,0)
+  $('msgBadge').textContent=unreadTotal;$('msgBadge').style.display=unreadTotal>0?'flex':'none'
+  $('msgDot').style.display=unreadTotal>0?'block':'none'
+  $('statMsgs').textContent=unreadTotal
+  window._msgThreads=threads
+  if(!threads.length){if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No messages yet.</div>';return}
+  if(el)el.innerHTML=threads.map((th,idx)=>{
+    const last=th.latest
+    const isMine=last?.sender_type==='teacher'&&last?.sender_id===TEACHER.teacher_id
+    const otherName=isMine?(last?.recipient_type==='admin'?'Admin Office':last?.recipient_name||last?.recipient_id):(last?.sender_type==='admin'?'Admin Office':last?.sender_name||'Unknown')
+    return '<div class="msg-thread-item'+(th.unread>0?' unread':'')+'" data-idx="'+idx+'" onclick="openThread(+this.dataset.idx)">'
+      +'<div class="t-top"><span class="t-from">'+esc(th.subject)+'</span><span class="t-time">'+rel(last?.sent_at)+'</span></div>'
+      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,60)||'')+'</div>'
+      +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
+      +'</div>'
+  }).join('')
+  if(threads.length)openThread(0)
 }
 
-async function openMsg(msgId, el){
-  const msg=_msgs.find(m=>m.message_id===msgId);if(!msg)return
-  document.querySelectorAll('.msg-item').forEach(i=>i.classList.remove('active'))
-  if(el)el.classList.add('active')
-  if(!msg.is_read){const{error:re}=await sb.from('messages').update({is_read:true}).eq('message_id',msgId);if(!re){msg.is_read=true;if(el)el.classList.remove('unread')}}
-  const d=$('msgDetail')
-  d.innerHTML='<div class="subj">'+esc(msg.subject||'(no subject)')+'</div>'
-    +'<div class="meta">From '+esc(msg.sender_type==='admin'?'Admin Office':msg.sender_name||'Teacher')+' · '+rel(msg.sent_at)+'</div>'
-    +'<div class="body">'+esc(msg.body||'')+'</div>'
-    +'<div style="margin-top:20px"><button class="btn btn-soft btn-sm" onclick="openReplyModal(\''+msgId+'\')">Reply</button></div>'
+let _currentThreadIdx=null
+async function openThread(idx){
+  _currentThreadIdx=idx
+  document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
+  const thread=window._msgThreads?.[idx];if(!thread)return
+  $('msgThreadHead').innerHTML='<b>'+esc(thread.subject)+'</b><span style="font-size:11px;color:var(--ink-faint);margin-left:8px">'+thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+'</span>'
+  const el=$('msgBubbles')
+  if(el){
+    el.innerHTML=thread.messages.map(m=>{
+      const isMine=m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id
+      const from=isMine?'You':(m.sender_type==='admin'?'Admin Office':m.sender_name||'Unknown')
+      return '<div style="display:flex;justify-content:'+(isMine?'flex-end':'flex-start')+';margin-bottom:2px">'
+        +'<div class="msg-bubble '+(isMine?'mine':'theirs')+'">'
+        +'<div style="font-size:10px;opacity:.65;margin-bottom:4px;font-weight:700">'+esc(from)+'</div>'
+        +'<div>'+esc(m.body||'')+'</div>'
+        +'<div class="b-time">'+rel(m.sent_at)+'</div>'
+        +'</div></div>'
+    }).join('')
+    el.scrollTop=el.scrollHeight
+  }
+  const rb=$('msgReplyBar');if(rb)rb.style.display='flex'
+  // Mark unread as read
+  const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.is_read).map(m=>m.message_id)
+  if(unreadIds.length){
+    await sb.from('messages').update({is_read:true}).in('message_id',unreadIds)
+    thread.unread=0
+    document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
+  }
 }
+
+async function sendThreadReply(){
+  const body=$('msgReplyText')?.value?.trim()
+  if(!body){toast('Write a message first','error');return}
+  const thread=window._msgThreads?.[_currentThreadIdx];if(!thread)return
+  const last=thread.latest
+  const isMine=last?.sender_type==='teacher'&&last?.sender_id===TEACHER.teacher_id
+  const recipientType=isMine?last.recipient_type:last.sender_type
+  const recipientId=isMine?last.recipient_id:last.sender_id
+  const{error}=await sb.from('messages').insert({
+    sender_type:'teacher',sender_id:TEACHER.teacher_id,sender_name:TEACHER.full_name,
+    recipient_type:recipientType,recipient_id:recipientId,
+    subject:'Re: '+thread.subject,body,
+    sent_at:new Date().toISOString(),is_read:false
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  if($('msgReplyText'))$('msgReplyText').value=''
+  toast('Sent ✓','success');loadMessages()
+}
+
+let _currentConvKey=null
+async function openThread(key){
+  _currentConvKey=key
+  document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',i.dataset.key===key)})
+  const conv=window._msgThreads?.find(c=>c.key===key);if(!conv)return
+  $('msgThreadHead').textContent=conv.partnerName
+  const el=$('msgBubbles')
+  if(el){
+    el.innerHTML=conv.messages.map(m=>{
+      const isMine=m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id
+      return '<div style="display:flex;justify-content:'+(isMine?'flex-end':'flex-start')+'">'
+        +'<div class="msg-bubble '+(isMine?'mine':'theirs')+'">'
+        +(m.subject?'<div class="b-subj">'+esc(m.subject)+'</div>':'')
+        +'<div>'+esc(m.body||'')+'</div>'
+        +'<div class="b-time">'+rel(m.sent_at)+'</div>'
+        +'</div></div>'
+    }).join('')
+    el.scrollTop=el.scrollHeight
+  }
+  const rb=$('msgReplyBar');if(rb)rb.style.display='flex'
+  // Mark as read
+  const unreadIds=conv.messages.filter(m=>m.sender_id!==TEACHER.teacher_id&&!m.is_read).map(m=>m.message_id)
+  if(unreadIds.length){
+    await sb.from('messages').update({is_read:true}).in('message_id',unreadIds)
+    conv.unread=0
+    document.querySelectorAll('.msg-thread-item[data-key="'+key+'"]').forEach(el=>el.classList.remove('unread'))
+  }
+}
+
+async function sendThreadReply(){
+  const body=$('msgReplyText')?.value?.trim()
+  if(!body){toast('Write a message first','error');return}
+  const conv=window._msgThreads?.find(c=>c.key===_currentConvKey);if(!conv)return
+  const{error}=await sb.from('messages').insert({
+    sender_type:'teacher',sender_id:TEACHER.teacher_id,sender_name:TEACHER.full_name,
+    recipient_type:conv.partnerType,recipient_id:conv.partnerId,
+    subject:'Re: '+(conv.latest?.subject||'Message'),body,
+    sent_at:new Date().toISOString(),is_read:false
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  if($('msgReplyText'))$('msgReplyText').value=''
+  toast('Sent ✓','success')
+  loadMessages()
+}
+
+// async function openMsg( replaced by thread system
+
 
 async function checkUnreadMessages(){
   if(!TEACHER)return
@@ -2099,13 +2281,8 @@ function openReplyModal(origMsgId){
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="sendReply(\''+origMsgId+'\')">Send Reply</button>'
   )
 }
-async function sendReply(origMsgId){
-  const body=$('reply_body')?.value?.trim(),orig=_msgs.find(m=>m.message_id===origMsgId)
-  if(!body||!orig){toast('Write a reply first','error');return}
-  const{error}=await sb.from('messages').insert({sender_type:'teacher',sender_id:TEACHER.teacher_id,sender_name:TEACHER.full_name,recipient_type:orig.sender_type,recipient_id:orig.sender_id,subject:'Re: '+(orig.subject||''),body,sent_at:new Date().toISOString(),is_read:false})
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast('Reply sent ✓','success');closeModal()
-}
+// async function sendReply( replaced by thread system
+
 
 // ═══════════════════════════════════════════════════════════════
 // MY PROFILE
