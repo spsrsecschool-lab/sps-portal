@@ -1118,7 +1118,7 @@ function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
 const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',settings:'Settings',requests:'Access Requests'}
-const LAZY={staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests}
+const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests}
 function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
@@ -1174,8 +1174,8 @@ async function loadMessages(){
   const el=$('msgThreadList')
   if(el)el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div>'
   const[{data:received},{data:sent}]=await Promise.all([
-    sb.from('messages').select('*').eq('recipient_type','admin').eq('recipient_id',SPS.admin.admin_id).order('sent_at',{ascending:false}).limit(200),
-    sb.from('messages').select('*').eq('sender_type','admin').eq('sender_id',SPS.admin.admin_id).order('sent_at',{ascending:false}).limit(200)
+    sb.from('messages').select('*').eq('recipient_type','admin').eq('recipient_id',SPS.admin.admin_id).neq('message_type','broadcast').order('sent_at',{ascending:false}).limit(200),
+    sb.from('messages').select('*').eq('sender_type','admin').eq('sender_id',SPS.admin.admin_id).neq('message_type','broadcast').order('sent_at',{ascending:false}).limit(200)
   ])
   const allMsgs=[...(received||[]),...(sent||[])]
   window._adminMsgs=allMsgs
@@ -1329,10 +1329,11 @@ async function sendBroadcast(){
   const{data:teachers,error:te}=await sb.from('teachers').select('teacher_id').eq('is_active',true)
   if(te||!teachers?.length){toast('No active teachers found','error');return}
   // Insert one broadcast message per teacher (so each gets a push notification)
+  const subjPrefix=priority==='high'?'📢 [URGENT] ':'📢 '
   const rows=teachers.map(t=>({
     sender_type:'admin',sender_id:SPS.admin.admin_id,
     recipient_type:'teacher',recipient_id:t.teacher_id,
-    subject:'📢 '+title,body,
+    subject:subjPrefix+title,body,
     message_type:'broadcast',
     sent_at:new Date().toISOString()
   }))
