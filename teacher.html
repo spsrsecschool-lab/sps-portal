@@ -1103,7 +1103,7 @@ function openSub(subId){
 // AUTH & INIT
 // ═══════════════════════════════════════════════════════════════
 
-(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},12000)
+(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},3000)
 
 // ═══════════ NOTIFICATIONS ═══════════
 let _notifSound=null
@@ -2188,7 +2188,12 @@ async function loadMessages(){
       +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
       +'</div>'
   }).join('')
-  if(threads.length)openThread(0)
+  if(threads.length){
+    // Preserve open thread by subject if possible
+    const prevSubj=window._teacherOpenSubj
+    const keepIdx=prevSubj?threads.findIndex(t=>t.subject===prevSubj):0
+    openThread(keepIdx>=0?keepIdx:0)
+  }
 }
 
 
@@ -2230,6 +2235,7 @@ async function openThread(idx){
   if(window.innerWidth<=760)document.querySelector('.msg-shell')?.classList.add('reading')
   document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
   const thread=window._msgThreads?.[idx];if(!thread)return
+  window._teacherOpenSubj=thread.subject
   const nm=id=>window._msgNames?.[id]||id
   $('msgThreadSubject').textContent=thread.subject
   $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
@@ -2406,12 +2412,6 @@ async function logout(){
 }
 
 
-// Poll for new messages every 12s when messages page is active
-setInterval(function(){
-  try{
-    if(document.getElementById('page-messages')?.classList.contains('active')&&typeof loadMessages==='function')loadMessages()
-  }catch(e){}
-},12000)
 
 </script>
 </body>
