@@ -1161,7 +1161,12 @@ async function loadMessages(){
       +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
       +'</div>'
   }).join('')
-  if(threads.length)openAdminThread(0)
+  if(threads.length){
+    // Preserve open thread by subject if possible
+    const prevSubj=window._adminOpenSubj
+    const keepIdx=prevSubj?threads.findIndex(t=>t.subject===prevSubj):0
+    openAdminThread(keepIdx>=0?keepIdx:0)
+  }
 }
 
 let _adminCurrThread=null
@@ -1169,6 +1174,7 @@ async function openAdminThread(idx){
   _adminCurrThread=idx
   document.querySelectorAll('#msgThreadList .msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
   const thread=window._adminThreads?.[idx];if(!thread)return
+  window._adminOpenSubj=thread.subject
   const nm=id=>window._adminMsgNames?.[id]||id
   $('msgThreadHead').textContent=thread.subject
   $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
@@ -3025,12 +3031,6 @@ function loadSettings(){
   loadClassTeacherControl()
 }
 
-// Poll for new messages every 12s when messages tab active
-setInterval(function(){
-  try{
-    if(document.getElementById('page-messages')?.classList.contains('active')&&typeof loadMessages==='function')loadMessages()
-  }catch(e){}
-},12000)
 
 </script>
 </body>
