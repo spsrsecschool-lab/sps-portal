@@ -1355,6 +1355,13 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 @keyframes bcPulseHigh{0%,100%{box-shadow:0 4px 12px -4px rgba(229,64,91,.4)}50%{box-shadow:0 10px 34px -4px rgba(229,64,91,.75)}}
 @keyframes bcPulseNormal{0%,100%{box-shadow:0 4px 12px -4px rgba(240,168,40,.35)}50%{box-shadow:0 10px 30px -4px rgba(240,168,40,.6)}}
 
+
+.unread-pill{display:none;align-items:center;gap:8px;background:linear-gradient(120deg,#E5556B,#C73E54);color:#fff;font-size:13px;font-weight:700;padding:10px 18px;border-radius:999px;margin-bottom:16px;box-shadow:0 6px 20px -4px rgba(229,85,107,.5);cursor:pointer;animation:pillPop .35s cubic-bezier(.34,1.56,.64,1) both;width:fit-content}
+.unread-pill:hover{transform:translateY(-1px)}
+.unread-pill .up-dot{width:8px;height:8px;background:#fff;border-radius:50%;animation:pillBlink 1.2s ease-in-out infinite}
+@keyframes pillPop{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+@keyframes pillBlink{0%,100%{opacity:1}50%{opacity:.3}}
+
 </style>
 </head>
 <body>
@@ -1446,6 +1453,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
       <div id="broadcastBanners"></div>
+      <div id="unreadPill" class="unread-pill" onclick="goTo('messages')"><span class="up-dot"></span><span id="unreadPillText">You have unread messages</span></div>
       <!-- Greeting -->
       <div id="dashGreeting" style="margin-bottom:20px">
         <div id="greetingText" style="font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-.01em"></div>
@@ -1859,6 +1867,18 @@ function showNotification(title,body){
     }
   }catch(e){/* mobile Chrome throws — ignore */}
 }
+
+function subscribeActivity(teacherId){
+  if(!teacherId)return
+  sb.channel('activity_'+teacherId)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'activity_log',filter:'user_id=eq.'+teacherId},payload=>{
+      console.log('[RT] New activity:',payload.new)
+      if(typeof renderActivityFeed==='function')renderActivityFeed()
+      // Flash a toast
+      if(payload.new?.message)toast(payload.new.message,'info')
+    }).subscribe()
+}
+
 function subscribeMessages(recipientId){
   if(!recipientId)return
   const ch=sb.channel('msgs_'+recipientId)
@@ -1875,6 +1895,7 @@ function subscribeMessages(recipientId){
 
 function injectIncomingMessage(m){
   if(m.message_type==='broadcast'){try{loadBroadcasts()}catch(e){}}
+  try{checkUnreadMessages()}catch(e){}
   // If it's a broadcast, refresh dashboard banners with animation
   if(m.message_type==='broadcast'){if(typeof loadBroadcasts==='function')loadBroadcasts();return}
   if(!window._msgThreads)window._msgThreads=[]
@@ -1966,6 +1987,7 @@ SPS.ready().then(async()=>{
   if(rl)rl.textContent=TEACHER.designation||'Teacher'
   if(_isClassTeacher&&$('switchCTBtn'))$('switchCTBtn').style.display=''
   subscribeMessages(TEACHER.teacher_id)
+  subscribeActivity(TEACHER.teacher_id)
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
 
   // Populate subject dropdowns
@@ -2092,25 +2114,33 @@ async function renderDashboard(){
   }).join('')
   el.innerHTML=rows||'<p style="font-size:12.5px;color:var(--ink-faint)">No assignments.</p>'
 
-  // Activity — recent marks
+  // Activity feed — combines admin actions (activity_log) + recent marks
   const actEl=$('dashActivity')
-  // Get recent marks with assessment and subject names
-  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id,is_absent,marks_obtained,assessments(name),subjects(name),student_enrollments(students(full_name))').eq('entered_by',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(30)
-  // Group by assessment+subject+time (within 10 min window = one submission)
-  const groups=[];const seen=new Set()
+  await renderActivityFeed()
+}
+
+async function renderActivityFeed(){
+  const actEl=$('dashActivity')
+  if(!actEl||!TEACHER)return
+  // Admin action log (realtime, auto-trimmed to 10)
+  const{data:logs}=await sb.from('activity_log').select('*')
+    .eq('user_type','teacher').eq('user_id',TEACHER.teacher_id)
+    .order('created_at',{ascending:false}).limit(10)
+  // Recent marks submissions
+  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id,assessments(name),subjects(name)').eq('entered_by',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(15)
+  const events=[]
+  ;(logs||[]).forEach(l=>events.push({ts:l.created_at,label:l.message,sub:'Admin',type:'admin',icon:l.action_type}))
+  const seen=new Set()
   ;(recent||[]).forEach(m=>{
     const key=m.assessment_id+'_'+m.subject_id+'_'+Math.floor(new Date(m.entered_at).getTime()/600000)
-    if(!seen.has(key)){seen.add(key);const grp=recent.filter(r=>r.assessment_id===m.assessment_id&&r.subject_id===m.subject_id&&Math.floor(new Date(r.entered_at).getTime()/600000)===Math.floor(new Date(m.entered_at).getTime()/600000));groups.push({key,m,count:grp.length,absent:grp.filter(r=>r.is_absent).length,ts:m.entered_at})}
+    if(seen.has(key))return;seen.add(key)
+    events.push({ts:m.entered_at,label:'You entered marks for '+(m.assessments?.name||'assessment'),sub:m.subjects?.name||'',type:'marks'})
   })
-  // Also get recent access requests
-  const{data:reqs}=await sb.from('access_requests').select('created_at,request_type,status,assessments(name),subjects(name)').eq('teacher_id',TEACHER.teacher_id).order('created_at',{ascending:false}).limit(5)
-  // Merge and sort
-  const events=[
-    ...groups.slice(0,5).map(g=>({ts:g.ts,type:'marks',label:'Submitted '+esc(g.m.assessments?.name||'?')+' marks · '+esc(g.m.subjects?.name||'?'),sub:g.count+' students'+(g.absent?' · '+g.absent+' absent':'')})),
-    ...(reqs||[]).map(r=>({ts:r.created_at,type:'request',label:'Requested edit access · '+esc(r.assessments?.name||'?'),sub:r.status}))
-  ].sort((a,b)=>new Date(b.ts)-new Date(a.ts)).slice(0,6)
-  if(!events.length){emp(actEl,'No recent activity.');return}
-  actEl.innerHTML=events.map(e=>'<div class="log-row"><div class="log-dot" style="background:'+(e.type==='marks'?'var(--indigo)':'var(--warn)')+'"></div><div><div class="txt">'+e.label+'</div><div class="ts">'+esc(e.sub||'')+(e.sub?' · ':'')+rel(e.ts)+'</div></div></div>').join('')
+  events.sort((a,b)=>new Date(b.ts)-new Date(a.ts))
+  const top=events.slice(0,10)
+  if(!top.length){actEl.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint);font-size:12.5px">No recent activity.</div>';return}
+  const dotColor=e=>e.type==='admin'?'var(--warn)':'var(--indigo)'
+  actEl.innerHTML=top.map(e=>'<div class="log-row"><div class="log-dot" style="background:'+dotColor(e)+'"></div><div><div class="txt">'+esc(e.label)+'</div><div class="ts">'+esc(e.sub||'')+(e.sub?' · ':'')+rel(e.ts)+'</div></div></div>').join('')
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3101,6 +3131,7 @@ async function openThread(idx){
     await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unreadIds)
     thread.unread=0
     document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
+    try{checkUnreadMessages()}catch(e){}
   }
 }
 
@@ -3116,6 +3147,12 @@ async function checkUnreadMessages(){
   if($('msgBadge')){$('msgBadge').textContent=count;$('msgBadge').style.display=count>0?'flex':'none'}
   if($('msgDot'))$('msgDot').style.display=count>0?'block':'none'
   if($('statMsgs'))$('statMsgs').textContent=count||0
+  // Dashboard unread pill
+  const pill=$('unreadPill'),ptxt=$('unreadPillText')
+  if(pill){
+    if(count>0){pill.style.display='flex';if(ptxt)ptxt.textContent='You have '+count+' unread message'+(count>1?'s':'')}
+    else{pill.style.display='none'}
+  }
 }
 
 function openComposeModal(){
@@ -3197,14 +3234,16 @@ async function loadProfile(){
 function renderViewFields(t){
   return ['full_name:Full Name','designation:Designation','phone:Phone','employee_code:Employee Code'].map(pair=>{
     const[key,label]=pair.split(':')
-    return '<div class="field-row"><span class="k">'+label+'</span><span class="v">'+esc(t[key]||'—')+'</span></div>'
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)"><span style="font-size:12px;font-weight:600;color:var(--ink-soft)">'+label+'</span><span style="font-size:13.5px;font-weight:600;color:var(--ink)">'+esc(t[key]||'—')+'</span></div>'
   }).join('')
 }
 function renderEditForm(t){
+  const lbl='display:block;font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px'
+  const inp='width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box'
   return ['full_name:Full Name','designation:Designation','phone:Phone'].map(pair=>{
     const[key,label]=pair.split(':')
-    return '<div class="fg" style="margin-bottom:10px"><label>'+label+'</label><input id="pf_'+key+'" value="'+esc(t[key]||'')+'"></div>'
-  }).join('')+'<div class="fg" style="margin-bottom:10px"><label>Employee Code</label><input value="'+esc(t.employee_code||'—')+'" disabled style="background:var(--lav-50)"></div>'
+    return '<div style="margin-bottom:14px"><label style="'+lbl+'">'+label+'</label><input id="pf_'+key+'" value="'+esc(t[key]||'')+'" style="'+inp+'"></div>'
+  }).join('')+'<div style="margin-bottom:14px"><label style="'+lbl+'">Employee Code</label><input value="'+esc(t.employee_code||'—')+'" disabled style="'+inp+';opacity:.6;cursor:not-allowed"></div>'
 }
 
 async function saveProfileEdit(){
