@@ -10,6 +10,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="push.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root{
@@ -451,10 +452,13 @@ function goTo(id,el){
 
 // ═══════════ AUTH & INIT ═══════════
 
+(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},12000)
 SPS.ready().then(async()=>{
   sb=window.sb
-  // auth.js has already validated the session by the time SPS.ready() resolves.
+  // Use the session auth.js already validated — never call getSession() again here
+  // (a second concurrent getSession deadlocks on supabase-js navigator.locks during token refresh)
   const authSess=SPS.session
+  if(!authSess){window.location.href='login.html';return}
 
   const{data:teacher}=await sb.from('teachers').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
   if(!teacher){toast('Teacher account not found','error');setTimeout(()=>sb.auth.signOut().then(()=>location.href='login.html'),2000);return}
@@ -484,6 +488,7 @@ SPS.ready().then(async()=>{
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
 
+  if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
   await renderDashboard()
 })
 
