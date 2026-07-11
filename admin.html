@@ -1350,7 +1350,6 @@ async function deactivateBroadcast(bid){
 }
 async function sendMsg(){const to=$('msg_to')?.value,subj=$('msg_subj')?.value?.trim(),body=$('msg_body')?.value?.trim();if(!subj||!body){toast('Subject and message required','error');return};const{error}=await sb.from('messages').insert({sender_type:'admin',sender_id:SPS.admin.admin_id,recipient_type:'teacher',recipient_id:to,subject:subj,body,message_type:'direct',sent_at:new Date().toISOString()});if(error){toast('Failed: '+error.message,'error');return};toast('Message sent','success');closeModal();loadMessages()}
 async function sendReply(){const to=$('msg_to')?.value,toType=$('msg_tot')?.value||'teacher',subj=$('msg_subj')?.value?.trim(),body=$('msg_body')?.value?.trim();if(!subj||!body){toast('Subject and message required','error');return};const{error}=await sb.from('messages').insert({sender_type:'admin',sender_id:SPS.admin.admin_id,recipient_type:toType,recipient_id:to,subject:subj,body,message_type:'direct',sent_at:new Date().toISOString()});if(error){toast('Failed: '+error.message,'error');return};toast('Reply sent','success');closeModal();loadMessages()}
-async 
 LAZY.messages=loadMessages
 
 // ═══════════ STAFF ═══════════
