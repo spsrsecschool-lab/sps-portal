@@ -1905,7 +1905,11 @@ function injectIncomingMessage(m){
   try{checkUnreadMessages()}catch(e){}
   // If it's an access-grant notification, refresh permissions + activity feed live
   if(m.message_type==='system_notification'||/access|approved|granted|unlock/i.test((m.subject||'')+' '+(m.body||''))){
-    try{if(typeof refreshTeacherState==='function')refreshTeacherState()}catch(e){}
+    try{if(typeof refreshTeacherState==='function')refreshTeacherState().then(()=>{
+      // Re-render whichever relevant page is open
+      if($('page-profile')?.classList.contains('active')&&typeof loadProfile==='function')loadProfile()
+      if($('page-marks')?.classList.contains('active')&&typeof loadMarks==='function')loadMarks()
+    })}catch(e){}
     try{if(typeof renderActivityFeed==='function')renderActivityFeed()}catch(e){}
   }
   // If it's a broadcast, refresh dashboard banners with animation
