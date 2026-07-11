@@ -1131,7 +1131,7 @@ function subscribeMessages(recipientId){
   sb.channel('msgs_'+recipientId)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+recipientId},payload=>{
       const m=payload.new
-      showNotification('New message from '+(m.sender_name||'Someone'),m.subject||m.body?.slice(0,80)||'New message')
+      showNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
       checkUnreadMessages()
       if($('page-messages')?.classList.contains('active'))loadMessages()
     }).subscribe()
@@ -2141,14 +2141,20 @@ async function loadMyAttendance(){
 async function loadMessages(){
   const el=$('msgThreadList')
   if(el)el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div>'
-  // Fetch ALL messages (sent + received)
   const[{data:received},{data:sent}]=await Promise.all([
     sb.from('messages').select('*').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).order('sent_at',{ascending:false}).limit(200),
     sb.from('messages').select('*').eq('sender_type','teacher').eq('sender_id',TEACHER.teacher_id).order('sent_at',{ascending:false}).limit(200)
   ])
   const allMsgs=[...(received||[]),...(sent||[])]
   _msgs=allMsgs
-  // Group by root subject (strip "Re: " prefix)
+  // Build name lookup for teacher senders/recipients
+  const tchIds=[...new Set(allMsgs.flatMap(m=>[m.sender_type==='teacher'?m.sender_id:null,m.recipient_type==='teacher'?m.recipient_id:null]).filter(Boolean))]
+  const nameMap={}
+  if(tchIds.length){
+    const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',tchIds)
+    ;(tchs||[]).forEach(x=>nameMap[x.teacher_id]=x.full_name)
+  }
+  window._msgNames=nameMap
   const rootSubj=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
   const threadMap=new Map()
   allMsgs.forEach(m=>{
@@ -2157,9 +2163,8 @@ async function loadMessages(){
     const thread=threadMap.get(key)
     thread.messages.push(m)
     const isMine=m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id
-    if(!isMine&&!m.is_read)thread.unread++
+    if(!isMine&&!m.read_at)thread.unread++
   })
-  // Sort threads by latest message, messages within thread chronologically
   const threads=[...threadMap.values()].map(th=>{
     th.messages.sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at))
     th.latest=th.messages[th.messages.length-1]
@@ -2171,13 +2176,14 @@ async function loadMessages(){
   $('statMsgs').textContent=unreadTotal
   window._msgThreads=threads
   if(!threads.length){if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No messages yet.</div>';return}
+  const nm=id=>nameMap[id]||id
   if(el)el.innerHTML=threads.map((th,idx)=>{
     const last=th.latest
     const isMine=last?.sender_type==='teacher'&&last?.sender_id===TEACHER.teacher_id
-    const otherName=isMine?(last?.recipient_type==='admin'?'Admin Office':last?.recipient_name||last?.recipient_id):(last?.sender_type==='admin'?'Admin Office':last?.sender_name||'Unknown')
+    const otherName=isMine?(last?.recipient_type==='admin'?'Admin Office':nm(last?.recipient_id)):(last?.sender_type==='admin'?'Admin Office':nm(last?.sender_id))
     return '<div class="msg-thread-item'+(th.unread>0?' unread':'')+'" data-idx="'+idx+'" onclick="openThread(+this.dataset.idx)">'
       +'<div class="t-top"><span class="t-from">'+esc(th.subject)+'</span><span class="t-time">'+rel(last?.sent_at)+'</span></div>'
-      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,60)||'')+'</div>'
+      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,55)||'')+'</div>'
       +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
       +'</div>'
   }).join('')
@@ -2201,14 +2207,14 @@ async function sendThreadReply(){
   const recipientType=isMine?last.recipient_type:last.sender_type
   const recipientId=isMine?last.recipient_id:last.sender_id
   const{error}=await sb.from('messages').insert({
-    sender_type:'teacher',sender_id:TEACHER.teacher_id,sender_name:TEACHER.full_name,
+    sender_type:'teacher',sender_id:TEACHER.teacher_id,
     recipient_type:recipientType,recipient_id:recipientId,
-    subject:'Re: '+thread.subject,body,
-    sent_at:new Date().toISOString(),is_read:false
+    subject:'Re: '+thread.subject,body,message_type:'direct',
+    sent_at:new Date().toISOString()
   })
   if(error){toast('Failed: '+error.message,'error');return}
   if($('msgReplyText'))$('msgReplyText').value=''
-  toast('Sent ✓','success');loadMessages()
+  toast('Reply sent ✓','success');loadMessages()
 }
 
 async function openThread(idx){
@@ -2216,13 +2222,14 @@ async function openThread(idx){
   if(window.innerWidth<=760)document.querySelector('.msg-shell')?.classList.add('reading')
   document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
   const thread=window._msgThreads?.[idx];if(!thread)return
+  const nm=id=>window._msgNames?.[id]||id
   $('msgThreadSubject').textContent=thread.subject
   $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
   const el=$('msgBubbles')
   if(el){
     el.innerHTML=thread.messages.map(m=>{
       const isMine=m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id
-      const from=isMine?'You':(m.sender_type==='admin'?'Admin Office':m.sender_name||'Unknown')
+      const from=isMine?'You':(m.sender_type==='admin'?'Admin Office':nm(m.sender_id))
       const role=isMine?'You — Teacher':(m.sender_type==='admin'?'Admin Office':'Teacher')
       return '<div class="msg-email-card">'
         +'<div class="msg-email-header">'
@@ -2238,9 +2245,9 @@ async function openThread(idx){
     el.scrollTop=el.scrollHeight
   }
   const rb=$('msgReplyBar');if(rb)rb.style.display='block'
-  const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.is_read).map(m=>m.message_id)
+  const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.read_at).map(m=>m.message_id)
   if(unreadIds.length){
-    await sb.from('messages').update({is_read:true}).in('message_id',unreadIds)
+    await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unreadIds)
     thread.unread=0
     document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
   }
