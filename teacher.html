@@ -1131,6 +1131,7 @@ function subscribeMessages(recipientId){
   sb.channel('msgs_'+recipientId)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+recipientId},payload=>{
       const m=payload.new
+      if(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)return
       showNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
       checkUnreadMessages()
       if($('page-messages')?.classList.contains('active'))loadMessages()
@@ -2206,15 +2207,22 @@ async function sendThreadReply(){
   const isMine=last?.sender_type==='teacher'&&last?.sender_id===TEACHER.teacher_id
   const recipientType=isMine?last.recipient_type:last.sender_type
   const recipientId=isMine?last.recipient_id:last.sender_id
-  const{error}=await sb.from('messages').insert({
+  const newMsg={
     sender_type:'teacher',sender_id:TEACHER.teacher_id,
     recipient_type:recipientType,recipient_id:recipientId,
     subject:'Re: '+thread.subject,body,message_type:'direct',
     sent_at:new Date().toISOString()
-  })
-  if(error){toast('Failed: '+error.message,'error');return}
+  }
+  // Optimistic: append to thread and re-render immediately
+  thread.messages.push({...newMsg,message_id:'temp_'+Date.now(),read_at:new Date().toISOString()})
+  thread.latest=thread.messages[thread.messages.length-1]
   if($('msgReplyText'))$('msgReplyText').value=''
-  toast('Reply sent ✓','success');loadMessages()
+  openThread(_currentThreadIdx)
+  // Insert to DB
+  const{error}=await sb.from('messages').insert(newMsg)
+  if(error){toast('Failed: '+error.message,'error');return}
+  // Sync in background
+  setTimeout(()=>loadMessages(),500)
 }
 
 async function openThread(idx){
