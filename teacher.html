@@ -1133,8 +1133,8 @@ function subscribeMessages(recipientId){
       const m=payload.new
       if(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)return
       showNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
-      checkUnreadMessages()
-      if($('page-messages')?.classList.contains('active'))loadMessages()
+      if(typeof checkUnreadMessages==='function')checkUnreadMessages()
+      loadMessages()
     }).subscribe()
 }
 initNotifications()
@@ -2235,6 +2235,7 @@ async function openThread(idx){
   if(window.innerWidth<=760)document.querySelector('.msg-shell')?.classList.add('reading')
   document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
   const thread=window._msgThreads?.[idx];if(!thread)return
+  window._openThreadSubject=thread.subject
   window._teacherOpenSubj=thread.subject
   const nm=id=>window._msgNames?.[id]||id
   $('msgThreadSubject').textContent=thread.subject
