@@ -1126,6 +1126,13 @@ function closeMobileSidebar(){$('sidebar').classList.remove('show');$('scrim').c
 function switchTab(prefix,key,btn){document.querySelectorAll('[id^="'+prefix+'-"]').forEach(t=>t.style.display='none');$(prefix+'-'+key).style.display='block';btn.closest('.tab-row').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}
 
 // ═══════════ GLOBALS LOAD ═══════════
+async function logActivity(userType, userId, actionType, message){
+  if(!userId||!message)return
+  const{error}=await sb.from('activity_log').insert({user_type:userType,user_id:userId,action_type:actionType,message:message,created_at:new Date().toISOString()})
+  if(error)console.error('[Activity] log failed — did you run activity_log_setup.sql?',error.message)
+  else console.log('[Activity] logged:',message)
+}
+
 async function loadGlobals(){
   const[sr,cr,subr,tr]=await Promise.all([
     sb.from('sessions').select('*').eq('is_current',true).maybeSingle(),
