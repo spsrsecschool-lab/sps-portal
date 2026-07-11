@@ -949,7 +949,7 @@ function subscribeAdminMessages(adminId){
       const m=payload.new
       if(m.sender_type==='admin'&&m.sender_id===adminId)return
       showAdminNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
-      if(typeof loadMessages==='function')loadMessages()
+      loadMessages()
     }).subscribe()
 }
 initAdminNotifications()
@@ -1174,6 +1174,7 @@ async function openAdminThread(idx){
   _adminCurrThread=idx
   document.querySelectorAll('#msgThreadList .msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
   const thread=window._adminThreads?.[idx];if(!thread)return
+  window._openThreadSubject=thread.subject
   window._adminOpenSubj=thread.subject
   const nm=id=>window._adminMsgNames?.[id]||id
   $('msgThreadHead').textContent=thread.subject
