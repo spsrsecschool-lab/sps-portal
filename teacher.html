@@ -2253,21 +2253,8 @@ async function openThread(idx){
   }
 }
 
-async function sendThreadReply(){
-  const body=$('msgReplyText')?.value?.trim()
-  if(!body){toast('Write a message first','error');return}
-  const conv=window._msgThreads?.find(c=>c.key===_currentConvKey);if(!conv)return
-  const{error}=await sb.from('messages').insert({
-    sender_type:'teacher',sender_id:TEACHER.teacher_id,sender_name:TEACHER.full_name,
-    recipient_type:conv.partnerType,recipient_id:conv.partnerId,
-    subject:'Re: '+(conv.latest?.subject||'Message'),body,
-    sent_at:new Date().toISOString(),is_read:false
-  })
-  if(error){toast('Failed: '+error.message,'error');return}
-  if($('msgReplyText'))$('msgReplyText').value=''
-  toast('Sent ✓','success')
-  loadMessages()
-}
+// (removed duplicate old sendThreadReply)
+
 
 
 
@@ -2314,7 +2301,7 @@ async function sendMessage(){
   if(!subject||!body){toast('Subject and message are required','error');return}
   const recipientId=toType==='admin'?'ADMIN-001':$('msg_to_id')?.value
   if(!recipientId){toast('Select a recipient','error');return}
-  const{error}=await sb.from('messages').insert({sender_type:'teacher',sender_id:TEACHER.teacher_id,sender_name:TEACHER.full_name,recipient_type:toType,recipient_id:recipientId,subject,body,sent_at:new Date().toISOString(),is_read:false})
+  const{error}=await sb.from('messages').insert({sender_type:'teacher',sender_id:TEACHER.teacher_id,recipient_type:toType,recipient_id:recipientId,subject,body,message_type:'direct',sent_at:new Date().toISOString()})
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Message sent ✓','success');closeModal();loadMessages()
 }
@@ -2409,6 +2396,14 @@ function switchToClassView(){
 async function logout(){
   SPS.signOut()
 }
+
+
+// Poll for new messages every 12s when messages page is active
+setInterval(function(){
+  try{
+    if(document.getElementById('page-messages')?.classList.contains('active')&&typeof loadMessages==='function')loadMessages()
+  }catch(e){}
+},12000)
 
 </script>
 </body>
