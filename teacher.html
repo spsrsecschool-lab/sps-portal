@@ -587,23 +587,29 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 }
 
 
-.msg-thread-list{list-style:none;overflow-y:auto;max-height:560px;border-right:1px solid var(--line)}
-.msg-thread-item{padding:13px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .1s;display:flex;align-items:center;gap:10px}
+.msg-thread-list{list-style:none;overflow-y:auto;border-right:1px solid var(--line)}
+.msg-thread-item{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .1s}
 .msg-thread-item:hover{background:var(--lav-50)}
-.msg-thread-item.active{background:var(--indigo-100)}
-.msg-thread-item .t-from{font-size:12.5px;font-weight:700;flex:1}
+.msg-thread-item.active{background:var(--indigo-100);border-left:3px solid var(--indigo)}
+.msg-thread-item .t-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.msg-thread-item .t-from{font-size:13px;font-weight:600;color:var(--ink);flex:1}
 .msg-thread-item.unread .t-from{font-weight:800}
-.msg-thread-item .t-preview{font-size:11.5px;color:var(--ink-soft);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
-.msg-thread-item .t-time{font-size:10px;color:var(--ink-faint);white-space:nowrap}
-.msg-bubbles{display:flex;flex-direction:column;gap:10px;padding:20px;overflow-y:auto;flex:1;min-height:0}
-.msg-bubble{max-width:72%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
-.msg-bubble.mine{background:var(--indigo);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
-.msg-bubble.theirs{background:var(--lav-100);color:var(--ink);align-self:flex-start;border-bottom-left-radius:4px}
-.msg-bubble .b-subj{font-size:10.5px;font-weight:700;opacity:.7;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
-.msg-bubble .b-time{font-size:10px;opacity:.65;margin-top:5px;text-align:right}
-.msg-reply-bar{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
-.msg-reply-bar textarea{flex:1;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;outline:none;min-height:40px;max-height:120px;background:var(--lav-50)}
-.msg-reply-bar textarea:focus{border-color:var(--indigo);background:#fff}
+.msg-thread-item .t-preview{font-size:12px;color:var(--ink-soft);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-thread-item .t-time{font-size:10.5px;color:var(--ink-faint);white-space:nowrap;margin-top:2px}
+.msg-email-wrap{display:flex;flex-direction:column;gap:0;overflow-y:auto;flex:1;min-height:0}
+.msg-email-card{border-bottom:1px solid var(--line);padding:18px 24px}
+.msg-email-card:last-child{border-bottom:none}
+.msg-email-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.msg-email-from{display:flex;align-items:center;gap:10px}
+.msg-email-avatar{width:34px;height:34px;border-radius:50%;background:var(--indigo-100);color:var(--indigo);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.msg-email-avatar.mine{background:var(--indigo);color:#fff}
+.msg-email-sender{font-size:13px;font-weight:700;color:var(--ink)}
+.msg-email-role{font-size:11px;color:var(--ink-faint);margin-top:1px}
+.msg-email-date{font-size:11.5px;color:var(--ink-faint)}
+.msg-email-body{font-size:13.5px;color:var(--ink);line-height:1.7;padding-left:44px}
+.msg-compose-box{border-top:1px solid var(--line);padding:16px 20px;background:var(--lav-50);flex-shrink:0}
+.msg-compose-box textarea{width:100%;font-family:var(--font);font-size:13px;padding:12px 14px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;outline:none;min-height:80px;background:var(--white);box-sizing:border-box}
+.msg-compose-box textarea:focus{border-color:var(--indigo)}
 
 </style>
 </head>
@@ -911,14 +917,20 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <div class="page-head"><div><h2>Messages</h2><p>Internal school communication</p></div>
         <button class="btn btn-primary" onclick="openComposeModal()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
       </div>
-      <div class="msg-shell" style="display:flex;height:560px;overflow:hidden">
-        <div class="msg-thread-list" id="msgThreadList" style="width:300px;flex-shrink:0"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
-        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
-          <div id="msgThreadHead" style="padding:14px 20px;border-bottom:1px solid var(--line);font-weight:700;font-size:13.5px;flex-shrink:0">Select a conversation</div>
-          <div class="msg-bubbles" id="msgBubbles"><div style="text-align:center;padding:40px;color:var(--ink-faint)">Select a conversation.</div></div>
-          <div class="msg-reply-bar" id="msgReplyBar" style="display:none">
-            <textarea id="msgReplyText" placeholder="Type a reply…" rows="2"></textarea>
-            <button class="btn btn-primary btn-sm" onclick="sendThreadReply()">Send</button>
+      <div class="msg-shell" style="display:flex;height:600px;overflow:hidden">
+        <div class="msg-thread-list" id="msgThreadList" style="width:310px;flex-shrink:0;overflow-y:auto"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+          <div id="msgThreadHead" style="padding:16px 24px;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--white)">
+            <div style="font-size:15px;font-weight:800;color:var(--ink)" id="msgThreadSubject">Select a thread</div>
+            <div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px" id="msgThreadMeta"></div>
+          </div>
+          <div class="msg-email-wrap" id="msgBubbles"><div style="text-align:center;padding:60px;color:var(--ink-faint)">Select a thread to read messages.</div></div>
+          <div class="msg-compose-box" id="msgReplyBar" style="display:none">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px">Reply</div>
+            <textarea id="msgReplyText" placeholder="Write your reply…"></textarea>
+            <div style="display:flex;justify-content:flex-end;margin-top:8px">
+              <button class="btn btn-primary btn-sm" onclick="sendThreadReply()">Send Reply</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2132,22 +2144,29 @@ async function openThread(idx){
   _currentThreadIdx=idx
   document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
   const thread=window._msgThreads?.[idx];if(!thread)return
-  $('msgThreadHead').innerHTML='<b>'+esc(thread.subject)+'</b><span style="font-size:11px;color:var(--ink-faint);margin-left:8px">'+thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+'</span>'
+  $('msgThreadSubject').textContent=thread.subject
+  $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
   const el=$('msgBubbles')
   if(el){
     el.innerHTML=thread.messages.map(m=>{
       const isMine=m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id
       const from=isMine?'You':(m.sender_type==='admin'?'Admin Office':m.sender_name||'Unknown')
-      return '<div style="display:flex;justify-content:'+(isMine?'flex-end':'flex-start')+';margin-bottom:2px">'
-        +'<div class="msg-bubble '+(isMine?'mine':'theirs')+'">'
-        +'<div style="font-size:10px;opacity:.65;margin-bottom:4px;font-weight:700">'+esc(from)+'</div>'
-        +'<div>'+esc(m.body||'')+'</div>'
-        +'<div class="b-time">'+rel(m.sent_at)+'</div>'
-        +'</div></div>'
+      const role=isMine?'(You — Teacher)':(m.sender_type==='admin'?'Admin Office':m.sender_type)
+      const av=initials(from)
+      return '<div class="msg-email-card">'
+        +'<div class="msg-email-header">'
+          +'<div class="msg-email-from">'
+            +'<div class="msg-email-avatar'+(isMine?' mine':'')+'">'+av+'</div>'
+            +'<div><div class="msg-email-sender">'+esc(from)+'</div><div class="msg-email-role">'+esc(role)+'</div></div>'
+          +'</div>'
+          +'<div class="msg-email-date">'+fmtD(m.sent_at)+(m.sent_at?', '+new Date(m.sent_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'')+'</div>'
+        +'</div>'
+        +'<div class="msg-email-body">'+esc(m.body||'')+'</div>'
+        +'</div>'
     }).join('')
     el.scrollTop=el.scrollHeight
   }
-  const rb=$('msgReplyBar');if(rb)rb.style.display='flex'
+  const rb=$('msgReplyBar');if(rb)rb.style.display='block'
   // Mark unread as read
   const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.is_read).map(m=>m.message_id)
   if(unreadIds.length){
