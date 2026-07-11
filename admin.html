@@ -938,10 +938,13 @@ function initAdminNotifications(){
 }
 function showAdminNotification(title,body){
   if(window._notifBell){try{window._notifBell()}catch(e){}}
-  if(Notification.permission==='granted'){
-    const n=new Notification(title,{body,silent:true});setTimeout(()=>n.close(),5000)
-  }
-  try{if(typeof loadMessages==='function')loadMessages()}catch(e){console.warn(e)}
+  try{if(typeof loadMessages==='function')loadMessages()}catch(e){console.warn('reload err',e)}
+  try{
+    if('Notification' in window&&Notification.permission==='granted'){
+      const n=new Notification(title,{body,silent:true})
+      setTimeout(()=>{try{n.close()}catch(e){}},5000)
+    }
+  }catch(e){/* mobile Chrome throws — ignore */}
 }
 function subscribeAdminMessages(adminId){
   if(!adminId)return
