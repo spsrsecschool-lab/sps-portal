@@ -947,6 +947,23 @@ function showAdminNotification(title,body){
     }
   }catch(e){/* mobile Chrome throws — ignore */}
 }
+function subscribeRequests(){
+  sb.channel('access_requests_admin')
+    .on('postgres_changes',{event:'*',schema:'public',table:'access_requests'},payload=>{
+      console.log('[RT] access_requests change:',payload.eventType)
+      // Refresh request lists if the requests page is active
+      if($('page-requests')?.classList.contains('active')){
+        loadMarksRequests();loadProfileRequests()
+      }
+      checkPendingRequests()
+      // Toast on new request
+      if(payload.eventType==='INSERT'){
+        const r=payload.new
+        showAdminNotification&&showAdminNotification('New access request','A teacher requested '+(r.request_type==='marks_edit'?'marks edit':'profile edit')+' access')
+      }
+    }).subscribe((s)=>console.log('[RT] Requests channel:',s))
+}
+
 function subscribeAdminMessages(adminId){
   if(!adminId)return
   const ch=sb.channel('admin_msgs_'+adminId)
@@ -1011,7 +1028,7 @@ SPS.ready().then(async()=>{
   await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths(); checkPendingRequests()
   // Start message notifications
   initAdminNotifications()
-  if(SPS.admin?.admin_id){subscribeAdminMessages(SPS.admin.admin_id);console.log('[RT] Admin subscribed:',SPS.admin.admin_id);if(typeof initPushNotifications==='function')initPushNotifications(sb,'admin',SPS.admin.admin_id)}
+  if(SPS.admin?.admin_id){subscribeAdminMessages(SPS.admin.admin_id);subscribeRequests();console.log('[RT] Admin subscribed:',SPS.admin.admin_id);if(typeof initPushNotifications==='function')initPushNotifications(sb,'admin',SPS.admin.admin_id)}
   const cf=document.getElementById('ca_from'),ct=document.getElementById('ca_to')
   if(cf)cf.value=today(); if(ct)ct.value=today()
   document.getElementById('admSessionLabel').textContent=SESS?SESS.session_id:'—'
