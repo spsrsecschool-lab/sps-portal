@@ -9,6 +9,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="push.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -1236,6 +1237,7 @@ SPS.ready().then(async()=>{
   if(rl)rl.textContent=TEACHER.designation||'Teacher'
   if(_isClassTeacher&&$('switchCTBtn'))$('switchCTBtn').style.display=''
   subscribeMessages(TEACHER.teacher_id)
+  if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
 
   // Populate subject dropdowns
   const subjects=[...new Map(MY_MAPPINGS.map(m=>[m.subject_id,m])).values()]
