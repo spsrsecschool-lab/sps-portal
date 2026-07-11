@@ -941,6 +941,7 @@ function showAdminNotification(title,body){
   if(Notification.permission==='granted'){
     const n=new Notification(title,{body,silent:true});setTimeout(()=>n.close(),5000)
   }
+  try{if(typeof loadMessages==='function')loadMessages()}catch(e){console.warn(e)}
 }
 function subscribeAdminMessages(adminId){
   if(!adminId)return
