@@ -1742,20 +1742,55 @@ async function loadMapping(){
   }).join('')
 }
 async function openAddMappingModal(){
+  window._pendingPeriods=[]
   const cls=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   const tch=ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
   const sub=ALL_SUBJECTS.filter(s=>s.is_active).map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
   const roster=await getActiveRoster()
+  window._addMapRoster=roster
   let slotOpts='<option value="">No active roster</option>'
-  if(roster){const{data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order');slotOpts='<option value="">No timetable slot</option>'+(slots||[]).map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+( s.start_time||'').slice(0,5)+'–'+(s.end_time||'').slice(0,5)+')</option>').join('')}
+  if(roster){const{data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order');window._addMapSlots=slots||[];slotOpts='<option value="">Select time slot</option>'+(slots||[]).map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+(s.start_time||'').slice(0,5)+'–'+(s.end_time||'').slice(0,5)+')</option>').join('')}
   const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk" style="accent-color:var(--indigo)"> '+d+'</label>').join('')
   openModal('Add Class-Subject Mapping',
     '<div class="form-row"><div class="fg"><label>Class *</label><select id="mp_class" onchange="mpLoadSections()">'+cls+'</select></div><div class="fg"><label>Section *</label><select id="mp_section" onchange="syncStreamSection(\'section\',\'mp\')"><option value="">Select class first</option></select></div><div class="fg" id="mp_stream_fg" style="display:none"><label>Stream</label><select id="mp_stream" onchange="syncStreamSection(\'stream\',\'mp\')"><option value="">All students (no stream)</option></select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Subject *</label><select id="mp_subject">'+sub+'</select></div><div class="fg"><label>Teacher *</label><select id="mp_teacher">'+tch+'</select></div></div>'+
-    '<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:14px"><p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px">Timetable (active roster: <b>'+(roster?esc(roster.name):'none')+'</b>)</p>'+
-    '<div class="form-row" style="margin-bottom:8px"><div class="fg"><label>Time Slot</label><select id="mp_slot">'+slotOpts+'</select></div></div>'+
-    '<div class="fg"><label>Days</label><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">'+dayChks+'</div></div></div>',
+    '<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:14px"><p style="font-size:11.5px;color:var(--ink-soft);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Timetable Periods (active roster: <b>'+(roster?esc(roster.name):'none')+'</b>)</p>'+
+    '<div id="pendingPeriodsList" style="margin-bottom:10px"></div>'+
+    '<div style="background:var(--lav-50);border-radius:10px;padding:12px 14px">'+
+      '<div class="form-row" style="margin-bottom:8px"><div class="fg"><label>Time Slot</label><select id="mp_slot">'+slotOpts+'</select></div></div>'+
+      '<div class="fg"><label>Days</label><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">'+dayChks+'</div></div>'+
+      '<button type="button" class="btn btn-soft btn-sm" style="margin-top:10px" onclick="addPendingPeriod()">+ Add This Period</button>'+
+    '</div>'+
+    '<p style="font-size:11px;color:var(--ink-faint);margin-top:8px">Add one or more periods. You can also add more later via Edit.</p></div>',
     '<button class="btn btn-dark" onclick="saveMapping()">Add Mapping</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+
+function addPendingPeriod(){
+  const slotId=$('mp_slot')?.value
+  const days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value)
+  if(!slotId){toast('Select a time slot','error');return}
+  if(!days.length){toast('Select at least one day','error');return}
+  if(!window._pendingPeriods)window._pendingPeriods=[]
+  // Prevent exact duplicate slot
+  if(window._pendingPeriods.some(p=>p.slotId===slotId)){toast('That slot is already added','error');return}
+  const slot=(window._addMapSlots||[]).find(s=>s.slot_id===slotId)
+  window._pendingPeriods.push({slotId,days,slotName:slot?.name||'Slot',startTime:slot?.start_time,endTime:slot?.end_time})
+  // Reset inputs
+  if($('mp_slot'))$('mp_slot').value=''
+  document.querySelectorAll('.mp_day_chk:checked').forEach(c=>c.checked=false)
+  renderPendingPeriods()
+}
+
+function renderPendingPeriods(){
+  const el=$('pendingPeriodsList');if(!el)return
+  const list=window._pendingPeriods||[]
+  if(!list.length){el.innerHTML='';return}
+  el.innerHTML=list.map((p,idx)=>'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--indigo-100);border-radius:8px;margin-bottom:6px;font-size:12.5px"><div style="flex:1"><b>'+esc(p.slotName)+'</b> <span style="color:var(--ink-soft)">'+(p.startTime||'').slice(0,5)+'–'+(p.endTime||'').slice(0,5)+'</span> · <span style="color:var(--indigo)">'+esc(p.days.join(', '))+'</span></div><button type="button" class="btn btn-ghost btn-xs" data-idx="'+idx+'" onclick="removePendingPeriod(+this.dataset.idx)" style="color:var(--danger)">Remove</button></div>').join('')
+}
+
+function removePendingPeriod(idx){
+  if(window._pendingPeriods)window._pendingPeriods.splice(idx,1)
+  renderPendingPeriods()
 }
 async function mpLoadSections(){
   const cid=$('mp_class')?.value
@@ -1779,15 +1814,29 @@ async function mpLoadSections(){
 }
 async function saveMapping(){
   const classId=$('mp_class')?.value,secId=$('mp_section')?.value,subId=$('mp_subject')?.value,tchId=$('mp_teacher')?.value
-  if(!classId||!secId||!subId||!tchId){toast('All fields required','error');return}
+  if(!classId||!secId||!subId||!tchId){toast('Class, section, subject and teacher are required','error');return}
   const streamId=$('mp_stream')?.value||null
+  // Gather periods — include any period currently filled in the inputs but not yet added
+  let periods=[...(window._pendingPeriods||[])]
+  const pendingSlot=$('mp_slot')?.value
+  const pendingDays=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value)
+  if(pendingSlot&&pendingDays.length&&!periods.some(p=>p.slotId===pendingSlot)){
+    periods.push({slotId:pendingSlot,days:pendingDays})
+  }
+  // Create the mapping
   const{error}=await sb.from('teacher_subject_class_map').insert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,stream_id:streamId})
   if(error){toast('Failed: '+error.message,'error');return}
-  const slotId=$('mp_slot')?.value,days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value),roster=await getActiveRoster()
-  if(!slotId){toast('Select a time slot','error');return}
-  if(!days.length){toast('Select at least one day','error');return}
-  if(!roster){toast('No active roster — create and activate one in Timetable first','error');return}
-  if(slotId&&days.length&&roster){const{error:te}=await sb.from('timetable_entries').insert({roster_id:roster.roster_id,slot_id:slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days,stream_id:streamId});if(te)toast('Mapping saved but timetable entry failed: '+te.message,'error');else toast('Mapping and timetable entry added','success')}else toast('Mapping added','success')
+  // Insert timetable periods if any
+  const roster=window._addMapRoster||await getActiveRoster()
+  if(periods.length&&roster){
+    const rows=periods.map(p=>({roster_id:roster.roster_id,slot_id:p.slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days:p.days,stream_id:streamId}))
+    const{error:te}=await sb.from('timetable_entries').insert(rows)
+    if(te)toast('Mapping saved but some periods failed: '+te.message,'error')
+    else toast('Mapping added with '+periods.length+' period'+(periods.length>1?'s':'')+' ✓','success')
+  }else{
+    toast('Mapping added','success')
+  }
+  window._pendingPeriods=[]
   closeModal();loadMapping()
 }
 async function removeMapping(id){confirmAct('Remove this mapping?','Teacher loses access to this class-subject.',async()=>{await sb.from('teacher_subject_class_map').delete().eq('map_id',id);toast('Removed','success');loadMapping()})}
