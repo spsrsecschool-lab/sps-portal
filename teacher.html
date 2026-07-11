@@ -1868,6 +1868,13 @@ function showNotification(title,body){
   }catch(e){/* mobile Chrome throws — ignore */}
 }
 
+
+async function refreshTeacherState(){
+  if(!TEACHER)return
+  const{data:fresh}=await sb.from('teachers').select('*').eq('teacher_id',TEACHER.teacher_id).maybeSingle()
+  if(fresh){TEACHER=fresh;window.TEACHER=fresh}
+}
+
 function subscribeActivity(teacherId){
   if(!teacherId)return
   sb.channel('activity_'+teacherId)
@@ -1896,6 +1903,11 @@ function subscribeMessages(recipientId){
 function injectIncomingMessage(m){
   if(m.message_type==='broadcast'){try{loadBroadcasts()}catch(e){}}
   try{checkUnreadMessages()}catch(e){}
+  // If it's an access-grant notification, refresh permissions + activity feed live
+  if(m.message_type==='system_notification'||/access|approved|granted|unlock/i.test((m.subject||'')+' '+(m.body||''))){
+    try{if(typeof refreshTeacherState==='function')refreshTeacherState()}catch(e){}
+    try{if(typeof renderActivityFeed==='function')renderActivityFeed()}catch(e){}
+  }
   // If it's a broadcast, refresh dashboard banners with animation
   if(m.message_type==='broadcast'){if(typeof loadBroadcasts==='function')loadBroadcasts();return}
   if(!window._msgThreads)window._msgThreads=[]
@@ -3054,8 +3066,8 @@ async function loadMessages(){
       +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
       +'</div>'
   }).join('')
-  if(threads.length){
-    // Preserve open thread by subject if possible
+  if(threads.length&&$('page-messages')?.classList.contains('active')){
+    // Only auto-open (marks read) when actually viewing the Messages page
     const prevSubj=window._teacherOpenSubj
     const keepIdx=prevSubj?threads.findIndex(t=>t.subject===prevSubj):0
     openThread(keepIdx>=0?keepIdx:0)
