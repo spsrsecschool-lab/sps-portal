@@ -1128,14 +1128,68 @@ function showNotification(title,body){
 }
 function subscribeMessages(recipientId){
   if(!recipientId)return
-  sb.channel('msgs_'+recipientId)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+recipientId},payload=>{
+  const ch=sb.channel('msgs_'+recipientId)
+  ch.on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+recipientId},payload=>{
       const m=payload.new
+      console.log('[RT] New message received:',m)
       if(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)return
       showNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
-      if(typeof checkUnreadMessages==='function')checkUnreadMessages()
-      loadMessages()
-    }).subscribe()
+      // Inject directly into thread view (no refetch needed)
+      injectIncomingMessage(m)
+    })
+  ch.subscribe((status)=>{console.log('[RT] Teacher channel status:',status)})
+}
+
+function injectIncomingMessage(m){
+  if(!window._msgThreads)window._msgThreads=[]
+  const rootSubj=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
+  const key=rootSubj(m.subject)
+  let thread=window._msgThreads.find(th=>th.subject===key)
+  if(thread){
+    // Avoid duplicate
+    if(!thread.messages.some(x=>x.message_id===m.message_id)){
+      thread.messages.push(m)
+      thread.messages.sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at))
+      thread.latest=thread.messages[thread.messages.length-1]
+      if(!m.read_at)thread.unread++
+    }
+  }else{
+    thread={subject:key,messages:[m],latest:m,unread:m.read_at?0:1}
+    window._msgThreads.unshift(thread)
+  }
+  // Ensure name is cached
+  if(m.sender_type==='teacher'&&m.sender_id&&!window._msgNames?.[m.sender_id]){
+    sb.from('teachers').select('full_name').eq('teacher_id',m.sender_id).maybeSingle().then(({data})=>{
+      if(data){if(!window._msgNames)window._msgNames={};window._msgNames[m.sender_id]=data.full_name;rerenderMessages()}
+    })
+  }
+  rerenderMessages()
+}
+
+function rerenderMessages(){
+  if(!$('page-messages')?.classList.contains('active'))return
+  const threads=window._msgThreads||[]
+  const nm=id=>window._msgNames?.[id]||id
+  const el=$('msgThreadList')
+  if(el)el.innerHTML=threads.map((th,idx)=>{
+    const last=th.latest
+    const isMine=last?.sender_type==='teacher'&&last?.sender_id===TEACHER.teacher_id
+    const otherName=isMine?(last?.recipient_type==='admin'?'Admin Office':nm(last?.recipient_id)):(last?.sender_type==='admin'?'Admin Office':nm(last?.sender_id))
+    return '<div class="msg-thread-item'+(th.unread>0?' unread':'')+'" data-idx="'+idx+'" onclick="openThread(+this.dataset.idx)">'
+      +'<div class="t-top"><span class="t-from">'+esc(th.subject)+'</span><span class="t-time">'+rel(last?.sent_at)+'</span></div>'
+      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,55)||'')+'</div>'
+      +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
+      +'</div>'
+  }).join('')
+  // Re-render open thread if one is open
+  if(_currentThreadIdx!=null&&window._openThreadSubject){
+    const fi=threads.findIndex(th=>th.subject===window._openThreadSubject)
+    if(fi>=0)openThread(fi)
+  }
+  // Update badge
+  const unreadTotal=threads.reduce((s,th)=>s+th.unread,0)
+  if($('msgBadge')){$('msgBadge').textContent=unreadTotal;$('msgBadge').style.display=unreadTotal>0?'flex':'none'}
+  if($('msgDot'))$('msgDot').style.display=unreadTotal>0?'block':'none'
 }
 initNotifications()
 
