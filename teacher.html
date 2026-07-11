@@ -1120,13 +1120,17 @@ function initNotifications(){
   if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()
 }
 function showNotification(title,body){
+  // Sound first
   if(_notifSound){try{_notifSound()}catch(e){}}
-  if(Notification.permission==='granted'){
-    const n=new Notification(title,{body,silent:true})
-    setTimeout(()=>n.close(),5000)
-  }
-  // Refresh messages whenever notification fires
-  try{if(typeof loadMessages==='function')loadMessages()}catch(e){console.warn(e)}
+  // Refresh messages BEFORE notification (mobile Notification API may throw)
+  try{if(typeof loadMessages==='function')loadMessages()}catch(e){console.warn('reload err',e)}
+  // Browser notification — wrapped, fails silently on mobile
+  try{
+    if('Notification' in window&&Notification.permission==='granted'){
+      const n=new Notification(title,{body,silent:true})
+      setTimeout(()=>{try{n.close()}catch(e){}},5000)
+    }
+  }catch(e){/* mobile Chrome throws — ignore */}
 }
 function subscribeMessages(recipientId){
   if(!recipientId)return
