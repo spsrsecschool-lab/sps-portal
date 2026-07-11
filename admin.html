@@ -947,6 +947,7 @@ function subscribeAdminMessages(adminId){
   sb.channel('admin_msgs_'+adminId)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+adminId},payload=>{
       const m=payload.new
+      if(m.sender_type==='admin'&&m.sender_id===adminId)return
       showAdminNotification('New message',m.subject||m.body?.slice(0,80)||'New message')
       if(typeof loadMessages==='function')loadMessages()
     }).subscribe()
@@ -1212,15 +1213,22 @@ async function sendAdminThreadReply(){
   const isMine=last?.sender_type==='admin'
   const recipientType=isMine?last.recipient_type:last.sender_type
   const recipientId=isMine?last.recipient_id:last.sender_id
-  const{error}=await sb.from('messages').insert({
+  const newMsg={
     sender_type:'admin',sender_id:SPS.admin.admin_id,
     recipient_type:recipientType,recipient_id:recipientId,
     subject:'Re: '+thread.subject,body,message_type:'direct',
     sent_at:new Date().toISOString()
-  })
-  if(error){toast('Failed: '+error.message,'error');return}
+  }
+  // Optimistic: append to thread and re-render immediately
+  thread.messages.push({...newMsg,message_id:'temp_'+Date.now(),read_at:new Date().toISOString()})
+  thread.latest=thread.messages[thread.messages.length-1]
   if($('msgReplyText'))$('msgReplyText').value=''
-  toast('Reply sent ✓','success');loadMessages()
+  openAdminThread(_adminCurrThread)
+  // Insert to DB
+  const{error}=await sb.from('messages').insert(newMsg)
+  if(error){toast('Failed: '+error.message,'error');return}
+  // Sync in background
+  setTimeout(()=>loadMessages(),500)
 }
 function openMsgById(id){const m=window._msgStore?.[id];if(!m)return;openMsg(m)}
 async function openMsg(m){
