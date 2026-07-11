@@ -611,6 +611,24 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 .msg-compose-box textarea{width:100%;font-family:var(--font);font-size:13px;padding:12px 14px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;outline:none;min-height:80px;background:var(--white);box-sizing:border-box}
 .msg-compose-box textarea:focus{border-color:var(--indigo)}
 
+
+
+
+
+/* Messages mobile — stack panels, back button flow */
+.msg-back-btn{display:none;align-items:center;gap:6px;padding:10px 16px;background:var(--lav-100);border:none;border-bottom:1px solid var(--line);font-family:var(--font);font-size:13px;font-weight:700;color:var(--indigo);cursor:pointer;width:100%}
+.msg-back-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.2}
+@media(max-width:760px){
+  .msg-shell{height:auto!important;min-height:70vh}
+  #msgThreadPanel{width:100%!important;border-right:none!important;border-bottom:1px solid var(--line)}
+  #msgThreadPanel .msg-panel-head{display:none}
+  #msgReadPane{display:none!important}
+  .msg-shell.reading #msgThreadPanel{display:none!important}
+  .msg-shell.reading #msgReadPane{display:flex!important}
+  .msg-back-btn{display:flex}
+  .msg-email-wrap{max-height:none!important}
+}
+
 </style>
 </head>
 <body>
@@ -918,8 +936,15 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
         <button class="btn btn-primary" onclick="openComposeModal()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
       </div>
       <div class="msg-shell" style="display:flex;height:600px;overflow:hidden">
-        <div class="msg-thread-list" id="msgThreadList" style="width:310px;flex-shrink:0;overflow-y:auto"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
-        <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+        <div id="msgThreadPanel" style="width:310px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--line)">
+          <div style="padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)">Threads</span>
+            <button onclick="toggleThreadPanel()" style="background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:18px;line-height:1;padding:2px 6px" title="Collapse">&#8249;</button>
+          </div>
+          <div class="msg-thread-list" id="msgThreadList" style="flex:1;overflow-y:auto"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
+        </div>
+        <div id="msgReadPane" style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+          <button class="msg-back-btn" onclick="backToThreadList()"><svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Back to threads</button>
           <div id="msgThreadHead" style="padding:16px 24px;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--white)">
             <div style="font-size:15px;font-weight:800;color:var(--ink)" id="msgThreadSubject">Select a thread</div>
             <div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px" id="msgThreadMeta"></div>
@@ -1046,6 +1071,21 @@ document.addEventListener('mousedown',function(e){
   const sr=$('pa_search_results'),si=$('pa_student_search')
   if(sr&&si&&!sr.contains(e.target)&&e.target!==si)sr.style.display='none'
 },{passive:true})
+
+
+function toggleThreadPanel(){
+  const panel=$('msgThreadPanel')
+  const btn=panel?.querySelector('button')
+  if(!panel)return
+  const collapsed=panel.style.width==='36px'
+  panel.style.width=collapsed?'310px':'36px'
+  panel.style.overflow=collapsed?'':'hidden'
+  if($('msgThreadList'))$('msgThreadList').style.display=collapsed?'block':'none'
+  if(btn)btn.innerHTML=collapsed?'&#8249;':'&#8250;'
+}
+
+
+
 
 function clearMarksTable(){document.getElementById('marksTableWrap').innerHTML=''}
 function openSub(subId){
@@ -2139,42 +2179,13 @@ async function loadMessages(){
   if(threads.length)openThread(0)
 }
 
-let _currentThreadIdx=null
-async function openThread(idx){
-  _currentThreadIdx=idx
-  document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
-  const thread=window._msgThreads?.[idx];if(!thread)return
-  $('msgThreadSubject').textContent=thread.subject
-  $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
-  const el=$('msgBubbles')
-  if(el){
-    el.innerHTML=thread.messages.map(m=>{
-      const isMine=m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id
-      const from=isMine?'You':(m.sender_type==='admin'?'Admin Office':m.sender_name||'Unknown')
-      const role=isMine?'(You — Teacher)':(m.sender_type==='admin'?'Admin Office':m.sender_type)
-      const av=initials(from)
-      return '<div class="msg-email-card">'
-        +'<div class="msg-email-header">'
-          +'<div class="msg-email-from">'
-            +'<div class="msg-email-avatar'+(isMine?' mine':'')+'">'+av+'</div>'
-            +'<div><div class="msg-email-sender">'+esc(from)+'</div><div class="msg-email-role">'+esc(role)+'</div></div>'
-          +'</div>'
-          +'<div class="msg-email-date">'+fmtD(m.sent_at)+(m.sent_at?', '+new Date(m.sent_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'')+'</div>'
-        +'</div>'
-        +'<div class="msg-email-body">'+esc(m.body||'')+'</div>'
-        +'</div>'
-    }).join('')
-    el.scrollTop=el.scrollHeight
-  }
-  const rb=$('msgReplyBar');if(rb)rb.style.display='block'
-  // Mark unread as read
-  const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.is_read).map(m=>m.message_id)
-  if(unreadIds.length){
-    await sb.from('messages').update({is_read:true}).in('message_id',unreadIds)
-    thread.unread=0
-    document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
-  }
+
+function backToThreadList(){
+  document.querySelector('.msg-shell')?.classList.remove('reading')
 }
+
+let _currentThreadIdx=null
+
 
 async function sendThreadReply(){
   const body=$('msgReplyText')?.value?.trim()
@@ -2195,32 +2206,38 @@ async function sendThreadReply(){
   toast('Sent ✓','success');loadMessages()
 }
 
-let _currentConvKey=null
-async function openThread(key){
-  _currentConvKey=key
-  document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',i.dataset.key===key)})
-  const conv=window._msgThreads?.find(c=>c.key===key);if(!conv)return
-  $('msgThreadHead').textContent=conv.partnerName
+async function openThread(idx){
+  _currentThreadIdx=idx
+  if(window.innerWidth<=760)document.querySelector('.msg-shell')?.classList.add('reading')
+  document.querySelectorAll('.msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
+  const thread=window._msgThreads?.[idx];if(!thread)return
+  $('msgThreadSubject').textContent=thread.subject
+  $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
   const el=$('msgBubbles')
   if(el){
-    el.innerHTML=conv.messages.map(m=>{
+    el.innerHTML=thread.messages.map(m=>{
       const isMine=m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id
-      return '<div style="display:flex;justify-content:'+(isMine?'flex-end':'flex-start')+'">'
-        +'<div class="msg-bubble '+(isMine?'mine':'theirs')+'">'
-        +(m.subject?'<div class="b-subj">'+esc(m.subject)+'</div>':'')
-        +'<div>'+esc(m.body||'')+'</div>'
-        +'<div class="b-time">'+rel(m.sent_at)+'</div>'
-        +'</div></div>'
+      const from=isMine?'You':(m.sender_type==='admin'?'Admin Office':m.sender_name||'Unknown')
+      const role=isMine?'You — Teacher':(m.sender_type==='admin'?'Admin Office':'Teacher')
+      return '<div class="msg-email-card">'
+        +'<div class="msg-email-header">'
+          +'<div class="msg-email-from">'
+            +'<div class="msg-email-avatar'+(isMine?' mine':'')+'">'+initials(from)+'</div>'
+            +'<div><div class="msg-email-sender">'+esc(from)+'</div><div class="msg-email-role">'+esc(role)+'</div></div>'
+          +'</div>'
+          +'<div class="msg-email-date">'+fmtD(m.sent_at)+(m.sent_at?', '+new Date(m.sent_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'')+'</div>'
+        +'</div>'
+        +'<div class="msg-email-body">'+esc(m.body||'')+'</div>'
+        +'</div>'
     }).join('')
     el.scrollTop=el.scrollHeight
   }
-  const rb=$('msgReplyBar');if(rb)rb.style.display='flex'
-  // Mark as read
-  const unreadIds=conv.messages.filter(m=>m.sender_id!==TEACHER.teacher_id&&!m.is_read).map(m=>m.message_id)
+  const rb=$('msgReplyBar');if(rb)rb.style.display='block'
+  const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.is_read).map(m=>m.message_id)
   if(unreadIds.length){
     await sb.from('messages').update({is_read:true}).in('message_id',unreadIds)
-    conv.unread=0
-    document.querySelectorAll('.msg-thread-item[data-key="'+key+'"]').forEach(el=>el.classList.remove('unread'))
+    thread.unread=0
+    document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
   }
 }
 
@@ -2240,7 +2257,6 @@ async function sendThreadReply(){
   loadMessages()
 }
 
-// async function openMsg( replaced by thread system
 
 
 async function checkUnreadMessages(){
