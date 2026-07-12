@@ -548,20 +548,22 @@ async function dismissBroadcast(bid){
 
 // ═══════════ DAILY TIPS (rotate by date) ═══════════
 const CT_TIPS=[
-  {icon:'📅',title:'Mark attendance early',text:'Marking attendance in the first period keeps records accurate and avoids end-of-day pileups.'},
-  {icon:'🎯',title:'Track the below-75% list',text:'Check the Attendance Report monthly. Students under 75% may need a gentle reminder home.'},
-  {icon:'📞',title:'Keep phone numbers updated',text:'Verify parent phone numbers in Manage My Class — accurate contacts matter during emergencies.'},
-  {icon:'🔢',title:'Roll numbers drive everything',text:'Roll numbers are used across marks, attendance and reports. Keep them tidy and sequential.'},
-  {icon:'📊',title:'Review marks after each test',text:'The Assessment Marks matrix flags failing and low-attendance students automatically — a quick way to spot who needs help.'},
-  {icon:'💬',title:'Reply to admin notices',text:'Check your messages for broadcasts and requests. Timely replies keep the school running smoothly.'},
-  {icon:'📎',title:'Upload student documents',text:'Keep Aadhaar, birth and transfer certificates on file so admin has everything in one place.'},
-  {icon:'🌟',title:'Celebrate full attendance',text:'The monthly report highlights students with perfect attendance — a great thing to acknowledge in class.'},
-  {icon:'📝',title:'Double-check before submitting',text:'Attendance can be resubmitted, but a quick review before saving avoids corrections later.'},
-  {icon:'💰',title:'Collect exam fees on time',text:'When admin unlocks an exam fee, collect and mark payments promptly to keep records current.'},
-  {icon:'🧭',title:'Use search in Manage My Class',text:'Quickly find any student by name, roll number or father\'s name using the search box.'},
-  {icon:'⏰',title:'Late is not absent',text:'Use the L (Late) status for students who arrive late — it still counts toward attendance, unlike Absent.'},
-  {icon:'📚',title:'Keep an eye on trends',text:'A dropping monthly attendance average is an early sign worth a conversation with the student.'},
-  {icon:'🤝',title:'Coordinate with subject teachers',text:'Subject teachers enter their own marks. If something looks off, a quick message clears it up.'},
+  {icon:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/>',title:'Greet them by name',text:'A warm hello using each child\'s name tells them they matter. It costs a moment and builds trust that lasts all year.'},
+  {icon:'<path d="M3 11a9 9 0 0 1 18 0v4a3 3 0 0 1-3 3h-1v-6h4"/><path d="M6 12H2v6h1a3 3 0 0 0 3-3z"/>',title:'Listen more than you speak',text:'Sometimes a student just needs to be heard. A patient ear can solve what no amount of instruction can.'},
+  {icon:'<path d="M20.8 6.6a5 5 0 0 0-7.1 0L12 8.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 22l8.8-8.3a5 5 0 0 0 0-7.1z"/>',title:'Notice the quiet ones',text:'The child who never causes trouble may be the one who needs you most. Reach out to those who stay in the background.'},
+  {icon:'<path d="M12 2l2.4 5.9L21 8.5l-5 4.3 1.6 6.5L12 16l-5.6 3.3L8 12.8 3 8.5l6.6-.6z"/>',title:'Praise effort, not just results',text:'Celebrate how hard a child tried, not only the marks they scored. Effort is what you can always grow.'},
+  {icon:'<path d="M12 21s-7-4.5-9.5-9C.5 8 2.5 4 6.5 4c2 0 3.5 1.2 4.5 2.5C11.9 5.2 13.5 4 15.5 4c4 0 6 4 4 8-2.5 4.5-9.5 9-9.5 9z"/><path d="M12 8v5"/><path d="M9.5 10.5h5"/>',title:'Every child has a story',text:'A restless or withdrawn student is often carrying something from home. Meet behaviour with curiosity, not judgment.'},
+  {icon:'<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',title:'Be the calm in their storm',text:'Children mirror our energy. When you stay patient and steady, you teach them how to handle their own big feelings.'},
+  {icon:'<path d="M12 21s-7-4.5-9.5-9C.5 8 2.5 4 6.5 4c2 0 3.5 1.2 4.5 2.5C11.9 5.2 13.5 4 15.5 4c4 0 6 4 4 8-2.5 4.5-9.5 9-9.5 9z"/>',title:'Small kindnesses matter most',text:'A note of encouragement, a smile on a hard day — these are the moments students remember long after the lessons fade.'},
+  {icon:'<path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.5 6.5 5 5M17.5 6.5 19 5"/><circle cx="12" cy="13" r="5"/>',title:'Believe in them out loud',text:'Tell your students you know they can do it. Your belief often becomes the confidence they carry into the world.'},
+  {icon:'<path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/>',title:'Forgive yesterday',text:'Let each child start fresh every morning. Holding onto yesterday\'s mistakes only weighs both of you down.'},
+  {icon:'<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>',title:'Teach kindness by living it',text:'Children learn character by watching yours. The way you treat them becomes the way they treat each other.'},
+  {icon:'<circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 1 0 0 20c1.5 0 2-1 2-2 0-1.5-1.5-1.5-1.5-3s2-2 3.5-2c2 0 4-1.5 4-4A9 9 0 0 0 12 2z"/>',title:'Make room for every kind of mind',text:'Not every child learns the same way. The one who struggles with words may shine in art, movement or heart.'},
+  {icon:'<circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3M4 4l2 2M18 18l2 2M4 20l2-2M18 6l2-2"/>',title:'Your mood sets the room',text:'Walk in with warmth and the whole class softens. You have more power to shape their day than you realise.'},
+  {icon:'<path d="M16 18a4 4 0 0 0-8 0"/><circle cx="12" cy="7" r="3"/><path d="M4 20c1-2 3-3 4-3M20 20c-1-2-3-3-4-3"/>',title:'Partner with parents',text:'A kind word to a parent about their child\'s progress builds a bridge that supports the student from both sides.'},
+  {icon:'<path d="M12 22c5 0 8-3.5 8-8 0-3-2-5-2-8 0-1-.5-2-1.5-2S15 5 15 6c0 2-1 3-3 3S9 8 9 6c0-1-.5-2-1.5-2S6 5 6 6c0 3-2 5-2 8 0 4.5 3 8 8 8z"/>',title:'Patience is a form of love',text:'The child who tests your patience the most is often the one learning to trust that an adult won\'t give up on them.'},
+  {icon:'<path d="M12 2l2 6 6 .5-4.5 4L17 19l-5-3-5 3 1.5-6.5L4 8.5 10 8z"/><path d="M12 14v5"/>',title:'You are shaping futures',text:'Years from now, students may forget the syllabus but never how you made them feel. Teach the heart, not just the head.'},
+  {icon:'<path d="M11 3C7 3 4 6 4 10c0 3 2 5 4 6M11 3c0 6-3 9-7 13M11 3c4 0 7 3 7 7 0 4-3 7-7 10"/>',title:'Rest so you can give',text:'You cannot pour from an empty cup. Caring for yourself is part of caring well for your students.'},
 ]
 
 function todaysTip(){
@@ -599,7 +601,7 @@ function renderTipBanner(contextNote){
   banner.style.background='linear-gradient(120deg,#E8F5ED,#D4EDD9)'
   banner.innerHTML='<div style="position:absolute;width:160px;height:160px;border-radius:50%;background:rgba(33,111,64,.06);right:-40px;bottom:-80px"></div>'
     +'<div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:16px">'
-    +'<div style="width:46px;height:46px;border-radius:13px;background:var(--grn);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+tip.icon+'</div>'
+    +'<div style="width:46px;height:46px;border-radius:13px;background:var(--grn);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">'+tip.icon+'</svg></div>'
     +'<div style="flex:1">'
     +(contextNote?'<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--grn-dark);font-weight:700;margin-bottom:4px">'+esc(contextNote)+'</div>':'<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--grn-dark);font-weight:700;margin-bottom:4px">💡 Tip of the day</div>')
     +'<div style="font-size:16px;font-weight:800;color:var(--ink)">'+esc(tip.title)+'</div>'
