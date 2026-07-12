@@ -145,6 +145,28 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
   .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
 }
 
+
+@keyframes bcPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,85,107,.0)}50%{box-shadow:0 0 0 5px rgba(229,85,107,.15)}}
+@keyframes bcSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.bc-banner{border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:14px;display:flex;align-items:flex-start;gap:14px;animation:bcSlide .3s ease both;position:relative;border:1.5px solid}
+.bc-banner.urgent{background:var(--danger-soft);border-color:var(--danger);animation:bcSlide .3s ease both,bcPulse 1.8s ease-in-out infinite}
+.bc-banner.important{background:var(--warn-soft);border-color:var(--warn)}
+.bc-banner.normal{background:var(--grn-100);border-color:var(--grn)}
+.bc-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}
+.bc-banner.urgent .bc-icon{background:var(--danger);color:#fff}
+.bc-banner.important .bc-icon{background:var(--warn);color:#fff}
+.bc-banner.normal .bc-icon{background:var(--grn);color:#fff}
+.bc-content{flex:1;min-width:0}
+.bc-title{font-size:14.5px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bc-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px}
+.bc-banner.urgent .bc-tag{background:var(--danger);color:#fff}
+.bc-banner.important .bc-tag{background:var(--warn);color:#fff}
+.bc-banner.normal .bc-tag{background:var(--grn);color:#fff}
+.bc-body{font-size:13px;color:var(--ink-soft);line-height:1.6;margin-top:5px;white-space:pre-wrap}
+.bc-meta{font-size:11px;color:var(--ink-faint);margin-top:8px}
+.bc-dismiss{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:20px;line-height:1;padding:0 4px;flex-shrink:0}
+.bc-dismiss:hover{color:var(--ink)}
+
 </style>
 </head>
 <body>
@@ -236,6 +258,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
+      <div id="broadcastBanners"></div>
       <div id="dashGreeting" style="margin-bottom:18px">
         <div id="greetingText" style="font-size:22px;font-weight:800;color:var(--ink)"></div>
         <div id="greetingSub" style="font-size:12.5px;color:var(--ink-soft);margin-top:3px"></div>
@@ -490,9 +513,100 @@ SPS.ready().then(async()=>{
 
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
   await renderDashboard()
+  loadBroadcasts()
 })
 
 // ═══════════ DASHBOARD ═══════════
+
+async function loadBroadcasts(){
+  const el=$('broadcastBanners')
+  if(!el||!TEACHER)return
+  const{data:bcs}=await sb.from('broadcasts').select('*').eq('is_active',true).eq('session_id',SESS?.session_id||'').order('created_at',{ascending:false})
+  if(!bcs?.length){el.innerHTML='';return}
+  const{data:reads}=await sb.from('broadcast_reads').select('broadcast_id').eq('teacher_id',TEACHER.teacher_id)
+  const dismissed=new Set((reads||[]).map(r=>r.broadcast_id))
+  const now=Date.now()
+  const visible=bcs.filter(b=>!dismissed.has(b.broadcast_id)&&(!b.expires_at||new Date(b.expires_at).getTime()>now))
+  if(!visible.length){el.innerHTML='';return}
+  const icons={urgent:'🚨',important:'⚠️',normal:'📢'}
+  el.innerHTML=visible.map(b=>'<div class="bc-banner '+esc(b.priority||'normal')+'">'
+    +'<div class="bc-icon">'+(icons[b.priority]||'📢')+'</div>'
+    +'<div class="bc-content">'
+      +'<div class="bc-title">'+esc(b.title)+'<span class="bc-tag">'+esc(b.priority||'notice')+'</span></div>'
+      +'<div class="bc-body">'+esc(b.body)+'</div>'
+      +'<div class="bc-meta">Posted '+rel(b.created_at)+'</div>'
+    +'</div>'
+    +'<button class="bc-dismiss" data-bid="'+b.broadcast_id+'" onclick="dismissBroadcast(this.dataset.bid)" title="Dismiss">&times;</button>'
+    +'</div>').join('')
+}
+async function dismissBroadcast(bid){
+  if(!TEACHER)return
+  await sb.from('broadcast_reads').upsert({broadcast_id:bid,teacher_id:TEACHER.teacher_id,read_at:new Date().toISOString()},{onConflict:'broadcast_id,teacher_id'})
+  loadBroadcasts()
+}
+
+
+// ═══════════ DAILY TIPS (rotate by date) ═══════════
+const CT_TIPS=[
+  {icon:'📅',title:'Mark attendance early',text:'Marking attendance in the first period keeps records accurate and avoids end-of-day pileups.'},
+  {icon:'🎯',title:'Track the below-75% list',text:'Check the Attendance Report monthly. Students under 75% may need a gentle reminder home.'},
+  {icon:'📞',title:'Keep phone numbers updated',text:'Verify parent phone numbers in Manage My Class — accurate contacts matter during emergencies.'},
+  {icon:'🔢',title:'Roll numbers drive everything',text:'Roll numbers are used across marks, attendance and reports. Keep them tidy and sequential.'},
+  {icon:'📊',title:'Review marks after each test',text:'The Assessment Marks matrix flags failing and low-attendance students automatically — a quick way to spot who needs help.'},
+  {icon:'💬',title:'Reply to admin notices',text:'Check your messages for broadcasts and requests. Timely replies keep the school running smoothly.'},
+  {icon:'📎',title:'Upload student documents',text:'Keep Aadhaar, birth and transfer certificates on file so admin has everything in one place.'},
+  {icon:'🌟',title:'Celebrate full attendance',text:'The monthly report highlights students with perfect attendance — a great thing to acknowledge in class.'},
+  {icon:'📝',title:'Double-check before submitting',text:'Attendance can be resubmitted, but a quick review before saving avoids corrections later.'},
+  {icon:'💰',title:'Collect exam fees on time',text:'When admin unlocks an exam fee, collect and mark payments promptly to keep records current.'},
+  {icon:'🧭',title:'Use search in Manage My Class',text:'Quickly find any student by name, roll number or father\'s name using the search box.'},
+  {icon:'⏰',title:'Late is not absent',text:'Use the L (Late) status for students who arrive late — it still counts toward attendance, unlike Absent.'},
+  {icon:'📚',title:'Keep an eye on trends',text:'A dropping monthly attendance average is an early sign worth a conversation with the student.'},
+  {icon:'🤝',title:'Coordinate with subject teachers',text:'Subject teachers enter their own marks. If something looks off, a quick message clears it up.'},
+]
+
+function todaysTip(){
+  // Rotate by day-of-year so it changes daily and is stable through the day
+  const now=new Date()
+  const start=new Date(now.getFullYear(),0,0)
+  const dayOfYear=Math.floor((now-start)/86400000)
+  return CT_TIPS[dayOfYear % CT_TIPS.length]
+}
+
+function renderAttendanceBanner(mode,stats){
+  const banner=$('dashAttBanner')
+  if(!banner)return
+  banner.style.display='block'
+  banner.style.background='#216F40'
+  // Restore the attendance-style banner content
+  banner.innerHTML='<div style="position:absolute;width:180px;height:180px;border-radius:50%;border:1px solid rgba(255,255,255,.1);right:-50px;bottom:-90px"></div>'
+    +'<div style="position:absolute;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.05);right:100px;top:-30px"></div>'
+    +'<div style="position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">'
+    +'<div>'
+    +'<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.65);font-weight:700;margin-bottom:4px">Today\'s Attendance</div>'
+    +(mode==='done'
+      ?'<div style="font-size:18px;font-weight:800;color:#fff">✓ Attendance marked today</div><div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">'+stats.present+' present · '+stats.absent+' absent'+(stats.late?' · '+stats.late+' late':'')+'</div>'
+      :'<div style="font-size:18px;font-weight:800;color:#fff">⚠️ Attendance not marked yet</div><div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">Mark attendance for today</div>')
+    +'</div>'
+    +(mode!=='done'?'<button onclick="goTo(\'daily\',document.querySelector(\'.sb-item[onclick*=daily]\'))" style="background:#fff;color:#216F40;border:none;padding:10px 20px;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">Mark Attendance →</button>':'')
+    +'</div>'
+}
+
+function renderTipBanner(contextNote){
+  const banner=$('dashAttBanner')
+  if(!banner)return
+  const tip=todaysTip()
+  banner.style.display='block'
+  banner.style.background='linear-gradient(120deg,#E8F5ED,#D4EDD9)'
+  banner.innerHTML='<div style="position:absolute;width:160px;height:160px;border-radius:50%;background:rgba(33,111,64,.06);right:-40px;bottom:-80px"></div>'
+    +'<div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:16px">'
+    +'<div style="width:46px;height:46px;border-radius:13px;background:var(--grn);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+tip.icon+'</div>'
+    +'<div style="flex:1">'
+    +(contextNote?'<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--grn-dark);font-weight:700;margin-bottom:4px">'+esc(contextNote)+'</div>':'<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--grn-dark);font-weight:700;margin-bottom:4px">💡 Tip of the day</div>')
+    +'<div style="font-size:16px;font-weight:800;color:var(--ink)">'+esc(tip.title)+'</div>'
+    +'<div style="font-size:13px;color:var(--ink-soft);margin-top:4px;line-height:1.55">'+esc(tip.text)+'</div>'
+    +'</div></div>'
+}
+
 async function renderDashboard(){
   const hr=new Date().getHours()
   const greet=hr<12?'Good Morning':hr<17?'Good Afternoon':'Good Evening'
@@ -505,9 +619,15 @@ async function renderDashboard(){
 
   // Today's attendance
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  const todayStr=today()
+  const isSunday=new Date(todayStr).getDay()===0
+  // Check if today is a holiday
+  const{data:todayHoliday}=await sb.from('holidays').select('label').eq('date',todayStr).eq('session_id',SESS?.session_id||'').maybeSingle()
+  const isHoliday=!!todayHoliday
+
   if(eids.length){
     const{data:todayAtt}=await sb.from('student_attendance')
-      .select('enrollment_id,status').in('enrollment_id',eids).eq('date',today())
+      .select('enrollment_id,status').in('enrollment_id',eids).eq('date',todayStr)
     const present=(todayAtt||[]).filter(a=>a.status==='P').length
     const absent=(todayAtt||[]).filter(a=>a.status==='A').length
     const late=(todayAtt||[]).filter(a=>a.status==='L').length
@@ -515,23 +635,23 @@ async function renderDashboard(){
     $('subPresent').textContent='Present today'+(late?' ('+late+' late)':'')
     $('statAbsent').textContent=absent
 
-    const banner=$('dashAttBanner')
-    if(banner){
-      banner.style.display='block'
-      if(todayAtt?.length){
-        $('dashAttTitle').textContent='✓ Attendance marked today'
-        $('dashAttSub').textContent=present+' present · '+absent+' absent'+(late?' · '+late+' late':'')
-      } else {
-        $('dashAttTitle').textContent='⚠️ Attendance not marked yet'
-        $('dashAttSub').textContent='Mark attendance for today'
-      }
+    // Decide what the banner shows: holiday/Sunday → no attendance ask; done → confirmation; pending → ask; else → tip
+    const attendanceDue = !isSunday && !isHoliday && !(todayAtt?.length)
+    if(attendanceDue){
+      renderAttendanceBanner('pending',{present,absent,late})
+    } else if(!isSunday && !isHoliday && todayAtt?.length){
+      // Attendance done — nothing due, show tip with a done note
+      renderTipBanner('✓ Attendance marked today — '+present+' present, '+absent+' absent'+(late?', '+late+' late':''))
+    } else {
+      // Sunday or holiday — show a tip
+      renderTipBanner(isHoliday?('🏖️ Holiday today: '+(todayHoliday.label||'Holiday')):(isSunday?'☀️ It\'s Sunday — no attendance needed':''))
     }
 
     // Month avg attendance
     const now=new Date()
     const m1=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
     const{data:monthAtt}=await sb.from('student_attendance')
-      .select('status').in('enrollment_id',eids).gte('date',m1).lte('date',today())
+      .select('status').in('enrollment_id',eids).gte('date',m1).lte('date',todayStr)
     const totalRecs=monthAtt?.length||0
     const presRecs=(monthAtt||[]).filter(a=>a.status==='P'||a.status==='L').length
     $('statAvgAtt').textContent=totalRecs?Math.round(presRecs/totalRecs*100)+'%':'—'
