@@ -1902,6 +1902,13 @@ function subscribeMessages(recipientId){
 
 function injectIncomingMessage(m){
   if(m.message_type==='broadcast'){try{loadBroadcasts()}catch(e){}}
+  // Profile edit access granted — refresh profile so it unlocks live
+  if(m.message_type==='system_notification'&&/profile edit access|profile access/i.test((m.subject||''))){
+    try{
+      toast('✓ Profile edit access granted — you can now edit','success')
+      if($('page-profile')?.classList.contains('active'))loadProfile()
+    }catch(e){}
+  }
   try{checkUnreadMessages()}catch(e){}
   // If it's an access-grant notification, refresh permissions + activity feed live
   if(m.message_type==='system_notification'||/access|approved|granted|unlock/i.test((m.subject||'')+' '+(m.body||''))){
