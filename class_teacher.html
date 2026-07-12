@@ -514,7 +514,42 @@ SPS.ready().then(async()=>{
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
   await renderDashboard()
   loadBroadcasts()
+  subscribeProfileAccess()
 })
+
+let _lastCanEdit=null
+function subscribeProfileAccess(){
+  _lastCanEdit=MY_CLASS?.can_edit_profiles===true
+  sb.channel('ct_access_'+TEACHER.teacher_id)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'class_teacher_map',filter:'teacher_id=eq.'+TEACHER.teacher_id},payload=>{
+      const now=payload.new?.can_edit_profiles===true
+      if(now!==_lastCanEdit){
+        _lastCanEdit=now
+        MY_CLASS.can_edit_profiles=now
+        if(now){
+          try{localStorage.removeItem('sps_ct_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''))}catch(e){}
+          window._profileReqPending=false
+          toast('✓ Admin granted access to edit student profiles','success')
+          prependActivity('Admin granted access to edit student profiles','access')
+        }else{
+          toast('Student profile editing has been locked by admin','info')
+          prependActivity('Admin locked student profile editing','access')
+        }
+        if($('modal-overlay')?.classList.contains('open')&&window._profileStudentId){
+          const eid=CLASS_STUDENTS.find(s=>s.students?.student_id===window._profileStudentId)?.enrollment_id
+          if(eid)viewStudentProfile(eid)
+        }
+      }
+    }).subscribe((status)=>console.log('[RT] CT access channel:',status))
+}
+
+function prependActivity(text,type){
+  const actEl=$('dashActivity')
+  if(!actEl)return
+  const row='<div class="log-row"><div class="log-dot" style="background:'+(type==='access'?'var(--grn)':'var(--warn)')+'"></div><div><div class="txt">'+esc(text)+'</div><div class="ts">just now</div></div></div>'
+  if(actEl.querySelector('.log-row'))actEl.insertAdjacentHTML('afterbegin',row)
+  else actEl.innerHTML=row
+}
 
 // ═══════════ DASHBOARD ═══════════
 
@@ -950,6 +985,7 @@ async function viewStudentProfile(eid){
   const{data:ctPerms}=await sb.from('class_teacher_map')
     .select('can_edit_profiles').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
   const canEdit=ctPerms?.can_edit_profiles===true
+  const reqPending=window._profileReqPending||(function(){try{return localStorage.getItem('sps_ct_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''))==='1'}catch(e){return false}})()
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s.student_id||'')
 
   const avatarHtml=s.photo_url
@@ -988,7 +1024,7 @@ async function viewStudentProfile(eid){
     +(canEdit?'<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer">Change Photo<input type="file" accept="image/*" style="display:none" onchange="uploadStudentPhoto(_profileStudentId,this)"></label>':'')
     +'</div></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
-    +(!canEdit?'<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;font-size:12.5px;margin-bottom:14px">Profile editing is locked. Request access from admin to make changes.</div>':'')
+    +(!canEdit?'<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;font-size:12.5px;margin-bottom:14px">'+(reqPending?'Editing is locked. Your access request has been sent — waiting for admin approval.':'Profile editing is locked. Request access from admin to make changes.')+'</div>':'')
     +'<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:8px">Documents</div>'
     +docsHtml
     +(canEdit?'<button onclick="openDocUploadModal(_profileStudentId)" style="margin-top:10px;background:var(--lav-100);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);font-family:var(--font)">📎 Upload Document</button>':'')
@@ -996,7 +1032,8 @@ async function viewStudentProfile(eid){
 
   const foot='<button class="btn btn-ghost" onclick="closeModal()">Close</button>'
     +(canEdit?'<button class="btn btn-primary" onclick="saveStudentProfile()">Save Changes</button>':'')
-    +(!canEdit?'<button class="btn btn-soft" onclick="requestProfileEditAccess()">Request Edit Access</button>':'')
+    +(!canEdit&&reqPending?'<button class="btn btn-soft" disabled style="opacity:.7;cursor:default">⏳ Waiting for admin approval</button>':'')
+    +(!canEdit&&!reqPending?'<button class="btn btn-soft" onclick="requestProfileEditAccess()">Request Edit Access</button>':'')
 
   openModal('Student Profile',body,foot)
 }
@@ -1108,9 +1145,26 @@ async function requestProfileEditAccess(){
 async function submitProfileEditReq(){
   const note=document.getElementById('preq_reason')?.value?.trim()
   if(!note){toast('Please provide a reason','error');return}
-  const{error}=await sb.from('access_requests').insert({request_type:'profile_edit',teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id||'',note})
+  // Find an admin to send the message to
+  const{data:admins}=await sb.from('admins').select('admin_id').limit(1)
+  const adminId=admins?.[0]?.admin_id
+  if(!adminId){toast('No admin found to notify','error');return}
+  const className=(MY_CLASS.classes?.name||'?')+'-'+(MY_CLASS.class_sections?.name||'?')
+  const{error}=await sb.from('messages').insert({
+    sender_type:'teacher',sender_id:TEACHER.teacher_id,
+    recipient_type:'admin',recipient_id:adminId,
+    subject:'Student Profile Edit Access — Class '+className,
+    body:'Class Teacher '+(TEACHER.full_name||'')+' (Class '+className+') is requesting access to edit student profiles.\n\nReason: '+note+'\n\nPlease grant Student Profile Edit access for this class from Settings if approved.',
+    message_type:'direct',sent_at:new Date().toISOString()
+  })
   if(error){toast('Failed: '+error.message,'error');return}
-  toast('Request sent to admin','success');closeModal()
+  // Remember locally that a request was sent so buttons show "waiting"
+  try{localStorage.setItem('sps_ct_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''),'1')}catch(e){}
+  window._profileReqPending=true
+  toast('Request sent to admin ✓','success');closeModal()
+  // Refresh open profile so button updates
+  const eid=CLASS_STUDENTS.find(s=>s.students?.student_id===window._profileStudentId)?.enrollment_id
+  if(eid)viewStudentProfile(eid)
 }
 
 async function saveStudentProfile(studentId){
