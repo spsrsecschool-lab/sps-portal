@@ -1384,6 +1384,8 @@ async function loadStaff(){
   _staffRaw=data||[]; ALL_TEACHERS=_staffRaw
   const{data:ctData}=await sb.from('class_teacher_map').select('teacher_id,classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'')
   const ctMap={}; ctData?.forEach(r=>{ctMap[r.teacher_id]=(r.classes?.name||'')+'-'+(r.class_sections?.name||'')})
+  const{data:mtData}=await sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'')
+  window._motherSet=new Set((mtData||[]).map(r=>r.teacher_id))
   filterStaff(ctMap)
 }
 function filterStaff(ctMap){
@@ -1391,21 +1393,76 @@ function filterStaff(ctMap){
   const rows=(_staffRaw||[]).filter(t=>(!s||t.full_name?.toLowerCase().includes(s)||t.employee_code?.toLowerCase().includes(s))&&(!f||(f==='active'?t.is_active:!t.is_active)))
   const body=$('staffBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No teachers found.</p></div></td></tr>';return}
-  body.innerHTML=rows.map(t=>'<tr><td class="mono">'+esc(t.employee_code||'—')+'</td><td><span class="av-tbl">'+ini(t.full_name)+'</span>'+esc(t.full_name)+'</td><td>'+esc(t.designation||'—')+'</td><td class="mono">'+esc(t.phone||'—')+'</td><td>'+esc((ctMap||{})[t.teacher_id]||'—')+'</td><td>'+(t.username?'<span class="pill pill-success">'+esc(t.username)+'</span>':'<span class="pill pill-warn">No Login</span>')+'</td><td><span class="pill '+(t.is_active?'pill-success':'pill-neutral')+'">'+(t.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px"><button class="btn btn-indigo btn-xs" data-tid="'+t.teacher_id+'" data-name="'+esc(t.full_name)+'" data-uname="'+esc(t.username||'')+'" onclick="openSetLoginModal(this.dataset.tid,this.dataset.name,this.dataset.uname)">'+( t.username?'Change Login':'Set Login')+'</button><button class="btn btn-ghost btn-xs" onclick="editTeacher(\''+t.teacher_id+'\')">Edit</button><button class="btn btn-danger btn-xs" onclick="toggleTeacher(\''+t.teacher_id+'\','+t.is_active+')">'+(t.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')
+  body.innerHTML=rows.map(t=>'<tr><td class="mono">'+esc(t.employee_code||'—')+'</td><td><span class="av-tbl">'+ini(t.full_name)+'</span>'+esc(t.full_name)+(window._motherSet?.has(t.teacher_id)?' <span class="pill pill-success" style="margin-left:6px;font-size:9px">MOTHER</span>':'')+'</td><td>'+esc(t.designation||'—')+'</td><td class="mono">'+esc(t.phone||'—')+'</td><td>'+esc((ctMap||{})[t.teacher_id]||'—')+'</td><td>'+(t.username?'<span class="pill pill-success">'+esc(t.username)+'</span>':'<span class="pill pill-warn">No Login</span>')+'</td><td><span class="pill '+(t.is_active?'pill-success':'pill-neutral')+'">'+(t.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px"><button class="btn btn-indigo btn-xs" data-tid="'+t.teacher_id+'" data-name="'+esc(t.full_name)+'" data-uname="'+esc(t.username||'')+'" onclick="openSetLoginModal(this.dataset.tid,this.dataset.name,this.dataset.uname)">'+( t.username?'Change Login':'Set Login')+'</button><button class="btn btn-ghost btn-xs" onclick="editTeacher(\''+t.teacher_id+'\')">Edit</button><button class="btn btn-danger btn-xs" onclick="toggleTeacher(\''+t.teacher_id+'\','+t.is_active+')">'+(t.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')
 }
+
+function toggleMotherFields(){
+  const chk=$('tc_mother'),fields=$('tc_mother_fields')
+  if(fields)fields.style.display=chk?.checked?'block':'none'
+}
+async function loadMotherSections(){
+  const cid=$('tc_mother_class')?.value,sel=$('tc_mother_section')
+  if(sel)sel.innerHTML='<option value="">Select class first</option>'
+  if(!cid)return
+  const{data:secs}=await sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  if(sel)sel.innerHTML='<option value="">Select section</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+}
+// Write/remove mother teacher map rows
+async function applyMotherTeacher(teacherId, isMother, classId, sectionId){
+  if(isMother){
+    if(!classId||!sectionId)return {error:{message:'Class and section required for mother teacher'}}
+    // Write to mother_teacher_map + class_teacher_map (with can_edit_profiles=true)
+    await sb.from('mother_teacher_map').delete().eq('teacher_id',teacherId).eq('session_id',SESS?.session_id||'')
+    await sb.from('class_teacher_map').delete().eq('teacher_id',teacherId).eq('session_id',SESS?.session_id||'')
+    const{error:e1}=await sb.from('mother_teacher_map').insert({teacher_id:teacherId,session_id:SESS?.session_id||'',class_id:classId,section_id:sectionId})
+    if(e1)return {error:e1}
+    const{error:e2}=await sb.from('class_teacher_map').insert({teacher_id:teacherId,session_id:SESS?.session_id||'',class_id:classId,section_id:sectionId,can_edit_profiles:true})
+    if(e2)return {error:e2}
+  }else{
+    // Remove mother mapping if unchecked
+    await sb.from('mother_teacher_map').delete().eq('teacher_id',teacherId).eq('session_id',SESS?.session_id||'')
+  }
+  return {error:null}
+}
+
 function openAddTeacherModal(){
   openModal('Add Teacher',
-    '<div class="form-row"><div class="fg"><label>Full Name *</label><input id="tc_name"></div><div class="fg"><label>Employee Code *</label><input id="tc_code" placeholder="e.g. SPS-T-001"></div></div><div class="form-row"><div class="fg"><label>Designation</label><input id="tc_desig"></div><div class="fg"><label>Phone</label><input id="tc_phone"></div></div><div class="form-row"><div class="fg"><label>Username *</label><input id="tc_user" oninput="$(\'tc_email_hint\').textContent=this.value+\'@'+AUTH_EMAIL_DOMAIN+'\'"></div></div><div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px;font-size:12px;color:var(--ink-soft)">After saving, create auth account in Supabase Dashboard → Authentication → Users.<br>Email: <b id="tc_email_hint">&lt;username&gt;@'+AUTH_EMAIL_DOMAIN+'</b></div>',
+    '<div class="form-row"><div class="fg"><label>Full Name *</label><input id="tc_name"></div><div class="fg"><label>Employee Code *</label><input id="tc_code" placeholder="e.g. SPS-T-001"></div></div><div class="form-row"><div class="fg"><label>Designation</label><input id="tc_desig"></div><div class="fg"><label>Phone</label><input id="tc_phone"></div></div><div class="form-row"><div class="fg"><label>Username *</label><input id="tc_user" oninput="$(\'tc_email_hint\').textContent=this.value+\'@'+AUTH_EMAIL_DOMAIN+'\'"></div></div><div style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700"><input type="checkbox" id="tc_mother" onchange="toggleMotherFields()" style="width:16px;height:16px;accent-color:var(--ink)"> Mother teacher? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(owns a class, teaches all subjects)</span></label><div id="tc_mother_fields" style="display:none;margin-top:12px"><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Class *</label><select id="tc_mother_class" onchange="loadMotherSections()"><option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="fg"><label>Section *</label><select id="tc_mother_section"><option value="">Select class first</option></select></div></div></div></div><div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px;font-size:12px;color:var(--ink-soft)">After saving, create auth account in Supabase Dashboard → Authentication → Users.<br>Email: <b id="tc_email_hint">&lt;username&gt;@'+AUTH_EMAIL_DOMAIN+'</b></div>',
     '<button class="btn btn-dark" onclick="saveTeacher()">Save Teacher</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
-function editTeacher(id){
+async function editTeacher(id){
   const t=ALL_TEACHERS.find(t=>t.teacher_id===id);if(!t)return
   openModal('Edit — '+t.full_name,
-    '<input type="hidden" id="tc_id" value="'+t.teacher_id+'"><div class="form-row"><div class="fg"><label>Full Name</label><input id="tc_name" value="'+esc(t.full_name||'')+'"></div><div class="fg"><label>Employee Code</label><input id="tc_code" value="'+esc(t.employee_code||'')+'"></div></div><div class="form-row"><div class="fg"><label>Designation</label><input id="tc_desig" value="'+esc(t.designation||'')+'"></div><div class="fg"><label>Phone</label><input id="tc_phone" value="'+esc(t.phone||'')+'"></div></div>',
+    '<input type="hidden" id="tc_id" value="'+t.teacher_id+'"><div class="form-row"><div class="fg"><label>Full Name</label><input id="tc_name" value="'+esc(t.full_name||'')+'"></div><div class="fg"><label>Employee Code</label><input id="tc_code" value="'+esc(t.employee_code||'')+'"></div></div><div class="form-row"><div class="fg"><label>Designation</label><input id="tc_desig" value="'+esc(t.designation||'')+'"></div><div class="fg"><label>Phone</label><input id="tc_phone" value="'+esc(t.phone||'')+'"></div></div><div style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700"><input type="checkbox" id="tc_mother" onchange="toggleMotherFields()" style="width:16px;height:16px;accent-color:var(--ink)"> Mother teacher? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(owns a class, teaches all subjects)</span></label><div id="tc_mother_fields" style="display:none;margin-top:12px"><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Class *</label><select id="tc_mother_class" onchange="loadMotherSections()"><option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="fg"><label>Section *</label><select id="tc_mother_section"><option value="">Select class first</option></select></div></div></div></div>',
     '<button class="btn btn-dark" onclick="updateTeacher()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+
+  // Pre-fill mother teacher status
+  const{data:mm}=await sb.from('mother_teacher_map').select('class_id,section_id').eq('teacher_id',id).eq('session_id',SESS?.session_id||'').maybeSingle()
+  if(mm){
+    const chk=$('tc_mother');if(chk)chk.checked=true
+    toggleMotherFields()
+    const cls=$('tc_mother_class');if(cls)cls.value=mm.class_id
+    await loadMotherSections()
+    const sec=$('tc_mother_section');if(sec)sec.value=mm.section_id
+  }
 }
-async function saveTeacher(){const name=$('tc_name')?.value?.trim(),code=$('tc_code')?.value?.trim(),user=$('tc_user')?.value?.trim();if(!name||!code||!user){toast('Name, code and username required','error');return};const{error}=await sb.from('teachers').insert({teacher_id:code,employee_code:code,full_name:name,designation:$('tc_desig')?.value?.trim()||null,phone:$('tc_phone')?.value?.trim()||null,username:user,is_active:true});if(error){toast('Failed: '+error.message,'error');return};toast('Teacher saved — create Supabase auth account now','success');closeModal();await loadGlobals();loadStaff()}
-async function updateTeacher(){const id=$('tc_id')?.value;const{error}=await sb.from('teachers').update({full_name:$('tc_name')?.value?.trim(),employee_code:$('tc_code')?.value?.trim(),designation:$('tc_desig')?.value?.trim()||null,phone:$('tc_phone')?.value?.trim()||null}).eq('teacher_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Updated','success');closeModal();await loadGlobals();loadStaff()}
+async function saveTeacher(){const name=$('tc_name')?.value?.trim(),code=$('tc_code')?.value?.trim(),user=$('tc_user')?.value?.trim();if(!name||!code||!user){toast('Name, code and username required','error');return};const{error}=await sb.from('teachers').insert({teacher_id:code,employee_code:code,full_name:name,designation:$('tc_desig')?.value?.trim()||null,phone:$('tc_phone')?.value?.trim()||null,username:user,is_active:true});if(error){toast('Failed: '+error.message,'error');return};// Apply mother teacher mapping if checked
+  const isMother=$('tc_mother')?.checked
+  if(isMother){
+    const mc=$('tc_mother_class')?.value,ms=$('tc_mother_section')?.value
+    if(!mc||!ms){toast('Select class and section for mother teacher','error');return}
+    const{error:me}=await applyMotherTeacher(code,true,mc,ms)
+    if(me){toast('Teacher saved but mother mapping failed: '+me.message,'error');closeModal();await loadGlobals();loadStaff();return}
+  }
+  toast('Teacher saved — create Supabase auth account now','success');closeModal();await loadGlobals();loadStaff()}
+async function updateTeacher(){const id=$('tc_id')?.value;const{error}=await sb.from('teachers').update({full_name:$('tc_name')?.value?.trim(),employee_code:$('tc_code')?.value?.trim(),designation:$('tc_desig')?.value?.trim()||null,phone:$('tc_phone')?.value?.trim()||null}).eq('teacher_id',id);if(error){toast('Failed: '+error.message,'error');return}
+  // Apply mother teacher mapping
+  const isMother=$('tc_mother')?.checked
+  const mc=$('tc_mother_class')?.value,ms=$('tc_mother_section')?.value
+  if(isMother&&(!mc||!ms)){toast('Select class and section for mother teacher','error');return}
+  const{error:me}=await applyMotherTeacher(id,isMother,mc,ms)
+  if(me){toast('Updated but mother mapping failed: '+me.message,'error');closeModal();await loadGlobals();loadStaff();return}
+  toast('Updated','success');closeModal();await loadGlobals();loadStaff()}
 async function toggleTeacher(id,active){confirmAct((active?'Deactivate':'Activate')+' this teacher?',active?'They lose portal access immediately.':'They regain portal access.',async()=>{await sb.from('teachers').update({is_active:!active}).eq('teacher_id',id);toast('Done','success');await loadGlobals();loadStaff()})}
 
 // ═══════════ STUDENTS ═══════════
@@ -2814,7 +2871,8 @@ async function loadMarksRequests(){
   const statusBadge=s=>s==='pending'?'<span class="pill pill-warn">Pending</span>':s==='approved'?'<span class="pill pill-indigo">Access Granted</span>':s==='completed'?'<span class="pill pill-success">Completed</span>':'<span class="pill pill-danger">Rejected</span>'
   const statusIcon=s=>s==='pending'?'🟡':s==='approved'?'🔵':s==='completed'?'🟢':'🔴'
 
-  el.innerHTML='<div style="display:flex;flex-direction:column;gap:12px">'+
+  const resolvedCount=data.filter(r=>r.status!=='pending').length
+  el.innerHTML=(resolvedCount>0?'<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn btn-ghost btn-sm" onclick="clearResolvedRequests()" style="color:var(--danger)">🗑 Clear '+resolvedCount+' resolved request'+(resolvedCount>1?'s':'')+'</button></div>':'')+'<div style="display:flex;flex-direction:column;gap:12px">'+
   data.map(r=>`
     <div class="card" style="cursor:pointer;padding:0;overflow:hidden" onclick="toggleReqCard('mrc_${r.request_id}')">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;gap:12px">
@@ -2932,7 +2990,8 @@ async function loadProfileRequests(){
   const statusBadge=s=>s==='pending'?'<span class="pill pill-warn">Pending</span>':s==='approved'?'<span class="pill pill-success">Access Granted</span>':s==='completed'?'<span class="pill pill-indigo">Completed</span>':'<span class="pill pill-danger">Rejected</span>'
   const statusIcon=s=>s==='pending'?'🟡':s==='approved'?'🟢':s==='completed'?'✅':'🔴'
 
-  el.innerHTML='<div style="display:flex;flex-direction:column;gap:12px">'+
+  const resolvedCount=data.filter(r=>r.status!=='pending').length
+  el.innerHTML=(resolvedCount>0?'<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn btn-ghost btn-sm" onclick="clearResolvedRequests()" style="color:var(--danger)">🗑 Clear '+resolvedCount+' resolved request'+(resolvedCount>1?'s':'')+'</button></div>':'')+'<div style="display:flex;flex-direction:column;gap:12px">'+
   data.map(r=>`
     <div class="card" style="cursor:pointer;padding:0;overflow:hidden" onclick="toggleReqCard('prc_${r.request_id}')">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;gap:12px">
@@ -2967,8 +3026,26 @@ async function loadProfileRequests(){
           <button class="btn btn-success" style="padding:10px 24px;font-size:13.5px" onclick="event.stopPropagation();approveProfileRequest('${r.request_id}','${r.teacher_id}')">✓ Grant Profile Edit</button>
         </div>`:''}
         ${r.status==='approved'?`<div style="text-align:right;font-size:12px;color:var(--ink-soft)">Waiting for teacher to update and submit their profile.</div>`:''}
+        ${r.status!=='pending'?`<div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="event.stopPropagation();deleteRequest('${r.request_id}')">Delete this request</button></div>`:''}
       </div>
     </div>`).join('')+'</div>'
+}
+
+
+async function deleteRequest(requestId){
+  if(!confirm('Delete this request permanently?'))return
+  const{error}=await sb.from('access_requests').delete().eq('request_id',requestId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Request deleted','success')
+  loadProfileRequests();loadMarksRequests?.();checkPendingRequests()
+}
+
+async function clearResolvedRequests(){
+  if(!confirm('Delete all approved, rejected and completed requests? Pending ones will be kept.'))return
+  const{error}=await sb.from('access_requests').delete().in('status',['approved','rejected','completed'])
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Resolved requests cleared','success')
+  loadProfileRequests();loadMarksRequests?.();checkPendingRequests()
 }
 
 async function approveProfileRequest(requestId, teacherId){
