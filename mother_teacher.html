@@ -242,6 +242,25 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 .menu-card:hover{transform:translateY(-3px);box-shadow:0 16px 30px -16px rgba(222,49,99,.35);border-color:var(--grn)}
 .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-soft);background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;margin-bottom:16px}
 
+
+/* Profile CSS (ported) */
+.profile-hero{
+    display:flex;align-items:center;gap:18px;
+    background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);
+    padding:22px;margin-bottom:18px;
+  }
+.avatar-lg{
+    width:68px;height:68px;border-radius:50%;
+    background:linear-gradient(135deg,#5A8FAA,var(--grn));
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:22px;font-weight:800;flex-shrink:0;
+  }
+.desig{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.tag-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.map-tag{background:var(--grn-100);color:var(--grn-dark);font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px}
+.stack{display:flex;flex-direction:column;gap:18px}
+.field-grp{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px}
+
 </style>
 </head>
 <body>
@@ -741,6 +760,7 @@ SPS.ready().then(async()=>{
   if(typeof subscribeMessages==='function')subscribeMessages(TEACHER.teacher_id)
   if(typeof checkUnreadMessages==='function')checkUnreadMessages()
   loadBroadcasts()
+  subscribeProfileAccess()
 })
 
 // Poll messages every 12s when messages page active
@@ -1166,10 +1186,9 @@ async function viewStudentProfile(eid){
   const s=enr.students||{}
   window._profileStudentId=s.student_id
 
-  const{data:ctPerms}=await sb.from('class_teacher_map')
-    .select('can_edit_profiles').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
-  const canEdit=true // mother teacher owns the class — edits by default
-  const reqPending=false
+  const{data:ctPerms}=await sb.from('class_teacher_map').select('can_edit_profiles').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
+  const canEdit=ctPerms?.can_edit_profiles===true
+  const reqPending=window._profileReqPending||(function(){try{return localStorage.getItem('sps_mt_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''))==='1'}catch(e){return false}})()
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s.student_id||'')
 
   const avatarHtml=s.photo_url
@@ -1343,7 +1362,7 @@ async function submitProfileEditReq(){
   })
   if(error){toast('Failed: '+error.message,'error');return}
   // Remember locally that a request was sent so buttons show "waiting"
-  try{localStorage.setItem('sps_ct_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''),'1')}catch(e){}
+  try{localStorage.setItem('sps_mt_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''),'1')}catch(e){}
   window._profileReqPending=true
   toast('Request sent to admin ✓','success');closeModal()
   // Refresh open profile so button updates
@@ -2377,7 +2396,7 @@ async function loadMyAttendance(){
   if(!from||!to){toast('Select date range','error');return}
   el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div>'
   const{data,error}=await sb.from('teacher_attendance')
-    .select('date,status,in_time,out_time,notes')
+    .select('date,status,time_in,time_out')
     .eq('teacher_id',TEACHER.teacher_id)
     .gte('date',from).lte('date',to).order('date')
   if(error){el.innerHTML='<div style="color:var(--danger);padding:20px">Error: '+esc(error.message)+'</div>';return}
@@ -2409,8 +2428,8 @@ async function loadMyAttendance(){
       return '<tr style="border-top:1px solid var(--line)">'
         +'<td style="padding:10px 14px;font-weight:600">'+fmtD(r.date)+'</td>'
         +'<td style="padding:10px 14px">'+statusPill+'</td>'
-        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.in_time?r.in_time.slice(0,5):'—')+'</td>'
-        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.out_time?r.out_time.slice(0,5):'—')+'</td>'
+        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.time_in?r.time_in.slice(0,5):'—')+'</td>'
+        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.time_out?r.time_out.slice(0,5):'—')+'</td>'
         +'<td style="padding:10px 14px;color:var(--ink-soft);font-size:12px">'+esc(r.notes||'—')+'</td>'
         +'</tr>'
     }).join('')
@@ -2473,6 +2492,55 @@ async function submitProfileEditRequest(){
 }
 
 
+
+// Profile render helpers (ported)
+function renderEditForm(t){
+  const lbl='display:block;font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px'
+  const inp='width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box'
+  return ['full_name:Full Name','designation:Designation','phone:Phone'].map(pair=>{
+    const[key,label]=pair.split(':')
+    return '<div style="margin-bottom:14px"><label style="'+lbl+'">'+label+'</label><input id="pf_'+key+'" value="'+esc(t[key]||'')+'" style="'+inp+'"></div>'
+  }).join('')+'<div style="margin-bottom:14px"><label style="'+lbl+'">Employee Code</label><input value="'+esc(t.employee_code||'—')+'" disabled style="'+inp+';opacity:.6;cursor:not-allowed"></div>'
+}
+
+function renderViewFields(t){
+  return ['full_name:Full Name','designation:Designation','phone:Phone','employee_code:Employee Code'].map(pair=>{
+    const[key,label]=pair.split(':')
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)"><span style="font-size:12px;font-weight:600;color:var(--ink-soft)">'+label+'</span><span style="font-size:13.5px;font-weight:600;color:var(--ink)">'+esc(t[key]||'—')+'</span></div>'
+  }).join('')
+}
+
+let _lastCanEditStudents=null
+function subscribeProfileAccess(){
+  _lastCanEditStudents=null
+  sb.channel('mt_access_'+TEACHER.teacher_id)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'class_teacher_map',filter:'teacher_id=eq.'+TEACHER.teacher_id},payload=>{
+      const now=payload.new?.can_edit_profiles===true
+      if(now!==_lastCanEditStudents){
+        _lastCanEditStudents=now
+        if(now){
+          try{localStorage.removeItem('sps_mt_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''))}catch(e){}
+          window._profileReqPending=false
+          toast('✓ Admin granted access to edit student profiles','success')
+          prependActivity('Admin granted access to edit student profiles','access')
+        }else{
+          toast('Student profile editing locked by admin','info')
+          prependActivity('Admin locked student profile editing','access')
+        }
+        // Refresh open student profile modal
+        if($('modal-overlay')?.classList.contains('open')&&window._profileStudentId){
+          const eid=CLASS_STUDENTS.find(s=>s.students?.student_id===window._profileStudentId)?.enrollment_id
+          if(eid)viewStudentProfile(eid)
+        }
+      }
+    }).subscribe()
+}
+function prependActivity(text,type){
+  const actEl=$('dashActivity');if(!actEl)return
+  const row='<div class="log-row"><div class="log-dot" style="background:'+(type==='access'?'var(--grn)':'var(--warn)')+'"></div><div><div class="txt">'+esc(text)+'</div><div class="ts">just now</div></div></div>'
+  if(actEl.querySelector('.log-row'))actEl.insertAdjacentHTML('afterbegin',row)
+  else actEl.innerHTML=row
+}
 </script>
 </body>
 </html>
