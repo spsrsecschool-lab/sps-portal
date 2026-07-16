@@ -1,0 +1,3185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fee Portal — Shiv Public School</title>
+<script>window.PORTAL_KEY = 'admin'</script>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#0f1117; --surface:#181c27; --surface2:#1e2333; --border:#2a2f42;
+    --accent:#4f8ef7; --green:#2ecc71; --yellow:#f39c12; --red:#e74c3c;
+    --text:#e8eaf0; --muted:#7a8099;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  body.light-theme {
+    --bg:#f4f6fb; --surface:#ffffff; --surface2:#eef1f7; --border:#d0d5e8;
+    --accent:#2563eb; --green:#16a34a; --yellow:#d97706; --red:#dc2626;
+    --text:#1a1f36; --muted:#6b7280;
+  }
+  body.light-theme .bundle-child-row td{background:rgba(0,0,0,.04)!important}
+  body.light-theme tr:hover td{background:rgba(0,0,0,.02)}
+  body.light-theme .sticky,body.light-theme .sticky2,body.light-theme .sticky3{background:var(--surface)}
+  body.light-theme thead tr th { background: var(--surface2); }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+  #sidebar{width:220px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100}
+  .logo{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+  .logo h1{font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--accent);text-transform:uppercase}
+  .logo p{font-size:10px;color:var(--muted);margin-top:3px}
+  nav{flex:1;padding:12px 0;overflow-y:auto}
+  nav a{display:flex;align-items:center;gap:10px;padding:9px 18px;font-size:12.5px;color:var(--muted);text-decoration:none;cursor:pointer;transition:all .15s;border-left:3px solid transparent}
+  nav a:hover{color:var(--text);background:var(--surface2)}
+  nav a.active{color:var(--accent);background:rgba(79,142,247,.08);border-left-color:var(--accent)}
+  nav a .icon{font-size:15px}
+  .session-badge{margin:12px;padding:8px 10px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.2);border-radius:6px;font-size:11px;color:var(--accent);font-family:var(--mono)}
+  #main{margin-left:220px;flex:1;min-height:100vh;overflow-x:hidden}
+  .topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:50}
+  .topbar h2{font-size:14px;font-weight:600;flex:1}
+  .topbar-actions{display:flex;gap:8px;align-items:center}
+  .page{display:none;padding:24px}
+  .page.active{display:block}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:16px}
+  .card h3{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+  .stat-card .label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+  .stat-card .value{font-size:26px;font-family:var(--mono);font-weight:500;margin-top:6px}
+  .stat-card .value.green{color:var(--green)} .stat-card .value.yellow{color:var(--yellow)} .stat-card .value.red{color:var(--red)}
+  .form-row{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .form-group{display:flex;flex-direction:column;gap:5px;min-width:150px;flex:1}
+  .form-group label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+  input,select,textarea{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 11px;border-radius:6px;font-size:13px;font-family:var(--sans);outline:none;transition:border-color .15s;width:100%}
+  input:focus,select:focus{border-color:var(--accent)}
+  input[type=number]{font-family:var(--mono)}
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input[type=number]{-moz-appearance:textfield}
+  input[readonly]{opacity:.6;cursor:default}
+  .btn{padding:8px 16px;border-radius:6px;border:none;cursor:pointer;font-size:12.5px;font-weight:500;font-family:var(--sans);transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .btn-primary{background:var(--accent);color:#fff} .btn-primary:hover{background:#3a7de8}
+  .btn-success{background:var(--green);color:#fff}
+  .btn-danger{background:var(--red);color:#fff} .btn-danger:hover{background:#c0392b}
+  .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)} .btn-ghost:hover{background:var(--border)}
+  .btn-sm{padding:4px 10px;font-size:11px}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  thead tr{background:var(--surface2);}
+  thead{position:sticky;top:0;z-index:10;}
+  th{padding:10px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);white-space:nowrap;font-weight:600;background:var(--surface2);}
+  td{padding:9px 12px;vertical-align:middle}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  tr:hover td.sticky,tr:hover td.sticky2,tr:hover td.sticky3{background:var(--surface)!important}
+  body.light-theme tr:hover td.sticky,
+  body.light-theme tr:hover td.sticky2,
+  body.light-theme tr:hover td.sticky3{background:var(--surface)!important}
+  table th,table td{border:1px solid var(--border)}
+  .sticky{position:sticky;left:0;background:var(--surface);z-index:2}
+  .sticky2{position:sticky;left:50px;background:var(--surface);z-index:2}
+  .sticky3{position:sticky;left:200px;background:var(--surface);z-index:2}
+  .pill{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .pill-green{background:rgba(46,204,113,.15);color:var(--green)}
+  .pill-yellow{background:rgba(243,156,18,.15);color:var(--yellow)}
+  .pill-red{background:rgba(231,76,60,.15);color:var(--red)}
+  .pill-blue{background:rgba(79,142,247,.15);color:var(--accent)}
+  .search-bar{display:flex;gap:10px;margin-bottom:16px;align-items:flex-end;flex-wrap:wrap}
+  .family-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:16px}
+  .sib-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+  .sib-card .hdr{display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;align-items:flex-start;gap:6px}
+  .sib-card .hdr-name{display:flex;flex-direction:column;gap:2px}
+  .sib-card .fee-rate{font-size:10px;color:var(--accent);font-family:var(--mono)}
+  .sib-card .val-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+  .sib-card .val-row .val{font-family:var(--mono);font-weight:600}
+  .family-total-bar{background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.25);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;gap:24px;flex-wrap:wrap;align-items:center}
+  .family-total-bar .ft-item{display:flex;flex-direction:column;gap:2px}
+  .family-total-bar .ft-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .family-total-bar .ft-val{font-family:var(--mono);font-size:15px;font-weight:600}
+  .mode-toggle{display:flex;gap:8px;margin-bottom:16px}
+  .mode-btn{padding:6px 12px;font-size:12px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer}
+  .mode-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .lock-bar{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:13px;margin:12px 0}
+  .lock-bar.matched{border-color:var(--green)} .lock-bar.unmatched{border-color:var(--red)}
+  .lock-bar .lk-total{color:var(--muted)}
+  .lock-bar .lk-status.matched{color:var(--green);font-weight:600}
+  .lock-bar .lk-status.unmatched{color:var(--red);font-weight:600}
+  .log-entry{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:12.5px;align-items:flex-start}
+  .log-entry:last-child{border-bottom:none}
+  .log-entry .ts{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:110px;padding-top:2px}
+  .log-entry .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);margin-top:5px;flex-shrink:0}
+  .cell-paid{background:rgba(46,204,113,.12)} .cell-partial{background:rgba(243,156,18,.12)} .cell-unpaid{background:rgba(231,76,60,.07)}
+  .matrix-cell{text-align:center;font-family:var(--mono);font-size:11px;min-width:110px;padding:6px 8px!important;vertical-align:middle!important}
+  .matrix-cell .pay-amt{font-weight:600;font-size:11.5px;color:var(--text)}
+  .matrix-cell .pay-date{color:var(--muted);font-size:9px}
+  .matrix-cell .payment-row{display:flex;justify-content:center;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08)}
+  .matrix-cell .payment-row:last-child{border-bottom:none}
+  .backlog-grid td input{background:transparent;border:1px solid transparent;padding:4px 6px;font-size:12px;width:100%;border-radius:4px;text-align:right}
+  .backlog-grid td input:focus{border-color:var(--accent);background:var(--bg)}
+  .profile-section{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  .field-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+  .field-row label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+  .field-row .field-val{font-size:13px;padding:8px 11px;background:var(--bg);border:1px solid var(--border);border-radius:6px}
+  .field-row input.editable,.field-row select.editable{border-color:var(--accent)}
+  .dues-block{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+  .dues-block .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px}
+  .dues-block .amt{font-family:var(--mono);font-size:16px;font-weight:600}
+  .dues-block .amt.green{color:var(--green)} .dues-block .amt.red{color:var(--red)}
+  .breakdown-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px;margin-bottom:16px;font-size:12px;display:none}
+  .breakdown-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border)}
+  .breakdown-row:last-child{border-bottom:none}
+  .confirm-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);display:flex;justify-content:center;align-items:center;z-index:19999}
+  .confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 28px 22px;max-width:460px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,0.6)}
+  .confirm-box h3{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--text)}
+  .confirm-box p{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:18px;white-space:pre-wrap}
+  .confirm-box .items{background:var(--surface2);border-radius:6px;padding:10px 12px;margin-bottom:18px;font-size:12px;font-family:var(--mono);color:var(--yellow);line-height:1.8;white-space:pre-wrap;max-height:240px;overflow-y:auto}
+  .confirm-box .btns{display:flex;gap:10px;justify-content:flex-end}
+  #toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;font-size:13px;z-index:20000;transform:translateY(80px);opacity:0;transition:all .25s;max-width:320px}
+  #toast.show{transform:translateY(0);opacity:1}
+  #toast.success{border-color:var(--green);color:var(--green)}
+  #toast.error{border-color:var(--red);color:var(--red)}
+  .bundle-master-row td{cursor:pointer}
+  .bundle-master-row:hover td{background:rgba(79,142,247,.04)!important}
+  .bundle-toggle-btn{transition:transform .2s;display:inline-block;font-size:12px}
+  .bundle-toggle-btn.open{transform:rotate(90deg)}
+  .bundle-child-row{display:none;font-size:11.5px}
+  .bundle-child-row.open{display:table-row}
+  .bundle-child-row td{background:rgba(0,0,0,.15)!important;padding:6px 12px!important;border-left:3px solid var(--accent)!important}
+  .waiver-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(5px);display:flex;justify-content:center;align-items:flex-start;z-index:11000;overflow-y:auto;padding:32px 16px}
+  .waiver-modal{background:var(--bg);border:1px solid var(--border);border-radius:14px;width:100%;max-width:820px;padding:26px;box-shadow:0 16px 48px rgba(0,0,0,0.55)}
+  .waiver-modal .wm-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+  .waiver-modal .wm-header h2{font-size:17px;font-weight:600;color:var(--text);margin:0}
+  .waiver-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:360px;box-shadow:0 12px 40px rgba(0,0,0,0.6);z-index:12000}
+  .waiver-popup h4{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text)}
+  .cell-waived{background:rgba(243,156,18,.1)}
+  .waiver-badge{display:inline-block;background:rgba(243,156,18,.18);color:var(--yellow);font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
+  .divider{height:1px;background:var(--border);margin:16px 0}
+  .text-muted{color:var(--muted);font-size:12px}
+  .mono{font-family:var(--mono)}
+  .mt-8{margin-top:8px} .mt-16{margin-top:16px} .mb-16{margin-bottom:16px}
+  a.link{color:var(--accent);cursor:pointer;text-decoration:underline;font-weight:500}
+  .backlog-save-btn{padding:2px 8px;font-size:16px;border-radius:4px;background:var(--green);color:#fff;border:none;cursor:pointer;line-height:1.4;opacity:.85;transition:opacity .15s;display:inline-block;}
+  .backlog-save-btn:hover{opacity:1;}
+  .table-wrap{overflow-x:auto;overflow-y:auto;border-radius:8px;border:1px solid var(--border);max-height:75vh;}
+  .table-wrap.no-maxh{max-height:none;}
+  .readm-sno-input{width:90px;font-family:var(--mono);text-align:center;padding:5px 6px}
+  #bootOverlay{position:fixed;inset:0;background:var(--bg);z-index:30000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+  #bootOverlay .spin{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media print{#sidebar,.topbar,.btn{display:none!important}#main{margin-left:0}.page.active{display:block!important}}
+</style>
+</head>
+<body>
+<div id="bootOverlay"><div class="spin"></div><div class="text-muted">Loading fee portal…</div></div>
+<aside id="sidebar">
+  <div class="logo"><h1>Fee Portal</h1><p>Shiv Public School</p></div>
+  <nav>
+    <a class="active" data-page="dashboard"><span class="icon">⊞</span> Dashboard</a>
+    <a data-page="counter"><span class="icon">₹</span> Family Wallet</a>
+    <a data-page="students"><span class="icon">◉</span> Students</a>
+    <a data-page="transactions"><span class="icon">▤</span> Transactions</a>
+    <a data-page="matrix"><span class="icon">⊟</span> Fee Matrix</a>
+    <a data-page="backlog"><span class="icon">↺</span> Backlog Entry</a>
+    <a data-page="admission"><span class="icon">+</span> New Admission</a>
+    <a data-page="readmission"><span class="icon">▶</span> Re-admission</a>
+    <a data-page="defaulters"><span class="icon">⚠</span> Defaulters</a>
+    <a data-page="settings"><span class="icon">⚙</span> Settings</a>
+  </nav>
+  <div class="session-badge" id="sessionBadgeText">Session: —</div>
+</aside>
+
+<div id="main">
+  <div class="topbar">
+    <h2 id="pageTitle">Dashboard</h2>
+    <div class="topbar-actions">
+      <div id="connectionStatus" style="display:inline-flex;align-items:center;gap:8px;font-size:10px;font-family:var(--mono);font-weight:600;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none;text-transform:uppercase;letter-spacing:0.05em;">
+        <span id="statusDot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;transition:background 0.25s;"></span>
+        <span id="statusText" style="color:var(--muted);transition:color 0.25s;">Initializing</span>
+      </div>
+      <button class="btn btn-ghost" onclick="exportCSV()">⬇ Export CSV</button>
+      <button class="btn btn-ghost" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle Light/Dark Theme" style="font-size:16px;padding:6px 10px;">🌙</button>
+      <select id="sessionSelect" style="width:160px" onchange="previewSession(this.value)"></select>
+      <button class="btn btn-ghost" onclick="SPS.signOut()" title="Sign out">⎋</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="stats-grid" id="statsGrid"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card"><h3>Activity Log (Last 10 Actions)</h3><div id="activityLog" style="max-height:440px;overflow-y:auto"></div></div>
+      <div class="card"><h3>Class Summary</h3><div id="classSummary"></div></div>
+    </div>
+  </div>
+
+  <!-- FAMILY WALLET -->
+  <div class="page" id="page-counter">
+    <div class="search-bar">
+      <input type="text" id="counterSearch" placeholder="Search by Family Code, Student Name, Father, Phone, S.No…" style="min-width:360px;" oninput="searchCounter(this.value)">
+    </div>
+    <div id="counterResults" style="margin-bottom:16px;max-height:220px;overflow-y:auto"></div>
+    <div id="counterPanel" style="display:none">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+          <div>
+            <div style="font-size:18px;font-weight:600">Family Code: <span id="c_familyCode" style="color:var(--accent)"></span></div>
+            <div class="text-muted" id="c_fatherInfo"></div>
+          </div>
+          <span class="pill pill-blue" id="c_sibCount"></span>
+        </div>
+        <div id="c_familyTotalBar" class="family-total-bar"></div>
+        <div class="family-summary-grid" id="c_familySummary"></div>
+        <div class="form-row" style="margin-bottom:16px;align-items:flex-end;">
+          <div class="form-group" style="max-width:220px"><label>Payment Date &amp; Time</label><input type="datetime-local" id="c_datetime"></div>
+          <div class="form-group" style="max-width:300px"><label>Remarks (optional)</label><input type="text" id="c_remarks" placeholder="e.g. cheque / partial"></div>
+        </div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="btnModeManual" onclick="switchCounterMode('manual')">Manual Entry</button>
+          <button class="mode-btn" id="btnModeAuto" onclick="switchCounterMode('auto')">Auto-Allocate (Family Waterfall)</button>
+        </div>
+        <div id="manualAllocGrid" style="display:none;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
+        <div id="autoAllocContainer" style="display:none;margin-bottom:16px;">
+          <div class="form-row" style="margin-bottom:12px;align-items:flex-end;">
+            <div class="form-group">
+              <label style="color:var(--accent);font-weight:600;">Allocation Priority (This Transaction)</label>
+              <select id="c_allocPriority" style="border-color:var(--accent)"></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label style="color:var(--accent);font-weight:600;">Total Cash Received (₹)</label>
+            <input type="number" id="c_totalCash" placeholder="Enter lump sum…" style="font-size:20px;font-family:var(--mono);border-color:var(--accent);" oninput="runFamilyAutoAllocate()">
+          </div>
+          <div id="autoAllocPreview" style="margin-top:12px;background:rgba(79,142,247,.08);padding:12px;border-radius:8px;border:1px solid rgba(79,142,247,.2);display:none;"></div>
+        </div>
+        <div class="lock-bar unmatched" id="lockBar">
+          <span class="lk-total" id="lk_total">Total: ₹0</span>
+          <span class="lk-status unmatched" id="lk_status">Enter amounts above</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-success" id="submitPayBtn" onclick="submitFamilyPayment()" disabled>🔒 Enter a payment amount to proceed</button>
+          <button class="btn btn-danger btn-sm" onclick="cancelPayment()" id="cancelPayBtn">✕ Cancel Payment</button>
+        </div>
+      </div>
+      <div class="card"><h3>Recent Transactions for this Family</h3><div class="table-wrap no-maxh" id="familyTxnTable"></div></div>
+    </div>
+  </div>
+
+  <!-- STUDENTS -->
+  <div class="page" id="page-students">
+    <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content;">
+      <button id="stuViewStudent" class="mode-btn active" style="border-radius:0;border:none;padding:7px 18px;" onclick="switchStudentView('student')">👤 Student View</button>
+      <button id="stuViewFamily"  class="mode-btn"        style="border-radius:0;border:none;padding:7px 18px;border-left:1px solid var(--border);" onclick="switchStudentView('family')">👨‍👩‍👧‍👦 Family View</button>
+    </div>
+    <div id="studentViewPanel">
+      <div class="search-bar">
+        <div class="form-group"><label>Search Student</label><input type="text" id="stuSearch" placeholder="Name, S.No, Phone, Father, Family Code…" oninput="renderStudents()"></div>
+        <div class="form-group"><label>Filter By Class</label><select id="stuClassFilter" onchange="renderStudents()"><option value="">All Classes</option></select></div>
+        <div class="form-group"><label>Re-admission</label><select id="stuReadmFilter" onchange="renderStudents()"><option value="">All Students</option><option value="pending">Not Re-admitted</option><option value="done">Re-admitted</option></select></div>
+        <div class="form-group" style="justify-content:flex-end;"><button class="btn btn-ghost" onclick="renderStudents()">Refresh</button></div>
+      </div>
+      <div class="table-wrap" id="stuTable"></div>
+    </div>
+    <div id="familyViewPanel" style="display:none;">
+      <div class="search-bar">
+        <div class="form-group"><label>Search Family</label><input type="text" id="famSearch" placeholder="Family Code, Father's Name, Child Name, S.No…" oninput="renderFamilyView()"></div>
+        <div class="form-group" style="justify-content:flex-end;"><button class="btn btn-ghost" onclick="renderFamilyView()">Refresh</button></div>
+      </div>
+      <div id="familyViewContainer"></div>
+    </div>
+  </div>
+
+  <!-- FAMILY PROFILE -->
+  <div class="page" id="page-familyprofile">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px">
+      <button class="btn btn-ghost" onclick="goTo('students')">← Back to Students</button>
+      <h2 id="fp_title" style="font-size:17px;font-weight:600;flex:1"></h2>
+      <button class="btn btn-ghost" id="fp_editToggle" onclick="toggleFamilyProfileEdit()">✎ Edit Family</button>
+      <button class="btn btn-success" id="fp_saveBtn" style="display:none" onclick="saveFamilyProfile()">✓ Save</button>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" id="fp_headerFields"></div>
+    </div>
+    <div class="card" style="margin-bottom:16px"><h3>Children in this Family</h3><div id="fp_children"></div></div>
+    <div class="card" style="margin-bottom:16px"><h3>Family Dues Summary</h3><div id="fp_dues"></div></div>
+    <div class="card"><h3>Family Payment Ledger</h3><div class="table-wrap no-maxh" id="fp_ledger"></div></div>
+  </div>
+
+  <!-- TRANSACTIONS -->
+  <div class="page" id="page-transactions">
+    <div class="search-bar">
+      <div class="form-group"><label>Search Bundle/Name</label><input type="text" id="txnSearch" placeholder="Bundle Txn ID, S.No, Name" oninput="renderTransactions()"></div>
+      <div class="form-group"><label>Month Filter</label><select id="txnMonthFilter" onchange="renderTransactions()"><option value="">All Months</option></select></div>
+      <div class="form-group"><label>From Date</label><input type="date" id="txnDateStart" onchange="renderTransactions()"></div>
+      <div class="form-group"><label>To Date</label><input type="date" id="txnDateEnd" onchange="renderTransactions()"></div>
+    </div>
+    <div class="table-wrap" id="txnTable"></div>
+  </div>
+
+  <!-- STUDENT PROFILE -->
+  <div class="page" id="page-profile">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px">
+      <button class="btn btn-ghost" id="profBackBtn" onclick="goTo(profileReturnPage||'students')">← Back</button>
+      <h2 id="prof_title" style="font-size:17px;font-weight:600;flex:1"></h2>
+      <button class="btn btn-danger" id="deleteStudentBtn" style="display:none" onclick="deleteStudent()">🗑 Delete Enrollment</button>
+      <button class="btn btn-ghost" id="editToggleBtn" onclick="toggleProfileEdit()">✎ Edit Profile</button>
+      <button class="btn btn-success" id="saveProfileBtn" style="display:none" onclick="saveProfile()">✓ Save Changes</button>
+      <button class="btn btn-ghost" id="waiverBtn" onclick="openWaiverModal(profileEid)" style="border-color:var(--yellow);color:var(--yellow);">🏷 Manage Fee Waivers</button>
+    </div>
+    <div class="profile-section">
+      <div class="card"><h3>Demographics</h3><div id="prof_demo"></div></div>
+      <div class="card">
+        <h3>Fee Settings</h3><div id="prof_fees"></div>
+        <div class="divider"></div>
+        <h3>Dues Summary</h3><div id="prof_dues"></div>
+        <button class="btn btn-ghost btn-sm mt-8" onclick="toggleProfileBreakdown()">🔍 Show/Hide Breakdown</button>
+        <div id="prof_breakdown" class="breakdown-box"></div>
+      </div>
+    </div>
+    <div class="card" id="prof_siblings_card" style="display:none;margin-bottom:16px"><h3>Linked Siblings</h3><div id="prof_siblings"></div></div>
+    <div class="card"><h3>Payment Ledger</h3><div class="table-wrap no-maxh" id="prof_ledger"></div></div>
+  </div>
+
+  <!-- FEE MATRIX -->
+  <div class="page" id="page-matrix">
+    <div class="search-bar" style="align-items:flex-end;gap:12px;">
+      <div class="form-group" style="max-width:180px"><label>Class</label><select id="matrixClass" onchange="renderMatrix()"><option value="">— Select Class —</option></select></div>
+      <div class="form-group" style="max-width:260px"><label>Search / Filter by Family Code</label><input type="text" id="matrixFamilySearch" placeholder="Family Code or Student Name…" oninput="renderMatrix()"></div>
+    </div>
+    <div id="matrixContainer"></div>
+  </div>
+
+  <!-- BACKLOG -->
+  <div class="page" id="page-backlog">
+    <div class="card" style="margin-bottom:14px"><h3>Bulk Backlog Entry — April through March</h3><p class="text-muted">Use Tab/Enter to navigate. Each month column has an amount and a payment date. Leave blank to skip. Use the <b>Save Row</b> button per student to save individually, or the bulk save button at the bottom.</p></div>
+    <div class="search-bar"><select id="backlogClass" onchange="renderBacklog()"><option value="">— Select Class —</option></select></div>
+    <div class="backlog-grid" id="backlogContainer"></div>
+    <div id="backlogSave" style="margin-top:14px;display:none"><button class="btn btn-success" onclick="saveBacklog()">✓ Save All Backlog Entries</button></div>
+  </div>
+
+  <!-- ADMISSION -->
+  <div class="page" id="page-admission">
+    <div class="card" style="max-width:680px">
+      <h3>New Student Admission</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Student Name *</label><input type="text" id="a_name" placeholder="Full name"></div>
+        <div class="form-group"><label>Father's Name *</label><input type="text" id="a_father" placeholder="Father's full name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Mother's Name</label><input type="text" id="a_mother" placeholder="Optional"></div>
+        <div class="form-group"><label>Date of Birth</label><input type="date" id="a_dob"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Phone No.</label><input type="text" id="a_phone" placeholder="Primary mobile"></div>
+        <div class="form-group"><label>Alternate Phone</label><input type="text" id="a_altPhone" placeholder="Optional alternate no."></div>
+        <div class="form-group"><label>Admission Date</label><input type="date" id="a_admdate"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Class *</label><select id="a_class" onchange="loadAdmSections()"><option value="">Select class</option></select></div>
+        <div class="form-group"><label>Section *</label><select id="a_section"><option value="">Select class first</option></select></div>
+        <div class="form-group" style="max-width:130px"><label>S.No *</label><input type="text" id="a_sno" class="mono" placeholder="Auto"></div>
+      </div>
+      <div class="form-row mt-8">
+        <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;">
+          <input type="checkbox" id="a_isNew" style="width:auto;height:16px;" checked>
+          <label for="a_isNew" style="margin:0;text-transform:none;font-size:13px;">Is this a New Admission? (Waives Annual Charge)</label>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group"><label>Link to Existing Family (search Father's Name)</label><input type="text" id="a_familySearch" placeholder="Search existing parent…" oninput="searchFamily(this.value)"></div>
+        <div class="form-group" style="max-width:160px"><label>Family Code</label><input type="text" id="a_familyCode" class="mono" placeholder="Auto or manual"></div>
+      </div>
+      <div id="familyResults" style="margin-bottom:12px"></div>
+      <div id="backdatedDues" style="margin-bottom:12px"></div>
+      <button class="btn btn-primary" onclick="submitAdmission()">Admit Student &amp; Generate Dues</button>
+    </div>
+  </div>
+
+  <!-- RE-ADMISSION -->
+  <div class="page" id="page-readmission">
+    <div class="card" style="margin-bottom:14px">
+      <h3>Re-admission</h3>
+      <p class="text-muted">Students promoted by the Admin Portal arrive here <b>without an S.No</b>. Tick the students who have returned, assign each an S.No, and confirm. Their fees are then recorded manually via <b>Backlog Entry</b> or <b>Family Wallet</b>.</p>
+      <p class="text-muted mt-8">S.No is a fresh series each session and is only assigned on new admission or re-admission. Teachers see un-readmitted students flagged in Student Dues.</p>
+    </div>
+    <div class="search-bar" style="flex-wrap:wrap;gap:10px;">
+      <div class="form-group" style="max-width:200px;margin-bottom:0"><label>Class</label><select id="readmClass" onchange="renderReadmission()"><option value="">All Classes</option></select></div>
+      <div class="form-group" style="min-width:240px;margin-bottom:0"><label>Search (Name / Father / Family Code)</label><input type="text" id="readmSearch" placeholder="Filter students…" oninput="renderReadmission()"></div>
+      <div class="form-group" style="max-width:190px;margin-bottom:0"><label>Show</label><select id="readmFilter" onchange="renderReadmission()"><option value="pending">Pending Re-admission</option><option value="done">Already Re-admitted</option><option value="all">All Students</option></select></div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button class="btn btn-ghost btn-sm" onclick="setAllReadmChecks(true)">☑ Check All</button>
+        <button class="btn btn-ghost btn-sm" onclick="setAllReadmChecks(false)">☐ Uncheck All</button>
+        <button class="btn btn-ghost btn-sm" onclick="autoFillReadmSnos()" style="border-color:var(--accent);color:var(--accent)">⇣ Auto-fill S.No</button>
+      </div>
+    </div>
+    <div id="readmissionList"></div>
+    <div id="readmissionAction" style="display:none;margin-top:16px">
+      <button class="btn btn-success" onclick="executeReadmission()">✓ Re-admit Selected Students</button>
+    </div>
+  </div>
+
+  <!-- DEFAULTERS -->
+  <div class="page" id="page-defaulters">
+    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center">
+      <select id="defaulterClass" onchange="renderDefaulters()" style="max-width:220px"><option value="">All Classes</option></select>
+      <button class="btn btn-ghost" onclick="window.print()">🖨 Print</button>
+    </div>
+    <div class="table-wrap" id="defaulterTable"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <h3>Session Management</h3>
+        <p class="text-muted mb-16">Sessions are shared with the Admin Portal. Creating one here makes it available everywhere.</p>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group"><label>Start New Session</label><input type="text" id="newSessionName" placeholder="e.g. 2027-2028"></div>
+          <button class="btn btn-primary" onclick="createNewSession()">Create</button>
+        </div>
+        <div class="divider"></div>
+        <div id="sessionManagerList"></div>
+        <div class="divider"></div>
+        <h3>Import Students via CSV</h3>
+        <p class="text-muted mt-8">Columns: S.No, Name, Father Name, Phone, Admission Date, Class, Section, Family Code, New Admission</p>
+        <input type="file" id="csvUpload" accept=".csv" style="margin-top:10px;margin-bottom:8px;" onchange="importCSV(this)">
+        <button class="btn btn-ghost btn-sm" onclick="downloadSampleCSV()" style="margin-bottom:16px;border-color:var(--accent);color:var(--accent);">⬇ Download Sample CSV Template</button>
+        <div class="divider"></div>
+        <h3 style="color:var(--red)">Danger Zone</h3>
+        <p class="text-muted mt-8">Deletes every payment, allocation, waiver and arrear for the <b>currently viewed session only</b>. Students and enrollments are left untouched — those belong to the Admin Portal.</p>
+        <button class="btn btn-danger mt-8" onclick="purgeSessionFeeData()">⚠ Purge Fee Data for <span id="purgeSessLabel"></span></button>
+      </div>
+      <div class="card">
+        <h3>Class Fee Master — <span id="feeMasterSessLabel" style="color:var(--accent)"></span></h3>
+        <p class="text-muted mb-16">Sibling Flat Fee applies to the <b>youngest child</b> when 3+ siblings share a family code. It replaces the tuition entirely (it is not a deduction).</p>
+        <div class="table-wrap no-maxh" id="feeSettingsTable"></div>
+        <button class="btn btn-primary mt-16" onclick="saveFeeSettings()">Save Fee Master</button>
+        <div class="divider"></div>
+        <h3>Bulk-set Sibling Flat Fee</h3>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group"><label>Amount (₹/mo)</label><input type="number" id="bulkSibFlat" placeholder="e.g. 100"></div>
+          <div class="form-group"><label>Apply to</label><select id="bulkSibScope"><option value="all">All Classes</option><option value="lower">Nur–5th only</option><option value="upper">6th and above</option></select></div>
+          <button class="btn btn-ghost" onclick="bulkSetSibFlat()">Apply</button>
+        </div>
+        <div class="divider"></div>
+        <h3>Default Allocation Priority (Auto-Allocate)</h3>
+        <p class="text-muted" style="margin-bottom:8px;">Sets the global default. Can be overridden per-transaction in Family Wallet.</p>
+        <div class="form-group">
+          <label>Priority Order</label>
+          <select id="globalAllocPriority" onchange="saveGlobalPriority()"></select>
+        </div>
+        <p class="text-muted mt-8" id="priorityDescription" style="line-height:1.6;font-size:11px;padding:8px;background:var(--surface2);border-radius:6px;margin-top:6px;white-space:pre-wrap"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Waiver Dashboard Modal -->
+<div id="waiverModal" class="waiver-modal-overlay" style="display:none;">
+  <div class="waiver-modal">
+    <div class="wm-header">
+      <h2 id="wm_title">Fee Waiver Dashboard</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeWaiverModal()" style="font-size:16px;padding:4px 10px;">✕</button>
+    </div>
+    <div id="wm_studentInfo" style="margin-bottom:16px;padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:13px;display:flex;gap:24px;flex-wrap:wrap;"></div>
+    <div class="table-wrap no-maxh" id="wm_table"></div>
+    <div style="margin-top:14px;padding:10px 14px;background:rgba(243,156,18,.07);border:1px solid rgba(243,156,18,.2);border-radius:8px;font-size:12px;color:var(--yellow);">
+      ⚠ Waivers reduce the Net Due seen by the Auto-Allocator. The original base fee is preserved for audit purposes and can be fully restored at any time.
+    </div>
+  </div>
+</div>
+
+<div id="waiverPopupBackdrop" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:11500;" onclick="closeWaiverPopup()"></div>
+<div id="waiverPopup" class="waiver-popup" style="display:none;">
+  <h4 id="wp_title">Apply Waiver</h4>
+  <div class="form-group" style="margin-bottom:10px;">
+    <label>Base Fee</label>
+    <div class="field-val mono" id="wp_base" style="padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;"></div>
+  </div>
+  <div class="form-group" style="margin-bottom:10px;">
+    <label>Amount to Waive (₹) <span style="color:var(--red)">*</span></label>
+    <input type="number" id="wp_amount" placeholder="e.g. 500" min="0" style="font-size:15px;">
+  </div>
+  <div class="form-group" style="margin-bottom:14px;">
+    <label>Reason / Remark <span style="color:var(--muted);font-size:10px">(optional)</span></label>
+    <input type="text" id="wp_remark" placeholder="e.g. Medical hardship, Staff concession…">
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;">
+    <button class="btn btn-ghost btn-sm" onclick="closeWaiverPopup()">Cancel</button>
+    <button class="btn btn-success btn-sm" onclick="applyWaiver()">✓ Apply Waiver</button>
+  </div>
+</div>
+
+<div id="confirmOverlay" class="confirm-overlay" style="display:none;">
+  <div class="confirm-box">
+    <h3 id="confirmTitle">Confirm Action</h3>
+    <p id="confirmMsg"></p>
+    <div class="items" id="confirmItems" style="display:none"></div>
+    <div class="btns">
+      <button class="btn btn-ghost" onclick="confirmResolve(false)">✕ No</button>
+      <button class="btn btn-success" onclick="confirmResolve(true)">✓ Yes</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+// ══════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════
+const MONTHS  = ['April','May','June','July','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+const TUITION_HEADS = MONTHS;
+const HEAD_ANNUAL = 'Annual';
+const HEAD_PREV   = 'Prev Balance';
+
+const ALLOC_PRIORITIES = [
+  { code:'TAP', label:'TAP — Tuition All → Annual All → Prev Balance',
+    desc:'1. All siblings tuition (oldest month first, eldest sibling first)\n2. All siblings annual charges (eldest first)\n3. Global family prev balance' },
+  { code:'TPA', label:'TPA — Tuition All → Prev Balance → Annual All',
+    desc:'1. All siblings tuition (oldest month first, eldest sibling first)\n2. Global family prev balance\n3. All siblings annual charges (eldest first)' },
+  { code:'ATP', label:'ATP — Annual All → Tuition All → Prev Balance',
+    desc:'1. All siblings annual charges (eldest first)\n2. All siblings tuition (oldest month first, eldest sibling first)\n3. Global family prev balance' },
+  { code:'APT', label:'APT — Annual All → Prev Balance → Tuition All',
+    desc:'1. All siblings annual charges (eldest first)\n2. Global family prev balance\n3. All siblings tuition (oldest month first, eldest sibling first)' },
+  { code:'PTA', label:'PTA — Prev Balance → Tuition All → Annual All',
+    desc:'1. Global family prev balance\n2. All siblings tuition (oldest month first, eldest sibling first)\n3. All siblings annual charges (eldest first)' },
+  { code:'PAT', label:'PAT — Prev Balance → Annual All → Tuition All',
+    desc:'1. Global family prev balance\n2. All siblings annual charges (eldest first)\n3. All siblings tuition (oldest month first, eldest sibling first)' },
+  { code:'TAP_ST', label:'(T+A)P — Per Student: Tuition then Annual → Prev Balance',
+    desc:'Student by student (eldest first):\n  · Pay tuition (oldest→newest month)\n  · Pay annual charge\nThen next sibling… Finally global prev balance.' },
+  { code:'ATP_ST', label:'(A+T)P — Per Student: Annual then Tuition → Prev Balance',
+    desc:'Student by student (eldest first):\n  · Pay annual charge\n  · Pay tuition (oldest→newest month)\nThen next sibling… Finally global prev balance.' },
+  { code:'P_TA_ST', label:'P(T+A) — Prev Balance → Per Student: Tuition then Annual',
+    desc:'1. Global family prev balance\nThen student by student (eldest first):\n  · Pay tuition (oldest→newest month)\n  · Pay annual charge' },
+  { code:'P_AT_ST', label:'P(A+T) — Prev Balance → Per Student: Annual then Tuition',
+    desc:'1. Global family prev balance\nThen student by student (eldest first):\n  · Pay annual charge\n  · Pay tuition (oldest→newest month)' },
+];
+
+// ══════════════════════════════════════════════
+//  STATE  (hydrated from the MAIN Supabase project)
+// ══════════════════════════════════════════════
+let CLASSES = [];              // class names ordered by sort_order
+let CLASS_ID = {};             // name  -> class_id
+let CLASS_NAME = {};           // class_id -> name
+let SECTIONS = [];             // class_sections rows for viewSession
+let availableSessions = [];
+let currentSession = null;
+let viewSession = null;
+let students = [];             // hydrated: enrollment JOIN student
+let payments = [];             // flattened payment_allocations (old row shape)
+let bundles = {};              // payment_id -> payments row
+let activityLog = [];
+let feeSettings = {};          // className -> {tuition, annual, sibDisc, id}
+let globalAllocPriority = 'TAP';
+let ME = null;                 // admin_id
+
+function $(id){ return document.getElementById(id) }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+function loadData(k,d){try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}}
+function saveData(k,v){localStorage.setItem(k,JSON.stringify(v))}
+
+function fmtINR(n){return '₹'+(Math.round((n||0)*100)/100).toLocaleString('en-IN')}
+function fmtDT(iso){if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}
+function fmtDate(iso){if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'})}
+function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function clsIdx(name){ const i=CLASSES.indexOf(name); return i<0?999:i }
+
+function parseAdmDate(raw){
+  if(!raw||!raw.trim()) return null;
+  const s=raw.trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  let m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2})$/);
+  if(m){const yr=parseInt(m[3]);return `${yr<50?'20':'19'}${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}
+  const d=new Date(s);
+  return isNaN(d)?null:d.toISOString().slice(0,10);
+}
+
+let toastTimer=null;
+function toast(msg,type='success'){
+  const el=$('toast'); el.textContent=msg; el.className=`show ${type}`;
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{el.className=''},3400);
+}
+
+function updateStatus(state){
+  const dot=$('statusDot'), txt=$('statusText');
+  if(!dot||!txt)return;
+  const map={loading:['var(--yellow)','Loading'],saving:['var(--accent)','Saving'],connected:['var(--green)','Connected'],offline:['var(--red)','Error']};
+  const [c,t]=map[state]||map.offline;
+  dot.style.background=c; txt.textContent=t; txt.style.color=c;
+}
+
+let appTheme=loadData('appTheme','dark');
+function applyTheme(){
+  if(appTheme==='light'){document.body.classList.add('light-theme');$('themeToggleBtn').textContent='☀️'}
+  else{document.body.classList.remove('light-theme');$('themeToggleBtn').textContent='🌙'}
+}
+function toggleTheme(){appTheme=appTheme==='dark'?'light':'dark';saveData('appTheme',appTheme);applyTheme()}
+
+// ══════════════════════════════════════════════
+//  CUSTOM CONFIRM
+// ══════════════════════════════════════════════
+let _confirmResolve=null;
+function showConfirm(title,msg,items=[],yesLabel='✓ Yes',noLabel='✕ No'){
+  return new Promise(resolve=>{
+    _confirmResolve=resolve;
+    $('confirmTitle').textContent=title;
+    $('confirmMsg').textContent=msg;
+    const iEl=$('confirmItems');
+    if(items.length){iEl.style.display='block';iEl.textContent=items.map(x=>`• ${x}`).join('\n')}
+    else{iEl.style.display='none'}
+    document.querySelector('#confirmOverlay .btn-ghost').textContent=noLabel;
+    document.querySelector('#confirmOverlay .btn-success').textContent=yesLabel;
+    $('confirmOverlay').style.display='flex';
+  });
+}
+function confirmResolve(val){
+  $('confirmOverlay').style.display='none';
+  if(_confirmResolve){_confirmResolve(val);_confirmResolve=null}
+}
+
+// ══════════════════════════════════════════════
+//  ACTIVITY LOG
+// ══════════════════════════════════════════════
+async function log(msg,color){
+  activityLog.unshift({ts:new Date().toISOString(),msg,color:color||'accent'});
+  if(activityLog.length>10)activityLog=activityLog.slice(0,10);
+  try{
+    await sb.from('activity_log').insert({user_type:'admin',user_id:ME,action_type:'fee',message:msg,icon:color||'accent'});
+  }catch(e){console.warn('activity log failed',e)}
+}
+
+// ══════════════════════════════════════════════
+//  ID GENERATORS
+// ══════════════════════════════════════════════
+function getYear(){ return new Date().getFullYear() }
+
+// Next S.No for the viewed session (fresh series each session)
+function nextSno(){
+  const used=students.filter(s=>s.sno!=null&&s.sno!=='').map(s=>parseInt(s.sno)||0);
+  return String(Math.max(0,...used)+1);
+}
+
+async function nextStudentId(){
+  const {data}=await sb.from('students').select('student_id');
+  let max=0;
+  (data||[]).forEach(r=>{const m=String(r.student_id).match(/(\d+)\s*$/); if(m){const n=parseInt(m[1]); if(n>max)max=n}});
+  return 'SPS-S-'+String(max+1).padStart(4,'0');
+}
+
+async function nextFamilyCode(){
+  const {data}=await sb.from('families').select('family_code');
+  let max=0;
+  (data||[]).forEach(r=>{const m=String(r.family_code).match(/(\d+)\s*$/); if(m){const n=parseInt(m[1]); if(n>max)max=n}});
+  return 'F'+String(max+1).padStart(3,'0');
+}
+
+async function getNextBundleSeq(fCode){
+  const prefix=`B${getYear()}${fCode}`;
+  const {data}=await sb.from('payments').select('payment_id').like('payment_id',prefix+'%');
+  let max=0;
+  (data||[]).forEach(r=>{const n=parseInt(String(r.payment_id).slice(prefix.length))||0; if(n>max)max=n});
+  return prefix+String(max+1).padStart(3,'0');
+}
+
+async function ensureFamily(code,phone){
+  if(!code)return;
+  try{ await sb.from('families').upsert({family_code:code,primary_contact_phone:phone||null},{onConflict:'family_code'}) }
+  catch(e){ console.warn('ensureFamily',e) }
+}
+
+// ══════════════════════════════════════════════
+//  LOAD ALL  (relational → hydrated in-memory shape)
+// ══════════════════════════════════════════════
+async function loadAll(){
+  updateStatus('loading');
+  try{
+    // Sessions
+    const {data:sess}=await sb.from('sessions').select('*').order('session_id');
+    availableSessions=(sess||[]).map(s=>s.session_id);
+    currentSession=(sess||[]).find(s=>s.is_current)?.session_id || availableSessions[availableSessions.length-1] || null;
+    if(!viewSession||!availableSessions.includes(viewSession)) viewSession=currentSession;
+
+    // Classes
+    const {data:cls}=await sb.from('classes').select('*').eq('is_active',true).order('sort_order');
+    CLASSES=(cls||[]).map(c=>c.name); CLASS_ID={}; CLASS_NAME={};
+    (cls||[]).forEach(c=>{CLASS_ID[c.name]=c.class_id; CLASS_NAME[c.class_id]=c.name});
+
+    // Sections for the viewed session
+    const {data:secs}=await sb.from('class_sections').select('*').eq('session_id',viewSession||'').eq('is_active',true);
+    SECTIONS=secs||[];
+
+    // Fee master
+    const {data:fm}=await sb.from('fee_master').select('*').eq('session_id',viewSession||'');
+    feeSettings={};
+    CLASSES.forEach(c=>{feeSettings[c]={tuition:0,annual:0,sibDisc:0,id:null}});
+    (fm||[]).forEach(r=>{
+      const n=CLASS_NAME[r.class_id]; if(!n)return;
+      feeSettings[n]={tuition:+r.monthly_tuition||0, annual:+r.annual_charge||0, sibDisc:+r.sibling_discount_flat||0, id:r.fee_master_id};
+    });
+
+    // Enrollments + student demographics
+    const {data:enr}=await sb.from('student_enrollments')
+      .select('*,students(*)').eq('session_id',viewSession||'');
+    const rows=(enr||[]).filter(e=>e.students);
+    const eids=rows.map(e=>e.enrollment_id);
+
+    // Previous balances
+    const pbRes = eids.length ? await sb.from('previous_balances').select('*').in('enrollment_id',eids) : {data:[]};
+    const pbMap={}, pbIdMap={};
+    (pbRes.data||[]).forEach(r=>{pbMap[r.enrollment_id]=+r.amount||0; pbIdMap[r.enrollment_id]=r.prev_balance_id});
+
+    // Waivers
+    const wvRes = eids.length ? await sb.from('fee_waivers').select('*').in('enrollment_id',eids) : {data:[]};
+    const wvMap={};
+    (wvRes.data||[]).forEach(r=>{
+      if(!wvMap[r.enrollment_id])wvMap[r.enrollment_id]={};
+      wvMap[r.enrollment_id][r.head]={amt:+r.amount||0, remark:r.remark||'', id:r.waiver_id};
+    });
+
+    // Prev balance ledger
+    const lgRes = eids.length ? await sb.from('prev_balance_ledger').select('*').in('enrollment_id',eids).order('created_at') : {data:[]};
+    const lgMap={};
+    (lgRes.data||[]).forEach(r=>{
+      if(!lgMap[r.enrollment_id])lgMap[r.enrollment_id]=[];
+      lgMap[r.enrollment_id].push({date:r.entry_date, source:r.source, amt:+r.amount||0, bundleID:r.payment_id||'—'});
+    });
+
+    // Hydrate students[] into the shape the business logic expects
+    students=rows.map(e=>({
+      enrollment_id: e.enrollment_id,
+      student_id:    e.student_id,
+      sno:           e.s_no,                      // NULL until re-admitted
+      name:          e.students.full_name,
+      father:        e.students.father_name,
+      mother:        e.students.mother_name,
+      dob:           e.students.dob,
+      phone:         e.students.phone,
+      altPhone:      e.students.alt_phone,
+      admDate:       e.students.admission_date,
+      cls:           CLASS_NAME[e.class_id]||'—',
+      class_id:      e.class_id,
+      section_id:    e.section_id,
+      familyCode:    e.students.family_code,
+      annualOverride:  e.annual_override,
+      tuitionOverride: e.tuition_override,
+      session:       e.session_id,
+      status:        e.status,
+      isNew:         e.is_new_admission,
+      readmissionDate: e.readmission_date,
+      rollNo:        e.roll_no,
+      prevBalance:   pbMap[e.enrollment_id]||0,
+      _pbId:         pbIdMap[e.enrollment_id]||null,
+      prevBalanceLedger: lgMap[e.enrollment_id]||[],
+      waivers:       wvMap[e.enrollment_id]||{}
+    }));
+
+    // Payments (bundles) + allocations, flattened to the old row shape
+    const {data:pays}=await sb.from('payments').select('*').eq('session_id',viewSession||'');
+    bundles={}; (pays||[]).forEach(p=>bundles[p.payment_id]=p);
+    const pids=(pays||[]).map(p=>p.payment_id);
+    const alRes = pids.length ? await sb.from('payment_allocations').select('*').in('payment_id',pids) : {data:[]};
+    const enrById={}; students.forEach(s=>enrById[s.enrollment_id]=s);
+    payments=(alRes.data||[]).map(a=>{
+      const b=bundles[a.payment_id]||{};
+      const amt=+a.amount||0;
+      return {
+        id:            a.allocation_id,
+        bundleID:      a.payment_id,
+        enrollment_id: a.enrollment_id,
+        sno:           enrById[a.enrollment_id]?.sno||null,
+        session:       b.session_id||viewSession,
+        month:         a.head,
+        tuition:       TUITION_HEADS.includes(a.head)?amt:0,
+        annual:        a.head===HEAD_ANNUAL?amt:0,
+        prev:          a.head===HEAD_PREV?amt:0,
+        total:         amt,
+        datetime:      b.paid_at || (a.payment_date? a.payment_date+'T00:00:00' : null),
+        remarks:       b.remarks||''
+      };
+    });
+
+    // Activity log
+    const {data:al}=await sb.from('activity_log').select('*').eq('action_type','fee')
+      .order('created_at',{ascending:false}).limit(10);
+    activityLog=(al||[]).map(r=>({ts:r.created_at,msg:r.message,color:r.icon||'accent'}));
+
+    // App config
+    const {data:cfg}=await sb.from('app_config').select('value').eq('key','globalAllocPriority').maybeSingle();
+    if(cfg&&cfg.value) globalAllocPriority=typeof cfg.value==='string'?cfg.value:String(cfg.value);
+
+    updateStatus('connected');
+  }catch(e){
+    console.error('loadAll failed',e);
+    updateStatus('offline');
+    toast('Load failed: '+(e.message||e),'error');
+  }
+}
+
+// Reload + re-render whatever page is open
+async function refreshAll(){
+  await loadAll();
+  populateSessionDropdowns();
+  const active=document.querySelector('.page.active');
+  if(active) goTo(active.id.replace('page-',''));
+}
+
+// ══════════════════════════════════════════════
+//  PREV BALANCE HELPERS  (previous_balances table)
+// ══════════════════════════════════════════════
+async function setPrevBalance(eid, amount){
+  const stu=students.find(s=>s.enrollment_id===eid);
+  const amt=Math.round((amount||0)*100)/100;
+  if(stu&&stu._pbId){
+    await sb.from('previous_balances').update({amount:amt}).eq('prev_balance_id',stu._pbId);
+  }else{
+    const {data,error}=await sb.from('previous_balances')
+      .insert({enrollment_id:eid, amount:amt, from_session_id:viewSession})
+      .select('prev_balance_id').maybeSingle();
+    if(!error&&stu&&data) stu._pbId=data.prev_balance_id;
+  }
+  if(stu) stu.prevBalance=amt;
+}
+
+async function addLedgerEntry(eid, entryDate, source, amt, paymentId){
+  await sb.from('prev_balance_ledger').insert({
+    enrollment_id:eid, entry_date:entryDate||today(), source, amount:amt, payment_id:paymentId||null
+  });
+}
+
+// Reverse any prev-balance additions made by a bundle, then drop its ledger rows
+async function cleanupBundlePrevBalance(bID){
+  if(!bID)return;
+  const {data:entries}=await sb.from('prev_balance_ledger').select('*').eq('payment_id',bID);
+  if(!entries||!entries.length)return;
+  const byEnr={};
+  entries.forEach(e=>{byEnr[e.enrollment_id]=(byEnr[e.enrollment_id]||0)+(+e.amount||0)});
+  for(const eid in byEnr){
+    const stu=students.find(s=>s.enrollment_id===eid);
+    const cur=stu?(parseFloat(stu.prevBalance)||0):0;
+    await setPrevBalance(eid, cur-byEnr[eid]);
+  }
+  await sb.from('prev_balance_ledger').delete().eq('payment_id',bID);
+}
+
+// ══════════════════════════════════════════════
+//  DUES COMPUTATION   (keyed on enrollment_id — s_no may be NULL)
+// ══════════════════════════════════════════════
+function siblingsOf(stu){
+  if(!stu.familyCode) return [stu];
+  return students.filter(s=>s.familyCode===stu.familyCode);
+}
+// Eldest first: higher class first, then by s_no (nulls last)
+function sortSiblings(list){
+  return [...list].sort((a,b)=>{
+    const d=clsIdx(b.cls)-clsIdx(a.cls);
+    if(d) return d;
+    const an=a.sno==null||a.sno===''?Infinity:parseInt(a.sno)||0;
+    const bn=b.sno==null||b.sno===''?Infinity:parseInt(b.sno)||0;
+    if(an!==bn) return an-bn;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+}
+
+function getMonthlyTuition(stu){
+  if(stu.tuitionOverride!==null&&stu.tuitionOverride!==undefined&&stu.tuitionOverride!=='')
+    return parseFloat(stu.tuitionOverride);
+  const base=(feeSettings[stu.cls]||{tuition:0}).tuition;
+  if(!stu.familyCode) return base;
+  const sibs=siblingsOf(stu);
+  if(sibs.length<3) return base;
+  const sorted=sortSiblings(sibs);
+  const youngest=sorted[sorted.length-1];
+  if(youngest && youngest.enrollment_id===stu.enrollment_id){
+    const flat=(feeSettings[stu.cls]||{}).sibDisc;
+    return (flat!==null&&flat!==undefined&&flat>0)?flat:base;
+  }
+  return base;
+}
+
+function getAnnualCharge(stu){
+  if(stu.annualOverride!==null&&stu.annualOverride!==undefined&&stu.annualOverride!=='')
+    return parseFloat(stu.annualOverride);
+  if(stu.isNew) return 0;
+  return (feeSettings[stu.cls]||{annual:0}).annual;
+}
+
+function getAdmissionMonthIdx(dateStr){
+  if(!dateStr)return 0;
+  const m=new Date(dateStr).getMonth();
+  const academic=[3,4,5,6,7,8,9,10,11,0,1,2];
+  const idx=academic.indexOf(m);
+  return idx<0?0:idx;
+}
+function getWaivedAmount(stu,month){
+  if(!stu.waivers)return 0;
+  return parseFloat((stu.waivers[month]||{}).amt)||0;
+}
+function getWaiverRemark(stu,month){
+  if(!stu.waivers)return '';
+  return (stu.waivers[month]||{}).remark||'';
+}
+
+function activeMonthsFor(){
+  let endIdx=MONTHS.length;
+  if(viewSession===currentSession) endIdx=getAdmissionMonthIdx(new Date().toISOString())+1;
+  if(endIdx<1) endIdx=1;
+  return MONTHS.slice(0,endIdx);
+}
+
+function getMonthPayments(eid,month){
+  return payments.filter(p=>p.enrollment_id===eid&&p.month===month);
+}
+
+function getTotalDues(stu){
+  const active=activeMonthsFor();
+  const mt=getMonthlyTuition(stu);
+  let breakdown=[];
+  const tuitionDue=active.reduce((sum,m)=>{
+    const paid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===m)
+      .reduce((s,p)=>s+(p.tuition||0),0);
+    const waived=getWaivedAmount(stu,m);
+    const netBase=Math.max(0,mt-waived);
+    const due=Math.max(0,netBase-paid);
+    if(due>0) breakdown.push({month:m,due,base:mt,waived});
+    return sum+due;
+  },0);
+  const annualPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id)
+    .reduce((s,p)=>s+(p.annual||0),0);
+  const annualWaived=getWaivedAmount(stu,HEAD_ANNUAL);
+  const annualDue=Math.max(0,getAnnualCharge(stu)-annualWaived-annualPaid);
+  const prevPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===HEAD_PREV)
+    .reduce((s,p)=>s+(p.prev||0),0);
+  const prevBalance=Math.max(0,parseFloat(stu.prevBalance||0)-prevPaid);
+  if(prevBalance>0) breakdown.push({month:'Previous Session Arrears',due:prevBalance,base:parseFloat(stu.prevBalance||0)});
+  if(annualDue>0) breakdown.push({month:'Annual Charge',due:annualDue,base:getAnnualCharge(stu),waived:annualWaived});
+  return {tuitionDue,annualDue,prevBalance,total:tuitionDue+annualDue+prevBalance,breakdown};
+}
+
+function getTodayTotal(){
+  const t=today();
+  return Object.values(bundles)
+    .filter(b=>(b.paid_at||b.payment_date||'').startsWith(t))
+    .reduce((s,b)=>s+(+b.amount||0),0);
+}
+
+function getFamilyPrevBalance(fCode){
+  const fam=students.filter(s=>s.familyCode===fCode);
+  const eids=fam.map(s=>s.enrollment_id);
+  let base=0; fam.forEach(s=>base+=parseFloat(s.prevBalance||0));
+  const paid=payments.filter(p=>eids.includes(p.enrollment_id)&&p.month===HEAD_PREV)
+    .reduce((s,p)=>s+(p.prev||0),0);
+  return base-paid;
+}
+
+// ══════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════
+const pageTitles={dashboard:'Dashboard',counter:'Family Wallet',students:'Student Records',transactions:'All Transactions',matrix:'Classwise Fee Matrix',backlog:'Backlog Entry',admission:'New Admission',readmission:'Re-admission',defaulters:'Defaulter Report',settings:'Settings',profile:'Student Profile',familyprofile:'Family Profile'};
+
+function goTo(page,data){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav a').forEach(a=>a.classList.remove('active'));
+  const pg=$('page-'+page); if(!pg)return;
+  pg.classList.add('active');
+  const na=document.querySelector(`nav a[data-page="${page}"]`);
+  if(na)na.classList.add('active');
+  $('pageTitle').textContent=pageTitles[page]||page;
+  if(page==='dashboard') renderDashboard();
+  if(page==='counter')   initCounter();
+  if(page==='students')  {populateCls();renderStudents();}
+  if(page==='transactions'){populateTxnFilters();renderTransactions();}
+  if(page==='matrix')    {populateCls();renderMatrix();}
+  if(page==='backlog')   {populateCls();renderBacklog();}
+  if(page==='admission') populateAdmissionForm();
+  if(page==='readmission'){populateCls();renderReadmission();}
+  if(page==='defaulters'){populateCls();renderDefaulters();}
+  if(page==='settings')  renderSettings();
+  if(page==='profile'&&data) renderProfile(data);
+  if(page==='familyprofile'&&data) renderFamilyProfile(data);
+}
+
+function populateCls(){
+  ['matrixClass','backlogClass','stuClassFilter','defaulterClass','readmClass','a_class'].forEach(id=>{
+    const el=$(id); if(!el)return;
+    const cur=el.value;
+    el.innerHTML = id==='a_class' ? '<option value="">Select class</option>'
+      : (id==='stuClassFilter'||id==='defaulterClass'||id==='readmClass') ? '<option value="">All Classes</option>'
+      : '<option value="">— Select Class —</option>';
+    CLASSES.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o)});
+    if(cur)el.value=cur;
+  });
+}
+
+function populateSessionDropdowns(){
+  const sel=$('sessionSelect');
+  sel.innerHTML=[...availableSessions].reverse().map(s=>
+    `<option value="${esc(s)}" ${s===viewSession?'selected':''}>${esc(s)}${s===currentSession?' (Active)':''}</option>`
+  ).join('');
+  const badge=$('sessionBadgeText');
+  if(viewSession===currentSession){badge.textContent='Session: '+(currentSession||'—');badge.style.color='var(--green)'}
+  else{badge.textContent='Viewing Past: '+(viewSession||'—');badge.style.color='var(--red)'}
+  const pl=$('purgeSessLabel'); if(pl)pl.textContent=viewSession||'—';
+  const fl=$('feeMasterSessLabel'); if(fl)fl.textContent=viewSession||'—';
+}
+
+async function previewSession(val){
+  viewSession=val;
+  saveData('fp_viewSession',val);
+  await refreshAll();
+}
+
+function populateAllocPriorityDropdown(selectId,savedCode){
+  const el=$(selectId); if(!el)return;
+  el.innerHTML=ALLOC_PRIORITIES.map(p=>`<option value="${p.code}" ${p.code===savedCode?'selected':''}>${esc(p.label)}</option>`).join('');
+}
+
+async function saveGlobalPriority(){
+  globalAllocPriority=$('globalAllocPriority').value;
+  await sb.from('app_config').upsert({key:'globalAllocPriority',value:globalAllocPriority,updated_at:new Date().toISOString()},{onConflict:'key'});
+  const p=ALLOC_PRIORITIES.find(x=>x.code===globalAllocPriority);
+  if(p)$('priorityDescription').textContent=p.desc;
+  toast('Default allocation priority saved','success');
+}
+
+// ══════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════
+function renderDashboard(){
+  const active=students;
+  const todayColl=getTodayTotal();
+  const totalDue=active.reduce((s,stu)=>s+getTotalDues(stu).total,0);
+  const defCount=active.filter(s=>getTotalDues(s).total>0).length;
+  const pendingReadm=active.filter(s=>s.sno==null||s.sno==='').length;
+  $('statsGrid').innerHTML=`
+    <div class="stat-card"><div class="label">Total Students</div><div class="value">${active.length}</div></div>
+    <div class="stat-card"><div class="label">Collected Today</div><div class="value green">${fmtINR(todayColl)}</div></div>
+    <div class="stat-card"><div class="label">Total Pending</div><div class="value red">${fmtINR(totalDue)}</div></div>
+    <div class="stat-card"><div class="label">Defaulters</div><div class="value yellow">${defCount}</div></div>
+    <div class="stat-card" ${pendingReadm>0?'style="border-color:var(--yellow)"':''}><div class="label">Awaiting Re-admission</div><div class="value ${pendingReadm>0?'yellow':'green'}">${pendingReadm}</div></div>`;
+  $('activityLog').innerHTML=activityLog.slice(0,10).map(l=>`
+    <div class="log-entry"><div class="dot"></div><div style="flex:1">${esc(l.msg)}</div><div class="ts">${fmtDT(l.ts)}</div></div>`).join('')||'<p class="text-muted">No activity yet.</p>';
+  const cls={};
+  active.forEach(s=>{if(!cls[s.cls])cls[s.cls]={count:0,due:0,pending:0};cls[s.cls].count++;cls[s.cls].due+=getTotalDues(s).total;if(s.sno==null||s.sno==='')cls[s.cls].pending++});
+  $('classSummary').innerHTML=`<div class="table-wrap no-maxh"><table>
+    <thead><tr><th>Class</th><th>Students</th><th>Pending Re-adm.</th><th>Pending Fees</th></tr></thead>
+    <tbody>${CLASSES.filter(c=>cls[c]).map(c=>`<tr><td>${esc(c)}</td><td>${cls[c].count}</td><td class="mono" style="color:${cls[c].pending?'var(--yellow)':'var(--muted)'}">${cls[c].pending||'—'}</td><td class="mono" style="color:var(--red)">${fmtINR(cls[c].due)}</td></tr>`).join('')||'<tr><td colspan="4" class="text-muted" style="padding:14px">No students in this session.</td></tr>'}</tbody>
+  </table></div>`;
+}
+
+// ══════════════════════════════════════════════
+//  FAMILY WALLET
+// ══════════════════════════════════════════════
+let activeFamilyCode=null, activeSiblings=[], counterMode='manual', autoAllocPlan=[];
+
+function initCounter(){
+  const now=new Date(); const pad=n=>String(n).padStart(2,'0');
+  $('c_datetime').value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  $('counterSearch').value='';
+  $('counterResults').innerHTML='';
+  $('counterPanel').style.display='none';
+  activeFamilyCode=null; activeSiblings=[];
+  switchCounterMode('manual');
+}
+
+function searchCounter(q){
+  const el=$('counterResults');
+  if(!q.trim()){el.innerHTML='';return}
+  const ql=q.toLowerCase();
+  const res=students.filter(s=>
+    (s.name||'').toLowerCase().includes(ql)||
+    String(s.sno||'').includes(q)||
+    (s.phone||'').includes(q)||
+    (s.familyCode||'').toLowerCase().includes(ql)||
+    (s.father||'').toLowerCase().includes(ql)
+  );
+  const families={};
+  res.forEach(s=>{if(!s.familyCode)return;if(!families[s.familyCode])families[s.familyCode]=[];families[s.familyCode].push(s)});
+  let html='';
+  for(const fCode in families){
+    const fam=families[fCode];
+    const names=fam.map(s=>`<span style="color:var(--text)">${esc(s.name)}</span> <span class="text-muted">(${esc(s.cls)})</span>`).join(', ');
+    html+=`<div style="padding:9px 12px;cursor:pointer;border-radius:6px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="selectFamily('${esc(fCode)}')">
+      <div><b style="color:var(--accent)">Family ${esc(fCode)}</b> <span class="text-muted">— ${esc(fam[0].father||'')}</span></div>
+      <div style="font-size:11px;margin-top:3px;">${names}</div>
+    </div>`;
+  }
+  el.innerHTML=html?`<div class="card" style="padding:6px">${html}</div>`:'<p class="text-muted">No families found.</p>';
+}
+
+function selectFamily(fCode){
+  activeFamilyCode=fCode;
+  activeSiblings=sortSiblings(students.filter(s=>s.familyCode===fCode));
+  if(!activeSiblings.length)return;
+  $('counterResults').innerHTML='';
+  $('counterSearch').value='';
+  $('counterPanel').style.display='block';
+  $('c_familyCode').textContent=activeFamilyCode;
+  $('c_fatherInfo').textContent=`Father: ${activeSiblings[0].father||'—'} | Phone: ${activeSiblings[0].phone||'N/A'}`;
+  $('c_sibCount').textContent=`${activeSiblings.length} Active Sibling(s)`;
+  $('c_remarks').value='';
+  $('c_totalCash').value='';
+  populateAllocPriorityDropdown('c_allocPriority', globalAllocPriority);
+  $('c_allocPriority').onchange=()=>runFamilyAutoAllocate();
+  refreshFamilyDues();
+  switchCounterMode(counterMode);
+  renderFamilyTxns();
+}
+
+function refreshFamilyDues(){
+  if(!activeFamilyCode)return;
+  const famPrevBal=getFamilyPrevBalance(activeFamilyCode);
+  let totalTuition=0,totalAnnual=0,summaryHTML='';
+
+  activeSiblings.forEach(stu=>{
+    const d=getTotalDues(stu), mt=getMonthlyTuition(stu);
+    totalTuition+=d.tuitionDue; totalAnnual+=d.annualDue;
+    const sibs=siblingsOf(stu);
+    const isDisc=sibs.length>=3;
+    const sorted=sortSiblings(sibs);
+    const youngest=sorted[sorted.length-1];
+    const discLabel=(isDisc&&youngest.enrollment_id===stu.enrollment_id)?` <span style="color:var(--yellow);font-size:9px;">★ DISC</span>`:'';
+    const snoLabel=(stu.sno==null||stu.sno==='')?` <span class="pill pill-yellow" style="font-size:8px">NO S.NO</span>`:'';
+    summaryHTML+=`
+    <div class="sib-card">
+      <div class="hdr">
+        <div class="hdr-name">
+          <b>${esc(stu.name)}</b>${snoLabel}
+          <span class="fee-rate">${fmtINR(mt)}/month${discLabel}</span>
+        </div>
+        <span class="pill pill-blue">${esc(stu.cls)}</span>
+      </div>
+      <div class="val-row"><span>Tuition Due:</span><span class="val" style="color:${d.tuitionDue>0?'var(--red)':'var(--green)'}">${fmtINR(d.tuitionDue)}</span></div>
+      <div class="val-row"><span>Annual Due:</span><span class="val" style="color:${d.annualDue>0?'var(--red)':'var(--green)'}">${fmtINR(d.annualDue)}</span></div>
+    </div>`;
+  });
+
+  const prevLedger=[];
+  activeSiblings.forEach(stu=>{
+    if(stu.prevBalanceLedger&&stu.prevBalanceLedger.length){
+      stu.prevBalanceLedger.forEach(e=>prevLedger.push({...e,stuName:stu.name}));
+    } else if(parseFloat(stu.prevBalance||0)>0){
+      prevLedger.push({date:'—',source:'Opening balance (no breakdown available)',amt:parseFloat(stu.prevBalance||0),stuName:stu.name,bundleID:'—'});
+    }
+  });
+  const eids=activeSiblings.map(s=>s.enrollment_id);
+  const prevPayments=payments.filter(p=>eids.includes(p.enrollment_id)&&p.month===HEAD_PREV&&(p.prev||0)>0);
+
+  let prevParticularsHTML='';
+  if(prevLedger.length||prevPayments.length){
+    prevParticularsHTML=`<div id="prevLedgerPanel" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px;font-size:11px;">`;
+    if(prevLedger.length){
+      prevParticularsHTML+=`<div style="color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Charges Added</div>`;
+      prevLedger.forEach(e=>{
+        prevParticularsHTML+=`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,0.06);">
+          <span style="color:var(--text)">${esc(e.stuName)}: ${esc(e.source)}</span>
+          <span style="color:var(--red);font-family:var(--mono)">+${fmtINR(e.amt)}</span></div>`;
+      });
+    }
+    if(prevPayments.length){
+      prevParticularsHTML+=`<div style="color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em;margin-top:6px;margin-bottom:4px;">Payments Made</div>`;
+      prevPayments.forEach(p=>{
+        const stu=students.find(s=>s.enrollment_id===p.enrollment_id);
+        prevParticularsHTML+=`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,0.06);">
+          <span style="color:var(--text)">${esc(stu?stu.name:'?')}: ${fmtDate(p.datetime)} — ${esc(p.remarks||'Paid')}</span>
+          <span style="color:var(--green);font-family:var(--mono)">-${fmtINR(p.prev)}</span></div>`;
+      });
+    }
+    prevParticularsHTML+=`<div style="display:flex;justify-content:space-between;padding:5px 0;margin-top:4px;font-weight:600;">
+      <span>Net Balance</span>
+      <span style="font-family:var(--mono);color:${famPrevBal>0?'var(--red)':'var(--green)'}">${fmtINR(famPrevBal)}</span></div></div>`;
+  }
+
+  const hasDetails=prevLedger.length||prevPayments.length;
+  summaryHTML+=`
+  <div class="sib-card" style="border-color:var(--accent);${hasDetails?'cursor:pointer;':''}" ${hasDetails?`onclick="togglePrevLedger(this)"`:''}>
+    <div class="hdr">
+      <div class="hdr-name"><b style="color:var(--accent)">Family Prev Balance</b>${hasDetails?`<span class="fee-rate prev-toggle" style="color:var(--accent);cursor:pointer;">▼ Details</span>`:''}</div>
+    </div>
+    <div class="val-row"><span>Arrears:</span><span class="val" style="color:${famPrevBal>0?'var(--red)':famPrevBal<0?'var(--green)':'var(--muted)'}">${fmtINR(famPrevBal)}</span></div>
+    ${famPrevBal<0?'<div style="font-size:10px;color:var(--green);text-align:right;">(Credit Available)</div>':''}
+    ${prevParticularsHTML}
+  </div>`;
+
+  $('c_familySummary').innerHTML=summaryHTML;
+
+  const grandTotal=totalTuition+totalAnnual+(famPrevBal>0?famPrevBal:0);
+  $('c_familyTotalBar').innerHTML=`
+    <div class="ft-item"><div class="ft-label">Total Tuition Due</div><div class="ft-val" style="color:${totalTuition>0?'var(--red)':'var(--green)'}">${fmtINR(totalTuition)}</div></div>
+    <div class="ft-item"><div class="ft-label">Total Annual Due</div><div class="ft-val" style="color:${totalAnnual>0?'var(--red)':'var(--green)'}">${fmtINR(totalAnnual)}</div></div>
+    <div class="ft-item"><div class="ft-label">Prev Balance (Family)</div><div class="ft-val" style="color:${famPrevBal>0?'var(--red)':famPrevBal<0?'var(--green)':'var(--muted)'}">${fmtINR(famPrevBal)}</div></div>
+    <div class="ft-item" style="margin-left:auto;padding-left:16px;border-left:1px solid var(--border)"><div class="ft-label">Grand Total Due</div><div class="ft-val" style="color:${grandTotal>0?'var(--red)':'var(--green)'}">${fmtINR(grandTotal)}</div></div>`;
+}
+
+function togglePrevLedger(el){
+  const panel=$('prevLedgerPanel'); if(!panel)return;
+  const open=panel.style.display!=='none';
+  panel.style.display=open?'none':'block';
+  const t=el.querySelector('.prev-toggle'); if(t)t.textContent=open?'▼ Details':'▲ Hide';
+}
+
+function switchCounterMode(mode){
+  counterMode=mode;
+  $('btnModeManual').className=mode==='manual'?'mode-btn active':'mode-btn';
+  $('btnModeAuto').className=mode==='auto'?'mode-btn active':'mode-btn';
+  if(mode==='manual'){
+    buildManualGrid();
+    $('manualAllocGrid').style.display='flex';
+    $('autoAllocContainer').style.display='none';
+    updateFamilyLock();
+  }else{
+    $('manualAllocGrid').style.display='none';
+    $('autoAllocContainer').style.display='block';
+    $('c_totalCash').value='';
+    $('autoAllocPreview').style.display='none';
+    autoAllocPlan=[]; updateFamilyLock();
+  }
+}
+
+function buildManualGrid(){
+  const COL='grid-template-columns:minmax(180px,2fr) 140px 140px';
+  let html=`<div style="display:grid;${COL};gap:12px;font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;padding:4px 10px;margin-bottom:4px;border-bottom:1px solid var(--border);">
+    <div>Student &amp; Month</div><div style="text-align:right">Tuition (₹)</div><div style="text-align:right">Annual (₹)</div></div>`;
+  activeSiblings.forEach(stu=>{
+    html+=`<div class="manual-sib-row" data-eid="${stu.enrollment_id}" style="display:grid;${COL};gap:12px;background:rgba(255,255,255,0.02);padding:8px 10px;border-radius:6px;align-items:center;border:1px solid var(--border);">
+      <div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><b>${esc(stu.name)}</b><span class="pill pill-blue">${esc(stu.cls)}</span></div>
+        <div style="font-size:10px;color:var(--accent);font-family:var(--mono);margin-top:2px">${fmtINR(getMonthlyTuition(stu))}/month</div>
+        <select class="m-month" style="margin-top:6px;padding:5px 8px;font-size:12px;width:100%;-webkit-appearance:auto;" onchange="updateFamilyLock()">
+          ${MONTHS.map(m=>`<option value="${m}">${m}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;"><input type="number" class="m-tuit" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
+      <div style="display:flex;align-items:center;"><input type="number" class="m-ann" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
+    </div>`;
+  });
+  html+=`<div class="manual-sib-row" data-eid="FAMILY_PREV" style="display:grid;${COL};gap:12px;background:rgba(79,142,247,0.05);border:1px solid rgba(79,142,247,0.2);padding:8px 10px;border-radius:6px;align-items:center;">
+    <div><span style="font-weight:600;color:var(--accent);">Global Family Prev Balance</span><div style="font-size:10px;color:var(--muted);margin-top:2px">Arrears carried forward</div></div>
+    <div></div>
+    <div style="display:flex;align-items:center;"><input type="number" class="m-prev" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
+  </div>`;
+  $('manualAllocGrid').innerHTML=html;
+}
+
+function cancelPayment(){
+  $('counterPanel').style.display='none';
+  $('counterSearch').value='';
+  $('counterResults').innerHTML='';
+  activeFamilyCode=null; activeSiblings=[]; autoAllocPlan=[];
+  toast('Payment cancelled','error');
+}
+
+function updateFamilyLock(){
+  let total=0;
+  const btn=$('submitPayBtn'), statusEl=$('lk_status'), bar=$('lockBar');
+  if(counterMode==='manual'){
+    document.querySelectorAll('.manual-sib-row').forEach(row=>{
+      total+=(parseFloat(row.querySelector('.m-tuit')?.value)||0)
+            +(parseFloat(row.querySelector('.m-ann')?.value)||0)
+            +(parseFloat(row.querySelector('.m-prev')?.value)||0);
+    });
+  }else{
+    const valid=autoAllocPlan.length>0&&autoAllocPlan.some(p=>p.valid);
+    if(valid) total=parseFloat($('c_totalCash').value)||0;
+  }
+  $('lk_total').textContent=`Total: ${fmtINR(total)}`;
+  if(total>0){
+    bar.className='lock-bar matched'; statusEl.className='lk-status matched'; statusEl.textContent='✓ Ready to record';
+    btn.disabled=false; btn.textContent=`✓ Save Bundle of ${fmtINR(total)}`; btn.className='btn btn-success';
+  }else{
+    bar.className='lock-bar unmatched'; statusEl.className='lk-status unmatched'; statusEl.textContent='Enter an amount to proceed';
+    btn.disabled=true; btn.textContent='Enter an amount to proceed'; btn.className='btn btn-ghost';
+  }
+}
+
+// ══════════════════════════════════════════════
+//  AUTO-ALLOCATOR
+// ══════════════════════════════════════════════
+function runFamilyAutoAllocate(){
+  if(counterMode!=='auto'||!activeSiblings.length)return;
+  let cash=parseFloat($('c_totalCash').value)||0;
+  const previewBox=$('autoAllocPreview');
+  autoAllocPlan=[];
+  if(cash<=0){previewBox.style.display='none';updateFamilyLock();return}
+
+  const activeMonths=activeMonthsFor();
+  const priority=$('c_allocPriority').value||globalAllocPriority;
+  const skipped=[];
+
+  function shouldAcceptTuition(mt,due,availCash,famAnnDue,famPrevDue){
+    if(availCash>=due) return true;
+    const shortfall=due-availCash;
+    const withinThreshold=(mt>=1000&&shortfall<=500)||(mt<1000&&shortfall<=300);
+    if(withinThreshold) return true;
+    if(famAnnDue===0&&famPrevDue<=0) return true;
+    return false;
+  }
+
+  function allocTuition(){
+    activeMonths.forEach(m=>{
+      activeSiblings.forEach(stu=>{
+        if(cash<=0)return;
+        const mt=getMonthlyTuition(stu);
+        const alreadyPaid=getMonthPayments(stu.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0);
+        const waivedAmt=getWaivedAmount(stu,m);
+        const due=Math.max(0,mt-waivedAmt-alreadyPaid);
+        if(due<=0)return;
+        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
+        const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
+        if(shouldAcceptTuition(mt,due,cash,famAnnDue,famPrevDue)){
+          const pay=Math.min(cash,due);
+          autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
+          cash-=pay;
+        }else{
+          skipped.push(`${stu.name} — ${m} (shortfall ₹${(due-cash).toLocaleString('en-IN')})`);
+        }
+      });
+    });
+  }
+
+  function allocAnnual(){
+    activeSiblings.forEach(stu=>{
+      if(cash<=0)return;
+      const due=getTotalDues(stu).annualDue;
+      if(due<=0)return;
+      const pay=Math.min(cash,due);
+      autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:pay,fullDue:due});
+      cash-=pay;
+    });
+  }
+
+  function allocPrev(){
+    if(cash<=0)return;
+    const prevDue=getFamilyPrevBalance(activeFamilyCode);
+    if(prevDue>0){
+      const pay=Math.min(cash,prevDue);
+      autoAllocPlan.push({eid:activeSiblings[0].enrollment_id,name:'Family Prev Balance',type:'Prev',month:HEAD_PREV,amt:pay,fullDue:prevDue});
+      cash-=pay;
+    }else if(cash>0){
+      autoAllocPlan.push({eid:activeSiblings[0].enrollment_id,name:'Family Excess Credit',type:'Prev',month:HEAD_PREV,amt:cash,fullDue:0});
+      cash=0;
+    }
+  }
+
+  function allocPerStudentTA(){
+    activeSiblings.forEach(stu=>{
+      if(cash<=0)return;
+      activeMonths.forEach(m=>{
+        if(cash<=0)return;
+        const mt=getMonthlyTuition(stu);
+        const paid=getMonthPayments(stu.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0);
+        const wv=getWaivedAmount(stu,m);
+        const due=Math.max(0,mt-wv-paid);
+        if(due<=0)return;
+        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
+        const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
+        if(shouldAcceptTuition(mt,due,cash,famAnnDue,famPrevDue)){
+          const pay=Math.min(cash,due);
+          autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
+          cash-=pay;
+        }else{ skipped.push(`${stu.name} — ${m}`) }
+      });
+      if(cash<=0)return;
+      const annDue=getTotalDues(stu).annualDue;
+      if(annDue>0){const pay=Math.min(cash,annDue);autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:pay,fullDue:annDue});cash-=pay}
+    });
+  }
+
+  function allocPerStudentAT(){
+    activeSiblings.forEach(stu=>{
+      if(cash<=0)return;
+      const annDue=getTotalDues(stu).annualDue;
+      if(annDue>0){const pay=Math.min(cash,annDue);autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:pay,fullDue:annDue});cash-=pay}
+      activeMonths.forEach(m=>{
+        if(cash<=0)return;
+        const mt=getMonthlyTuition(stu);
+        const paid=getMonthPayments(stu.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0);
+        const wv=getWaivedAmount(stu,m);
+        const due=Math.max(0,mt-wv-paid);
+        if(due<=0)return;
+        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
+        const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
+        if(shouldAcceptTuition(mt,due,cash,famAnnDue,famPrevDue)){
+          const pay=Math.min(cash,due);
+          autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
+          cash-=pay;
+        }else{ skipped.push(`${stu.name} — ${m}`) }
+      });
+    });
+  }
+
+  switch(priority){
+    case'TAP':    allocTuition();allocAnnual();allocPrev();break;
+    case'TPA':    allocTuition();allocPrev();allocAnnual();break;
+    case'ATP':    allocAnnual();allocTuition();allocPrev();break;
+    case'APT':    allocAnnual();allocPrev();allocTuition();break;
+    case'PTA':    allocPrev();allocTuition();allocAnnual();break;
+    case'PAT':    allocPrev();allocAnnual();allocTuition();break;
+    case'TAP_ST': allocPerStudentTA();allocPrev();break;
+    case'ATP_ST': allocPerStudentAT();allocPrev();break;
+    case'P_TA_ST':allocPrev();allocPerStudentTA();break;
+    case'P_AT_ST':allocPrev();allocPerStudentAT();break;
+    default:      allocTuition();allocAnnual();allocPrev();
+  }
+
+  autoAllocPlan.push({valid:true});
+  const partialItems=autoAllocPlan.filter(p=>!p.valid&&p.type!=='Prev'&&p.fullDue>0&&p.amt<p.fullDue);
+
+  previewBox.style.display='block';
+  let html=`<strong style="color:var(--accent);font-size:12px;">Auto-Allocation Plan:</strong>
+  <div style="font-size:11px;margin-top:8px;display:flex;flex-direction:column;gap:3px;">`;
+  autoAllocPlan.forEach(p=>{
+    if(p.valid)return;
+    const isPartial=p.type!=='Prev'&&p.fullDue>0&&p.amt<p.fullDue;
+    const shortfallNote=isPartial?` <span style="color:var(--yellow);font-size:10px;">(partial — ₹${(p.fullDue-p.amt).toLocaleString('en-IN')} remaining)</span>`:'';
+    html+=`<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.05);padding:4px 0;flex-wrap:wrap;gap:4px;">
+      <span>${esc(p.name)} — <span style="color:var(--muted)">${esc(p.month)}</span>${shortfallNote}</span>
+      <b style="color:${isPartial?'var(--yellow)':'var(--green)'}">${fmtINR(p.amt)}</b></div>`;
+  });
+  if(skipped.length) html+=`<div style="color:var(--yellow);margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">⚠ Skipped (shortfall too large):<br>${skipped.map(s=>`&nbsp;• ${esc(s)}`).join('<br>')}</div>`;
+  if(partialItems.length) html+=`<div style="color:var(--accent);margin-top:6px;font-size:10px;">ℹ You will be asked what to do with the ${partialItems.length} partial payment(s) before saving.</div>`;
+  html+='</div>';
+  previewBox.innerHTML=html;
+  updateFamilyLock();
+}
+
+// ══════════════════════════════════════════════
+//  SUBMIT FAMILY PAYMENT  → payments + payment_allocations
+// ══════════════════════════════════════════════
+async function submitFamilyPayment(){
+  const btn=$('submitPayBtn');
+  const datetime=$('c_datetime').value||new Date().toISOString().slice(0,16);
+  const remarks=$('c_remarks').value.trim();
+  let totalProcessed=0, txnEntries=[];
+  const strategy = counterMode==='auto' ? ($('c_allocPriority').value||globalAllocPriority) : 'MANUAL';
+
+  if(counterMode==='auto'){
+    const planLines=autoAllocPlan.filter(p=>!p.valid).map(p=>{
+      const isPartial=p.type!=='Prev'&&p.fullDue>0&&p.amt<p.fullDue;
+      const partial=isPartial?` ⚠ partial (${fmtINR(p.amt)} of ${fmtINR(p.fullDue)})`:'';
+      return `${p.name} — ${p.month}: ${fmtINR(p.amt)}${partial}`;
+    });
+    const totalCash=parseFloat($('c_totalCash').value)||0;
+    const proceed=await showConfirm('✓ Confirm Payment',
+      `Proceed with recording this bundle of ${fmtINR(totalCash)} for Family ${activeFamilyCode}?`,
+      planLines,'Proceed & Save','Cancel');
+    if(!proceed)return;
+  }else{
+    let manualTotal=0;
+    document.querySelectorAll('.manual-sib-row').forEach(row=>{
+      manualTotal+=(parseFloat(row.querySelector('.m-tuit')?.value)||0)
+                  +(parseFloat(row.querySelector('.m-ann')?.value)||0)
+                  +(parseFloat(row.querySelector('.m-prev')?.value)||0);
+    });
+    if(manualTotal<=0)return;
+    const proceed=await showConfirm('✓ Confirm Payment',
+      `Proceed with recording a manual payment of ${fmtINR(manualTotal)} for Family ${activeFamilyCode}?`,[],
+      'Proceed & Save','Cancel');
+    if(!proceed)return;
+  }
+
+  btn.disabled=true; btn.textContent='Saving…';
+  updateStatus('saving');
+  const bundleID=await getNextBundleSeq(activeFamilyCode);
+
+  if(counterMode==='manual'){
+    document.querySelectorAll('.manual-sib-row').forEach(row=>{
+      const eid=row.dataset.eid;
+      const t=parseFloat(row.querySelector('.m-tuit')?.value)||0;
+      const a=parseFloat(row.querySelector('.m-ann')?.value)||0;
+      const p=parseFloat(row.querySelector('.m-prev')?.value)||0;
+      const month=row.querySelector('.m-month')?.value||HEAD_PREV;
+      if(eid==='FAMILY_PREV'&&p!==0){
+        totalProcessed+=p;
+        txnEntries.push({enrollment_id:activeSiblings[0].enrollment_id,month:HEAD_PREV,total:p});
+      }else if(eid!=='FAMILY_PREV'){
+        if(t!==0){totalProcessed+=t;txnEntries.push({enrollment_id:eid,month,total:t})}
+        if(a!==0){totalProcessed+=a;txnEntries.push({enrollment_id:eid,month:HEAD_ANNUAL,total:a})}
+      }
+    });
+    await _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy);
+  }else{
+    autoAllocPlan.forEach(plan=>{
+      if(plan.valid)return;
+      totalProcessed+=plan.amt;
+      txnEntries.push({enrollment_id:plan.eid,month:plan.month,total:plan.amt,_type:plan.type,_fullDue:plan.fullDue,_name:plan.name});
+    });
+
+    const partials=autoAllocPlan.filter(p=>!p.valid&&p.type!=='Prev'&&p.fullDue>0&&p.amt<p.fullDue);
+    let shortfallOps=[];
+    if(partials.length>0){
+      const itemLines=partials.map(p=>`${p.type} — ${p.name} (${p.month}): paid ${fmtINR(p.amt)}, shortfall = ${fmtINR(p.fullDue-p.amt)}`);
+      const totalShortfall=partials.reduce((s,p)=>s+(p.fullDue-p.amt),0);
+      const moveToBalance=await showConfirm('Partial Payment Detected',
+        `A shortfall of ${fmtINR(totalShortfall)} remains across ${partials.length} item(s).\n\nYES → Transaction proceeds. Shortfall is moved to Family Prev Balance as a positive debt.\nNO → Transaction proceeds. Shortfall stays on the specific month/item as pending.`,
+        itemLines,'✓ Yes — Move to Prev Balance','✕ No — Keep as Partial');
+      if(moveToBalance){
+        partials.forEach(p=>{
+          const shortfall=p.fullDue-p.amt;
+          const entry=txnEntries.find(e=>e.enrollment_id===p.eid&&e.month===p.month&&e._type===p.type);
+          if(entry){ entry.total=p.fullDue; entry._shortfallNote=` [shortfall ${fmtINR(shortfall)} moved to Prev Balance]` }
+          shortfallOps.push({eid:p.eid,amt:shortfall,source:`Partial ${p.type}: ${p.month} (paid ${fmtINR(p.amt)}, shortfall ${fmtINR(shortfall)})`});
+        });
+        // recompute total: bundle now records the full due for those heads
+        totalProcessed=txnEntries.reduce((s,e)=>s+e.total,0);
+      }
+    }
+    await _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy,shortfallOps);
+  }
+}
+
+async function _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy,shortfallOps){
+  const btn=$('submitPayBtn');
+  try{
+    if(!txnEntries.length){toast('Nothing to save','error');btn.disabled=false;updateFamilyLock();return}
+    const isoDT=new Date(datetime).toISOString();
+    const noteSuffix=txnEntries.map(e=>e._shortfallNote||'').filter(Boolean).join('');
+
+    // 1. The bundle row
+    const {error:e1}=await sb.from('payments').insert({
+      payment_id: bundleID,
+      enrollment_id: null,
+      session_id: viewSession,
+      family_code: activeFamilyCode,
+      amount: Math.round(totalProcessed*100)/100,
+      payment_date: datetime.slice(0,10),
+      paid_at: isoDT,
+      recorded_by: ME,
+      remarks: (remarks||'')+noteSuffix || null,
+      allocation_strategy: strategy||null
+    });
+    if(e1) throw e1;
+
+    // 2. The allocation lines
+    const rows=txnEntries.map(e=>({
+      payment_id: bundleID,
+      enrollment_id: e.enrollment_id,
+      head: e.month,
+      amount: Math.round(e.total*100)/100,
+      payment_date: datetime.slice(0,10)
+    }));
+    const {error:e2}=await sb.from('payment_allocations').insert(rows);
+    if(e2){ await sb.from('payments').delete().eq('payment_id',bundleID); throw e2 }
+
+    // 3. Shortfalls pushed to prev balance + ledger
+    if(shortfallOps&&shortfallOps.length){
+      for(const op of shortfallOps){
+        const stu=students.find(s=>s.enrollment_id===op.eid);
+        const cur=stu?(parseFloat(stu.prevBalance)||0):0;
+        await setPrevBalance(op.eid,cur+op.amt);
+        await addLedgerEntry(op.eid,datetime.slice(0,10),op.source,op.amt,bundleID);
+      }
+    }
+
+    await log(`Bundle ${bundleID} saved for Family ${activeFamilyCode}: ${fmtINR(totalProcessed)}`,'green');
+    toast('✓ Bundle Saved Successfully','success');
+    $('c_remarks').value='';
+    if(counterMode==='auto'){
+      $('c_totalCash').value=''; autoAllocPlan=[];
+      $('autoAllocPreview').style.display='none';
+    }
+    const fc=activeFamilyCode;
+    await loadAll();
+    activeSiblings=sortSiblings(students.filter(s=>s.familyCode===fc));
+    if(counterMode==='manual') switchCounterMode('manual'); else updateFamilyLock();
+    refreshFamilyDues();
+    renderFamilyTxns();
+  }catch(err){
+    console.error(err);
+    updateStatus('offline');
+    toast('Save failed: '+(err.message||err),'error');
+  }finally{
+    btn.disabled=false;
+    updateFamilyLock();
+  }
+}
+
+function renderFamilyTxns(){
+  if(!activeFamilyCode)return;
+  const eids=activeSiblings.map(s=>s.enrollment_id);
+  const list=payments.filter(p=>eids.includes(p.enrollment_id))
+    .sort((a,b)=>String(b.datetime||'').localeCompare(String(a.datetime||'')));
+
+  const grouped={};
+  list.forEach(p=>{
+    const bid=p.bundleID||p.id;
+    if(!grouped[bid])grouped[bid]={id:bid,datetime:p.datetime,rows:[],total:0};
+    grouped[bid].rows.push(p); grouped[bid].total+=p.total;
+  });
+
+  let html=`<table><thead><tr>
+    <th>Bundle Txn ID</th><th>Date</th><th>Students</th><th>Total</th><th>Action</th><th style="width:36px"></th>
+  </tr></thead><tbody>`;
+  const entries=Object.values(grouped).slice(0,10);
+  entries.forEach((b,bi)=>{
+    const stuNames=[...new Set(b.rows.map(p=>{const s=students.find(x=>x.enrollment_id===p.enrollment_id);return s?s.name:'?'}))].join(', ');
+    html+=`<tr class="bundle-master-row" onclick="toggleBundleRows('fb${bi}')">
+      <td class="mono" style="font-size:11px">${esc(b.id)}</td>
+      <td class="mono">${fmtDate(b.datetime)}</td>
+      <td style="font-size:12px">${esc(stuNames)}</td>
+      <td class="mono" style="color:var(--green);font-weight:600">${fmtINR(b.total)}</td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-danger btn-sm" onclick="deleteBundle('${esc(b.id)}',true)">🗑 Bundle</button></td>
+      <td onclick="event.stopPropagation();toggleBundleRows('fb${bi}')"><span class="bundle-toggle-btn" id="toggle_fb${bi}">▶</span></td>
+    </tr>`;
+    b.rows.forEach(p=>{
+      const stu=students.find(s=>s.enrollment_id===p.enrollment_id);
+      html+=`<tr class="bundle-child-row" id="child_fb${bi}">
+        <td colspan="2" style="padding-left:20px!important;font-size:10px" class="mono">${esc(p.month)}</td>
+        <td>${esc(stu?stu.name:'?')}</td>
+        <td class="mono">${fmtINR(p.total)}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="deleteTxnMaster('${p.id}',true)">🗑 Row</button></td>
+        <td></td>
+      </tr>`;
+    });
+  });
+  html+='</tbody></table>';
+  $('familyTxnTable').innerHTML=entries.length?html:'<p class="text-muted" style="padding:16px">No recent transactions.</p>';
+}
+
+function toggleBundleRows(gid){
+  const rows=document.querySelectorAll(`#child_${gid}`);
+  const btn=$(`toggle_${gid}`);
+  const isOpen=btn.classList.contains('open');
+  rows.forEach(r=>r.classList.toggle('open',!isOpen));
+  btn.classList.toggle('open',!isOpen);
+}
+
+async function deleteBundle(bID,isCounter=false){
+  const ok=await showConfirm('Void Entire Bundle?',
+    'This permanently deletes ALL allocation rows created during that save, and reverses any shortfall pushed to Previous Balance.',
+    [bID],'✓ Void Bundle','✕ Cancel');
+  if(!ok)return;
+  updateStatus('saving');
+  try{
+    await cleanupBundlePrevBalance(bID);
+    const {error}=await sb.from('payments').delete().eq('payment_id',bID);
+    if(error) throw error;
+    await log(`Bundle ${bID} voided manually`,'red');
+    toast(`Bundle ${bID} voided`,'success');
+    const fc=activeFamilyCode;
+    await loadAll();
+    if(isCounter&&fc){
+      activeSiblings=sortSiblings(students.filter(s=>s.familyCode===fc));
+      refreshFamilyDues(); renderFamilyTxns();
+    } else if(document.querySelector('.page.active')?.id==='page-transactions'){
+      renderTransactions();
+    }
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Void failed: '+(e.message||e),'error') }
+}
+
+async function deleteTxnMaster(allocId,isCounter=false){
+  const ok=await showConfirm('Void This Row?','Permanently delete this single allocation row from its bundle.',[],'✓ Void Row','✕ Cancel');
+  if(!ok)return;
+  updateStatus('saving');
+  try{
+    const alloc=payments.find(p=>p.id===allocId);
+    const bID=alloc?.bundleID;
+    const {error}=await sb.from('payment_allocations').delete().eq('allocation_id',allocId);
+    if(error) throw error;
+    if(bID){
+      const remaining=payments.filter(p=>p.bundleID===bID&&p.id!==allocId);
+      if(!remaining.length){
+        await cleanupBundlePrevBalance(bID);
+        await sb.from('payments').delete().eq('payment_id',bID);
+      }else{
+        await sb.from('payments').update({amount:Math.round(remaining.reduce((s,p)=>s+p.total,0)*100)/100}).eq('payment_id',bID);
+      }
+    }
+    await log(`Allocation row voided from bundle ${bID||'—'}`,'red');
+    toast('Transaction row voided','success');
+    const fc=activeFamilyCode;
+    await loadAll();
+    if(isCounter&&fc){
+      activeSiblings=sortSiblings(students.filter(s=>s.familyCode===fc));
+      refreshFamilyDues(); renderFamilyTxns();
+    } else {
+      const cur=document.querySelector('.page.active')?.id.replace('page-','');
+      if(cur==='transactions') renderTransactions();
+      else if(cur==='profile'&&profileEid) renderProfile(profileEid);
+    }
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Void failed: '+(e.message||e),'error') }
+}
+
+// ══════════════════════════════════════════════
+//  TRANSACTIONS
+// ══════════════════════════════════════════════
+function populateTxnFilters(){
+  const mFilt=$('txnMonthFilter');
+  mFilt.innerHTML='<option value="">All Months</option>'+MONTHS.map(m=>`<option value="${m}">${m}</option>`).join('')
+    +`<option value="${HEAD_ANNUAL}">Annual</option><option value="${HEAD_PREV}">Prev Balance</option>`;
+}
+
+function renderTransactions(){
+  const q=$('txnSearch').value.trim().toLowerCase();
+  const m=$('txnMonthFilter').value;
+  const dStart=$('txnDateStart').value, dEnd=$('txnDateEnd').value;
+
+  let list=[...payments].sort((a,b)=>String(b.datetime||'').localeCompare(String(a.datetime||'')));
+  if(q) list=list.filter(p=>{
+    const stu=students.find(s=>s.enrollment_id===p.enrollment_id);
+    return String(p.bundleID||'').toLowerCase().includes(q)||String(p.sno||'').includes(q)||(stu&&(stu.name||'').toLowerCase().includes(q));
+  });
+  if(m) list=list.filter(p=>p.month===m);
+  if(dStart) list=list.filter(p=>String(p.datetime||'')>=dStart+'T00:00');
+  if(dEnd) list=list.filter(p=>String(p.datetime||'')<=dEnd+'T23:59:59');
+
+  const grouped={};
+  list.forEach(p=>{
+    const bid=p.bundleID||p.id;
+    if(!grouped[bid])grouped[bid]={id:bid,datetime:p.datetime,rows:[],total:0};
+    grouped[bid].rows.push(p); grouped[bid].total+=p.total;
+  });
+
+  let html=`<table><thead><tr>
+    <th>Bundle Txn ID</th><th>Date &amp; Time</th><th>Students</th><th>Heads</th><th>Total</th><th>Action</th><th style="width:36px"></th>
+  </tr></thead><tbody>`;
+  const entries=Object.values(grouped);
+  entries.forEach((b,bi)=>{
+    const gid=`txn${bi}`;
+    const eids=[...new Set(b.rows.map(p=>p.enrollment_id))];
+    const stuNames=eids.map(eid=>{const s=students.find(x=>x.enrollment_id===eid);return s?s.name:'?'}).join(', ');
+    const heads=[...new Set(b.rows.map(p=>p.month))].join(', ');
+    html+=`<tr class="bundle-master-row" onclick="toggleBundleRows('${gid}')">
+      <td class="mono" style="font-size:11px">${esc(b.id)}</td>
+      <td class="mono">${fmtDT(b.datetime)}</td>
+      <td style="font-size:12px">${esc(stuNames)}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(heads)}</td>
+      <td class="mono" style="color:var(--green);font-weight:600">${fmtINR(b.total)}</td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-danger btn-sm" onclick="deleteBundle('${esc(b.id)}')">🗑 Bundle</button></td>
+      <td onclick="event.stopPropagation();toggleBundleRows('${gid}')"><span class="bundle-toggle-btn" id="toggle_${gid}">▶</span></td>
+    </tr>`;
+    b.rows.forEach(p=>{
+      const stu=students.find(s=>s.enrollment_id===p.enrollment_id);
+      html+=`<tr class="bundle-child-row" id="child_${gid}">
+        <td style="padding-left:20px!important;font-size:10px" class="mono">${esc(p.month)}</td>
+        <td class="mono" style="font-size:11px">${fmtDT(p.datetime)}</td>
+        <td>${esc(stu?stu.name:'?')} <span class="text-muted">(${esc(stu?stu.cls:'—')})</span></td>
+        <td>${esc(p.month)}</td>
+        <td class="mono">${fmtINR(p.total)}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="deleteTxnMaster('${p.id}')">🗑 Row</button></td>
+        <td></td>
+      </tr>`;
+    });
+  });
+  html+=`</tbody></table>`;
+  $('txnTable').innerHTML=entries.length?html:`<div class="text-muted" style="padding:16px;text-align:center">No transactions found.</div>`;
+}
+
+// ══════════════════════════════════════════════
+//  STUDENTS LIST
+// ══════════════════════════════════════════════
+let stuViewMode='student';
+function switchStudentView(mode){
+  stuViewMode=mode;
+  $('stuViewStudent').className=mode==='student'?'mode-btn active':'mode-btn';
+  $('stuViewFamily').className=mode==='family'?'mode-btn active':'mode-btn';
+  $('studentViewPanel').style.display=mode==='student'?'':'none';
+  $('familyViewPanel').style.display=mode==='family'?'':'none';
+  if(mode==='family') renderFamilyView();
+}
+
+function snoCell(s){
+  if(s.sno==null||s.sno==='') return '<span class="pill pill-yellow" title="Promoted but not yet re-admitted">Not re-admitted</span>';
+  return '<span class="mono">#'+esc(s.sno)+'</span>';
+}
+// Sort by s_no ascending, nulls last
+function sortBySno(list){
+  return [...list].sort((a,b)=>{
+    const an=a.sno==null||a.sno===''?Infinity:parseInt(a.sno)||0;
+    const bn=b.sno==null||b.sno===''?Infinity:parseInt(b.sno)||0;
+    if(an!==bn) return an-bn;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+}
+
+function renderStudents(){
+  const q=$('stuSearch').value.trim();
+  const cf=$('stuClassFilter').value;
+  const rf=$('stuReadmFilter').value;
+  let list=[...students];
+  if(q){
+    const ql=q.toLowerCase();
+    list=list.filter(s=>(s.name||'').toLowerCase().includes(ql)||String(s.sno||'').includes(q)||(s.phone||'').includes(q)||(s.familyCode||'').toLowerCase().includes(ql)||(s.father||'').toLowerCase().includes(ql));
+  }
+  if(cf) list=list.filter(s=>s.cls===cf);
+  if(rf==='pending') list=list.filter(s=>s.sno==null||s.sno==='');
+  if(rf==='done')    list=list.filter(s=>s.sno!=null&&s.sno!=='');
+  list=sortBySno(list);
+
+  $('stuTable').innerHTML=`<table>
+    <thead><tr><th>S.No</th><th>Name</th><th>Father's Name</th><th>Phone</th><th>Class</th><th>Family Code</th><th>Total Due</th><th></th></tr></thead>
+    <tbody>${list.map(s=>{
+      const d=getTotalDues(s); const pill=d.total===0?'pill-green':d.total<1000?'pill-yellow':'pill-red';
+      return `<tr>
+        <td>${snoCell(s)}</td>
+        <td><b>${esc(s.name)}</b></td>
+        <td>${esc(s.father||'—')}</td>
+        <td class="mono">${esc(s.phone||'—')}${s.altPhone?'<br><span style="color:var(--muted);font-size:10px">'+esc(s.altPhone)+'</span>':''}</td>
+        <td><span class="pill pill-blue">${esc(s.cls)}</span></td>
+        <td class="mono" style="color:var(--muted)">${esc(s.familyCode||'—')}</td>
+        <td class="mono"><span class="pill ${pill}">${fmtINR(d.total)}</span></td>
+        <td><button class="btn btn-ghost btn-sm" onclick="openProfileModal('${s.enrollment_id}','students')">View Profile</button></td>
+      </tr>`;
+    }).join('')||'<tr><td colspan="8" class="text-muted" style="padding:16px;text-align:center">No students match the filters.</td></tr>'}</tbody></table>`;
+}
+
+function openProfileModal(eid,returnPage){
+  profileReturnPage=returnPage||_getCurrentPage();
+  goTo('profile',eid);
+}
+function _getCurrentPage(){
+  const active=document.querySelector('.page.active');
+  return active?active.id.replace('page-',''):'students';
+}
+
+// ══════════════════════════════════════════════
+//  STUDENT PROFILE
+// ══════════════════════════════════════════════
+let profileEid=null, profileEditMode=false, profileReturnPage='students';
+
+function renderProfile(eid){
+  profileEid=eid; profileEditMode=false;
+  $('editToggleBtn').style.display=''; $('editToggleBtn').textContent='✎ Edit Profile';
+  $('saveProfileBtn').style.display='none';
+  $('deleteStudentBtn').style.display='none';
+  const stu=students.find(s=>s.enrollment_id===eid);
+  if(!stu)return;
+  $('prof_title').textContent=stu.name+(stu.sno?' · #'+stu.sno:' · (not re-admitted)');
+  renderProfileFields(stu,false);
+}
+
+function sectionsFor(classId){ return SECTIONS.filter(x=>x.class_id===classId) }
+
+function renderProfileFields(stu,edit){
+  const dues=getTotalDues(stu), mt=getMonthlyTuition(stu), ac=getAnnualCharge(stu);
+  const baseAc=(feeSettings[stu.cls]||{annual:0}).annual;
+  const secName=(SECTIONS.find(x=>x.section_id===stu.section_id)||{}).name||'—';
+
+  let demo='';
+  demo += edit
+    ? `<div class="field-row"><label>S.No <span style="color:var(--yellow);font-size:10px">(blank = not re-admitted)</span></label><input type="text" id="pf_sno" value="${esc(stu.sno||'')}" class="editable mono" placeholder="e.g. 12"></div>`
+    : `<div class="field-row"><label>S.No</label><div class="field-val">${snoCell(stu)}</div></div>`;
+  demo += `<div class="field-row"><label>Student ID <span style="color:var(--muted);font-size:10px">(permanent, shared with Admin &amp; Teacher portals)</span></label><div class="field-val mono">${esc(stu.student_id)}</div></div>`;
+
+  const txt=(label,val,id)=> edit
+    ? `<div class="field-row"><label>${label}</label><input type="text" id="${id}" value="${esc(val||'')}" class="editable"></div>`
+    : `<div class="field-row"><label>${label}</label><div class="field-val">${esc(val||'—')}</div></div>`;
+  demo += txt('Name',stu.name,'pf_name');
+  demo += txt("Father's Name",stu.father,'pf_father');
+  demo += txt("Mother's Name",stu.mother,'pf_mother');
+  demo += txt('Phone',stu.phone,'pf_phone');
+  demo += txt('Alternate Phone',stu.altPhone,'pf_altPhone');
+  demo += edit
+    ? `<div class="field-row"><label>Admission Date</label><input type="date" id="pf_admdate" value="${esc(stu.admDate||'')}" class="editable"></div>`
+    : `<div class="field-row"><label>Admission Date</label><div class="field-val">${stu.admDate?fmtDate(stu.admDate):'—'}</div></div>`;
+  demo += edit
+    ? `<div class="field-row"><label>Class</label><select id="pf_cls" class="editable" onchange="pfLoadSections()">${CLASSES.map(c=>`<option ${c===stu.cls?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+       <div class="field-row"><label>Section</label><select id="pf_section" class="editable"></select></div>`
+    : `<div class="field-row"><label>Class</label><div class="field-val">${esc(stu.cls)} — ${esc(secName)}</div></div>`;
+  demo += txt('Family Code',stu.familyCode,'pf_familyCode');
+  demo += edit
+    ? `<div class="field-row"><label>New Admission</label><select id="pf_isNew" class="editable"><option value="true" ${stu.isNew?'selected':''}>Yes (Annual Waived)</option><option value="false" ${!stu.isNew?'selected':''}>No</option></select></div>`
+    : `<div class="field-row"><label>New Admission</label><div class="field-val">${stu.isNew?'Yes (Annual Waived)':'No'}</div></div>`;
+  demo += `<div class="field-row"><label>Re-admission Date</label><div class="field-val">${stu.readmissionDate?fmtDate(stu.readmissionDate):'—'}</div></div>`;
+  $('prof_demo').innerHTML=demo;
+
+  if(edit){ pfLoadSections(stu.section_id) }
+
+  const sibCount=siblingsOf(stu).length;
+  $('prof_fees').innerHTML=`
+    <div class="field-row"><label>Monthly Tuition Override (Base: ${fmtINR((feeSettings[stu.cls]||{}).tuition)})</label>
+      ${edit?`<input type="number" id="pf_tuitionOverride" value="${stu.tuitionOverride??''}" placeholder="Leave empty for default" class="editable">`
+            :`<div class="field-val mono">${fmtINR(mt)}${stu.tuitionOverride!=null?' ✎ custom':(sibCount>=3?' (Sibling Flat Fee)':'')}</div>`}
+    </div>
+    <div class="field-row"><label>Annual Charge Override (Base: ${fmtINR(baseAc)})</label>
+      ${edit?`<input type="number" id="pf_annualOverride" value="${stu.annualOverride??''}" placeholder="Leave empty for default" class="editable">`
+            :`<div class="field-val mono">${fmtINR(ac)}${stu.annualOverride!=null?' ✎ custom':(stu.isNew?' (New Adm. Waived)':'')}</div>`}
+    </div>
+    <div class="field-row"><label>Previous Balance</label>
+      ${edit?`<input type="number" id="pf_prevBalance" value="${stu.prevBalance||0}" class="editable">`
+            :`<div class="field-val mono">${fmtINR(stu.prevBalance||0)}</div>`}
+    </div>`;
+
+  $('prof_dues').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+    <div class="dues-block"><div class="lbl">Tuition Due</div><div class="amt ${dues.tuitionDue>0?'red':'green'}">${fmtINR(dues.tuitionDue)}</div></div>
+    <div class="dues-block"><div class="lbl">Annual Due</div><div class="amt ${dues.annualDue>0?'red':'green'}">${fmtINR(dues.annualDue)}</div></div>
+    <div class="dues-block"><div class="lbl">Prev. Balance</div><div class="amt ${dues.prevBalance>0?'red':'green'}">${fmtINR(dues.prevBalance)}</div></div>
+    <div class="dues-block" style="border-color:${dues.total===0?'var(--green)':'var(--red)'}"><div class="lbl">Total Due</div><div class="amt ${dues.total===0?'green':'red'}">${fmtINR(dues.total)}</div></div>
+  </div>`;
+
+  $('prof_breakdown').innerHTML=dues.breakdown.length
+    ? dues.breakdown.map(b=>{
+        const wv=b.waived>0?` <span class="waiver-badge">Waived ${fmtINR(b.waived)}</span>`:'';
+        const rm=b.waived>0?getWaiverRemark(stu,b.month==='Annual Charge'?HEAD_ANNUAL:b.month):'';
+        return `<div class="breakdown-row ${b.waived>0?'cell-waived':''}"><span><b>${esc(b.month)}</b>${wv} ${b.month!=='Annual Charge'&&!String(b.month).includes('Arrears')?'(Base: '+fmtINR(b.base)+')':''} ${rm?'<span style="color:var(--muted);font-size:10px;font-style:italic">— '+esc(rm)+'</span>':''}</span><span class="mono" style="color:var(--red)">Due: ${fmtINR(b.due)}</span></div>`;
+      }).join('')
+    : '<div class="text-muted">No pending dues.</div>';
+
+  const siblings=siblingsOf(stu).filter(s=>s.enrollment_id!==stu.enrollment_id);
+  const sibCard=$('prof_siblings_card');
+  if(siblings.length){
+    sibCard.style.display='';
+    $('prof_siblings').innerHTML=`
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        ${sortSiblings(siblings).map(s=>`<button class="btn btn-ghost btn-sm" style="border-color:var(--accent);color:var(--accent);" onclick="openProfileModal('${s.enrollment_id}','${profileReturnPage||'students'}')">
+          <span style="font-weight:600">${esc(s.name)}</span> <span class="pill pill-blue" style="margin-left:4px">${esc(s.cls)}</span></button>`).join('')}
+      </div>
+      <p class="text-muted">Family Code: <b>${esc(stu.familyCode||'—')}</b> · ${siblings.length+1} members${siblings.length>=2?' — 3-child flat fee active':''}</p>`;
+  }else{ sibCard.style.display='none' }
+
+  const stuPays=payments.filter(p=>p.enrollment_id===stu.enrollment_id)
+    .sort((a,b)=>String(b.datetime||'').localeCompare(String(a.datetime||'')));
+  $('prof_ledger').innerHTML=`<table><thead><tr><th>Bundle Txn ID</th><th>Date &amp; Time</th><th>Head</th><th>Tuition</th><th>Annual</th><th>Prev. Bal</th><th>Total</th><th>Remarks</th><th>Action</th></tr></thead>
+    <tbody>${stuPays.length?stuPays.map(p=>`<tr>
+      <td class="mono" style="font-size:10px">${esc(p.bundleID||'—')}</td>
+      <td class="mono" style="white-space:nowrap">${fmtDT(p.datetime)}</td>
+      <td>${esc(p.month)}</td>
+      <td class="mono">${fmtINR(p.tuition||0)}</td>
+      <td class="mono">${fmtINR(p.annual||0)}</td>
+      <td class="mono">${fmtINR(p.prev||0)}</td>
+      <td class="mono"><b>${fmtINR(p.total)}</b></td>
+      <td style="font-size:11px">${esc(p.remarks||'—')}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="deleteTxnMaster('${p.id}')">🗑</button>${p.bundleID?`<button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteBundle('${esc(p.bundleID)}')">🗑 B</button>`:''}</td>
+    </tr>`).join(''):'<tr><td colspan="9" class="text-muted" style="padding:16px;text-align:center">No payments recorded.</td></tr>'}
+    </tbody></table>`;
+}
+
+function pfLoadSections(preselect){
+  const clsName=$('pf_cls')?.value;
+  const sel=$('pf_section'); if(!sel)return;
+  const cid=CLASS_ID[clsName];
+  const secs=sectionsFor(cid);
+  sel.innerHTML=secs.length?secs.map(s=>`<option value="${s.section_id}">${esc(s.name)}</option>`).join('')
+                          :'<option value="">— no sections for this class —</option>';
+  if(preselect&&secs.find(x=>x.section_id===preselect)) sel.value=preselect;
+}
+
+function toggleProfileBreakdown(){const el=$('prof_breakdown');el.style.display=el.style.display==='block'?'none':'block'}
+
+function toggleProfileEdit(){
+  const stu=students.find(s=>s.enrollment_id===profileEid); if(!stu)return;
+  profileEditMode=!profileEditMode;
+  $('editToggleBtn').textContent=profileEditMode?'✕ Cancel Edit':'✎ Edit Profile';
+  $('saveProfileBtn').style.display=profileEditMode?'':'none';
+  $('deleteStudentBtn').style.display=profileEditMode?'':'none';
+  renderProfileFields(stu,profileEditMode);
+}
+
+async function saveProfile(){
+  const stu=students.find(s=>s.enrollment_id===profileEid); if(!stu)return;
+  const newSnoRaw=($('pf_sno')?.value||'').trim();
+  const newSno=newSnoRaw===''?null:newSnoRaw;
+
+  if(newSno!==null){
+    const clash=students.find(s=>String(s.sno)===String(newSno)&&s.enrollment_id!==stu.enrollment_id);
+    if(clash){toast(`S.No "${newSno}" is already used by ${clash.name} in ${viewSession}`,'error');return}
+  }
+  const newName=$('pf_name').value.trim();
+  const newFather=$('pf_father').value.trim();
+  if(!newName||!newFather){toast('Name and Father\u2019s Name are required','error');return}
+
+  const newClsName=$('pf_cls').value;
+  const newClassId=CLASS_ID[newClsName];
+  const newSectionId=$('pf_section').value||null;
+  if(!newSectionId){toast('Please select a section','error');return}
+
+  const famCode=$('pf_familyCode').value.trim()||stu.familyCode;
+  const to=$('pf_tuitionOverride').value, ao=$('pf_annualOverride').value;
+  const pb=$('pf_prevBalance').value;
+  const newPb=pb===''?0:parseFloat(pb);
+
+  updateStatus('saving');
+  try{
+    if(famCode&&famCode!==stu.familyCode) await ensureFamily(famCode,$('pf_phone').value.trim());
+
+    const {error:e1}=await sb.from('students').update({
+      full_name:newName, father_name:newFather,
+      mother_name:$('pf_mother').value.trim()||null,
+      phone:$('pf_phone').value.trim()||null,
+      alt_phone:$('pf_altPhone').value.trim()||null,
+      admission_date:$('pf_admdate').value||null,
+      family_code:famCode||null
+    }).eq('student_id',stu.student_id);
+    if(e1) throw e1;
+
+    const wasReadmitted = stu.sno!=null&&stu.sno!=='';
+    const patch={
+      s_no:newSno, class_id:newClassId, section_id:newSectionId,
+      is_new_admission:$('pf_isNew').value==='true',
+      tuition_override: to===''?null:parseFloat(to),
+      annual_override:  ao===''?null:parseFloat(ao)
+    };
+    if(newSno!==null&&!wasReadmitted) patch.readmission_date=today();
+    if(newSno===null) patch.readmission_date=null;
+    const {error:e2}=await sb.from('student_enrollments').update(patch).eq('enrollment_id',stu.enrollment_id);
+    if(e2) throw e2;
+
+    if(newPb!==(parseFloat(stu.prevBalance)||0)){
+      await addLedgerEntry(stu.enrollment_id,today(),`Manual edit (was ${fmtINR(stu.prevBalance||0)})`,newPb-(parseFloat(stu.prevBalance)||0),null);
+      await setPrevBalance(stu.enrollment_id,newPb);
+    }
+
+    await log(`Profile updated: ${newName}`,'accent');
+    toast('Profile saved','success');
+    await loadAll();
+    profileEditMode=false;
+    $('editToggleBtn').textContent='✎ Edit Profile';
+    $('saveProfileBtn').style.display='none';
+    $('deleteStudentBtn').style.display='none';
+    renderProfile(profileEid);
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Save failed: '+(e.message||e),'error') }
+}
+
+async function deleteStudent(){
+  const stu=students.find(s=>s.enrollment_id===profileEid); if(!stu)return;
+  const ok=await showConfirm('Delete This Enrollment?',
+    `This removes ${stu.name} from ${viewSession} along with their payments, waivers and arrears for this session.\n\nThe permanent student record (${stu.student_id}) is NOT deleted — it stays in the Admin Portal.`,
+    [],'✓ Delete Enrollment','✕ Cancel');
+  if(!ok)return;
+  updateStatus('saving');
+  try{
+    const {data:allocs}=await sb.from('payment_allocations').select('payment_id').eq('enrollment_id',stu.enrollment_id);
+    const bids=[...new Set((allocs||[]).map(a=>a.payment_id))];
+    await sb.from('payment_allocations').delete().eq('enrollment_id',stu.enrollment_id);
+    for(const bid of bids){
+      const {data:rest}=await sb.from('payment_allocations').select('amount').eq('payment_id',bid);
+      if(!rest||!rest.length) await sb.from('payments').delete().eq('payment_id',bid);
+      else await sb.from('payments').update({amount:rest.reduce((s,r)=>s+(+r.amount||0),0)}).eq('payment_id',bid);
+    }
+    await sb.from('fee_waivers').delete().eq('enrollment_id',stu.enrollment_id);
+    await sb.from('prev_balance_ledger').delete().eq('enrollment_id',stu.enrollment_id);
+    await sb.from('previous_balances').delete().eq('enrollment_id',stu.enrollment_id);
+    const {error}=await sb.from('student_enrollments').delete().eq('enrollment_id',stu.enrollment_id);
+    if(error) throw error;
+    await log(`Enrollment deleted: ${stu.name} (${viewSession})`,'red');
+    toast('Enrollment deleted','success');
+    await loadAll();
+    goTo('students');
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Delete failed: '+(e.message||e),'error') }
+}
+
+// ══════════════════════════════════════════════
+//  FEE MATRIX
+// ══════════════════════════════════════════════
+function renderMatrix(){
+  const cls=$('matrixClass').value;
+  const fSearch=($('matrixFamilySearch').value||'').trim().toLowerCase();
+  if(!cls&&!fSearch){$('matrixContainer').innerHTML='<p class="text-muted" style="padding:16px">Select a class or enter a family code to view the matrix.</p>';return}
+
+  let list=[...students];
+  if(cls) list=list.filter(s=>s.cls===cls);
+  if(fSearch) list=list.filter(s=>(s.familyCode||'').toLowerCase().includes(fSearch)||(s.name||'').toLowerCase().includes(fSearch));
+  list=sortBySno(list);
+  if(!list.length){$('matrixContainer').innerHTML='<p class="text-muted" style="padding:16px">No students match the selected filters.</p>';return}
+
+  let headers=`<th class="sticky" style="min-width:50px">S.No</th>
+    <th class="sticky2" style="min-width:150px">Name</th>
+    <th class="sticky3" style="min-width:130px">Father's Name</th>`;
+  MONTHS.forEach(m=>headers+=`<th style="min-width:120px">${m}</th>`);
+  headers+=`<th style="min-width:110px">Annual</th><th style="min-width:100px">Prev.Bal</th><th style="min-width:110px">Total Due</th>`;
+
+  const rows=list.map(stu=>{
+    const mt=getMonthlyTuition(stu), dues=getTotalDues(stu);
+    const cells=MONTHS.map(m=>{
+      const pays=getMonthPayments(stu.enrollment_id,m);
+      const paid=pays.reduce((s,p)=>s+(p.tuition||0),0);
+      const wv=getWaivedAmount(stu,m);
+      const net=Math.max(0,mt-wv);
+      const cls2=paid===0?(net===0?'cell-waived':'cell-unpaid'):paid>=net?'cell-paid':'cell-partial';
+      const content=pays.length?pays.map(p=>`<div class="payment-row"><span class="pay-amt">${fmtINR(p.tuition)}</span><span class="pay-date">${fmtDate(p.datetime)}</span></div>`).join(''):'<span style="color:var(--muted)">—</span>';
+      return `<td class="matrix-cell ${cls2}">${content}</td>`;
+    }).join('');
+    const annPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id).reduce((s,p)=>s+(p.annual||0),0);
+    return `<tr>
+      <td class="sticky">${snoCell(stu)}</td>
+      <td class="sticky2"><a onclick="openProfileModal('${stu.enrollment_id}','matrix')" style="font-weight:600;font-size:12px;color:var(--accent);text-decoration:none;cursor:pointer;">${esc(stu.name)}</a><br><span style="font-size:9px;color:var(--muted)">${esc(stu.familyCode||'—')}</span></td>
+      <td class="sticky3">${esc(stu.father||'—')}</td>
+      ${cells}
+      <td class="mono ${dues.annualDue===0?'cell-paid':'cell-unpaid'}" style="text-align:center;font-size:11px">${fmtINR(annPaid)}/${fmtINR(getAnnualCharge(stu))}</td>
+      <td class="mono" style="text-align:center;font-size:11px">${fmtINR(dues.prevBalance)}</td>
+      <td class="mono" style="color:${dues.total===0?'var(--green)':'var(--red)'};font-weight:600;text-align:center">${fmtINR(dues.total)}</td>
+    </tr>`;
+  }).join('');
+
+  $('matrixContainer').innerHTML=`
+    <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="pill pill-green">■ Paid</span><span class="pill pill-yellow">■ Partial</span><span class="pill pill-red">■ Unpaid</span>
+      <span class="text-muted" style="margin-left:auto">${cls?'Class '+esc(cls):'All Classes'}${fSearch?' — filtered':''} · ${list.length} students</span>
+    </div>
+    <div class="table-wrap"><table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ══════════════════════════════════════════════
+//  BACKLOG ENTRY
+// ══════════════════════════════════════════════
+let backlogData={};
+function renderBacklog(){
+  const cls=$('backlogClass').value;
+  const container=$('backlogContainer'), saveBtn=$('backlogSave');
+  if(!cls){container.innerHTML='';saveBtn.style.display='none';return}
+  let list=sortBySno(students.filter(s=>s.cls===cls));
+  if(!list.length){container.innerHTML='<p class="text-muted" style="padding:16px">No students in this class.</p>';saveBtn.style.display='none';return}
+
+  backlogData={};
+  const todayStr=today();
+  let hR1=`<th class="sticky" rowspan="2" style="min-width:50px">S.No</th><th class="sticky2" rowspan="2" style="min-width:180px">Name</th><th rowspan="2" style="min-width:100px">Prev. Balance</th><th rowspan="2" style="min-width:120px">Prev. Date</th><th rowspan="2" style="min-width:100px">Annual Paid</th><th rowspan="2" style="min-width:120px">Annual Date</th>`;
+  MONTHS.forEach(m=>{hR1+=`<th colspan="2" style="text-align:center;min-width:220px">${m}</th>`});
+  let hR2=''; MONTHS.forEach(()=>{hR2+=`<th>Amount (₹)</th><th>Date</th>`});
+
+  const rows=list.map((stu,i)=>{
+    backlogData[stu.enrollment_id]={prevBal:0,prevDate:todayStr,annual:0,annualDate:todayStr};
+    MONTHS.forEach(m=>{backlogData[stu.enrollment_id][m]={amt:0,date:todayStr}});
+    const base=i*MONTHS.length;
+    const mCells=MONTHS.map((m,mi)=>`<td style="padding:4px 6px"><input type="number" data-eid="${stu.enrollment_id}" data-field="${m}_amt" placeholder="0" tabindex="${base+mi*2+1}" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td><td style="padding:4px 6px"><input type="date" data-eid="${stu.enrollment_id}" data-field="${m}_date" value="${todayStr}" tabindex="${base+mi*2+2}" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:130px"></td>`).join('');
+    return `<tr data-row-eid="${stu.enrollment_id}">
+      <td class="sticky" style="padding:6px 12px">${snoCell(stu)}</td>
+      <td class="sticky2" style="padding:6px 12px;min-width:180px">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1">
+            <a onclick="openProfileModal('${stu.enrollment_id}','backlog')" style="font-weight:600;color:var(--accent);cursor:pointer;text-decoration:none;">${esc(stu.name)}</a>
+            <div class="text-muted" style="font-size:10px">${esc(stu.father||'')}</div>
+          </div>
+          <button class="backlog-save-btn" title="Save this row" onclick="saveBacklogRow('${stu.enrollment_id}')">✓</button>
+        </div>
+      </td>
+      <td style="padding:4px 6px"><input type="number" data-eid="${stu.enrollment_id}" data-field="prevBal" placeholder="0" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td>
+      <td style="padding:4px 6px"><input type="date" data-eid="${stu.enrollment_id}" data-field="prevDate" value="${todayStr}" oninput="updateBacklog(this)" style="width:130px"></td>
+      <td style="padding:4px 6px"><input type="number" data-eid="${stu.enrollment_id}" data-field="annual" placeholder="0" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td>
+      <td style="padding:4px 6px"><input type="date" data-eid="${stu.enrollment_id}" data-field="annualDate" value="${todayStr}" oninput="updateBacklog(this)" style="width:130px"></td>
+      ${mCells}</tr>`;
+  }).join('');
+  container.innerHTML=`<div class="table-wrap"><table><thead><tr>${hR1}</tr><tr>${hR2}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  saveBtn.style.display='block';
+}
+
+function updateBacklog(el){
+  const eid=el.dataset.eid, field=el.dataset.field;
+  if(!backlogData[eid])return;
+  if(field.includes('_')){
+    const i=field.lastIndexOf('_');
+    const month=field.slice(0,i), key=field.slice(i+1);
+    if(!backlogData[eid][month])backlogData[eid][month]={amt:0,date:''};
+    backlogData[eid][month][key]=key==='amt'?(parseFloat(el.value)||0):el.value;
+  }else{
+    backlogData[eid][field]=field.endsWith('Date')?el.value:(parseFloat(el.value)||0);
+  }
+}
+function backlogRowKeydown(event,eid){
+  if(event.key==='Enter'){event.preventDefault();saveBacklogRow(eid)}
+}
+
+async function _saveBacklogFor(stu,d){
+  let count=0;
+  const bundleID=await getNextBundleSeq(stu.familyCode||'F000');
+  const entries=[];
+  if(d.annual>0) entries.push({head:HEAD_ANNUAL,amount:d.annual,date:d.annualDate||today()});
+  MONTHS.forEach(m=>{const md=d[m]||{};if(md.amt>0)entries.push({head:m,amount:md.amt,date:md.date||today()})});
+
+  if(entries.length){
+    const total=entries.reduce((s,e)=>s+e.amount,0);
+    const firstDate=entries[0].date;
+    const {error:e1}=await sb.from('payments').insert({
+      payment_id:bundleID, enrollment_id:null, session_id:viewSession,
+      family_code:stu.familyCode||'F000', amount:Math.round(total*100)/100,
+      payment_date:firstDate, paid_at:new Date(firstDate+'T00:00:00').toISOString(),
+      recorded_by:ME, remarks:'Backlog', allocation_strategy:'BACKLOG'
+    });
+    if(e1) throw e1;
+    const rows=entries.map(e=>({payment_id:bundleID,enrollment_id:stu.enrollment_id,head:e.head,amount:Math.round(e.amount*100)/100,payment_date:e.date}));
+    const {error:e2}=await sb.from('payment_allocations').insert(rows);
+    if(e2){await sb.from('payments').delete().eq('payment_id',bundleID);throw e2}
+    count=entries.length;
+  }
+  if(d.prevBal>0){
+    const cur=parseFloat(stu.prevBalance)||0;
+    await setPrevBalance(stu.enrollment_id,cur+d.prevBal);
+    await addLedgerEntry(stu.enrollment_id,d.prevDate||today(),'Backlog entry',d.prevBal,entries.length?bundleID:null);
+    count++;
+  }
+  return count;
+}
+
+async function saveBacklogRow(eid){
+  const stu=students.find(s=>s.enrollment_id===eid);
+  if(!stu){toast('Student not found','error');return}
+  const d=backlogData[eid];
+  if(!d){toast('No data found for this student','error');return}
+  updateStatus('saving');
+  try{
+    const count=await _saveBacklogFor(stu,d);
+    if(!count){toast('Nothing entered for this student','error');updateStatus('connected');return}
+    await log(`Backlog saved for ${stu.name} — ${count} record(s)`,'accent');
+    toast(`✓ Saved ${stu.name}: ${count} record(s)`,'success');
+    const todayStr=today();
+    backlogData[eid]={prevBal:0,prevDate:todayStr,annual:0,annualDate:todayStr};
+    MONTHS.forEach(m=>{backlogData[eid][m]={amt:0,date:todayStr}});
+    document.querySelectorAll(`input[data-eid="${eid}"]`).forEach(inp=>{
+      if(inp.type==='number')inp.value=''; else if(inp.type==='date')inp.value=todayStr;
+    });
+    await loadAll();
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Save failed: '+(e.message||e),'error') }
+}
+
+async function saveBacklog(){
+  const cls=$('backlogClass').value;
+  const list=students.filter(s=>s.cls===cls);
+  const ok=await showConfirm('Save All Backlog Entries?',`This records every non-blank amount entered for Class ${cls}.`,[],'✓ Save All','✕ Cancel');
+  if(!ok)return;
+  updateStatus('saving');
+  let count=0;
+  try{
+    for(const stu of list){
+      const d=backlogData[stu.enrollment_id];
+      if(!d)continue;
+      count+=await _saveBacklogFor(stu,d);
+    }
+    await log(`Backlog saved for Class ${cls} — ${count} record(s)`,'accent');
+    toast(`Backlog saved: ${count} record(s)`,'success');
+    await loadAll();
+    renderBacklog();
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Save failed: '+(e.message||e),'error') }
+}
+
+// ══════════════════════════════════════════════
+//  FAMILY VIEW
+// ══════════════════════════════════════════════
+function renderFamilyView(){
+  const q=($('famSearch').value||'').trim().toLowerCase();
+  const allCodes=[...new Set(students.map(s=>s.familyCode).filter(Boolean))];
+  let filtered=allCodes;
+  if(q){
+    filtered=allCodes.filter(fc=>{
+      const fam=students.filter(s=>s.familyCode===fc);
+      return fc.toLowerCase().includes(q)||fam.some(s=>(s.name||'').toLowerCase().includes(q)||(s.father||'').toLowerCase().includes(q)||String(s.sno||'').includes(q));
+    });
+  }
+  if(!filtered.length){$('familyViewContainer').innerHTML='<p class="text-muted" style="padding:16px">No families found.</p>';return}
+  let html=`<div class="table-wrap"><table>
+    <thead><tr><th>Family Code</th><th>Father's Name</th><th>Phone</th><th>Children</th><th>Classes</th><th>Total Due</th><th></th></tr></thead><tbody>`;
+  filtered.sort().forEach(fc=>{
+    const fam=students.filter(s=>s.familyCode===fc);
+    if(!fam.length)return;
+    const rep=fam[0];
+    const totalDue=fam.reduce((s,stu)=>s+getTotalDues(stu).total,0);
+    const names=fam.map(s=>`${esc(s.name)} (${esc(s.cls)})`).join(', ');
+    const pill=totalDue===0?'pill-green':totalDue<2000?'pill-yellow':'pill-red';
+    html+=`<tr>
+      <td class="mono" style="color:var(--accent)">${esc(fc)}</td>
+      <td><b>${esc(rep.father||'—')}</b></td>
+      <td class="mono">${esc(rep.phone||'—')}${rep.altPhone?`<br><span style="color:var(--muted);font-size:10px">${esc(rep.altPhone)}</span>`:''}</td>
+      <td style="font-size:12px">${names}</td>
+      <td>${fam.map(s=>`<span class="pill pill-blue">${esc(s.cls)}</span>`).join(' ')}</td>
+      <td><span class="pill ${pill}">${fmtINR(totalDue)}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="goTo('familyprofile','${esc(fc)}')">View Family</button></td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  $('familyViewContainer').innerHTML=html;
+}
+
+// ══════════════════════════════════════════════
+//  FAMILY PROFILE
+// ══════════════════════════════════════════════
+let fpCode=null, fpEditMode=false;
+
+function renderFamilyProfile(fCode){
+  fpCode=fCode; fpEditMode=false;
+  $('fp_editToggle').textContent='✎ Edit Family';
+  $('fp_saveBtn').style.display='none';
+  const fam=students.filter(s=>s.familyCode===fCode);
+  if(!fam.length)return;
+  $('fp_title').textContent=`Family ${fCode} — ${fam[0].father||''}`;
+  _renderFamilyProfileFields(false);
+}
+
+function _renderFamilyProfileFields(edit){
+  const fam=students.filter(s=>s.familyCode===fpCode);
+  if(!fam.length)return;
+  const rep=fam[0];
+  $('fp_headerFields').innerHTML = edit ? `
+      <div class="field-row"><label>Father's Name</label><input type="text" id="fp_father" value="${esc(rep.father||'')}" class="editable"></div>
+      <div class="field-row"><label>Primary Phone</label><input type="text" id="fp_phone" value="${esc(rep.phone||'')}" class="editable"></div>
+      <div class="field-row"><label>Alternate Phone</label><input type="text" id="fp_altPhone" value="${esc(rep.altPhone||'')}" class="editable"></div>
+      <div class="field-row"><label>Family Code</label><div class="field-val mono">${esc(fpCode)}</div></div>` : `
+      <div class="field-row"><label>Father's Name</label><div class="field-val">${esc(rep.father||'—')}</div></div>
+      <div class="field-row"><label>Primary Phone</label><div class="field-val mono">${esc(rep.phone||'—')}</div></div>
+      <div class="field-row"><label>Alternate Phone</label><div class="field-val mono">${esc(rep.altPhone||'—')}</div></div>
+      <div class="field-row"><label>Family Code</label><div class="field-val mono">${esc(fpCode)}</div></div>`;
+
+  $('fp_children').innerHTML=`
+    <div class="table-wrap no-maxh"><table>
+      <thead><tr><th>S.No</th><th>Name</th><th>Class</th><th>Tuition/mo</th><th>Tuition Due</th><th>Annual Due</th><th>Prev Bal</th><th>Total Due</th><th></th></tr></thead>
+      <tbody>${sortSiblings(fam).map(stu=>{
+        const d=getTotalDues(stu), mt=getMonthlyTuition(stu);
+        const pill=d.total===0?'pill-green':d.total<1000?'pill-yellow':'pill-red';
+        return `<tr>
+          <td>${snoCell(stu)}</td><td><b>${esc(stu.name)}</b></td>
+          <td><span class="pill pill-blue">${esc(stu.cls)}</span></td>
+          <td class="mono">${fmtINR(mt)}</td>
+          <td class="mono" style="color:${d.tuitionDue>0?'var(--red)':'var(--green)'}">${fmtINR(d.tuitionDue)}</td>
+          <td class="mono" style="color:${d.annualDue>0?'var(--red)':'var(--green)'}">${fmtINR(d.annualDue)}</td>
+          <td class="mono" style="color:${d.prevBalance>0?'var(--red)':'var(--muted)'}">${fmtINR(d.prevBalance)}</td>
+          <td><span class="pill ${pill}">${fmtINR(d.total)}</span></td>
+          <td><button class="btn btn-ghost btn-sm" onclick="openProfileModal('${stu.enrollment_id}','familyprofile')">Profile</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+
+  const totalT=fam.reduce((s,stu)=>s+getTotalDues(stu).tuitionDue,0);
+  const totalA=fam.reduce((s,stu)=>s+getTotalDues(stu).annualDue,0);
+  const totalP=getFamilyPrevBalance(fpCode);
+  const grand=totalT+totalA+(totalP>0?totalP:0);
+  $('fp_dues').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:8px">
+      <div class="dues-block"><div class="lbl">Total Tuition Due</div><div class="amt ${totalT>0?'red':'green'}">${fmtINR(totalT)}</div></div>
+      <div class="dues-block"><div class="lbl">Total Annual Due</div><div class="amt ${totalA>0?'red':'green'}">${fmtINR(totalA)}</div></div>
+      <div class="dues-block"><div class="lbl">Prev Balance</div><div class="amt ${totalP>0?'red':totalP<0?'green':''}">${fmtINR(totalP)}</div></div>
+      <div class="dues-block" style="border-color:${grand===0?'var(--green)':'var(--red)'}"><div class="lbl">Grand Total Due</div><div class="amt ${grand===0?'green':'red'}">${fmtINR(grand)}</div></div>
+    </div>`;
+
+  const eids=fam.map(s=>s.enrollment_id);
+  const famPayments=payments.filter(p=>eids.includes(p.enrollment_id)).sort((a,b)=>String(b.datetime||'').localeCompare(String(a.datetime||'')));
+  const grouped={};
+  famPayments.forEach(p=>{
+    const bid=p.bundleID||p.id;
+    if(!grouped[bid])grouped[bid]={id:bid,datetime:p.datetime,rows:[],total:0};
+    grouped[bid].rows.push(p); grouped[bid].total+=p.total;
+  });
+  let ledgerHTML=`<table><thead><tr><th>Bundle Txn ID</th><th>Date</th><th>Students</th><th>Heads</th><th>Total</th><th>Action</th><th style="width:36px"></th></tr></thead><tbody>`;
+  const entries=Object.values(grouped);
+  entries.forEach((b,bi)=>{
+    const gid=`fp${bi}`;
+    const stuNames=[...new Set(b.rows.map(p=>{const s=students.find(x=>x.enrollment_id===p.enrollment_id);return s?s.name:'?'}))].join(', ');
+    const heads=[...new Set(b.rows.map(p=>p.month))].join(', ');
+    ledgerHTML+=`<tr class="bundle-master-row" onclick="toggleBundleRows('${gid}')">
+      <td class="mono" style="font-size:11px">${esc(b.id)}</td>
+      <td class="mono">${fmtDT(b.datetime)}</td>
+      <td style="font-size:12px">${esc(stuNames)}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(heads)}</td>
+      <td class="mono" style="color:var(--green);font-weight:600">${fmtINR(b.total)}</td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-danger btn-sm" onclick="deleteBundle('${esc(b.id)}')">🗑 Bundle</button></td>
+      <td onclick="event.stopPropagation();toggleBundleRows('${gid}')"><span class="bundle-toggle-btn" id="toggle_${gid}">▶</span></td>
+    </tr>`;
+    b.rows.forEach(p=>{
+      const stu=students.find(s=>s.enrollment_id===p.enrollment_id);
+      ledgerHTML+=`<tr class="bundle-child-row" id="child_${gid}">
+        <td style="padding-left:20px!important;font-size:10px" class="mono">${esc(p.month)}</td>
+        <td class="mono" style="font-size:11px">${fmtDT(p.datetime)}</td>
+        <td>${esc(stu?stu.name:'?')}</td><td>${esc(p.month)}</td>
+        <td class="mono">${fmtINR(p.total)}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="deleteTxnMaster('${p.id}')">🗑 Row</button></td>
+        <td></td>
+      </tr>`;
+    });
+  });
+  if(!entries.length) ledgerHTML+='<tr><td colspan="7" class="text-muted" style="padding:16px;text-align:center">No transactions recorded.</td></tr>';
+  ledgerHTML+='</tbody></table>';
+  $('fp_ledger').innerHTML=ledgerHTML;
+}
+
+function toggleFamilyProfileEdit(){
+  fpEditMode=!fpEditMode;
+  $('fp_editToggle').textContent=fpEditMode?'✕ Cancel':'✎ Edit Family';
+  $('fp_saveBtn').style.display=fpEditMode?'':'none';
+  _renderFamilyProfileFields(fpEditMode);
+}
+
+async function saveFamilyProfile(){
+  const newFather=$('fp_father').value.trim();
+  const newPhone=$('fp_phone').value.trim();
+  const newAlt=$('fp_altPhone').value.trim();
+  if(!newFather){toast('Father name cannot be empty','error');return}
+  updateStatus('saving');
+  try{
+    const ids=[...new Set(students.filter(s=>s.familyCode===fpCode).map(s=>s.student_id))];
+    const {error}=await sb.from('students').update({father_name:newFather,phone:newPhone||null,alt_phone:newAlt||null}).in('student_id',ids);
+    if(error) throw error;
+    await sb.from('families').update({primary_contact_phone:newPhone||null}).eq('family_code',fpCode);
+    await log(`Family ${fpCode} profile updated — father: ${newFather}`,'accent');
+    toast('Family profile saved — updated across all siblings','success');
+    await loadAll();
+    fpEditMode=false;
+    renderFamilyProfile(fpCode);
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Save failed: '+(e.message||e),'error') }
+}
+
+// ══════════════════════════════════════════════
+//  RE-ADMISSION   (replaces Year-End Rollover)
+//
+//  Admin promotes students → student_enrollments row for the new
+//  session with s_no = NULL. This page assigns the s_no and the
+//  readmission_date. It does NOT create enrollments and does NOT
+//  carry dues — fees are added manually via Backlog / Family Wallet.
+// ══════════════════════════════════════════════
+function readmissionList(){
+  const cls=$('readmClass').value;
+  const q=($('readmSearch').value||'').trim().toLowerCase();
+  const filt=$('readmFilter').value||'pending';
+  let list=[...students];
+  if(cls) list=list.filter(s=>s.cls===cls);
+  if(filt==='pending') list=list.filter(s=>s.sno==null||s.sno==='');
+  if(filt==='done')    list=list.filter(s=>s.sno!=null&&s.sno!=='');
+  if(q) list=list.filter(s=>
+    (s.name||'').toLowerCase().includes(q)||
+    (s.father||'').toLowerCase().includes(q)||
+    (s.familyCode||'').toLowerCase().includes(q)||
+    String(s.sno||'').includes(q)
+  );
+  return list.sort((a,b)=>clsIdx(a.cls)-clsIdx(b.cls)||String(a.name||'').localeCompare(String(b.name||'')));
+}
+
+function renderReadmission(){
+  const container=$('readmissionList'), action=$('readmissionAction');
+  const list=readmissionList();
+  const filt=$('readmFilter').value||'pending';
+
+  if(!list.length){
+    container.innerHTML=`<div class="card"><p class="text-muted">${filt==='pending'?'🎉 No students are awaiting re-admission in '+esc(viewSession)+'.':'No students match these filters.'}</p></div>`;
+    action.style.display='none';
+    return;
+  }
+
+  const pendingCount=students.filter(s=>s.sno==null||s.sno==='').length;
+  container.innerHTML=`<div class="card">
+    <h3>${list.length} student${list.length!==1?'s':''} shown · ${pendingCount} awaiting re-admission in ${esc(viewSession)}</h3>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th style="width:36px">✓</th><th>Status</th><th>Name</th><th>Father's Name</th>
+        <th>Class</th><th>Family Code</th><th>New S.No <span style="color:var(--yellow)">*</span></th>
+      </tr></thead>
+      <tbody id="readmTbody">${list.map(s=>{
+        const done=s.sno!=null&&s.sno!=='';
+        return `<tr data-eid="${s.enrollment_id}">
+          <td><input type="checkbox" class="readm-check" data-eid="${s.enrollment_id}" style="width:16px;height:16px" ${done?'':''}></td>
+          <td>${done?`<span class="pill pill-green">Re-admitted</span>`:`<span class="pill pill-yellow">Pending</span>`}</td>
+          <td><b>${esc(s.name)}</b></td>
+          <td>${esc(s.father||'—')}</td>
+          <td><span class="pill pill-blue">${esc(s.cls)}</span></td>
+          <td class="mono" style="color:var(--muted)">${esc(s.familyCode||'—')}</td>
+          <td><input type="text" class="readm-sno-input" data-eid="${s.enrollment_id}" value="${esc(s.sno||'')}" placeholder="—"></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </div>`;
+  action.style.display='block';
+}
+
+function setAllReadmChecks(val){
+  document.querySelectorAll('#readmTbody .readm-check').forEach(c=>c.checked=val);
+}
+
+// Fill blank S.No boxes for CHECKED rows, continuing the session's series
+function autoFillReadmSnos(){
+  const checked=[...document.querySelectorAll('#readmTbody .readm-check:checked')];
+  if(!checked.length){toast('Tick some students first','error');return}
+  // highest s_no already in this session
+  let next=Math.max(0,...students.filter(s=>s.sno!=null&&s.sno!=='').map(s=>parseInt(s.sno)||0));
+  // plus anything already typed into the grid
+  document.querySelectorAll('#readmTbody .readm-sno-input').forEach(inp=>{
+    const n=parseInt(inp.value);
+    if(!isNaN(n)&&n>next) next=n;
+  });
+  let filled=0;
+  checked.forEach(c=>{
+    const inp=document.querySelector(`#readmTbody .readm-sno-input[data-eid="${c.dataset.eid}"]`);
+    if(inp&&!inp.value.trim()){ next++; inp.value=String(next); filled++ }
+  });
+  toast(filled?`Auto-filled ${filled} S.No${filled!==1?'s':''} (continuing from the session series)`:'All ticked students already have an S.No','success');
+}
+
+async function executeReadmission(){
+  const checked=[...document.querySelectorAll('#readmTbody .readm-check:checked')];
+  if(!checked.length){toast('No students selected — tick at least one checkbox','error');return}
+
+  const picks=checked.map(c=>{
+    const eid=c.dataset.eid;
+    const inp=document.querySelector(`#readmTbody .readm-sno-input[data-eid="${eid}"]`);
+    const stu=students.find(s=>s.enrollment_id===eid);
+    return {eid, stu, sno:(inp?.value||'').trim()};
+  });
+
+  // 1. Every ticked student needs an S.No
+  const blanks=picks.filter(p=>!p.sno);
+  if(blanks.length){
+    toast(`${blanks.length} ticked student(s) have no S.No — fill them in or use Auto-fill`,'error');
+    return;
+  }
+  // 2. No duplicates within the batch
+  const snos=picks.map(p=>p.sno);
+  const dupes=[...new Set(snos.filter((s,i)=>snos.indexOf(s)!==i))];
+  if(dupes.length){toast(`Duplicate S.No in your selection: ${dupes.join(', ')}`,'error');return}
+  // 3. No clash with S.No already assigned to somebody else this session
+  const pickedEids=picks.map(p=>p.eid);
+  const clashes=picks.filter(p=>
+    students.some(s=>String(s.sno)===String(p.sno)&&!pickedEids.includes(s.enrollment_id))
+  );
+  if(clashes.length){
+    toast(`S.No already taken in ${viewSession}: ${clashes.map(c=>c.sno).join(', ')}`,'error');
+    return;
+  }
+
+  const lines=picks.map(p=>`#${p.sno} — ${p.stu.name} (${p.stu.cls})`);
+  const ok=await showConfirm('Confirm Re-admission',
+    `Assign S.No and re-admission date to ${picks.length} student(s) in ${viewSession}?\n\nThis only sets the S.No — no fees are charged. Add their fees afterwards via Backlog Entry or Family Wallet.`,
+    lines,'✓ Re-admit Students','✕ Cancel');
+  if(!ok)return;
+
+  updateStatus('saving');
+  const d=today();
+  let done=0;
+  try{
+    for(const p of picks){
+      const {error}=await sb.from('student_enrollments')
+        .update({s_no:p.sno, readmission_date:p.stu.readmissionDate||d})
+        .eq('enrollment_id',p.eid);
+      if(error) throw error;
+      done++;
+    }
+    await log(`Re-admission: ${done} student(s) assigned S.No in ${viewSession}`,'green');
+    toast(`✓ ${done} student(s) re-admitted`,'success');
+    await loadAll();
+    renderReadmission();
+    updateStatus('connected');
+  }catch(e){
+    updateStatus('offline');
+    toast(`Re-admission failed after ${done} student(s): `+(e.message||e),'error');
+    await loadAll(); renderReadmission();
+  }
+}
+
+// ══════════════════════════════════════════════
+//  NEW ADMISSION   → students + student_enrollments
+// ══════════════════════════════════════════════
+function populateAdmissionForm(){
+  populateCls();
+  $('a_admdate').value=today();
+  $('a_isNew').checked=true;
+  $('a_sno').value=nextSno();
+  $('a_section').innerHTML='<option value="">Select class first</option>';
+  $('backdatedDues').innerHTML='';
+}
+
+function loadAdmSections(){
+  const clsName=$('a_class').value;
+  const sel=$('a_section');
+  if(!clsName){sel.innerHTML='<option value="">Select class first</option>';return}
+  const secs=sectionsFor(CLASS_ID[clsName]);
+  sel.innerHTML=secs.length?secs.map(s=>`<option value="${s.section_id}">${esc(s.name)}</option>`).join('')
+    :'<option value="">— no sections defined for this class —</option>';
+}
+
+function searchFamily(q){
+  const el=$('familyResults');
+  if(!q.trim()){el.innerHTML='';return}
+  const ql=q.toLowerCase();
+  const seen={};
+  students.forEach(s=>{
+    if(!s.familyCode)return;
+    if((s.father||'').toLowerCase().includes(ql)||(s.familyCode||'').toLowerCase().includes(ql)){
+      seen[s.familyCode]={code:s.familyCode,father:s.father,phone:s.phone};
+    }
+  });
+  const matches=Object.values(seen).slice(0,5);
+  el.innerHTML=matches.length?matches.map(m=>
+    `<div style="cursor:pointer;padding:6px 10px;background:var(--surface2);border-radius:6px;margin-top:4px;font-size:13px" onclick="selectFamilyOnboarding('${esc(m.code)}','${esc(m.father||'')}','${esc(m.phone||'')}')">${esc(m.father||'—')} <span class="text-muted">(${esc(m.code)})</span></div>`
+  ).join(''):'<p class="text-muted" style="margin-top:4px">No match.</p>';
+}
+
+function selectFamilyOnboarding(code,father,phone){
+  $('a_familyCode').value=code;
+  $('a_familySearch').value=father;
+  $('a_father').value=father;
+  if(phone&&!$('a_phone').value) $('a_phone').value=phone;
+  $('familyResults').innerHTML='';
+}
+
+async function submitAdmission(){
+  const name=$('a_name').value.trim();
+  const father=$('a_father').value.trim();
+  const mother=$('a_mother').value.trim();
+  const dob=$('a_dob').value||null;
+  const phone=$('a_phone').value.trim();
+  const altPhone=$('a_altPhone').value.trim();
+  const admDate=$('a_admdate').value||today();
+  const clsName=$('a_class').value;
+  const sectionId=$('a_section').value;
+  const sno=$('a_sno').value.trim();
+  const isNew=$('a_isNew').checked;
+
+  if(!name||!father||!clsName){toast('Name, Father and Class are required','error');return}
+  if(!sectionId){toast('Please select a section','error');return}
+  if(!sno){toast('S.No is required for a new admission','error');return}
+  if(phone.length>0&&phone.length<10){toast('Phone number must be at least 10 digits','error');return}
+  if(altPhone.length>0&&altPhone.length<10){toast('Alternate phone must be at least 10 digits','error');return}
+  const clash=students.find(s=>String(s.sno)===String(sno));
+  if(clash){toast(`S.No "${sno}" is already used by ${clash.name} in ${viewSession}`,'error');return}
+  if(viewSession!==currentSession){
+    const go=await showConfirm('Not the Active Session',
+      `You are viewing ${viewSession} but the active session is ${currentSession}. The student will be admitted into ${viewSession}. Continue?`,[],'✓ Continue','✕ Cancel');
+    if(!go)return;
+  }
+
+  updateStatus('saving');
+  try{
+    const familyCode=$('a_familyCode').value.trim()||await nextFamilyCode();
+    await ensureFamily(familyCode,phone);
+    const studentId=await nextStudentId();
+
+    const {error:e1}=await sb.from('students').insert({
+      student_id:studentId, full_name:name, father_name:father,
+      mother_name:mother||null, dob, phone:phone||null, alt_phone:altPhone||null,
+      admission_date:admDate, family_code:familyCode
+    });
+    if(e1) throw e1;
+
+    const {error:e2}=await sb.from('student_enrollments').insert({
+      student_id:studentId, session_id:viewSession,
+      class_id:CLASS_ID[clsName], section_id:sectionId,
+      s_no:sno, status:'active', is_new_admission:isNew,
+      readmission_date:null
+    });
+    if(e2){ await sb.from('students').delete().eq('student_id',studentId); throw e2 }
+
+    await log(`New admission: ${name} (${clsName}) — S.No ${sno}`,'green');
+    await loadAll();
+
+    const stu=students.find(s=>s.student_id===studentId);
+    const months=activeMonthsFor();
+    const mt=stu?getMonthlyTuition(stu):0;
+    const ann=stu?getAnnualCharge(stu):0;
+    const projected=months.length*mt+ann;
+
+    $('backdatedDues').innerHTML=`<div class="card" style="border-color:var(--green);margin-top:12px">
+      <h3>Admitted Successfully</h3>
+      <p><b>#${esc(sno)} — ${esc(name)}</b> · Class ${esc(clsName)} · Family ${esc(familyCode)}</p>
+      <p class="text-muted mt-8">Student ID: <span class="mono">${esc(studentId)}</span> (permanent — now visible in Admin &amp; Teacher portals)</p>
+      <p class="text-muted mt-8">Projected dues: ${fmtINR(projected)}<br>Months: ${months.join(', ')}<br>${isNew?'Annual Charge Waived (New Admission)':'Standard Annual Charge Applied — '+fmtINR(ann)}</p>
+    </div>`;
+
+    ['a_name','a_father','a_mother','a_dob','a_phone','a_altPhone','a_familySearch','a_familyCode'].forEach(id=>$(id).value='');
+    $('a_isNew').checked=true;
+    $('a_sno').value=nextSno();
+    toast('Student admitted','success');
+    updateStatus('connected');
+  }catch(e){
+    console.error(e);
+    updateStatus('offline');
+    toast('Admission failed: '+(e.message||e),'error');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  DEFAULTERS
+// ══════════════════════════════════════════════
+function renderDefaulters(){
+  const cf=$('defaulterClass').value;
+  let list=[...students];
+  if(cf) list=list.filter(s=>s.cls===cf);
+  const def=list.map(s=>({...s,duesObj:getTotalDues(s)})).filter(s=>s.duesObj.total>0)
+    .sort((a,b)=>b.duesObj.total-a.duesObj.total);
+  $('defaulterTable').innerHTML=`<table>
+    <thead><tr><th>S.No</th><th>Student Name</th><th>Father's Name</th><th>Phone</th><th>Class</th><th>Total Due</th><th>Breakdown</th></tr></thead>
+    <tbody>${def.map(s=>{
+      const bs=s.duesObj.breakdown.map(b=>`<b>${esc(b.month)}</b>: ${fmtINR(b.due)}`).join('<br>');
+      return `<tr>
+        <td>${snoCell(s)}</td><td><b>${esc(s.name)}</b></td><td>${esc(s.father||'—')}</td>
+        <td class="mono">${esc(s.phone||'—')}</td>
+        <td><span class="pill pill-blue">${esc(s.cls)}</span></td>
+        <td class="mono" style="color:var(--red);font-weight:600">${fmtINR(s.duesObj.total)}</td>
+        <td class="mono" style="font-size:10.5px;color:var(--muted);line-height:1.5">${bs}</td>
+      </tr>`;
+    }).join('')||'<tr><td colspan="7" class="text-muted" style="padding:16px;text-align:center">No defaulters 🎉</td></tr>'}</tbody></table>`;
+}
+
+// ══════════════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════════════
+function renderSettings(){
+  populateCls();
+  populateSessionDropdowns();
+  $('feeSettingsTable').innerHTML=`<table>
+    <thead><tr><th>Class</th><th>Monthly Tuition (₹)</th><th>Annual Charge (₹)</th><th>Sibling Flat Fee (₹)</th></tr></thead>
+    <tbody>${CLASSES.map(c=>{
+      const f=feeSettings[c]||{tuition:0,annual:0,sibDisc:0};
+      return `<tr>
+        <td><b>${esc(c)}</b></td>
+        <td><input type="number" id="fee_t_${esc(c)}" value="${f.tuition||0}" style="width:110px"></td>
+        <td><input type="number" id="fee_a_${esc(c)}" value="${f.annual||0}" style="width:110px"></td>
+        <td><input type="number" id="fee_s_${esc(c)}" value="${f.sibDisc||0}" style="width:110px"></td>
+      </tr>`;
+    }).join('')||'<tr><td colspan="4" class="text-muted" style="padding:14px">No classes defined. Add them in the Admin Portal.</td></tr>'}</tbody></table>`;
+  renderSessionManager();
+  populateAllocPriorityDropdown('globalAllocPriority',globalAllocPriority);
+  const p=ALLOC_PRIORITIES.find(x=>x.code===globalAllocPriority);
+  if(p)$('priorityDescription').textContent=p.desc;
+}
+
+function renderSessionManager(){
+  $('sessionManagerList').innerHTML=availableSessions.map(s=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div><b>${esc(s)}</b>${s===currentSession?'<span class="pill pill-green" style="margin-left:8px;">Current Active</span>':''}</div>
+      <div>${s!==currentSession?`<button class="btn btn-ghost btn-sm" onclick="setAsCurrentSession('${esc(s)}')">Make Current</button>`:''}</div>
+    </div>`).join('')||'<p class="text-muted">No sessions found.</p>';
+}
+
+async function setAsCurrentSession(s){
+  const ok=await showConfirm('Change Active Session?',
+    `This makes ${s} the active session for EVERY portal — admin, teacher, class teacher and mother teacher. Continue?`,[],'✓ Make Current','✕ Cancel');
+  if(!ok)return;
+  updateStatus('saving');
+  try{
+    await sb.from('sessions').update({is_current:false}).neq('session_id','__none__');
+    const {error}=await sb.from('sessions').update({is_current:true}).eq('session_id',s);
+    if(error) throw error;
+    viewSession=s;
+    await log(`Active session switched to ${s}`,'accent');
+    await refreshAll();
+    toast(`Session switched to ${s}`,'success');
+  }catch(e){ updateStatus('offline'); toast('Switch failed: '+(e.message||e),'error') }
+}
+
+async function createNewSession(){
+  const ns=$('newSessionName').value.trim();
+  if(!ns||!ns.includes('-')){toast('Enter valid format (e.g. 2028-2029)','error');return}
+  if(availableSessions.includes(ns)){toast('Session already exists','error');return}
+  const [y1,y2]=ns.split('-').map(Number);
+  if(!y1||!y2||y2!==y1+1){toast('Session years must be consecutive (e.g. 2028-2029)','error');return}
+  updateStatus('saving');
+  try{
+    const {error}=await sb.from('sessions').insert({
+      session_id:ns, start_date:`${y1}-04-01`, end_date:`${y2}-03-31`, is_current:false
+    });
+    if(error) throw error;
+    await log(`Session ${ns} created`,'accent');
+    toast(`Session ${ns} created`,'success');
+    $('newSessionName').value='';
+    await refreshAll();
+  }catch(e){ updateStatus('offline'); toast('Create failed: '+(e.message||e),'error') }
+}
+
+async function saveFeeSettings(){
+  updateStatus('saving');
+  try{
+    const rows=CLASSES.map(c=>({
+      session_id:viewSession, class_id:CLASS_ID[c],
+      monthly_tuition:parseFloat($('fee_t_'+c).value)||0,
+      annual_charge:parseFloat($('fee_a_'+c).value)||0,
+      sibling_discount_flat:parseFloat($('fee_s_'+c).value)||0
+    })).filter(r=>r.class_id);
+    if(!rows.length){toast('No classes to save','error');return}
+    for(const r of rows){
+      const existing=feeSettings[CLASS_NAME[r.class_id]]?.id;
+      if(existing){
+        const {error}=await sb.from('fee_master').update({
+          monthly_tuition:r.monthly_tuition, annual_charge:r.annual_charge, sibling_discount_flat:r.sibling_discount_flat
+        }).eq('fee_master_id',existing);
+        if(error) throw error;
+      }else{
+        const {error}=await sb.from('fee_master').insert(r);
+        if(error) throw error;
+      }
+    }
+    await log(`Fee master updated for ${viewSession}`,'accent');
+    toast('Fee master saved','success');
+    await loadAll(); renderSettings();
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Save failed: '+(e.message||e),'error') }
+}
+
+function bulkSetSibFlat(){
+  const amt=parseFloat($('bulkSibFlat').value);
+  if(isNaN(amt)){toast('Enter an amount first','error');return}
+  const scope=$('bulkSibScope').value;
+  const lowerSet=['Nur','LKG','UKG','1st','2nd','3rd','4th','5th'];
+  let n=0;
+  CLASSES.forEach(c=>{
+    const isLower=lowerSet.includes(c);
+    if(scope==='lower'&&!isLower)return;
+    if(scope==='upper'&&isLower)return;
+    const el=$('fee_s_'+c);
+    if(el){el.value=amt;n++}
+  });
+  toast(`Set ${n} class(es) — click "Save Fee Master" to apply`,'success');
+}
+
+async function purgeSessionFeeData(){
+  const c=prompt(`DANGER: this deletes ALL fee data for ${viewSession} — payments, allocations, waivers and arrears.\n\nStudents and enrollments are NOT deleted.\n\nType PURGE to confirm.`);
+  if(c!=='PURGE'){toast('Purge cancelled','error');return}
+  updateStatus('saving');
+  try{
+    const eids=students.map(s=>s.enrollment_id);
+    const {data:pays}=await sb.from('payments').select('payment_id').eq('session_id',viewSession);
+    const pids=(pays||[]).map(p=>p.payment_id);
+    if(pids.length) await sb.from('payment_allocations').delete().in('payment_id',pids);
+    await sb.from('payments').delete().eq('session_id',viewSession);
+    if(eids.length){
+      await sb.from('fee_waivers').delete().in('enrollment_id',eids);
+      await sb.from('prev_balance_ledger').delete().in('enrollment_id',eids);
+      await sb.from('previous_balances').delete().in('enrollment_id',eids);
+    }
+    await log(`Fee data purged for session ${viewSession}`,'red');
+    toast(`Fee data for ${viewSession} purged`,'success');
+    await refreshAll();
+  }catch(e){ updateStatus('offline'); toast('Purge failed: '+(e.message||e),'error') }
+}
+
+// ══════════════════════════════════════════════
+//  CSV IMPORT / EXPORT
+// ══════════════════════════════════════════════
+function downloadSampleCSV(){
+  const headers=['S.No','Name','Father Name','Phone','Admission Date','Class','Section','Family Code','New Admission'];
+  const secName=SECTIONS[0]?.name||'A';
+  const c1=CLASSES[0]||'Nur', c2=CLASSES[3]||CLASSES[0]||'3rd';
+  const sampleRows=[
+    ['1','Rahul Sharma','Ramesh Sharma','9876543210','2024-04-01',c2,secName,'F001','false'],
+    ['2','Priya Sharma','Ramesh Sharma','9876543210','2024-04-01',c1,secName,'F001','false'],
+    ['3','Amit Kumar','Suresh Kumar','9812345678','2024-04-01',c2,secName,'F002','false'],
+    ['4','Neha Verma','Rajesh Verma','9898989898','2024-07-01',c1,secName,'F003','true'],
+  ];
+  const notes=[
+    ['--- NOTES — DELETE EVERYTHING BELOW BEFORE IMPORTING ---'],
+    ['S.No: fresh series for this session. Plain numbers 1 2 3…'],
+    ['Name / Father Name: required'],
+    ['Phone: 10-digit primary mobile'],
+    ['Admission Date: YYYY-MM-DD'],
+    [`Class: must be one of: ${CLASSES.join(' | ')}`],
+    [`Section: must exist for that class in ${viewSession}. Available: ${[...new Set(SECTIONS.map(s=>s.name))].join(' | ')||'(none defined)'}`],
+    ['Family Code: e.g. F001 — the same code links siblings'],
+    ['New Admission: true (waives annual charge) or false'],
+  ];
+  const allRows=[[...headers],...sampleRows,[''],[''],...notes];
+  const csv=allRows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='fee_portal_sample_import.csv';
+  a.click();
+  toast('Sample CSV downloaded','success');
+}
+
+function importCSV(input){
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    try{
+      const lines=e.target.result.split('\n').filter(l=>l.trim()&&!l.trim().startsWith('"---'));
+      if(lines.length<2){toast('CSV is empty or has no data rows','error');input.value='';return}
+      const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+
+      const parsed=[];
+      lines.slice(1).forEach((line,li)=>{
+        const vals=line.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+        if(vals.length<4)return;
+        const row={}; headers.forEach((h,i)=>row[h]=vals[i]||'');
+        const sno=(row['s.no']||row['sno']||'').trim();
+        const name=(row['name']||'').trim();
+        const father=(row['father name']||row["father's name"]||'').trim();
+        const phone=(row['phone no.']||row['phone']||'').trim();
+        if(!sno&&!name)return;
+        parsed.push({sno,name,father,phone,row,lineNum:li+2});
+      });
+      if(!parsed.length){toast('No usable rows found','error');input.value='';return}
+
+      // ── Validation: reject the whole file on any problem ──
+      const errors=[];
+      const snoMap={}, compMap={};
+      parsed.forEach(p=>{
+        if(p.sno){(snoMap[p.sno]=snoMap[p.sno]||[]).push(p.lineNum)}
+        if(p.name&&p.father){
+          const ck=p.name.toLowerCase()+'|'+p.father.toLowerCase()+'|'+p.phone;
+          (compMap[ck]=compMap[ck]||[]).push(p.lineNum);
+        }
+      });
+      Object.entries(snoMap).filter(([,v])=>v.length>1).forEach(([k,v])=>errors.push(`Duplicate S.No in CSV: ${k} (rows ${v.join(', ')})`));
+      Object.entries(compMap).filter(([,v])=>v.length>1).forEach(([k,v])=>{const[n,f]=k.split('|');errors.push(`Duplicate Name+Father in CSV: "${n}/${f}" (rows ${v.join(', ')})`)});
+      parsed.forEach(p=>{
+        if(!p.name||!p.father) errors.push(`Row ${p.lineNum}: Name and Father Name are required`);
+        if(!p.sno) errors.push(`Row ${p.lineNum}: S.No is required`);
+        const clsName=(p.row['class']||'').trim();
+        if(!clsName||!CLASS_ID[clsName]) errors.push(`Row ${p.lineNum}: unknown class "${clsName}"`);
+        else{
+          const secName=(p.row['section']||'').trim();
+          const secs=sectionsFor(CLASS_ID[clsName]);
+          if(!secs.length) errors.push(`Row ${p.lineNum}: class "${clsName}" has no sections in ${viewSession}`);
+          else if(secName&&!secs.find(x=>x.name.toLowerCase()===secName.toLowerCase()))
+            errors.push(`Row ${p.lineNum}: section "${secName}" not found in class "${clsName}"`);
+        }
+        if(students.some(s=>String(s.sno)===String(p.sno))) errors.push(`Row ${p.lineNum}: S.No ${p.sno} already used in ${viewSession}`);
+        if(students.some(s=>(s.name||'').toLowerCase()===p.name.toLowerCase()&&(s.father||'').toLowerCase()===p.father.toLowerCase()&&(s.phone||'')===p.phone))
+          errors.push(`Row ${p.lineNum}: ${p.name} / ${p.father} already enrolled in ${viewSession}`);
+      });
+
+      if(errors.length){
+        alert('❌ CSV REJECTED — no records were imported.\n\n'+errors.slice(0,25).join('\n')+(errors.length>25?`\n\n…and ${errors.length-25} more.`:'')+'\n\nPlease fix your CSV and re-upload.');
+        toast(`Import rejected: ${errors.length} problem(s)`,'error');
+        input.value='';
+        return;
+      }
+
+      const go=await showConfirm('Import Students?',
+        `${parsed.length} student(s) will be created in ${viewSession}, each with a permanent Student ID visible to the Admin and Teacher portals.`,
+        [],'✓ Import','✕ Cancel');
+      if(!go){input.value='';return}
+
+      updateStatus('saving');
+      let count=0;
+      let nextIdNum=0;
+      const {data:allIds}=await sb.from('students').select('student_id');
+      (allIds||[]).forEach(r=>{const m=String(r.student_id).match(/(\d+)\s*$/);if(m){const n=parseInt(m[1]);if(n>nextIdNum)nextIdNum=n}});
+      let famNum=0;
+      const {data:allFams}=await sb.from('families').select('family_code');
+      (allFams||[]).forEach(r=>{const m=String(r.family_code).match(/(\d+)\s*$/);if(m){const n=parseInt(m[1]);if(n>famNum)famNum=n}});
+      const knownFams=new Set((allFams||[]).map(f=>f.family_code));
+
+      for(const p of parsed){
+        const row=p.row;
+        const isNewStr=(row['new admission']||row['is new']||row['new']||'false').toLowerCase();
+        const isNew=isNewStr==='true'||isNewStr==='1'||isNewStr==='yes';
+        let fc=(row['familycode']||row['family code']||row['familyid']||row['family id']||'').trim();
+        if(!fc){ famNum++; fc='F'+String(famNum).padStart(3,'0') }
+        if(!knownFams.has(fc)){ await ensureFamily(fc,p.phone); knownFams.add(fc) }
+
+        nextIdNum++;
+        const studentId='SPS-S-'+String(nextIdNum).padStart(4,'0');
+        const clsName=(row['class']||'').trim();
+        const secs=sectionsFor(CLASS_ID[clsName]);
+        const secName=(row['section']||'').trim();
+        const sec=secName?secs.find(x=>x.name.toLowerCase()===secName.toLowerCase()):secs[0];
+
+        const {error:e1}=await sb.from('students').insert({
+          student_id:studentId, full_name:p.name, father_name:p.father,
+          phone:p.phone||null, alt_phone:(row['alternate phone']||row['alt phone']||row['altphone']||'').trim()||null,
+          admission_date:parseAdmDate(row['date of admission']||row['admdate']||row['admission date']||''),
+          family_code:fc
+        });
+        if(e1) throw e1;
+        const {error:e2}=await sb.from('student_enrollments').insert({
+          student_id:studentId, session_id:viewSession,
+          class_id:CLASS_ID[clsName], section_id:sec.section_id,
+          s_no:p.sno, status:'active', is_new_admission:isNew
+        });
+        if(e2){ await sb.from('students').delete().eq('student_id',studentId); throw e2 }
+        count++;
+      }
+      await log(`CSV import: ${count} students added to ${viewSession}`,'green');
+      toast(`✓ ${count} students imported`,'success');
+      input.value='';
+      await refreshAll();
+    }catch(err){
+      console.error(err);
+      updateStatus('offline');
+      toast('Import failed: '+(err.message||err),'error');
+      input.value='';
+      await refreshAll();
+    }
+  };
+  reader.readAsText(file);
+}
+
+function exportCSV(){
+  const page=document.querySelector('.page.active').id.replace('page-','');
+  let data,filename;
+  if(page==='defaulters'){
+    const list=students.map(s=>({...s,due:getTotalDues(s).total})).filter(s=>s.due>0);
+    data=[['S.No','Name',"Father's Name",'Phone','Class','Total Due'],
+      ...list.map(s=>[s.sno||'NOT RE-ADMITTED',s.name,s.father||'',s.phone||'',s.cls,s.due])];
+    filename=`defaulters_${viewSession}.csv`;
+  }else if(page==='transactions'){
+    data=[['Bundle Txn ID','Date','S.No','Student Name','Head','Amount'],
+      ...payments.map(p=>{
+        const stu=students.find(s=>s.enrollment_id===p.enrollment_id);
+        return [p.bundleID||'',p.datetime||'',stu?.sno||'',stu?stu.name:'Unknown',p.month,p.total];
+      })];
+    filename=`transactions_${viewSession}.csv`;
+  }else if(page==='readmission'){
+    data=[['Status','Name',"Father's Name",'Class','Family Code','S.No'],
+      ...readmissionList().map(s=>[(s.sno?'Re-admitted':'Pending'),s.name,s.father||'',s.cls,s.familyCode||'',s.sno||''])];
+    filename=`readmission_${viewSession}.csv`;
+  }else{
+    data=[['S.No','Student ID','Name',"Father's Name",'Phone','Class','Family Code','New Admission','Re-admitted','Total Due'],
+      ...sortBySno(students).map(s=>[s.sno||'',s.student_id,s.name,s.father||'',s.phone||'',s.cls,s.familyCode||'',!!s.isNew,(s.sno?'Yes':'No'),getTotalDues(s).total])];
+    filename=`students_${viewSession}.csv`;
+  }
+  const csv=data.map(r=>r.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=filename; a.click();
+  toast('CSV exported','success');
+}
+
+// ══════════════════════════════════════════════
+//  WAIVER DASHBOARD  → fee_waivers
+// ══════════════════════════════════════════════
+let waiverEid=null, waiverMonth=null;
+
+function openWaiverModal(eid){
+  waiverEid=eid;
+  const stu=students.find(s=>s.enrollment_id===eid);
+  if(!stu){toast('Open a student profile first','error');return}
+  $('wm_title').textContent=`Fee Waiver Dashboard — ${stu.name}${stu.sno?' (#'+stu.sno+')':''}`;
+  $('wm_studentInfo').innerHTML=`
+    <span><b>Class:</b> ${esc(stu.cls)}</span>
+    <span><b>Base Tuition:</b> <span class="mono">${fmtINR(getMonthlyTuition(stu))}/month</span></span>
+    <span><b>Annual Charge:</b> <span class="mono">${fmtINR(getAnnualCharge(stu))}</span></span>
+    <span><b>Family:</b> ${esc(stu.familyCode||'—')}</span>`;
+  _renderWaiverTable(stu);
+  $('waiverModal').style.display='flex';
+}
+
+function closeWaiverModal(){
+  $('waiverModal').style.display='none';
+  closeWaiverPopup();
+  waiverEid=null;
+  if(profileEid){
+    const stu=students.find(s=>s.enrollment_id===profileEid);
+    if(stu) renderProfileFields(stu,false);
+  }
+}
+
+function _renderWaiverTable(stu){
+  const mt=getMonthlyTuition(stu), ac=getAnnualCharge(stu);
+  const activeMonths=activeMonthsFor();
+  let totalWaived=0,totalNetDue=0;
+
+  const rows=activeMonths.map(m=>{
+    const waivedAmt=getWaivedAmount(stu,m);
+    const remark=getWaiverRemark(stu,m);
+    const paid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===m).reduce((s,p)=>s+(p.tuition||0),0);
+    const netDue=Math.max(0,Math.max(0,mt-waivedAmt)-paid);
+    const hasWaiver=waivedAmt>0;
+    totalWaived+=waivedAmt; totalNetDue+=netDue;
+    return `<tr class="${hasWaiver?'cell-waived':''}">
+      <td><b>${m}</b></td>
+      <td class="mono">${fmtINR(mt)}</td>
+      <td class="mono" style="color:${hasWaiver?'var(--yellow)':'var(--muted)'}">${hasWaiver?fmtINR(waivedAmt):'—'}</td>
+      <td class="mono" style="color:${netDue>0?'var(--red)':'var(--green)'}">${fmtINR(netDue)}</td>
+      <td style="font-size:11px;color:var(--muted);font-style:italic">${esc(remark||'—')}</td>
+      <td style="white-space:nowrap">${hasWaiver
+        ?`<button class="btn btn-danger btn-sm" onclick="revertWaiver('${m}')">↩ Revert</button>`
+        :`<button class="btn btn-ghost btn-sm" style="border-color:var(--yellow);color:var(--yellow);" onclick="openWaiverPopup('${m}',${mt},'Tuition')">✎ Waive Off</button>`}</td>
+    </tr>`;
+  });
+
+  const annWaived=getWaivedAmount(stu,HEAD_ANNUAL);
+  const annRemark=getWaiverRemark(stu,HEAD_ANNUAL);
+  const annPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id).reduce((s,p)=>s+(p.annual||0),0);
+  const annNetDue=Math.max(0,ac-annWaived-annPaid);
+  const annHasW=annWaived>0;
+  totalWaived+=annWaived; totalNetDue+=annNetDue;
+
+  rows.push(`<tr class="${annHasW?'cell-waived':''}">
+    <td><b>Annual Charge</b></td>
+    <td class="mono">${fmtINR(ac)}</td>
+    <td class="mono" style="color:${annHasW?'var(--yellow)':'var(--muted)'}">${annHasW?fmtINR(annWaived):'—'}</td>
+    <td class="mono" style="color:${annNetDue>0?'var(--red)':'var(--green)'}">${fmtINR(annNetDue)}</td>
+    <td style="font-size:11px;color:var(--muted);font-style:italic">${esc(annRemark||'—')}</td>
+    <td style="white-space:nowrap">${annHasW
+      ?`<button class="btn btn-danger btn-sm" onclick="revertWaiver('${HEAD_ANNUAL}')">↩ Revert</button>`
+      :`<button class="btn btn-ghost btn-sm" style="border-color:var(--yellow);color:var(--yellow);" onclick="openWaiverPopup('${HEAD_ANNUAL}',${ac},'Annual')">✎ Waive Off</button>`}</td>
+  </tr>`);
+
+  rows.push(`<tr style="background:var(--surface2);font-weight:600;">
+    <td>TOTAL</td>
+    <td class="mono">${fmtINR(mt*activeMonths.length+ac)}</td>
+    <td class="mono" style="color:var(--yellow)">${fmtINR(totalWaived)}</td>
+    <td class="mono" style="color:${totalNetDue>0?'var(--red)':'var(--green)'}">${fmtINR(totalNetDue)}</td>
+    <td colspan="2"></td>
+  </tr>`);
+
+  $('wm_table').innerHTML=`<table>
+    <thead><tr><th>Month / Item</th><th>Base Fee</th><th>Waived Amount</th><th>Net Due</th><th>Waiver Remark</th><th>Action</th></tr></thead>
+    <tbody>${rows.join('')}</tbody></table>`;
+}
+
+function openWaiverPopup(month,baseFee,type){
+  waiverMonth=month;
+  $('wp_title').textContent=`Waive Off — ${month} ${type==='Annual'?'(Annual Charge)':'(Tuition)'}`;
+  $('wp_base').textContent=fmtINR(baseFee);
+  $('wp_amount').value=''; $('wp_remark').value='';
+  $('wp_amount').max=baseFee;
+  $('waiverPopupBackdrop').style.display='block';
+  $('waiverPopup').style.display='block';
+  setTimeout(()=>$('wp_amount').focus(),50);
+}
+
+function closeWaiverPopup(){
+  $('waiverPopupBackdrop').style.display='none';
+  $('waiverPopup').style.display='none';
+  waiverMonth=null;
+}
+
+async function applyWaiver(){
+  const amtRaw=parseFloat($('wp_amount').value);
+  const remark=$('wp_remark').value.trim();
+  const maxVal=parseFloat($('wp_amount').max);
+  if(!amtRaw||amtRaw<=0){toast('Please enter a waiver amount greater than ₹0','error');return}
+  if(amtRaw>maxVal){toast(`Waiver cannot exceed base fee of ${fmtINR(maxVal)}`,'error');return}
+  const stu=students.find(s=>s.enrollment_id===waiverEid); if(!stu)return;
+  updateStatus('saving');
+  try{
+    const {error}=await sb.from('fee_waivers').upsert({
+      enrollment_id:waiverEid, head:waiverMonth, amount:amtRaw, remark:remark||null, created_by:ME
+    },{onConflict:'enrollment_id,head'});
+    if(error) throw error;
+    await log(`Waiver applied: ${stu.name} — ${waiverMonth} — ${fmtINR(amtRaw)}${remark?' ('+remark+')':''}`,'yellow');
+    toast(`Waiver of ${fmtINR(amtRaw)} applied for ${waiverMonth}`,'success');
+    closeWaiverPopup();
+    await loadAll();
+    const fresh=students.find(s=>s.enrollment_id===waiverEid);
+    if(fresh)_renderWaiverTable(fresh);
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Waiver failed: '+(e.message||e),'error') }
+}
+
+async function revertWaiver(month){
+  const stu=students.find(s=>s.enrollment_id===waiverEid);
+  if(!stu||!stu.waivers||!stu.waivers[month])return;
+  const w=stu.waivers[month];
+  updateStatus('saving');
+  try{
+    const {error}=await sb.from('fee_waivers').delete().eq('enrollment_id',waiverEid).eq('head',month);
+    if(error) throw error;
+    await log(`Waiver reverted: ${stu.name} — ${month} — ${fmtINR(w.amt)}`,'red');
+    toast(`Waiver for ${month} reverted — full fee restored`,'success');
+    await loadAll();
+    const fresh=students.find(s=>s.enrollment_id===waiverEid);
+    if(fresh)_renderWaiverTable(fresh);
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Revert failed: '+(e.message||e),'error') }
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+document.querySelectorAll('nav a').forEach(a=>{a.onclick=()=>goTo(a.dataset.page)});
+window.addEventListener('online',  ()=>refreshAll());
+window.addEventListener('offline', ()=>updateStatus('offline'));
+
+SPS.ready().then(async()=>{
+  ME = SPS.admin?.admin_id || SPS.user?.id || null;
+  applyTheme();
+  const saved=loadData('fp_viewSession',null);
+  if(saved) viewSession=saved;
+  await loadAll();
+  populateSessionDropdowns();
+  populateCls();
+  renderDashboard();
+  $('bootOverlay').style.display='none';
+  if(!ME) toast('Signed in, but no admin record found — payments may fail to save.','error');
+}).catch(e=>{
+  console.error('auth failed',e);
+  $('bootOverlay').innerHTML='<div style="text-align:center"><p style="color:var(--red);margin-bottom:10px">Authentication failed</p><p class="text-muted">'+String(e.message||e)+'</p></div>';
+});
+</script>
+</body>
+</html>
