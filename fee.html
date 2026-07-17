@@ -443,7 +443,7 @@
         <div id="sessionManagerList"></div>
         <div class="divider"></div>
         <h3>Import Students via CSV</h3>
-        <p class="text-muted mt-8">Columns: S.No, Name, Father Name, Phone, Admission Date, Class, Section, Family Code, New Admission</p>
+        <p class="text-muted mt-8">Same CSV format as the <b>Admin Portal &rarr; Bulk Import</b>. Columns: student_id, full_name, father_name, mother_name, phone, alt_phone, dob, admission_date, class, section, s_no, family_code, is_new_admission, tuition_override, annual_override</p>
         <input type="file" id="csvUpload" accept=".csv" style="margin-top:10px;margin-bottom:8px;" onchange="importCSV(this)">
         <button class="btn btn-ghost btn-sm" onclick="downloadSampleCSV()" style="margin-bottom:16px;border-color:var(--accent);color:var(--accent);">⬇ Download Sample CSV Template</button>
         <div class="divider"></div>
@@ -2838,141 +2838,179 @@ async function purgeSessionFeeData(){
 //  CSV IMPORT / EXPORT
 // ══════════════════════════════════════════════
 function downloadSampleCSV(){
-  const headers=['S.No','Name','Father Name','Phone','Admission Date','Class','Section','Family Code','New Admission'];
-  const secName=SECTIONS[0]?.name||'A';
-  const c1=CLASSES[0]||'Nur', c2=CLASSES[3]||CLASSES[0]||'3rd';
-  const sampleRows=[
-    ['1','Rahul Sharma','Ramesh Sharma','9876543210','2024-04-01',c2,secName,'F001','false'],
-    ['2','Priya Sharma','Ramesh Sharma','9876543210','2024-04-01',c1,secName,'F001','false'],
-    ['3','Amit Kumar','Suresh Kumar','9812345678','2024-04-01',c2,secName,'F002','false'],
-    ['4','Neha Verma','Rajesh Verma','9898989898','2024-07-01',c1,secName,'F003','true'],
-  ];
+  // Full schema. IDENTICAL to Admin Portal > Bulk Import > Download Sample Template.
+  // Only full_name, father_name and class are required; every other column may be
+  // blank, or omitted from the file entirely.
+  const h=['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob',
+           'aadhar_no','address','admission_date','family_code','class','section','stream',
+           'roll_no','is_new_admission','tuition_override','annual_override'];
+  const sec=SECTIONS[0]?.name||'A';
+  const c1=CLASSES[0]||'Nur', c2=CLASSES[10]||CLASSES[0]||'11th Science';
+  const r1=['','1','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-08-15',
+            '123456789012','House 1, City','2024-04-01','F0001',c2,sec,'','1','false','',''];
+  const r2=['','2','Neha Kumar','Shyam Kumar','Sita Devi','9876543210','','2020-03-09',
+            '','','2026-07-01','F0001',c1,sec,'','2','true','',''];
   const notes=[
-    ['--- NOTES — DELETE EVERYTHING BELOW BEFORE IMPORTING ---'],
-    ['S.No: fresh series for this session. Plain numbers 1 2 3…'],
-    ['Name / Father Name: required'],
-    ['Phone: 10-digit primary mobile'],
-    ['Admission Date: YYYY-MM-DD'],
-    [`Class: must be one of: ${CLASSES.join(' | ')}`],
-    [`Section: must exist for that class in ${viewSession}. Available: ${[...new Set(SECTIONS.map(s=>s.name))].join(' | ')||'(none defined)'}`],
-    ['Family Code: e.g. F001 — the same code links siblings'],
-    ['New Admission: true (waives annual charge) or false'],
+    ['--- NOTES — DELETE EVERY ROW BELOW BEFORE IMPORTING ---'],
+    ['Same template as Admin Portal > Bulk Import. One CSV, either portal.'],
+    [''],
+    ['REQUIRED: full_name, father_name, class'],
+    ['Everything else is optional. Blank cells are fine, and you may delete whole'],
+    ['columns you do not have — the importer only reads the headers present.'],
+    [''],
+    ['student_id  blank = auto-generate STU-0001, STU-0002 ...'],
+    ['s_no        plain number for this session (1, 2, 3). Blank = continue the series.'],
+    ['            Leave blank ONLY for new admissions. A promoted student awaiting'],
+    ['            re-admission should not be in this file at all.'],
+    ['dob / admission_date    YYYY-MM-DD'],
+    ['section     blank = "A" (auto-created if the class has no sections yet)'],
+    [`class       must match exactly: ${CLASSES.join(' | ')}`],
+    [`section     available in ${viewSession}: ${[...new Set(SECTIONS.map(s=>s.name))].join(' | ')||'(none yet — "A" will be created)'}`],
+    ['family_code blank = auto-generate. Same code on 2 rows = siblings.'],
+    ['            3+ siblings sharing a code triggers the flat sibling fee.'],
+    ['is_new_admission   true = waives the annual charge.  BLANK DEFAULTS TO false.'],
+    ['tuition_override / annual_override   blank = use the class fee master'],
   ];
-  const allRows=[[...headers],...sampleRows,[''],[''],...notes];
-  const csv=allRows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const rows=[h,r1,r2,[''],['']];
+  notes.forEach(n=>rows.push(n));
+  const csv=rows.map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download='fee_portal_sample_import.csv';
+  a.download='sps_student_import_template.csv';
   a.click();
-  toast('Sample CSV downloaded','success');
+  toast('Template downloaded — same file works in the Admin Portal','success');
 }
 
+// Shares the Admin Portal's column names and field mapping so a single CSV
+// produces byte-identical records from either portal.
 function importCSV(input){
   const file=input.files[0]; if(!file)return;
   const reader=new FileReader();
   reader.onload=async e=>{
     try{
-      const lines=e.target.result.split('\n').filter(l=>l.trim()&&!l.trim().startsWith('"---'));
+      const lines=e.target.result.split('\n').map(l=>l.trim()).filter(Boolean)
+        .filter(l=>!l.startsWith('"---')&&!l.startsWith('---'));
       if(lines.length<2){toast('CSV is empty or has no data rows','error');input.value='';return}
       const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+      if(!headers.includes('full_name')){
+        toast('Wrong CSV format — needs the admin columns (full_name, father_name, class…). Download the template.','error');
+        input.value=''; return;
+      }
 
       const parsed=[];
       lines.slice(1).forEach((line,li)=>{
         const vals=line.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
-        if(vals.length<4)return;
-        const row={}; headers.forEach((h,i)=>row[h]=vals[i]||'');
-        const sno=(row['s.no']||row['sno']||'').trim();
-        const name=(row['name']||'').trim();
-        const father=(row['father name']||row["father's name"]||'').trim();
-        const phone=(row['phone no.']||row['phone']||'').trim();
-        if(!sno&&!name)return;
-        parsed.push({sno,name,father,phone,row,lineNum:li+2});
+        const o={}; headers.forEach((h,i)=>o[h]=vals[i]||'');
+        if(!o.full_name&&!o.father_name)return;
+        o._row=li+2;
+        parsed.push(o);
       });
       if(!parsed.length){toast('No usable rows found','error');input.value='';return}
 
-      // ── Validation: reject the whole file on any problem ──
+      // ── Validate ──
       const errors=[];
-      const snoMap={}, compMap={};
-      parsed.forEach(p=>{
-        if(p.sno){(snoMap[p.sno]=snoMap[p.sno]||[]).push(p.lineNum)}
-        if(p.name&&p.father){
-          const ck=p.name.toLowerCase()+'|'+p.father.toLowerCase()+'|'+p.phone;
-          (compMap[ck]=compMap[ck]||[]).push(p.lineNum);
+      const seenSno={}, seenSid={};
+      parsed.forEach(o=>{
+        if(!o.full_name||!o.father_name) errors.push(`Row ${o._row}: full_name and father_name are required`);
+        if(!o.class||!CLASS_ID[o.class]) errors.push(`Row ${o._row}: unknown class "${o.class||''}" — create it in the Admin Portal first`);
+        else if(o.section&&!sectionsFor(CLASS_ID[o.class]).find(x=>x.name.toLowerCase()===o.section.toLowerCase()))
+          errors.push(`Row ${o._row}: section "${o.section}" not found in class "${o.class}" — leave the cell blank to use "A"`);
+        if(o.s_no){
+          if(!/^\d+$/.test(o.s_no)) errors.push(`Row ${o._row}: s_no must be a plain number, got "${o.s_no}"`);
+          if(seenSno[o.s_no]) errors.push(`Row ${o._row}: s_no ${o.s_no} duplicated (also row ${seenSno[o.s_no]})`);
+          seenSno[o.s_no]=o._row;
+          const taken=students.find(s=>String(s.sno)===String(o.s_no));
+          if(taken) errors.push(`Row ${o._row}: s_no ${o.s_no} already used by ${taken.name} in ${viewSession}`);
+        }
+        if(o.student_id){
+          if(seenSid[o.student_id]) errors.push(`Row ${o._row}: student_id ${o.student_id} duplicated`);
+          seenSid[o.student_id]=o._row;
         }
       });
-      Object.entries(snoMap).filter(([,v])=>v.length>1).forEach(([k,v])=>errors.push(`Duplicate S.No in CSV: ${k} (rows ${v.join(', ')})`));
-      Object.entries(compMap).filter(([,v])=>v.length>1).forEach(([k,v])=>{const[n,f]=k.split('|');errors.push(`Duplicate Name+Father in CSV: "${n}/${f}" (rows ${v.join(', ')})`)});
-      parsed.forEach(p=>{
-        if(!p.name||!p.father) errors.push(`Row ${p.lineNum}: Name and Father Name are required`);
-        if(!p.sno) errors.push(`Row ${p.lineNum}: S.No is required`);
-        const clsName=(p.row['class']||'').trim();
-        if(!clsName||!CLASS_ID[clsName]) errors.push(`Row ${p.lineNum}: unknown class "${clsName}"`);
-        else{
-          const secName=(p.row['section']||'').trim();
-          const secs=sectionsFor(CLASS_ID[clsName]);
-          if(!secs.length) errors.push(`Row ${p.lineNum}: class "${clsName}" has no sections in ${viewSession}`);
-          else if(secName&&!secs.find(x=>x.name.toLowerCase()===secName.toLowerCase()))
-            errors.push(`Row ${p.lineNum}: section "${secName}" not found in class "${clsName}"`);
-        }
-        if(students.some(s=>String(s.sno)===String(p.sno))) errors.push(`Row ${p.lineNum}: S.No ${p.sno} already used in ${viewSession}`);
-        if(students.some(s=>(s.name||'').toLowerCase()===p.name.toLowerCase()&&(s.father||'').toLowerCase()===p.father.toLowerCase()&&(s.phone||'')===p.phone))
-          errors.push(`Row ${p.lineNum}: ${p.name} / ${p.father} already enrolled in ${viewSession}`);
-      });
-
       if(errors.length){
-        alert('❌ CSV REJECTED — no records were imported.\n\n'+errors.slice(0,25).join('\n')+(errors.length>25?`\n\n…and ${errors.length-25} more.`:'')+'\n\nPlease fix your CSV and re-upload.');
+        alert('❌ CSV REJECTED — nothing was imported.\n\n'+errors.slice(0,25).join('\n')
+          +(errors.length>25?`\n\n…and ${errors.length-25} more.`:'')+'\n\nFix the CSV and re-upload.');
         toast(`Import rejected: ${errors.length} problem(s)`,'error');
-        input.value='';
-        return;
+        input.value=''; return;
       }
 
+      // ── Duplicate check against the DB (same rule as Admin) ──
+      const sids=parsed.map(r=>r.student_id).filter(Boolean);
+      const dupSids=new Set();
+      if(sids.length){
+        const {data}=await sb.from('students').select('student_id').in('student_id',sids);
+        (data||[]).forEach(r=>dupSids.add(r.student_id));
+      }
+      const valid=[], skipped=[];
+      parsed.forEach(r=>{
+        if(r.student_id&&dupSids.has(r.student_id)) skipped.push(`${r.full_name} (student_id ${r.student_id} exists)`);
+        else valid.push(r);
+      });
+      if(!valid.length){toast('All rows were duplicates — nothing imported','error');input.value='';return}
+
+      const newCount=valid.filter(r=>['true','1','yes','y'].includes(String(r.is_new_admission||'').toLowerCase())).length;
       const go=await showConfirm('Import Students?',
-        `${parsed.length} student(s) will be created in ${viewSession}, each with a permanent Student ID visible to the Admin and Teacher portals.`,
-        [],'✓ Import','✕ Cancel');
+        `${valid.length} student(s) will be created in ${viewSession}.\n\n`
+        +`${newCount} marked as new admissions (annual charge waived)\n`
+        +`${valid.length-newCount} as existing students (annual charge applies)\n`
+        +(skipped.length?`\n${skipped.length} duplicate(s) will be skipped.`:''),
+        skipped.slice(0,8),'✓ Import','✕ Cancel');
       if(!go){input.value='';return}
 
       updateStatus('saving');
-      let count=0;
-      let nextIdNum=0;
-      const {data:allIds}=await sb.from('students').select('student_id');
-      (allIds||[]).forEach(r=>{const m=String(r.student_id).match(/(\d+)\s*$/);if(m){const n=parseInt(m[1]);if(n>nextIdNum)nextIdNum=n}});
-      let famNum=0;
+      // Max-based ID generation — identical to the Admin Portal
+      const {data:allSids}=await sb.from('students').select('student_id');
+      let sidMax=(allSids||[]).reduce((m,r)=>{const n=parseInt(String(r.student_id).replace(/\D/g,''))||0;return n>m?n:m},0);
       const {data:allFams}=await sb.from('families').select('family_code');
-      (allFams||[]).forEach(r=>{const m=String(r.family_code).match(/(\d+)\s*$/);if(m){const n=parseInt(m[1]);if(n>famNum)famNum=n}});
+      let famMax=(allFams||[]).reduce((m,r)=>{const n=parseInt(String(r.family_code).replace(/\D/g,''))||0;return n>m?n:m},0);
       const knownFams=new Set((allFams||[]).map(f=>f.family_code));
+      let snoMax=Math.max(0,...students.filter(s=>s.sno!=null&&s.sno!=='').map(s=>parseInt(s.sno)||0),
+                          ...valid.map(r=>parseInt(r.s_no)||0));
 
-      for(const p of parsed){
-        const row=p.row;
-        const isNewStr=(row['new admission']||row['is new']||row['new']||'false').toLowerCase();
-        const isNew=isNewStr==='true'||isNewStr==='1'||isNewStr==='yes';
-        let fc=(row['familycode']||row['family code']||row['familyid']||row['family id']||'').trim();
-        if(!fc){ famNum++; fc='F'+String(famNum).padStart(3,'0') }
-        if(!knownFams.has(fc)){ await ensureFamily(fc,p.phone); knownFams.add(fc) }
-
-        nextIdNum++;
-        const studentId='SPS-S-'+String(nextIdNum).padStart(4,'0');
-        const clsName=(row['class']||'').trim();
-        const secs=sectionsFor(CLASS_ID[clsName]);
-        const secName=(row['section']||'').trim();
-        const sec=secName?secs.find(x=>x.name.toLowerCase()===secName.toLowerCase()):secs[0];
-
-        const {error:e1}=await sb.from('students').insert({
-          student_id:studentId, full_name:p.name, father_name:p.father,
-          phone:p.phone||null, alt_phone:(row['alternate phone']||row['alt phone']||row['altphone']||'').trim()||null,
-          admission_date:parseAdmDate(row['date of admission']||row['admdate']||row['admission date']||''),
-          family_code:fc
+      const stuRows=[], enrRows=[], autoSecs=[];
+      for(const r of valid){
+        let fc=(r.family_code||'').trim();
+        if(!fc){ famMax++; fc='F'+String(famMax).padStart(4,'0') }
+        if(!knownFams.has(fc)){ await ensureFamily(fc,r.phone); knownFams.add(fc) }
+        const studentId=r.student_id||('STU-'+String(++sidMax).padStart(4,'0'));
+        // Section defaults to 'A', auto-created if the class has none yet.
+        // section_id is NOT NULL so it must always resolve to something.
+        const secName=(r.section||'').trim()||'A';
+        let sec=sectionsFor(CLASS_ID[r.class]).find(x=>x.name.toLowerCase()===secName.toLowerCase());
+        if(!sec){
+          const {data:ns,error:nse}=await sb.from('class_sections')
+            .insert({name:secName,class_id:CLASS_ID[r.class],session_id:viewSession,is_active:true})
+            .select().maybeSingle();
+          if(nse||!ns) throw new Error(`Could not create section "${secName}" for class ${r.class}: ${nse?.message||'unknown'}`);
+          SECTIONS.push(ns); sec=ns; autoSecs.push(`${r.class}-${secName}`);
+        }
+        stuRows.push({
+          student_id:studentId, full_name:r.full_name, father_name:r.father_name,
+          mother_name:r.mother_name||null, phone:r.phone||null, alt_phone:r.alt_phone||null,
+          dob:parseAdmDate(r.dob), aadhar_no:r.aadhar_no||null, address:r.address||null,
+          admission_date:parseAdmDate(r.admission_date), family_code:fc
         });
-        if(e1) throw e1;
-        const {error:e2}=await sb.from('student_enrollments').insert({
+        enrRows.push({
           student_id:studentId, session_id:viewSession,
-          class_id:CLASS_ID[clsName], section_id:sec.section_id,
-          s_no:p.sno, status:'active', is_new_admission:isNew
+          class_id:CLASS_ID[r.class], section_id:sec.section_id,
+          roll_no:parseInt(r.roll_no)||null,
+          s_no:r.s_no||String(++snoMax), status:'active',
+          is_new_admission:['true','1','yes','y'].includes(String(r.is_new_admission||'').toLowerCase()),
+          tuition_override:r.tuition_override?parseFloat(r.tuition_override):null,
+          annual_override:r.annual_override?parseFloat(r.annual_override):null
         });
-        if(e2){ await sb.from('students').delete().eq('student_id',studentId); throw e2 }
-        count++;
       }
-      await log(`CSV import: ${count} students added to ${viewSession}`,'green');
-      toast(`✓ ${count} students imported`,'success');
+
+      const {error:e1}=await sb.from('students').insert(stuRows);
+      if(e1) throw e1;
+      const {error:e2}=await sb.from('student_enrollments').insert(enrRows);
+      if(e2){
+        await sb.from('students').delete().in('student_id',stuRows.map(s=>s.student_id));
+        throw new Error('Enrollment failed, students rolled back: '+e2.message);
+      }
+
+      await log(`CSV import: ${stuRows.length} students added to ${viewSession}`,'green');
+      toast(`✓ ${stuRows.length} students imported${skipped.length?` (${skipped.length} skipped)`:''}${autoSecs.length?` · auto-created sections: ${[...new Set(autoSecs)].join(', ')}`:''}`,'success');
       input.value='';
       await refreshAll();
     }catch(err){
