@@ -462,7 +462,7 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="dropzone" onclick="document.getElementById('csvStudents').click()">
               <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <div class="dmt">Drop CSV or click to browse</div>
-              <div class="dst">student_id, full_name, father_name, phone, class, section, s_no, family_code, dob, address</div>
+              <div class="dst">Required: full_name, father_name, class &nbsp;·&nbsp; all other columns optional &nbsp;·&nbsp; same CSV as Fee Portal</div>
             </div>
             <input type="file" id="csvStudents" accept=".csv" style="display:none" onchange="parseCsv('student',this)">
             <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="downloadSampleCsv('student')">Download Sample Template</button>
@@ -1571,10 +1571,17 @@ async function submitAdmission(e){
     if(!SESS)throw new Error('No active session')
     const classId=$('adm_class').value,secId=$('adm_section').value
     if(!classId||!secId)throw new Error('Select class and section')
-    const{count:sc}=await sb.from('students').select('*',{count:'exact',head:true})
-    const studentId='STU-'+String((sc||0)+1).padStart(4,'0')
+    // Max-based, not count-based: counts collide after any deletion or gapped import
+    const{data:_sids}=await sb.from('students').select('student_id')
+    const _maxSid=(_sids||[]).reduce((m,r)=>{const n=parseInt(String(r.student_id).replace(/\D/g,''))||0;return n>m?n:m},0)
+    const studentId='STU-'+String(_maxSid+1).padStart(4,'0')
     let fc=$('adm_family').value.trim()
-    if(!fc){const{count:fcc}=await sb.from('families').select('*',{count:'exact',head:true});fc='F'+String((fcc||0)+1).padStart(4,'0');await sb.from('families').insert({family_code:fc})}
+    if(!fc){
+      const{data:_fcs}=await sb.from('families').select('family_code')
+      const _maxFc=(_fcs||[]).reduce((m,r)=>{const n=parseInt(String(r.family_code).replace(/\D/g,''))||0;return n>m?n:m},0)
+      fc='F'+String(_maxFc+1).padStart(4,'0')
+      await sb.from('families').insert({family_code:fc})
+    }
     const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,phone:$('adm_phone').value.trim(),alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc})
     if(se)throw se
     const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).not('s_no','is',null)
@@ -1582,7 +1589,7 @@ async function submitAdmission(e){
     const{data:rolls}=await sb.from('student_enrollments').select('roll_no').eq('session_id',SESS.session_id).eq('section_id',secId).not('roll_no','is',null)
     const maxR=(rolls||[]).reduce((m,r)=>r.roll_no>m?r.roll_no:m,0)
     const streamId=$('adm_stream')?.value||null
-    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:'S'+String(maxN+1).padStart(4,'0'),status:'active',is_new_admission:true,readmission_date:today()})
+    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:String(maxN+1),status:'active',is_new_admission:true,readmission_date:null})
     if(ee)throw ee
     // Upload photo if provided
     const photoFile=$('adm_photo')?.files[0]
@@ -1613,7 +1620,9 @@ async function parseCsv(type,input){
   reader.onload=async ev=>{
     const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean)
     const headers=lines[0].split(',').map(h=>h.trim())
-    const required=type==='student'?['full_name','father_name']:['employee_code','full_name','username']
+    // `class` is required for students: without it we can create the student row but
+    // never the enrollment, leaving them invisible in every portal. Better to reject.
+    const required=type==='student'?['full_name','father_name','class']:['employee_code','full_name','username']
     const valid=[],errors=[],autoCreated=[]
     const classNameMap={},sectionMap={},streamNameMap={}
     ALL_CLASSES.forEach(c=>{classNameMap[c.name.toLowerCase()]=c.class_id})
@@ -1630,7 +1639,17 @@ async function parseCsv(type,input){
         if(!classNameMap[ck]){const{data:nc}=await sb.from('classes').insert({name:obj.class,sort_order:Object.keys(classNameMap).length+1,is_active:true,created_by:SPS.admin?.admin_id}).select().single();if(nc){classNameMap[ck]=nc.class_id;ALL_CLASSES.push(nc);autoCreated.push('Class: '+obj.class)}}
         if(obj.section&&classNameMap[ck]){const sk=classNameMap[ck]+'_'+obj.section.toLowerCase();if(!sectionMap[sk]&&SESS){const{data:ns}=await sb.from('class_sections').insert({name:obj.section,class_id:classNameMap[ck],session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id}).select().single();if(ns){sectionMap[sk]=ns.section_id;autoCreated.push('Section: '+obj.class+'-'+obj.section)}}}
         obj._class_id=classNameMap[ck]||null
-        obj._section_id=obj.section&&classNameMap[ck]?sectionMap[classNameMap[ck]+'_'+obj.section.toLowerCase()]||null:null
+        // Section defaults to 'A' when the column is blank or missing entirely —
+        // student_enrollments.section_id is NOT NULL, so it must resolve to something.
+        const _sec=(obj.section||'').trim()||'A'
+        if(classNameMap[ck]){
+          const _sk=classNameMap[ck]+'_'+_sec.toLowerCase()
+          if(!sectionMap[_sk]&&SESS){
+            const{data:_ns}=await sb.from('class_sections').insert({name:_sec,class_id:classNameMap[ck],session_id:SESS.session_id,is_active:true,created_by:SPS.admin?.admin_id}).select().single()
+            if(_ns){sectionMap[_sk]=_ns.section_id;autoCreated.push('Section: '+obj.class+'-'+_sec)}
+          }
+          obj._section_id=sectionMap[_sk]||null
+        } else obj._section_id=null
         // Resolve stream — auto-create if missing
         obj._stream_id=null
         if(obj.stream&&classNameMap[ck]&&SESS){
@@ -1691,13 +1710,16 @@ async function commitImport(count,type){
     if(fcodes.length) await sb.from('families').upsert(fcodes.map(fc=>({family_code:fc})),{onConflict:'family_code',ignoreDuplicates:true})
 
     // ── Generate student IDs for blank ones ─────────────────────────────────
-    const{count:sc}=await sb.from('students').select('*',{count:'exact',head:true})
-    let scOffset=sc||0
+    // Max-based, not count-based: counts collide after any deletion or gapped import
+    const{data:_allSids}=await sb.from('students').select('student_id')
+    let scOffset=(_allSids||[]).reduce((m,r)=>{const n=parseInt(String(r.student_id).replace(/\D/g,''))||0;return n>m?n:m},0)
     const ins=valid.map(r=>({
       student_id:r.student_id||('STU-'+String(++scOffset).padStart(4,'0')),
       full_name:r.full_name,father_name:r.father_name,
       mother_name:r.mother_name||null,phone:r.phone||null,
+      alt_phone:r.alt_phone||null,
       aadhar_no:r.aadhar_no||null,dob:normDate(r.dob)||null,
+      admission_date:normDate(r.admission_date)||null,
       address:r.address||null,family_code:r.family_code||null
     }))
 
@@ -1720,9 +1742,13 @@ async function commitImport(count,type){
         section_id:r._section_id||null,
         stream_id:r._stream_id||null,
         roll_no:parseInt(r.roll_no)||null,
-        s_no:r.s_no||('S'+String(maxN).padStart(4,'0')),
+        s_no:r.s_no||String(maxN),
         status:'active',
-        is_new_admission:true
+        // Read from CSV — hardcoding true waives the annual charge for every
+        // imported student. Blank/absent column defaults to false (existing student).
+        is_new_admission:['true','1','yes','y'].includes(String(r.is_new_admission||r.new_admission||'').trim().toLowerCase()),
+        tuition_override:r.tuition_override?parseFloat(r.tuition_override):null,
+        annual_override:r.annual_override?parseFloat(r.annual_override):null
       })
     })
 
@@ -1775,18 +1801,53 @@ async function commitImport(count,type){
   }
 }
 function downloadSampleCsv(type){
-  const[h,r]=type==='student'
-    ?[
-      ['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob','aadhar_no','address','family_code','class','section','stream','roll_no'],
-      ['','','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','15-Aug-2012','1234 5678 9012','House 1 City','F0001','11th','A','Commerce','1']
+  // Full schema. IDENTICAL to the Fee Portal's template — one CSV works in both.
+  // Only full_name, father_name and class are required; every other column may be
+  // blank, or omitted from the file entirely.
+  let h,r1,r2,notes
+  if(type==='student'){
+    h=['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob',
+       'aadhar_no','address','admission_date','family_code','class','section','stream',
+       'roll_no','is_new_admission','tuition_override','annual_override']
+    r1=['','1','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-08-15',
+        '123456789012','House 1, City','2024-04-01','F0001','11th Science','A','Science',
+        '1','false','','']
+    r2=['','2','Neha Kumar','Shyam Kumar','Sita Devi','9876543210','','2020-03-09',
+        '','','2026-07-01','F0001','Nur','A','','2','true','','']
+    notes=[
+      ['--- NOTES — DELETE EVERY ROW BELOW BEFORE IMPORTING ---'],
+      ['Same template as Fee Portal > Settings > Import Students. One CSV, either portal.'],
+      [''],
+      ['REQUIRED: full_name, father_name, class'],
+      ['Everything else is optional. Blank cells are fine, and you may delete whole'],
+      ['columns you do not have — the importer only reads the headers present.'],
+      [''],
+      ['student_id  blank = auto-generate STU-0001, STU-0002 ...'],
+      ['s_no        plain number for this session (1, 2, 3). Blank = continue the series.'],
+      ['dob / admission_date    YYYY-MM-DD'],
+      ['section     blank = "A" (auto-created if the class has no sections yet)'],
+      ['family_code blank = auto-generate. Same code on 2 rows = siblings.'],
+      ['            3+ siblings sharing a code triggers the flat sibling fee.'],
+      ['is_new_admission   true = waives the annual charge.  BLANK DEFAULTS TO false.'],
+      ['tuition_override / annual_override   blank = use the class fee master'],
+      ['class / section / stream   auto-created if they do not exist — check your spelling'],
     ]
-    :[
-      ['employee_code','full_name','designation','phone','username'],
-      ['SPS-T-001','Rina Mehta','PGT Science','9876543210','SPS-T-001']
-    ]
+  } else {
+    h=['employee_code','full_name','designation','phone','username']
+    r1=['SPS-T-001','Rina Mehta','PGT Science','9876543210','SPS-T-001']
+    r2=null
+    notes=[['--- NOTES — DELETE BELOW BEFORE IMPORTING ---'],
+           ['REQUIRED: employee_code, full_name, username']]
+  }
+  const rows=[h,r1]
+  if(r2)rows.push(r2)
+  rows.push([''],[''])
+  notes.forEach(n=>rows.push(n))
+  const csv=rows.map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(',')).join('\n')
   const a=document.createElement('a')
-  a.href='data:text/csv,'+encodeURIComponent([h.join(','),r.join(',')].join('\n'))
-  a.download='sample_'+type+'s.csv';a.click()
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv)
+  a.download='sps_'+type+'_import_template.csv';a.click()
+  toast('Template downloaded — same file works in the Fee Portal','success')
 }
 
 // ═══════════ MAPPING ═══════════
