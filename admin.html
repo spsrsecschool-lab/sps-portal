@@ -1628,30 +1628,41 @@ async function labelForClassSection(classId, sectionId){
 async function adminNotifyCTs({pairs, subject, body, quiet}){
   try{
     const sectionIds=[...new Set(pairs.map(p=>p.section_id).filter(Boolean))]
-    if(!sectionIds.length)return
+    console.log('[notify] sections involved:',sectionIds)
+    if(!sectionIds.length){console.log('[notify] abort: no section ids');return}
     const{data:cts,error:ce}=await sb.from('class_teacher_map')
       .select('teacher_id,section_id').eq('session_id',SESS?.session_id||'')
       .in('section_id',sectionIds)
-    if(ce){console.warn('[notify] CT lookup error',ce);return}
+    if(ce){console.warn('[notify] CT lookup error',ce);toast('Notify lookup error: '+ce.message,'error');return}
+    console.log('[notify] class_teacher_map rows found:',cts)
     const recipients=[...new Set((cts||[]).map(r=>r.teacher_id).filter(Boolean))]
+    console.log('[notify] recipients:',recipients,'admin_id:',SPS.admin?.admin_id)
     if(!recipients.length){
-      // No class teacher on the section(s) involved — nobody to notify. Say so
-      // rather than skip silently, so it's clear WHY no message went out.
-      if(!quiet)toast('No class teacher assigned to that section — no notification sent','info')
+      if(!quiet)toast('No class teacher on those sections — no message sent','info')
+      return
+    }
+    if(!SPS.admin?.admin_id){
+      // sender_id is NOT NULL — without an admin_id the insert would fail.
+      console.error('[notify] SPS.admin.admin_id is missing — cannot set sender_id')
+      toast('Cannot send notification: admin id missing','error')
       return
     }
     const now=new Date().toISOString()
     const rows=recipients.map(tid=>({
-      sender_type:'admin', sender_id:SPS.admin?.admin_id,
+      sender_type:'admin', sender_id:SPS.admin.admin_id,
       recipient_type:'teacher', recipient_id:tid,
       subject, body, message_type:'system_notification', sent_at:now
     }))
-    const{error}=await sb.from('messages').insert(rows)
+    console.log('[notify] inserting',rows.length,'message(s):',rows)
+    const{data:ins,error}=await sb.from('messages').insert(rows).select()
     if(error){
-      console.error('[notify] insert failed:',error)
-      toast('Saved, but notification failed: '+error.message,'error')
+      console.error('[notify] INSERT FAILED:',error)
+      toast('Notification failed: '+error.message,'error')
+    }else{
+      console.log('[notify] inserted OK:',ins)
+      if(!quiet)toast('Class teacher'+(recipients.length>1?'s':'')+' notified','success')
     }
-  }catch(e){console.error('adminNotifyCTs threw',e)}
+  }catch(e){console.error('adminNotifyCTs threw',e);toast('Notify error: '+e.message,'error')}
 }
 
 // Batched add-notification: one message per (class,section) whose teacher
