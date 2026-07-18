@@ -1553,14 +1553,31 @@ async function saveAllRollNos(){
   const inputs=document.querySelectorAll('.rn-input')
   const updates=[];let valid=true
   inputs.forEach(inp=>{
-    const v=parseInt(inp.value)
-    if(isNaN(v)||v<1){toast('Roll numbers must be positive integers','error');valid=false;inp.style.borderColor='var(--danger)';return}
+    inp.style.borderColor=''
+    const raw=(inp.value||'').trim()
+    // Blank is allowed — that student just isn't being assigned a roll yet.
+    // Only validate inputs that actually have a value, and save only those.
+    if(raw===''){return}
+    const v=parseInt(raw)
+    if(isNaN(v)||v<1){toast('Roll numbers must be positive whole numbers','error');valid=false;inp.style.borderColor='var(--danger)';return}
     updates.push({eid:inp.dataset.eid,roll:v})
   })
-  if(!valid||!updates.length)return
-  // Check for duplicates
+  if(!valid)return
+  if(!updates.length){toast('Enter at least one roll number to save','info');return}
+
+  // Duplicates among the values being entered
   const rolls=updates.map(u=>u.roll)
-  if(new Set(rolls).size!==rolls.length){toast('Duplicate roll numbers found — each student must have a unique roll number','error');return}
+  if(new Set(rolls).size!==rolls.length){toast('Duplicate roll numbers entered — each must be unique','error');return}
+
+  // Duplicates against students who ALREADY have a roll but aren't being edited
+  const editedEids=new Set(updates.map(u=>u.eid))
+  const takenByOthers=new Map()  // roll -> name
+  CLASS_STUDENTS.forEach(s=>{
+    if(s.roll_no!=null && !editedEids.has(s.enrollment_id)) takenByOthers.set(s.roll_no, s.students?.full_name||'another student')
+  })
+  const clash=updates.find(u=>takenByOthers.has(u.roll))
+  if(clash){toast('Roll '+clash.roll+' is already used by '+takenByOthers.get(clash.roll),'error');return}
+
   // Batch update
   let errors=0
   await Promise.all(updates.map(async u=>{
@@ -1575,7 +1592,7 @@ async function saveAllRollNos(){
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
   _classRaw=CLASS_STUDENTS
-  toast('Roll numbers saved ✓','success')
+  toast(updates.length+' roll number'+(updates.length>1?'s':'')+' saved ✓','success')
   loadRollNos()
 }
 
