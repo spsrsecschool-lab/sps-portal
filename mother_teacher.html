@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="icon" type="image/png" href="favicon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Mother Teacher Portal — Shiv Public School</title>
@@ -752,7 +751,7 @@ SPS.ready().then(async()=>{
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
 
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
@@ -1259,7 +1258,7 @@ async function saveStudentProfile(){
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
   toast('Profile saved','success');closeModal()
 }
@@ -1388,7 +1387,7 @@ async function saveStudentProfile(studentId){
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
   toast('Profile saved ✓','success');closeModal()
 }
@@ -1463,7 +1462,7 @@ async function saveAllRollNos(){
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
   _classRaw=CLASS_STUDENTS
   toast('Roll numbers saved ✓','success')
