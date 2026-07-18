@@ -1498,7 +1498,7 @@ async function toggleTeacher(id,active){confirmAct((active?'Deactivate':'Activat
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
   if(!SESS)return; ldg($('studentBody'))
-  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,stream_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(500)
+  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(500)
   if(error){toast('Failed to load students','error');return}
   _studentsRaw=data||[]
   const uniq=[...new Map(_studentsRaw.map(e=>[e.classes?.class_id,e.classes?.name])).entries()]
@@ -1625,23 +1625,33 @@ async function labelForClassSection(classId, sectionId){
 // Notify the class teacher(s) of the given (class,section) pairs.
 // Silently skips a section with no class teacher. De-dupes recipients so a
 // teacher who owns both origin and destination gets one message.
-async function adminNotifyCTs({pairs, subject, body}){
+async function adminNotifyCTs({pairs, subject, body, quiet}){
   try{
     const sectionIds=[...new Set(pairs.map(p=>p.section_id).filter(Boolean))]
     if(!sectionIds.length)return
-    const{data:cts}=await sb.from('class_teacher_map')
+    const{data:cts,error:ce}=await sb.from('class_teacher_map')
       .select('teacher_id,section_id').eq('session_id',SESS?.session_id||'')
       .in('section_id',sectionIds)
+    if(ce){console.warn('[notify] CT lookup error',ce);return}
     const recipients=[...new Set((cts||[]).map(r=>r.teacher_id).filter(Boolean))]
-    if(!recipients.length)return
+    if(!recipients.length){
+      // No class teacher on the section(s) involved — nobody to notify. Say so
+      // rather than skip silently, so it's clear WHY no message went out.
+      if(!quiet)toast('No class teacher assigned to that section — no notification sent','info')
+      return
+    }
     const now=new Date().toISOString()
     const rows=recipients.map(tid=>({
       sender_type:'admin', sender_id:SPS.admin?.admin_id,
       recipient_type:'teacher', recipient_id:tid,
       subject, body, message_type:'system_notification', sent_at:now
     }))
-    await sb.from('messages').insert(rows)
-  }catch(e){console.warn('adminNotifyCTs failed',e)}
+    const{error}=await sb.from('messages').insert(rows)
+    if(error){
+      console.error('[notify] insert failed:',error)
+      toast('Saved, but notification failed: '+error.message,'error')
+    }
+  }catch(e){console.error('adminNotifyCTs threw',e)}
 }
 
 // Batched add-notification: one message per (class,section) whose teacher
@@ -1681,7 +1691,10 @@ async function notifyBulkAdd(enrollRows, valid, ins){
         body, message_type:'system_notification', sent_at:now
       })
     }
-    if(rows.length)await sb.from('messages').insert(rows)
+    if(rows.length){
+      const{error}=await sb.from('messages').insert(rows)
+      if(error)console.error('[notifyBulkAdd] insert failed:',error)
+    }
   }catch(e){console.warn('notifyBulkAdd failed',e)}
 }
 
@@ -1747,7 +1760,9 @@ async function saveEditDemo(){
     toast('Student updated','success')
   }
   window._edBefore=null
-  closeModal();openProfile(eid);loadStudents()
+  closeModal()
+  await loadStudents()   // refresh the table first (awaited), then reopen profile
+  openProfile(eid)
 }
 
 function openUploadDocModal(){
