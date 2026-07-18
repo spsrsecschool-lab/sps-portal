@@ -38,22 +38,6 @@
      No build step needed — pure HTML + Supabase JS via CDN.
 
   ═══════════════════════════════════════════════════════════════
-  BACK-BUTTON FIX (2026-07-18)
-  ═══════════════════════════════════════════════════════════════
-  Both redirects out of this page now use window.location.replace()
-  instead of window.location.href. replace() overwrites this
-  login.html entry in browser history instead of stacking a new
-  entry on top of it — so after a successful login, this page is
-  no longer sitting in the back-stack, and pressing the browser
-  Back button from inside a portal will not bounce the user back
-  to a "Checking session…" screen.
-  A pageshow/persisted listener was also added at the bottom of
-  the script so that if this page is ever restored from the
-  browser's back-forward cache (bfcache) instead of being freshly
-  loaded, it forces a real reload — which re-runs the session
-  check and immediately forwards an already-logged-in user back
-  into their portal instead of getting stuck.
-  ═══════════════════════════════════════════════════════════════
 -->
 
 <!-- Config: project URL, anon key, auth domain — edit config.js, not here -->
@@ -615,11 +599,8 @@ function routeToPortal(portals, teacher, admin) {
   storeSessionData({ teacher, admin, portals })
 
   if (portals.length === 1) {
-    // Direct redirect — no selection needed.
-    // Using replace() instead of href overwrites this login.html entry
-    // in browser history instead of stacking a new one on top of it,
-    // so the Back button from inside the portal won't land back here.
-    window.location.replace(PORTALS[portals[0]].href)
+    // Direct redirect — no selection needed
+    window.location.href = PORTALS[portals[0]].href
     return
   }
 
@@ -638,12 +619,8 @@ function showPortalSelector(teacher, admin, portals) {
   const container = $('portalCards')
   container.innerHTML = portals.map(p => {
     const pd = PORTALS[p]
-    // onclick intercepts the click and uses location.replace() instead of
-    // letting the browser follow the href normally — a normal <a> click
-    // would push a new history entry after login.html, which is what
-    // caused Back to land on this "Checking session…" screen.
     return `
-      <a class="portal-card" href="${pd.href}" onclick="event.preventDefault();window.location.replace('${pd.href}')">
+      <a class="portal-card" href="${pd.href}">
         <div class="pc-icon" style="background:${pd.color}">
           ${pd.icon}
         </div>
@@ -747,18 +724,6 @@ sb.auth.onAuthStateChange((event, session) => {
 // ─── CLEAR INPUT ERRORS ON TYPE ──────────────────────────────
 $('username').addEventListener('input', clearError)
 $('password').addEventListener('input', clearError)
-
-// ─── BFCACHE GUARD ───────────────────────────────────────────
-// If this page is ever restored from the browser's back-forward
-// cache (bfcache) instead of being freshly loaded — e.g. someone
-// navigates back to it directly, or opens it while already logged
-// in elsewhere — force a real reload. That re-runs
-// checkExistingSession() below and immediately forwards an
-// already-authenticated user back into their portal instead of
-// leaving them stuck looking at a stale login form or loader.
-window.addEventListener('pageshow', function (e) {
-  if (e.persisted) location.reload()
-})
 
 // ─── INIT ────────────────────────────────────────────────────
 checkExistingSession()
