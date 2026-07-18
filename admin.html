@@ -1383,7 +1383,12 @@ async function loadStaff(){
   if(error){toast('Failed to load staff','error');return}
   _staffRaw=data||[]; ALL_TEACHERS=_staffRaw
   const{data:ctData}=await sb.from('class_teacher_map').select('teacher_id,classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'')
-  const ctMap={}; ctData?.forEach(r=>{ctMap[r.teacher_id]=(r.classes?.name||'')+'-'+(r.class_sections?.name||'')})
+  // A teacher may be class teacher of several sections — collect all, don't
+  // overwrite (which would show only the last-assigned class).
+  const ctMap={}; ctData?.forEach(r=>{
+    const label=(r.classes?.name||'')+'-'+(r.class_sections?.name||'')
+    ctMap[r.teacher_id]=ctMap[r.teacher_id]?ctMap[r.teacher_id]+', '+label:label
+  })
   const{data:mtData}=await sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'')
   window._motherSet=new Set((mtData||[]).map(r=>r.teacher_id))
   filterStaff(ctMap)
