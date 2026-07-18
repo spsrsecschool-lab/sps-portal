@@ -446,6 +446,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 let sb, TEACHER=null, SESS=null, MY_CLASS=null
 let MY_CLASSES=[]   // all class-teacher rows for this teacher this session
 let _ctChan=null    // realtime channel, re-subscribed per class
+let _enrChan=null   // enrollment (section-move) channel, re-subscribed per class
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _currentTab='dashboard'   // which tab is open, so class-switch can refresh it
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
@@ -564,7 +565,7 @@ async function loadClass(ct){
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
 
   // Re-scope the realtime access watcher to THIS row
@@ -672,6 +673,21 @@ function subscribeProfileAccess(){
   // Re-scope to the active class: with several classes, watching by teacher_id
   // would fire on any of them and clobber the wrong MY_CLASS. Filter by map_id.
   if(_ctChan){try{sb.removeChannel(_ctChan)}catch(e){}_ctChan=null}
+  if(_enrChan){try{sb.removeChannel(_enrChan)}catch(e){}_enrChan=null}
+
+  // Watch section moves within this class so a change made elsewhere (another
+  // device, or admin) reflects live: students arriving into or leaving the
+  // section currently on screen.
+  _enrChan=sb.channel('ct_enr_'+MY_CLASS.class_id)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'student_enrollments',filter:'class_id=eq.'+MY_CLASS.class_id},payload=>{
+      const row=payload.new||{}
+      if(row.session_id && SESS && row.session_id!==SESS.session_id) return
+      const wasHere=CLASS_STUDENTS.some(s=>s.enrollment_id===row.enrollment_id)
+      const isHere=row.section_id===MY_CLASS.section_id
+      if(wasHere===isHere) return   // no cross-section change relevant to us
+      onRosterChanged()
+    }).subscribe((status)=>console.log('[RT] CT enrollment channel:',status))
+
   _ctChan=sb.channel('ct_access_'+MY_CLASS.map_id)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'class_teacher_map',filter:'map_id=eq.'+MY_CLASS.map_id},payload=>{
       const now=payload.new?.can_edit_profiles===true
@@ -693,6 +709,25 @@ function subscribeProfileAccess(){
         }
       }
     }).subscribe((status)=>console.log('[RT] CT access channel:',status))
+}
+
+// A section move touched our roster (in or out). Refetch the class's students
+// and repaint whatever tab is open, with a quiet toast.
+let _rosterDebounce=null
+async function onRosterChanged(){
+  clearTimeout(_rosterDebounce)
+  _rosterDebounce=setTimeout(async()=>{
+    const{data:students}=await sb.from('student_enrollments')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+      .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
+      .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
+    const before=CLASS_STUDENTS.length
+    CLASS_STUDENTS=students||[]; _classRaw=students||[]
+    await refreshCurrentTab()
+    const after=CLASS_STUDENTS.length
+    if(after>before) toast('A student was moved into your section','info')
+    else if(after<before) toast('A student was moved out of your section','info')
+  }, 400)
 }
 
 function prependActivity(text,type){
@@ -1178,6 +1213,15 @@ async function viewStudentProfile(eid){
     +(canEdit?'<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer">Change Photo<input type="file" accept="image/*" style="display:none" onchange="uploadStudentPhoto(_profileStudentId,this)"></label>':'')
     +'</div></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
+    +'<div style="margin-top:6px;margin-bottom:14px"><label style="'+lbl+'">Class &amp; Section</label>'
+    +(canEdit
+      ?'<div style="display:flex;align-items:center;gap:10px">'
+        +'<div style="font-weight:700;font-size:14px;white-space:nowrap">'+esc(MY_CLASS.classes?.name||'?')+'</div>'
+        +'<select id="sp_section" style="'+inp+';flex:1" onchange="onSectionPick(this)"><option>Loading…</option></select>'
+        +'</div>'
+        +'<div id="sp_sectionHint" style="font-size:11px;color:var(--ink-faint);margin-top:5px">Change the section to move this student within '+esc(MY_CLASS.classes?.name||'this class')+'.</div>'
+      :'<div style="font-weight:700;font-size:14px">'+esc(MY_CLASS.classes?.name||'?')+' &middot; '+esc(MY_CLASS.class_sections?.name||'?')+'</div>')
+    +'</div>'
     +(!canEdit?'<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;font-size:12.5px;margin-bottom:14px">'+(reqPending?'Editing is locked. Your access request has been sent — waiting for admin approval.':'Profile editing is locked. Request access from admin to make changes.')+'</div>':'')
     +'<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:8px">Documents</div>'
     +docsHtml
@@ -1190,6 +1234,120 @@ async function viewStudentProfile(eid){
     +(!canEdit&&!reqPending?'<button class="btn btn-soft" onclick="requestProfileEditAccess()">Request Edit Access</button>':'')
 
   openModal('Student Profile',body,foot)
+  if(canEdit) populateSectionPicker(enr)
+}
+
+// Fetch the OTHER sections of the SAME class so the teacher can move the
+// student within her class (LKG-A -> LKG-B). Cross-class moves are not offered.
+async function populateSectionPicker(enr){
+  const sel=$('sp_section'); if(!sel)return
+  const{data:secs}=await sb.from('class_sections')
+    .select('section_id,name').eq('class_id',MY_CLASS.class_id)
+    .eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  const list=secs||[]
+  sel.innerHTML=list.map(x=>'<option value="'+x.section_id+'"'+(x.section_id===enr.section_id?' selected':'')+'>'+esc(x.name)+'</option>').join('')
+  sel.dataset.current=enr.section_id
+  sel.dataset.eid=enr.enrollment_id
+  // If the class has only one section there is nowhere to move to.
+  if(list.length<2){
+    sel.disabled=true
+    const hint=$('sp_sectionHint'); if(hint)hint.textContent='This class has only one section.'
+  }
+}
+
+// On picking a different section, confirm then move.
+async function onSectionPick(sel){
+  const target=sel.value, current=sel.dataset.current, eid=sel.dataset.eid
+  if(target===current)return
+  const targetName=sel.selectedOptions[0]?.textContent||'?'
+  const stuName=CLASS_STUDENTS.find(s=>s.enrollment_id===eid)?.students?.full_name||'this student'
+  const proceed=await confirmMove(stuName, (MY_CLASS.classes?.name||'')+'-'+targetName)
+  if(!proceed){ sel.value=current; return }
+  await moveStudentSection(eid, target, targetName)
+}
+
+function confirmMove(stuName, targetLabel){
+  return new Promise(resolve=>{
+    const body='<div style="font-size:14px;line-height:1.6;color:var(--ink)">Move <b>'+esc(stuName)+'</b> to <b>'+esc(targetLabel)+'</b>?</div>'
+      +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:8px">They will leave your current section and appear in '+esc(targetLabel)+'.</div>'
+    const foot='<button class="btn btn-ghost" id="mv_cancel">Cancel</button><button class="btn btn-primary" id="mv_ok">Move Student</button>'
+    openModal('Move student?',body,foot)
+    const done=v=>{closeModal();resolve(v)}
+    $('mv_ok').onclick=()=>done(true)
+    $('mv_cancel').onclick=()=>done(false)
+  })
+}
+
+async function moveStudentSection(eid, newSectionId, newSectionName){
+  const stu=CLASS_STUDENTS.find(s=>s.enrollment_id===eid)
+  const stuName=stu?.students?.full_name||'Student'
+  const fromSectionId=MY_CLASS.section_id
+  const fromLabel=(MY_CLASS.classes?.name||'')+'-'+(MY_CLASS.class_sections?.name||'')
+  const toLabel=(MY_CLASS.classes?.name||'')+'-'+newSectionName
+
+  // Next roll number in the destination section (highest + 1), same rule the
+  // admin uses on admission. Keeps rolls contiguous and collision-free.
+  const newRoll=await nextRollFor(MY_CLASS.class_id, newSectionId)
+
+  const{error}=await sb.from('student_enrollments')
+    .update({section_id:newSectionId, roll_no:newRoll}).eq('enrollment_id',eid)
+  if(error){toast('Move failed: '+error.message,'error');return}
+
+  toast('✓ '+stuName+' moved to '+toLabel+' (Roll '+newRoll+')','success')
+  if(typeof prependActivity==='function')prependActivity(stuName+' moved to '+toLabel,'access')
+  if(typeof log==='function')log(stuName+' moved to '+toLabel,'green')
+
+  // Notify the class teachers of BOTH sections — except whoever did the move.
+  const actor=TEACHER.full_name||TEACHER.username||'A teacher'
+  await notifyCTs({
+    classId:MY_CLASS.class_id,
+    sectionIds:[fromSectionId,newSectionId],
+    exceptTeacherId:TEACHER.teacher_id,
+    subject:'Student moved: '+stuName,
+    body:stuName+' was moved from '+fromLabel+' to '+toLabel+' by '+actor+'.'
+  })
+
+  closeModal()
+
+  // The student left this section -> drop from the current roster immediately.
+  if(newSectionId!==MY_CLASS.section_id){
+    CLASS_STUDENTS=CLASS_STUDENTS.filter(s=>s.enrollment_id!==eid)
+    _classRaw=_classRaw.filter(s=>s.enrollment_id!==eid)
+    await refreshCurrentTab()
+  }
+}
+
+// Highest roll_no in a section + 1 (or 1 if empty). Shared by move + any future
+// admission path in this portal.
+async function nextRollFor(classId, sectionId){
+  const{data:rolls}=await sb.from('student_enrollments')
+    .select('roll_no').eq('class_id',classId).eq('section_id',sectionId)
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  const max=(rolls||[]).reduce((m,r)=>(r.roll_no||0)>m?(r.roll_no||0):m,0)
+  return max+1
+}
+
+// Send a system_notification to the class teacher(s) of the given sections.
+// Silently skips a section with no class teacher, and skips exceptTeacherId
+// (so a teacher isn't notified about their own action). De-dupes recipients.
+async function notifyCTs({classId, sectionIds, exceptTeacherId, subject, body}){
+  try{
+    const{data:cts}=await sb.from('class_teacher_map')
+      .select('teacher_id,section_id')
+      .eq('class_id',classId).eq('session_id',SESS?.session_id||'')
+      .in('section_id',sectionIds)
+    const recipients=[...new Set((cts||[])
+      .map(r=>r.teacher_id)
+      .filter(tid=>tid && tid!==exceptTeacherId))]
+    if(!recipients.length)return
+    const now=new Date().toISOString()
+    const rows=recipients.map(tid=>({
+      sender_type:'teacher', sender_id:TEACHER.teacher_id,
+      recipient_type:'teacher', recipient_id:tid,
+      subject, body, message_type:'system_notification', sent_at:now
+    }))
+    await sb.from('messages').insert(rows)
+  }catch(e){console.warn('notifyCTs failed',e)}
 }
 
 async function saveStudentProfile(){
@@ -1209,7 +1367,7 @@ async function saveStudentProfile(){
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
   toast('Profile saved','success');closeModal()
 }
@@ -1338,7 +1496,7 @@ async function saveStudentProfile(studentId){
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
   toast('Profile saved ✓','success');closeModal()
 }
@@ -1413,7 +1571,7 @@ async function saveAllRollNos(){
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
-    .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
   _classRaw=CLASS_STUDENTS
   toast('Roll numbers saved ✓','success')
