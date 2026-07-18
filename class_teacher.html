@@ -447,6 +447,7 @@ let sb, TEACHER=null, SESS=null, MY_CLASS=null
 let MY_CLASSES=[]   // all class-teacher rows for this teacher this session
 let _ctChan=null    // realtime channel, re-subscribed per class
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
+let _currentTab='dashboard'   // which tab is open, so class-switch can refresh it
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
 const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',myclass:'Manage My Class',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
 
@@ -466,6 +467,7 @@ function toggleSidebar(){const sb=$('sidebar');if(window.innerWidth<=760){sb.cla
 function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
 
 function goTo(id,el){
+  _currentTab=id
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
   if(pg){pg.style.animation='none';void pg.offsetHeight;pg.style.animation='';pg.classList.add('active')}
@@ -475,7 +477,7 @@ function goTo(id,el){
   if(window.innerWidth<=760)closeMobileSidebar()
   if(id==='daily'&&!$('att_date').value){$('att_date').value=today()}
   if(id==='attreport'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
-  if(id==='myclass'&&!_classRaw.length)loadMyClass()
+  if(id==='myclass')loadMyClass()
   if(id==='rollnos')loadRollNos()
   if(id==='assessmarks')loadAssessDropdown()
   if(id==='dues')loadDues()
@@ -539,6 +541,14 @@ async function loadClass(ct){
   MY_CLASS=ct
   hideClassPicker()
 
+  // The flag may have changed since page load (admin toggled it while we were
+  // on another class). Refresh this row so access is current on arrival.
+  try{
+    const{data:fresh}=await sb.from('class_teacher_map')
+      .select('can_edit_profiles').eq('map_id',ct.map_id).maybeSingle()
+    if(fresh) MY_CLASS.can_edit_profiles=fresh.can_edit_profiles===true
+  }catch(e){}
+
   // Header + sidebar labels
   const rl=$('topRole'),lbl=$('sbClassLabel')
   if(rl)rl.textContent='Class Teacher · '+labelFor(ct)
@@ -560,8 +570,27 @@ async function loadClass(ct){
   // Re-scope the realtime access watcher to THIS row
   subscribeProfileAccess()
 
-  // Repaint whatever view is open (default dashboard)
+  // Clear per-class caches so the tab loaders refetch for the new class
+  _classRaw=[]; ALL_ASSESSMENTS=[]
+
+  // Repaint whatever tab is currently open, not just the dashboard — otherwise
+  // switching class on "Manage Students" would silently keep the old roster.
+  await refreshCurrentTab()
+}
+
+// Re-run the loader for whichever tab is open. Mirrors goTo's per-tab dispatch.
+async function refreshCurrentTab(){
+  // Dashboard always repaints (cheap, and it shows class-scoped stats)
   await renderDashboard()
+  switch(_currentTab){
+    case 'daily':       await loadDailyAttendance(); break
+    case 'attreport':   await loadAttReport();       break
+    case 'myclass':     await loadMyClass();         break
+    case 'rollnos':     await loadRollNos();         break
+    case 'assessmarks': await loadAssessDropdown();  break
+    case 'dues':        await loadDues();            break
+    case 'examfees':    await loadExamFeeDropdown(); break
+  }
 }
 
 // Top-bar dropdown — only shown when there is more than one class. It lives in
@@ -1105,9 +1134,11 @@ async function viewStudentProfile(eid){
   const s=enr.students||{}
   window._profileStudentId=s.student_id
 
-  const{data:ctPerms}=await sb.from('class_teacher_map')
-    .select('can_edit_profiles').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
-  const canEdit=ctPerms?.can_edit_profiles===true
+  // Read edit-rights from the ACTIVE class row (MY_CLASS), which the realtime
+  // watcher keeps current. The old per-open query used .maybeSingle(), which
+  // throws for a teacher with 2+ classes — so edit access silently read as
+  // locked no matter what the admin set. can_edit_profiles is per class.
+  const canEdit=MY_CLASS?.can_edit_profiles===true
   const reqPending=window._profileReqPending||(function(){try{return localStorage.getItem('sps_ct_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''))==='1'}catch(e){return false}})()
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s.student_id||'')
 
