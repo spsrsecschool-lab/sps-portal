@@ -882,7 +882,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div id="pm_fields"></div>
     <div id="pm_docs" style="margin-top:14px"></div>
     <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-      <button class="btn btn-ghost btn-sm" onclick="openEditDemoModal()">Edit Demographics</button>
+      <button class="btn btn-ghost btn-sm" onclick="openEditDemoModal()">Edit Student</button>
       <button class="btn btn-ghost btn-sm" onclick="openUploadPhotoModal()">Change Photo</button>
       <button class="btn btn-ghost btn-sm" onclick="openUploadDocModal()">Upload Document</button>
     </div>
@@ -1486,11 +1486,11 @@ function filterStudents(){
 async function openProfile(enrollId){
   _profileEnrollId=enrollId; $('profileModal').classList.add('show')
   $('pm_name').textContent='Loading…'; $('pm_fields').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'; $('pm_tags').innerHTML=''; $('pm_docs').innerHTML=''
-  const{data:e}=await sb.from('student_enrollments').select('*,students(*),classes(name),class_sections(name)').eq('enrollment_id',enrollId).maybeSingle()
+  const{data:e}=await sb.from('student_enrollments').select('*,students(*),classes(name),class_sections(name),streams(name)').eq('enrollment_id',enrollId).maybeSingle()
   if(!e){$('pm_name').textContent='Not found';return}
   const s=e.students
   if(s?.photo_url){$('pm_av').innerHTML='<img src="'+s.photo_url+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'}else{$('pm_av').textContent=ini(s?.full_name||'')}; $('pm_name').textContent=s?.full_name||'Unknown'
-  $('pm_class').textContent='Class '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')+' · Roll '+(e.roll_no||'—')
+  $('pm_class').textContent='Class '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')+(e.streams?.name?' · '+e.streams.name:'')+' · Roll '+(e.roll_no||'—')
   $('pm_tags').innerHTML='<span class="pill pill-neutral">'+esc(s?.student_id||'')+'</span><span class="pill pill-neutral">S.No '+esc(e.s_no||'—')+'</span><span class="pill '+(e.status==='active'?'pill-success':'pill-warn')+'">'+esc(e.status||'')+'</span>'
   $('pm_fields').innerHTML='<div class="field-row"><span class="fk">Father\'s Name</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
@@ -1517,30 +1517,97 @@ async function uploadProfilePhoto(){
   hideUploadOverlay();toast('Photo updated','success');closeModal();openProfile(_profileEnrollId)
 }
 
-function openEditDemoModal(){
+// Edits the students row AND the student_enrollments row (class, section,
+// stream, roll, s_no). Previously this scraped values out of the rendered DOM
+// — but pm_fields has no "Full Name" row (the name lives in pm_name), so the
+// name box always opened blank and every save died on "Name required".
+// Reads from the DB now.
+async function openEditDemoModal(){
   if(!_profileEnrollId)return
-  const sid=document.querySelector('#pm_fields .field-row .fv')?.closest('#pm_fields')
-  // Grab current values from displayed fields
-  const rows=[...$('pm_fields').querySelectorAll('.field-row')]
-  const vals={}; rows.forEach(r=>{const k=r.querySelector('.fk')?.textContent?.trim();const v=r.querySelector('.fv')?.textContent?.trim();if(k)vals[k]=v==='—'?'':v})
-  openModal('Edit Demographics',
+  const{data:e}=await sb.from('student_enrollments').select('*,students(*)').eq('enrollment_id',_profileEnrollId).maybeSingle()
+  if(!e||!e.students){toast('Student not found','error');return}
+  const s=e.students
+  const clsOpts=(ALL_CLASSES||[]).map(c=>'<option value="'+c.class_id+'"'+(c.class_id===e.class_id?' selected':'')+'>'+esc(c.name)+'</option>').join('')
+  openModal('Edit Student',
     '<input type="hidden" id="ed_eid" value="'+_profileEnrollId+'">'+
-    '<div class="form-row"><div class="fg"><label>Full Name *</label><input id="ed_name" value="'+esc(vals["Full Name"]||vals["Full name"]||'')+'"></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Father Name *</label><input id="ed_father" value="'+esc(vals["Father's Name"]||'')+'"></div><div class="fg"><label>Mother Name</label><input id="ed_mother" value="'+esc(vals["Mother's Name"]||'')+'"></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Phone</label><input id="ed_phone" value="'+esc(vals["Phone"]||'')+'"></div><div class="fg"><label>Aadhar No.</label><input id="ed_aadhar" value="'+esc(vals["Aadhar No."]||'')+'"></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Address</label><input id="ed_address" value="'+esc(vals["Address"]||'')+'"></div></div>',
+    '<input type="hidden" id="ed_sid" value="'+esc(s.student_id||'')+'">'+
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Demographics</div>'+
+    '<div class="form-row"><div class="fg"><label>Full Name *</label><input id="ed_name" value="'+esc(s.full_name||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Father Name *</label><input id="ed_father" value="'+esc(s.father_name||'')+'"></div><div class="fg"><label>Mother Name</label><input id="ed_mother" value="'+esc(s.mother_name||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Date of Birth</label><input type="date" id="ed_dob" value="'+esc(s.dob||'')+'"></div><div class="fg"><label>Admission Date</label><input type="date" id="ed_admdate" value="'+esc(s.admission_date||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Phone</label><input id="ed_phone" value="'+esc(s.phone||'')+'"></div><div class="fg"><label>Alternate Phone</label><input id="ed_altphone" value="'+esc(s.alt_phone||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Aadhar No.</label><input id="ed_aadhar" value="'+esc(s.aadhar_no||'')+'"></div><div class="fg"><label>Family Code</label><input id="ed_family" value="'+esc(s.family_code||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Address</label><input id="ed_address" value="'+esc(s.address||'')+'"></div></div>'+
+    '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Enrollment — '+esc(SESS?.session_id||'')+'</div>'+
+    '<div class="form-row"><div class="fg"><label>Class *</label><select id="ed_class" onchange="edLoadSecStream()">'+clsOpts+'</select></div><div class="fg"><label>Section *</label><select id="ed_section"></select></div></div>'+
+    '<div class="form-row"><div class="fg" id="ed_stream_fg" style="display:none"><label>Stream *</label><select id="ed_stream"></select></div><div class="fg"><label>Roll No.</label><input id="ed_roll" value="'+esc(e.roll_no||'')+'"></div><div class="fg"><label>S.No</label><input id="ed_sno" value="'+esc(e.s_no||'')+'"></div></div>'+
+    '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px 12px;font-size:11.5px;color:var(--ink-soft);line-height:1.5">Classes with streams (11th / 12th) must have one selected — tuition is set per stream, so a blank stream bills &#8377;0.<br>Blank S.No means <b>promoted but not yet re-admitted</b>; the Fee Portal flags them.</div>',
     '<button class="btn btn-dark" onclick="saveEditDemo()">Save Changes</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+  await edLoadSecStream(e.section_id, e.stream_id)
 }
+
+// Cascade class -> sections + streams. Stream row only appears for classes
+// that actually have streams.
+async function edLoadSecStream(preSec, preStream){
+  const cid=$('ed_class')?.value
+  const sel=$('ed_section'), ssel=$('ed_stream'), sfg=$('ed_stream_fg')
+  if(!sel)return
+  sel.innerHTML='<option value="">—</option>'
+  if(sfg)sfg.style.display='none'
+  if(!cid||!SESS)return
+  const{data:secs}=await sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  sel.innerHTML=(secs&&secs.length)
+    ? secs.map(x=>'<option value="'+x.section_id+'">'+esc(x.name)+'</option>').join('')
+    : '<option value="">— no sections for this class —</option>'
+  if(preSec&&(secs||[]).find(x=>x.section_id===preSec))sel.value=preSec
+  const{data:strs}=await sb.from('streams').select('stream_id,name').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  if(strs&&strs.length){
+    if(sfg)sfg.style.display=''
+    if(ssel){
+      ssel.innerHTML=strs.map(x=>'<option value="'+x.stream_id+'">'+esc(x.name)+'</option>').join('')
+      if(preStream&&strs.find(x=>x.stream_id===preStream))ssel.value=preStream
+    }
+  }else if(ssel){ssel.innerHTML=''}
+}
+
 async function saveEditDemo(){
-  const eid=$('ed_eid')?.value
-  if(!eid){toast('No enrollment selected','error');return}
-  const{data:enr}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',eid).maybeSingle()
-  const sid=enr?.student_id;if(!sid){toast('Student not found','error');return}
-  const updates={full_name:$('ed_name')?.value?.trim(),father_name:$('ed_father')?.value?.trim(),mother_name:$('ed_mother')?.value?.trim()||null,phone:$('ed_phone')?.value?.trim()||null,aadhar_no:$('ed_aadhar')?.value?.trim()||null,address:$('ed_address')?.value?.trim()||null}
-  if(!updates.full_name||!updates.father_name){toast('Name required','error');return}
-  const{error}=await sb.from('students').update(updates).eq('student_id',sid)
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast('Demographics updated','success');closeModal();openProfile(eid)
+  const eid=$('ed_eid')?.value, sid=$('ed_sid')?.value
+  if(!eid||!sid){toast('No student selected','error');return}
+  const name=$('ed_name')?.value?.trim(), father=$('ed_father')?.value?.trim()
+  if(!name||!father){toast('Name and Father Name are required','error');return}
+  const cid=$('ed_class')?.value, secId=$('ed_section')?.value
+  if(!cid){toast('Class is required','error');return}
+  if(!secId){toast('Section is required — create one for this class first','error');return}
+  const streamShown=$('ed_stream_fg')&&$('ed_stream_fg').style.display!=='none'
+  const streamId=streamShown?($('ed_stream')?.value||null):null
+  if(streamShown&&!streamId){toast('This class needs a stream — tuition depends on it','error');return}
+  const sno=$('ed_sno')?.value?.trim()||null
+  if(sno&&!/^\d+$/.test(sno)){toast('S.No must be a plain number','error');return}
+  if(sno&&SESS){
+    const{data:clash}=await sb.from('student_enrollments').select('enrollment_id,students(full_name)')
+      .eq('session_id',SESS.session_id).eq('s_no',sno).neq('enrollment_id',eid).maybeSingle()
+    if(clash){toast('S.No '+sno+' is already used by '+(clash.students?.full_name||'another student'),'error');return}
+  }
+  const{error:e1}=await sb.from('students').update({
+    full_name:name, father_name:father,
+    mother_name:$('ed_mother')?.value?.trim()||null,
+    dob:$('ed_dob')?.value||null,
+    admission_date:$('ed_admdate')?.value||null,
+    phone:$('ed_phone')?.value?.trim()||null,
+    alt_phone:$('ed_altphone')?.value?.trim()||null,
+    aadhar_no:$('ed_aadhar')?.value?.trim()||null,
+    address:$('ed_address')?.value?.trim()||null,
+    family_code:$('ed_family')?.value?.trim()||null
+  }).eq('student_id',sid)
+  if(e1){toast('Failed: '+e1.message,'error');return}
+  const{error:e2}=await sb.from('student_enrollments').update({
+    class_id:cid, section_id:secId, stream_id:streamId,
+    roll_no:parseInt($('ed_roll')?.value)||null,
+    s_no:sno
+  }).eq('enrollment_id',eid)
+  if(e2){toast('Demographics saved, but enrollment update failed: '+e2.message,'error');return}
+  toast('Student updated','success');closeModal();openProfile(eid);loadStudents()
 }
 
 function openUploadDocModal(){
