@@ -456,7 +456,12 @@ function closeModal(){$('modal-overlay').classList.remove('open')}
 function toggleSidebar(){const sb=$('sidebar');if(window.innerWidth<=760){sb.classList.toggle('show');$('scrim').classList.toggle('show')}else{sb.classList.toggle('collapsed');$('main').classList.toggle('full')}}
 function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
 
-function goTo(id,el){
+function goTo(id, el, fromPop = false){
+  // If el is not provided (like during a Back button event), find the matching sidebar item
+  if (!el && id) {
+    el = document.querySelector(`.sb-item[onclick*="'${id}'"]`) || document.querySelector(`.sb-item[onclick*="${id}"]`);
+  }
+
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
   if(pg){pg.style.animation='none';void pg.offsetHeight;pg.style.animation='';pg.classList.add('active')}
@@ -471,6 +476,11 @@ function goTo(id,el){
   if(id==='assessmarks')loadAssessDropdown()
   if(id==='dues')loadDues()
   if(id==='examfees')loadExamFeeDropdown()
+
+  // Manage browser history state
+  if (!fromPop) {
+    history.pushState({ pageId: id }, "", "#" + id);
+  }
 }
 
 // ═══════════ AUTH & INIT ═══════════
@@ -511,10 +521,21 @@ SPS.ready().then(async()=>{
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
 
+  // ... existing code in SPS.ready().then()
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
   await renderDashboard()
   loadBroadcasts()
   subscribeProfileAccess()
+
+  // --- ADD ROUTING INITIALIZATION HERE ---
+  const initialPage = location.hash.replace('#', '') || 'dashboard';
+  history.replaceState({ pageId: initialPage }, "", "#" + initialPage);
+  goTo(initialPage, null, true);
+
+  window.addEventListener('popstate', function(e) {
+    const pageId = (e.state && e.state.pageId) || 'dashboard';
+    goTo(pageId, null, true);
+  });
 })
 
 let _lastCanEdit=null
