@@ -599,8 +599,12 @@ function routeToPortal(portals, teacher, admin) {
   storeSessionData({ teacher, admin, portals })
 
   if (portals.length === 1) {
-    // Direct redirect — no selection needed
-    window.location.href = PORTALS[portals[0]].href
+    // Direct redirect — no selection needed.
+    // replace(), not href: this must NOT leave login.html in browser history,
+    // or pressing Back inside the portal returns here and re-runs the session
+    // check (the "Checking session…" spinner). replace() swaps the current
+    // entry so the portal becomes the bottom of the stack and Back exits cleanly.
+    window.location.replace(PORTALS[portals[0]].href)
     return
   }
 
@@ -620,7 +624,7 @@ function showPortalSelector(teacher, admin, portals) {
   container.innerHTML = portals.map(p => {
     const pd = PORTALS[p]
     return `
-      <a class="portal-card" href="${pd.href}">
+      <a class="portal-card" href="${pd.href}" onclick="event.preventDefault();window.location.replace('${pd.href}')">
         <div class="pc-icon" style="background:${pd.color}">
           ${pd.icon}
         </div>
