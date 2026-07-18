@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="icon" type="image/png" href="favicon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Main Teacher Portal — Shiv Public School</title>
@@ -1734,7 +1733,14 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 // ═══════════════════════════════════════════════════════════════
 let sb, TEACHER=null, SESS=null
 let MY_MAPPINGS=[], ALL_ASSESSMENTS=[], _msgs=[], _obsRaw=[]
-let _isClassTeacher=false, _myClassTeacher=null
+let _isClassTeacher=false, _myClassTeacher=null, _myClassCount=0
+let _sessIdCache=null
+async function getCurrentSessionId(){
+  if(_sessIdCache)return _sessIdCache
+  const{data}=await sb.from('sessions').select('session_id').eq('is_current',true).maybeSingle()
+  _sessIdCache=data?.session_id||null
+  return _sessIdCache
+}
 let _marksRaw=[], _marksLocked=false, _currentMarksMeta={}
 let _isClassView=false
 
@@ -1998,11 +2004,16 @@ SPS.ready().then(async()=>{
   MY_MAPPINGS=maps||[]
   console.log('[INIT] MY_MAPPINGS:',MY_MAPPINGS.length,'subjects:',[...new Set(MY_MAPPINGS.map(m=>m.subjects?.name||m.subject_id))].join(','))
 
-  // Check if class teacher
-  const{data:ct}=await sb.from('class_teacher_map')
+  // Check if class teacher. A teacher may hold SEVERAL sections, so this can
+  // return many rows — .maybeSingle() throws on >1 and would hide the switch
+  // button for exactly the multi-class teachers who need it. Fetch the list,
+  // scoped to the current session, and keep the first for the label.
+  const _sess=await getCurrentSessionId()
+  const{data:cts}=await sb.from('class_teacher_map')
     .select('*,classes(name),class_sections(name,section_id)')
-    .eq('teacher_id',TEACHER.teacher_id).maybeSingle()
-  _isClassTeacher=!!ct; _myClassTeacher=ct
+    .eq('teacher_id',TEACHER.teacher_id).eq('session_id',_sess||'')
+  _isClassTeacher=!!(cts&&cts.length); _myClassTeacher=(cts&&cts[0])||null
+  _myClassCount=(cts||[]).length
 
   // Update UI
   const av=$('topAvatar'),nm=$('topName'),rl=$('topRole')
