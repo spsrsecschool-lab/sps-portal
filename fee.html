@@ -378,6 +378,7 @@
       <div class="form-row">
         <div class="form-group"><label>Class *</label><select id="a_class" onchange="loadAdmSections()"><option value="">Select class</option></select></div>
         <div class="form-group"><label>Section *</label><select id="a_section"><option value="">Select class first</option></select></div>
+        <div class="form-group" id="a_streamWrap" style="display:none"><label>Stream *</label><select id="a_stream"></select></div>
         <div class="form-group" style="max-width:130px"><label>S.No *</label><input type="text" id="a_sno" class="mono" placeholder="Auto"></div>
       </div>
       <div class="form-row mt-8">
@@ -564,6 +565,7 @@ let CLASSES = [];              // class names ordered by sort_order
 let CLASS_ID = {};             // name  -> class_id
 let CLASS_NAME = {};           // class_id -> name
 let SECTIONS = [];             // class_sections rows for viewSession
+let STREAMS = [];              // streams rows for viewSession (11th/12th)
 let availableSessions = [];
 let currentSession = null;
 let viewSession = null;
@@ -571,7 +573,10 @@ let students = [];             // hydrated: enrollment JOIN student
 let payments = [];             // flattened payment_allocations (old row shape)
 let bundles = {};              // payment_id -> payments row
 let activityLog = [];
-let feeSettings = {};          // className -> {tuition, annual, sibDisc, id}
+// fee_master is keyed on (class, stream). Nur-10th have no stream so they
+// live under '_'; 11th/12th get one entry per stream_id.
+//   FEEM[class_id] = { '_': {...}, '<stream_id>': {...} }
+let FEEM = {};
 let globalAllocPriority = 'TAP';
 let ME = null;                 // admin_id
 
@@ -713,13 +718,19 @@ async function loadAll(){
     const {data:secs}=await sb.from('class_sections').select('*').eq('session_id',viewSession||'').eq('is_active',true);
     SECTIONS=secs||[];
 
-    // Fee master
+    // Streams (11th/12th carry Science/Commerce/Arts)
+    const {data:strs}=await sb.from('streams').select('*').eq('session_id',viewSession||'').eq('is_active',true);
+    STREAMS=strs||[];
+
+    // Fee master — one row per (class, stream). stream_id NULL = class-wide.
     const {data:fm}=await sb.from('fee_master').select('*').eq('session_id',viewSession||'');
-    feeSettings={};
-    CLASSES.forEach(c=>{feeSettings[c]={tuition:0,annual:0,sibDisc:0,id:null}});
+    FEEM={};
     (fm||[]).forEach(r=>{
-      const n=CLASS_NAME[r.class_id]; if(!n)return;
-      feeSettings[n]={tuition:+r.monthly_tuition||0, annual:+r.annual_charge||0, sibDisc:+r.sibling_discount_flat||0, id:r.fee_master_id};
+      if(!FEEM[r.class_id]) FEEM[r.class_id]={};
+      FEEM[r.class_id][r.stream_id||'_']={
+        tuition:+r.monthly_tuition||0, annual:+r.annual_charge||0,
+        sibDisc:+r.sibling_discount_flat||0, id:r.fee_master_id
+      };
     });
 
     // Enrollments + student demographics
@@ -764,6 +775,8 @@ async function loadAll(){
       cls:           CLASS_NAME[e.class_id]||'—',
       class_id:      e.class_id,
       section_id:    e.section_id,
+      stream_id:     e.stream_id,
+      stream:        STREAMS.find(x=>x.stream_id===e.stream_id)?.name||null,
       familyCode:    e.students.family_code,
       annualOverride:  e.annual_override,
       tuitionOverride: e.tuition_override,
@@ -885,17 +898,26 @@ function sortSiblings(list){
   });
 }
 
+// Resolve a student's fee row: their stream first, then the class-wide row,
+// then zero. 11th Science and 11th Commerce are the same class but different
+// money — that's the whole reason fee_master.stream_id exists.
+function feeFor(stu){
+  const byCls=FEEM[stu.class_id]||{};
+  return byCls[stu.stream_id||'_'] || byCls['_'] || {tuition:0,annual:0,sibDisc:0,id:null};
+}
+function streamsFor(classId){ return STREAMS.filter(x=>x.class_id===classId) }
+
 function getMonthlyTuition(stu){
   if(stu.tuitionOverride!==null&&stu.tuitionOverride!==undefined&&stu.tuitionOverride!=='')
     return parseFloat(stu.tuitionOverride);
-  const base=(feeSettings[stu.cls]||{tuition:0}).tuition;
+  const base=feeFor(stu).tuition;
   if(!stu.familyCode) return base;
   const sibs=siblingsOf(stu);
   if(sibs.length<3) return base;
   const sorted=sortSiblings(sibs);
   const youngest=sorted[sorted.length-1];
   if(youngest && youngest.enrollment_id===stu.enrollment_id){
-    const flat=(feeSettings[stu.cls]||{}).sibDisc;
+    const flat=feeFor(stu).sibDisc;
     return (flat!==null&&flat!==undefined&&flat>0)?flat:base;
   }
   return base;
@@ -905,7 +927,7 @@ function getAnnualCharge(stu){
   if(stu.annualOverride!==null&&stu.annualOverride!==undefined&&stu.annualOverride!=='')
     return parseFloat(stu.annualOverride);
   if(stu.isNew) return 0;
-  return (feeSettings[stu.cls]||{annual:0}).annual;
+  return feeFor(stu).annual;
 }
 
 function getAdmissionMonthIdx(dateStr){
@@ -1151,7 +1173,7 @@ function refreshFamilyDues(){
           <b>${esc(stu.name)}</b>${snoLabel}
           <span class="fee-rate">${fmtINR(mt)}/month${discLabel}</span>
         </div>
-        <span class="pill pill-blue">${esc(stu.cls)}</span>
+        <span class="pill pill-blue">${esc(stu.cls)}${stu.stream?' '+esc(stu.stream):''}</span>
       </div>
       <div class="val-row"><span>Tuition Due:</span><span class="val" style="color:${d.tuitionDue>0?'var(--red)':'var(--green)'}">${fmtINR(d.tuitionDue)}</span></div>
       <div class="val-row"><span>Annual Due:</span><span class="val" style="color:${d.annualDue>0?'var(--red)':'var(--green)'}">${fmtINR(d.annualDue)}</span></div>
@@ -1821,7 +1843,7 @@ function renderStudents(){
         <td><b>${esc(s.name)}</b></td>
         <td>${esc(s.father||'—')}</td>
         <td class="mono">${esc(s.phone||'—')}${s.altPhone?'<br><span style="color:var(--muted);font-size:10px">'+esc(s.altPhone)+'</span>':''}</td>
-        <td><span class="pill pill-blue">${esc(s.cls)}</span></td>
+        <td><span class="pill pill-blue">${esc(s.cls)}</span>${s.stream?` <span class="pill pill-blue" style="opacity:.7">${esc(s.stream)}</span>`:''}</td>
         <td class="mono" style="color:var(--muted)">${esc(s.familyCode||'—')}</td>
         <td class="mono"><span class="pill ${pill}">${fmtINR(d.total)}</span></td>
         <td><button class="btn btn-ghost btn-sm" onclick="openProfileModal('${s.enrollment_id}','students')">View Profile</button></td>
@@ -1858,7 +1880,7 @@ function sectionsFor(classId){ return SECTIONS.filter(x=>x.class_id===classId) }
 
 function renderProfileFields(stu,edit){
   const dues=getTotalDues(stu), mt=getMonthlyTuition(stu), ac=getAnnualCharge(stu);
-  const baseAc=(feeSettings[stu.cls]||{annual:0}).annual;
+  const baseAc=feeFor(stu).annual;
   const secName=(SECTIONS.find(x=>x.section_id===stu.section_id)||{}).name||'—';
 
   let demo='';
@@ -1880,8 +1902,9 @@ function renderProfileFields(stu,edit){
     : `<div class="field-row"><label>Admission Date</label><div class="field-val">${stu.admDate?fmtDate(stu.admDate):'—'}</div></div>`;
   demo += edit
     ? `<div class="field-row"><label>Class</label><select id="pf_cls" class="editable" onchange="pfLoadSections()">${CLASSES.map(c=>`<option ${c===stu.cls?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
-       <div class="field-row"><label>Section</label><select id="pf_section" class="editable"></select></div>`
-    : `<div class="field-row"><label>Class</label><div class="field-val">${esc(stu.cls)} — ${esc(secName)}</div></div>`;
+       <div class="field-row"><label>Section</label><select id="pf_section" class="editable"></select></div>
+       <div class="field-row" id="pf_streamRow" style="display:none"><label>Stream <span style="color:var(--muted);font-size:10px">(sets the fee)</span></label><select id="pf_stream" class="editable"></select></div>`
+    : `<div class="field-row"><label>Class</label><div class="field-val">${esc(stu.cls)} — ${esc(secName)}${stu.stream?' · <span class="pill pill-blue">'+esc(stu.stream)+'</span>':''}</div></div>`;
   demo += txt('Family Code',stu.familyCode,'pf_familyCode');
   demo += edit
     ? `<div class="field-row"><label>New Admission</label><select id="pf_isNew" class="editable"><option value="true" ${stu.isNew?'selected':''}>Yes (Annual Waived)</option><option value="false" ${!stu.isNew?'selected':''}>No</option></select></div>`
@@ -1889,11 +1912,11 @@ function renderProfileFields(stu,edit){
   demo += `<div class="field-row"><label>Re-admission Date</label><div class="field-val">${stu.readmissionDate?fmtDate(stu.readmissionDate):'—'}</div></div>`;
   $('prof_demo').innerHTML=demo;
 
-  if(edit){ pfLoadSections(stu.section_id) }
+  if(edit){ pfLoadSections(stu.section_id, stu.stream_id) }
 
   const sibCount=siblingsOf(stu).length;
   $('prof_fees').innerHTML=`
-    <div class="field-row"><label>Monthly Tuition Override (Base: ${fmtINR((feeSettings[stu.cls]||{}).tuition)})</label>
+    <div class="field-row"><label>Monthly Tuition Override (Base: ${fmtINR(feeFor(stu).tuition)}${stu.stream?' · '+esc(stu.stream):''})</label>
       ${edit?`<input type="number" id="pf_tuitionOverride" value="${stu.tuitionOverride??''}" placeholder="Leave empty for default" class="editable">`
             :`<div class="field-val mono">${fmtINR(mt)}${stu.tuitionOverride!=null?' ✎ custom':(sibCount>=3?' (Sibling Flat Fee)':'')}</div>`}
     </div>
@@ -1950,7 +1973,7 @@ function renderProfileFields(stu,edit){
     </tbody></table>`;
 }
 
-function pfLoadSections(preselect){
+function pfLoadSections(preselect, preStream){
   const clsName=$('pf_cls')?.value;
   const sel=$('pf_section'); if(!sel)return;
   const cid=CLASS_ID[clsName];
@@ -1958,6 +1981,18 @@ function pfLoadSections(preselect){
   sel.innerHTML=secs.length?secs.map(s=>`<option value="${s.section_id}">${esc(s.name)}</option>`).join('')
                           :'<option value="">— no sections for this class —</option>';
   if(preselect&&secs.find(x=>x.section_id===preselect)) sel.value=preselect;
+
+  const row=$('pf_streamRow'), ssel=$('pf_stream');
+  if(!row||!ssel)return;
+  const strs=streamsFor(cid);
+  if(strs.length){
+    row.style.display='';
+    ssel.innerHTML=strs.map(s=>{
+      const f=(FEEM[cid]||{})[s.stream_id];
+      return `<option value="${s.stream_id}">${esc(s.name)}${f?` — ${fmtINR(f.tuition)}/mo`:''}</option>`;
+    }).join('');
+    if(preStream&&strs.find(x=>x.stream_id===preStream)) ssel.value=preStream;
+  } else { row.style.display='none'; ssel.innerHTML=''; }
 }
 
 function toggleProfileBreakdown(){const el=$('prof_breakdown');el.style.display=el.style.display==='block'?'none':'block'}
@@ -1988,6 +2023,9 @@ async function saveProfile(){
   const newClassId=CLASS_ID[newClsName];
   const newSectionId=$('pf_section').value||null;
   if(!newSectionId){toast('Please select a section','error');return}
+  const _hasStr=streamsFor(newClassId).length>0;
+  const newStreamId=_hasStr?($('pf_stream').value||null):null;
+  if(_hasStr&&!newStreamId){toast(`${newClsName} needs a stream — its fee depends on it`,'error');return}
 
   const famCode=$('pf_familyCode').value.trim()||stu.familyCode;
   const to=$('pf_tuitionOverride').value, ao=$('pf_annualOverride').value;
@@ -2010,7 +2048,7 @@ async function saveProfile(){
 
     const wasReadmitted = stu.sno!=null&&stu.sno!=='';
     const patch={
-      s_no:newSno, class_id:newClassId, section_id:newSectionId,
+      s_no:newSno, class_id:newClassId, section_id:newSectionId, stream_id:newStreamId,
       is_new_admission:$('pf_isNew').value==='true',
       tuition_override: to===''?null:parseFloat(to),
       annual_override:  ao===''?null:parseFloat(ao)
@@ -2572,11 +2610,24 @@ function populateAdmissionForm(){
 
 function loadAdmSections(){
   const clsName=$('a_class').value;
-  const sel=$('a_section');
-  if(!clsName){sel.innerHTML='<option value="">Select class first</option>';return}
+  const sel=$('a_section'), wrap=$('a_streamWrap'), ssel=$('a_stream');
+  if(!clsName){
+    sel.innerHTML='<option value="">Select class first</option>';
+    wrap.style.display='none'; return;
+  }
   const secs=sectionsFor(CLASS_ID[clsName]);
   sel.innerHTML=secs.length?secs.map(s=>`<option value="${s.section_id}">${esc(s.name)}</option>`).join('')
     :'<option value="">— no sections defined for this class —</option>';
+  // Stream only appears for classes that have them (11th/12th). Their fee
+  // comes from fee_master.stream_id, so it can't be skipped.
+  const strs=streamsFor(CLASS_ID[clsName]);
+  if(strs.length){
+    wrap.style.display='';
+    ssel.innerHTML=strs.map(s=>{
+      const f=(FEEM[CLASS_ID[clsName]]||{})[s.stream_id];
+      return `<option value="${s.stream_id}">${esc(s.name)}${f?` — ${fmtINR(f.tuition)}/mo`:''}</option>`;
+    }).join('');
+  } else { wrap.style.display='none'; ssel.innerHTML=''; }
 }
 
 function searchFamily(q){
@@ -2614,11 +2665,14 @@ async function submitAdmission(){
   const admDate=$('a_admdate').value||today();
   const clsName=$('a_class').value;
   const sectionId=$('a_section').value;
+  const hasStreams=clsName&&streamsFor(CLASS_ID[clsName]).length>0;
+  const streamId=hasStreams?($('a_stream').value||null):null;
   const sno=$('a_sno').value.trim();
   const isNew=$('a_isNew').checked;
 
   if(!name||!father||!clsName){toast('Name, Father and Class are required','error');return}
   if(!sectionId){toast('Please select a section','error');return}
+  if(hasStreams&&!streamId){toast(`${clsName} needs a stream — its fee depends on it`,'error');return}
   if(!sno){toast('S.No is required for a new admission','error');return}
   if(phone.length>0&&phone.length<10){toast('Phone number must be at least 10 digits','error');return}
   if(altPhone.length>0&&altPhone.length<10){toast('Alternate phone must be at least 10 digits','error');return}
@@ -2645,7 +2699,7 @@ async function submitAdmission(){
 
     const {error:e2}=await sb.from('student_enrollments').insert({
       student_id:studentId, session_id:viewSession,
-      class_id:CLASS_ID[clsName], section_id:sectionId,
+      class_id:CLASS_ID[clsName], section_id:sectionId, stream_id:streamId,
       s_no:sno, status:'active', is_new_admission:isNew,
       readmission_date:null
     });
@@ -2662,7 +2716,7 @@ async function submitAdmission(){
 
     $('backdatedDues').innerHTML=`<div class="card" style="border-color:var(--green);margin-top:12px">
       <h3>Admitted Successfully</h3>
-      <p><b>#${esc(sno)} — ${esc(name)}</b> · Class ${esc(clsName)} · Family ${esc(familyCode)}</p>
+      <p><b>#${esc(sno)} — ${esc(name)}</b> · Class ${esc(clsName)}${streamId?' ('+esc($('a_stream').selectedOptions[0]?.textContent.split(' — ')[0]||'')+')':''} · Family ${esc(familyCode)}</p>
       <p class="text-muted mt-8">Student ID: <span class="mono">${esc(studentId)}</span> (permanent — now visible in Admin &amp; Teacher portals)</p>
       <p class="text-muted mt-8">Projected dues: ${fmtINR(projected)}<br>Months: ${months.join(', ')}<br>${isNew?'Annual Charge Waived (New Admission)':'Standard Annual Charge Applied — '+fmtINR(ann)}</p>
     </div>`;
@@ -2705,20 +2759,36 @@ function renderDefaulters(){
 // ══════════════════════════════════════════════
 //  SETTINGS
 // ══════════════════════════════════════════════
+let FEE_ROWS=[];
+// One editable fee row per (class, stream). Classes without streams
+// (Nur-10th) get a single row with sid=null -> fee_master.stream_id NULL.
+function feeMasterRows(){
+  const rows=[];
+  CLASSES.forEach(c=>{
+    const cid=CLASS_ID[c]; if(!cid)return;
+    const strs=streamsFor(cid);
+    if(strs.length) strs.forEach(s=>rows.push({cid,cls:c,sid:s.stream_id,stream:s.name}));
+    else rows.push({cid,cls:c,sid:null,stream:null});
+  });
+  return rows;
+}
+
 function renderSettings(){
   populateCls();
   populateSessionDropdowns();
+  FEE_ROWS=feeMasterRows();
   $('feeSettingsTable').innerHTML=`<table>
-    <thead><tr><th>Class</th><th>Monthly Tuition (₹)</th><th>Annual Charge (₹)</th><th>Sibling Flat Fee (₹)</th></tr></thead>
-    <tbody>${CLASSES.map(c=>{
-      const f=feeSettings[c]||{tuition:0,annual:0,sibDisc:0};
+    <thead><tr><th>Class</th><th>Stream</th><th>Monthly Tuition (₹)</th><th>Annual Charge (₹)</th><th>Sibling Flat Fee (₹)</th></tr></thead>
+    <tbody>${FEE_ROWS.map((r,i)=>{
+      const f=(FEEM[r.cid]||{})[r.sid||'_']||{tuition:0,annual:0,sibDisc:0};
       return `<tr>
-        <td><b>${esc(c)}</b></td>
-        <td><input type="number" id="fee_t_${esc(c)}" value="${f.tuition||0}" style="width:110px"></td>
-        <td><input type="number" id="fee_a_${esc(c)}" value="${f.annual||0}" style="width:110px"></td>
-        <td><input type="number" id="fee_s_${esc(c)}" value="${f.sibDisc||0}" style="width:110px"></td>
+        <td><b>${esc(r.cls)}</b></td>
+        <td>${r.stream?`<span class="pill pill-blue">${esc(r.stream)}</span>`:'<span class="text-muted">—</span>'}</td>
+        <td><input type="number" id="fee_t_${i}" value="${f.tuition||0}" style="width:110px"></td>
+        <td><input type="number" id="fee_a_${i}" value="${f.annual||0}" style="width:110px"></td>
+        <td><input type="number" id="fee_s_${i}" value="${f.sibDisc||0}" style="width:110px"></td>
       </tr>`;
-    }).join('')||'<tr><td colspan="4" class="text-muted" style="padding:14px">No classes defined. Add them in the Admin Portal.</td></tr>'}</tbody></table>`;
+    }).join('')||'<tr><td colspan="5" class="text-muted" style="padding:14px">No classes defined. Add them in the Admin Portal.</td></tr>'}</tbody></table>`;
   renderSessionManager();
   populateAllocPriorityDropdown('globalAllocPriority',globalAllocPriority);
   const p=ALLOC_PRIORITIES.find(x=>x.code===globalAllocPriority);
@@ -2771,22 +2841,21 @@ async function createNewSession(){
 async function saveFeeSettings(){
   updateStatus('saving');
   try{
-    const rows=CLASSES.map(c=>({
-      session_id:viewSession, class_id:CLASS_ID[c],
-      monthly_tuition:parseFloat($('fee_t_'+c).value)||0,
-      annual_charge:parseFloat($('fee_a_'+c).value)||0,
-      sibling_discount_flat:parseFloat($('fee_s_'+c).value)||0
-    })).filter(r=>r.class_id);
-    if(!rows.length){toast('No classes to save','error');return}
-    for(const r of rows){
-      const existing=feeSettings[CLASS_NAME[r.class_id]]?.id;
+    if(!FEE_ROWS.length){toast('No classes to save','error');return}
+    for(let i=0;i<FEE_ROWS.length;i++){
+      const r=FEE_ROWS[i];
+      const patch={
+        monthly_tuition:parseFloat($('fee_t_'+i).value)||0,
+        annual_charge:parseFloat($('fee_a_'+i).value)||0,
+        sibling_discount_flat:parseFloat($('fee_s_'+i).value)||0
+      };
+      const existing=(FEEM[r.cid]||{})[r.sid||'_']?.id;
       if(existing){
-        const {error}=await sb.from('fee_master').update({
-          monthly_tuition:r.monthly_tuition, annual_charge:r.annual_charge, sibling_discount_flat:r.sibling_discount_flat
-        }).eq('fee_master_id',existing);
+        const {error}=await sb.from('fee_master').update(patch).eq('fee_master_id',existing);
         if(error) throw error;
       }else{
-        const {error}=await sb.from('fee_master').insert(r);
+        const {error}=await sb.from('fee_master')
+          .insert({session_id:viewSession, class_id:r.cid, stream_id:r.sid, ...patch});
         if(error) throw error;
       }
     }
@@ -2803,11 +2872,11 @@ function bulkSetSibFlat(){
   const scope=$('bulkSibScope').value;
   const lowerSet=['Nur','LKG','UKG','1st','2nd','3rd','4th','5th'];
   let n=0;
-  CLASSES.forEach(c=>{
-    const isLower=lowerSet.includes(c);
+  FEE_ROWS.forEach((r,i)=>{
+    const isLower=lowerSet.includes(r.cls);
     if(scope==='lower'&&!isLower)return;
     if(scope==='upper'&&isLower)return;
-    const el=$('fee_s_'+c);
+    const el=$('fee_s_'+i);
     if(el){el.value=amt;n++}
   });
   toast(`Set ${n} class(es) — click "Save Fee Master" to apply`,'success');
@@ -2865,6 +2934,9 @@ function downloadSampleCSV(){
     ['dob / admission_date    YYYY-MM-DD'],
     ['section     blank = "A" (auto-created if the class has no sections yet)'],
     [`class       must match exactly: ${CLASSES.join(' | ')}`],
+    ['stream      REQUIRED for any class that has streams (11th/12th) — the fee'],
+    ['            is set per stream, so it cannot be guessed. Leave blank for Nur-10th.'],
+    [`            available: ${STREAMS.length?[...new Set(STREAMS.map(s=>(CLASS_NAME[s.class_id]||'?')+': '+s.name))].join(' | '):'(none)'}`],
     [`section     available in ${viewSession}: ${[...new Set(SECTIONS.map(s=>s.name))].join(' | ')||'(none yet — "A" will be created)'}`],
     ['family_code blank = auto-generate. Same code on 2 rows = siblings.'],
     ['            3+ siblings sharing a code triggers the flat sibling fee.'],
@@ -2913,8 +2985,19 @@ function importCSV(input){
       parsed.forEach(o=>{
         if(!o.full_name||!o.father_name) errors.push(`Row ${o._row}: full_name and father_name are required`);
         if(!o.class||!CLASS_ID[o.class]) errors.push(`Row ${o._row}: unknown class "${o.class||''}" — create it in the Admin Portal first`);
-        else if(o.section&&!sectionsFor(CLASS_ID[o.class]).find(x=>x.name.toLowerCase()===o.section.toLowerCase()))
-          errors.push(`Row ${o._row}: section "${o.section}" not found in class "${o.class}" — leave the cell blank to use "A"`);
+        else{
+          if(o.section&&!sectionsFor(CLASS_ID[o.class]).find(x=>x.name.toLowerCase()===o.section.toLowerCase()))
+            errors.push(`Row ${o._row}: section "${o.section}" not found in class "${o.class}" — leave the cell blank to use "A"`);
+          // A class with streams charges per stream, so it can't be guessed.
+          const _st=streamsFor(CLASS_ID[o.class]);
+          if(_st.length){
+            if(!o.stream) errors.push(`Row ${o._row}: class "${o.class}" needs a stream (${_st.map(x=>x.name).join('/')}) — its fee depends on it`);
+            else if(!_st.find(x=>x.name.toLowerCase()===o.stream.toLowerCase()))
+              errors.push(`Row ${o._row}: stream "${o.stream}" not found in "${o.class}" — available: ${_st.map(x=>x.name).join(', ')}`);
+          } else if(o.stream){
+            errors.push(`Row ${o._row}: class "${o.class}" has no streams, but stream "${o.stream}" was given`);
+          }
+        }
         if(o.s_no){
           if(!/^\d+$/.test(o.s_no)) errors.push(`Row ${o._row}: s_no must be a plain number, got "${o.s_no}"`);
           if(seenSno[o.s_no]) errors.push(`Row ${o._row}: s_no ${o.s_no} duplicated (also row ${seenSno[o.s_no]})`);
@@ -2990,9 +3073,12 @@ function importCSV(input){
           dob:parseAdmDate(r.dob), aadhar_no:r.aadhar_no||null, address:r.address||null,
           admission_date:parseAdmDate(r.admission_date), family_code:fc
         });
+        const _strs=streamsFor(CLASS_ID[r.class]);
+        const _stream=_strs.length?_strs.find(x=>x.name.toLowerCase()===(r.stream||'').toLowerCase()):null;
         enrRows.push({
           student_id:studentId, session_id:viewSession,
           class_id:CLASS_ID[r.class], section_id:sec.section_id,
+          stream_id:_stream?_stream.stream_id:null,
           roll_no:parseInt(r.roll_no)||null,
           s_no:r.s_no||String(++snoMax), status:'active',
           is_new_admission:['true','1','yes','y'].includes(String(r.is_new_admission||'').toLowerCase()),
