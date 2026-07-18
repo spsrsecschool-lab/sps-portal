@@ -1346,7 +1346,8 @@ async function notifyCTs({classId, sectionIds, exceptTeacherId, subject, body}){
       recipient_type:'teacher', recipient_id:tid,
       subject, body, message_type:'system_notification', sent_at:now
     }))
-    await sb.from('messages').insert(rows)
+    const{error}=await sb.from('messages').insert(rows)
+    if(error)console.error('[notifyCTs] insert failed:',error)
   }catch(e){console.warn('notifyCTs failed',e)}
 }
 
