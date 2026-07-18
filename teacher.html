@@ -1838,7 +1838,7 @@ function openSub(subId){
 // AUTH & INIT
 // ═══════════════════════════════════════════════════════════════
 
-setTimeout(()=>{console.warn('[SPS] Init timed out — clearing cache');...},3000)
+(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},3000)
 
 // ═══════════ NOTIFICATIONS ═══════════
 let _notifSound=null
@@ -1979,7 +1979,7 @@ SPS.ready().then(async()=>{
   // Use the session auth.js already validated — never call getSession() again here
   // (a second concurrent getSession deadlocks on supabase-js navigator.locks during token refresh)
   const authSess=SPS.session
-if(!authSess){window.location.replace('login.html');return}
+  if(!authSess){window.location.href='login.html';return}
   const{data:teacher,error:te}=await sb.from('teachers').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
   if(!teacher||te){toast('Teacher account not found. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
   if(!teacher.is_active){toast('Your account is inactive. Contact admin.','error');setTimeout(()=>SPS.signOut(),2000);return}
