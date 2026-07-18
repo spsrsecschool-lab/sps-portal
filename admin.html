@@ -477,7 +477,7 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="dropzone" onclick="document.getElementById('csvTeachers').click()">
               <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <div class="dmt">Drop CSV or click to browse</div>
-              <div class="dst">employee_code, full_name, designation, phone, username</div>
+              <div class="dst">Required: employee_code, full_name, username &nbsp;·&nbsp; all other columns optional</div>
             </div>
             <input type="file" id="csvTeachers" accept=".csv" style="display:none" onchange="parseCsv('teacher',this)">
             <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="downloadSampleCsv('teacher')">Download Sample Template</button>
@@ -1855,10 +1855,15 @@ async function commitImport(count,type){
     if(skipped.length) toast('Skipped '+skipped.length+' duplicate(s): '+skipped.slice(0,3).join('; ')+(skipped.length>3?'…':''),'error')
     if(!valid.length){toast('All rows were duplicates — nothing imported','error');return}
 
+    const yes=v=>['true','1','yes','y'].includes(String(v||'').trim().toLowerCase())
     const ins=valid.map(r=>({
       teacher_id:r.employee_code,employee_code:r.employee_code,
       full_name:r.full_name,designation:r.designation||null,
-      phone:r.phone||null,username:r.username,is_active:true
+      phone:r.phone||null,username:r.username,
+      // Blank column defaults to active — importing an inactive teacher is the
+      // rare case, so absence should mean "usable".
+      is_active:r.is_active===undefined||r.is_active===''?true:yes(r.is_active),
+      can_edit_own_profile:yes(r.can_edit_own_profile)
     }))
     const{error}=await sb.from('teachers').insert(ins)
     if(error){toast('Import error: '+error.message,'error');return}
@@ -1900,11 +1905,33 @@ function downloadSampleCsv(type){
       ['class / section / stream   auto-created if they do not exist — check your spelling'],
     ]
   } else {
-    h=['employee_code','full_name','designation','phone','username']
-    r1=['SPS-T-001','Rina Mehta','PGT Science','9876543210','SPS-T-001']
-    r2=null
-    notes=[['--- NOTES — DELETE BELOW BEFORE IMPORTING ---'],
-           ['REQUIRED: employee_code, full_name, username']]
+    h=['employee_code','full_name','designation','phone','username','is_active','can_edit_own_profile']
+    r1=['SPS-T-0001','Rina Mehta','PGT Science','9876543210','SPS-T-0001','true','false']
+    r2=['SPS-T-0002','Amit Rana','TGT Maths','9812345678','SPS-T-0002','true','true']
+    notes=[
+      ['--- NOTES — DELETE EVERY ROW BELOW BEFORE IMPORTING ---'],
+      [''],
+      ['REQUIRED: employee_code, full_name, username'],
+      ['Everything else is optional — blank cells are fine, and you may delete'],
+      ['whole columns you do not have.'],
+      [''],
+      ['employee_code   also becomes the teacher_id (primary key). Must be unique.'],
+      ['                Convention: SPS-T-0001, SPS-T-0002 ...'],
+      ['username        what they type at the login screen. Must be unique.'],
+      ['                Usually the same as employee_code.'],
+      ['designation     free text, e.g. PGT Science / TGT Maths / PRT'],
+      ['is_active       true = can log in. Blank defaults to true.'],
+      ['can_edit_own_profile   true lets them edit their own name/designation/phone'],
+      ['                       in the Teacher Portal. Blank defaults to false.'],
+      [''],
+      ['NOT in this file:'],
+      ['  photo_url  — uploaded through the portal, not a CSV field.'],
+      ['  password   — importing a row does NOT create a login. Create the'],
+      ['               Supabase Auth user separately (Authentication > Users),'],
+      ['               using an email of  <username>@spsrsec.school'],
+      ['  class-teacher / mother-teacher assignments — set them per teacher'],
+      ['               in Staff after importing.'],
+    ]
   }
   const rows=[h,r1]
   if(r2)rows.push(r2)
