@@ -3303,7 +3303,10 @@ async function submitProfileEditRequest(){
 // ═══════════════════════════════════════════════════════════════
 function switchToClassView(){
   if(!_isClassTeacher){toast('You are not assigned as a class teacher this session','error');return}
-  window.location.href='class_teacher.html'
+  // replace, not href: switching portals is a swap, not a deeper page. This
+  // keeps browser history at [login -> portal] so Back exits cleanly instead
+  // of unwinding through every portal switch back to login.html.
+  window.location.replace('class_teacher.html')
 }
 
 async function logout(){
