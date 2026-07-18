@@ -230,7 +230,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     </div>
   </div>
   <div class="sb-foot">
-    <button class="sb-switch-btn" onclick="window.location.href='teacher.html'">
+    <button class="sb-switch-btn" onclick="window.location.replace('teacher.html')">
       <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0" stroke-width="2"><path d="M7 16V4M7 4 3 8M7 4l4 4"/><path d="M17 8v12M17 20l4-4M17 20l-4-4"/></svg>
       Switch to Main View
     </button>
@@ -248,7 +248,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24" style="width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
     </div>
     <div class="topbar-title" id="pageTitle">Class Dashboard<span class="crumb" id="pagecrumb">Class Teacher Portal</span></div>
-    <div class="user-chip" onclick="window.location.href='teacher.html'">
+    <div class="user-chip" onclick="window.location.replace('teacher.html')">
       <div class="avatar-sm" id="topAvatar">?</div>
       <div><div style="font-size:12.5px;font-weight:700" id="topName">Loading…</div><div style="font-size:10px;color:var(--ink-faint)" id="topRole"></div></div>
     </div>
@@ -494,7 +494,7 @@ SPS.ready().then(async()=>{
   const{data:ct}=await sb.from('class_teacher_map')
     .select('*,classes(name,class_id),class_sections(name,section_id)')
     .eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
-  if(!ct){toast('You are not assigned as a class teacher this session','error');setTimeout(()=>location.href='teacher.html',2500);return}
+  if(!ct){toast('You are not assigned as a class teacher this session','error');setTimeout(()=>location.replace('teacher.html'),2500);return}
   MY_CLASS=ct
 
   // Update UI
