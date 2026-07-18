@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="icon" type="image/png" href="favicon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shiv Public School — Sign In</title>
@@ -273,7 +272,7 @@
       <div class="brand-mark">SP</div>
       <div>
         <div class="brand-name">Shiv Public School</div>
-        <div class="brand-sub">Powered by EduCore</div>
+        <div class="brand-sub">Unified Portal</div>
       </div>
     </div>
     <div class="panel-copy">
@@ -521,17 +520,18 @@ async function detectPortals(userId) {
       return results
     }
 
-    // 3. Check mother_teacher_map for current session
-    const { data: motherRow, error: mothErr } = await sb
+    // 3. Check mother_teacher_map for current session.
+    // List + length, not maybeSingle: same throw-on-multiple hazard as the
+    // class-teacher check below, in case a teacher ever holds two mother rows.
+    const { data: motherRows, error: mothErr } = await sb
       .from('mother_teacher_map')
       .select('map_id')
       .eq('teacher_id', teacherRow.teacher_id)
       .eq('session_id', sessionId)
-      .maybeSingle()
 
     if (mothErr) console.warn("Mother teacher map query error:", mothErr)
 
-    if (motherRow) {
+    if (motherRows && motherRows.length > 0) {
       results.portals.push('mother_teacher')
       return results
     }
@@ -539,17 +539,20 @@ async function detectPortals(userId) {
     // 4. Main teacher portal — available to all active teachers
     results.portals.push('main_teacher')
 
-    // 5. Check class_teacher_map for current session
-    const { data: classRow, error: classErr } = await sb
+    // 5. Check class_teacher_map for current session.
+    // A teacher can be class teacher of SEVERAL sections, so this may return
+    // many rows. .maybeSingle() THROWS on >1 row — which would silently drop
+    // the class-teacher portal for exactly the multi-class teachers who need
+    // it. Fetch the list and test length instead.
+    const { data: classRows, error: classErr } = await sb
       .from('class_teacher_map')
       .select('map_id')
       .eq('teacher_id', teacherRow.teacher_id)
       .eq('session_id', sessionId)
-      .maybeSingle()
 
     if (classErr) console.warn("Class teacher map query error:", classErr)
 
-    if (classRow) {
+    if (classRows && classRows.length > 0) {
       results.portals.push('class_teacher')
     }
   } catch (e) {
