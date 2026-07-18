@@ -2366,7 +2366,7 @@ async function loadMarksTable(){
   // Get students
   const{data:students,error:se}=await sb.from('student_enrollments')
     .select('enrollment_id,roll_no,s_no,students(full_name,student_id,father_name)')
-    .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active')
+    .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
     .order('roll_no')
   if(se||!students?.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">No active students found for this class-section.</div>';return}
 
@@ -2547,7 +2547,7 @@ async function paStudentSearch(){
     .select('enrollment_id,roll_no,section_id,class_id,class_sections(name),classes(name),students(full_name,father_name,student_id)')
     .in('class_id',classIds)
     .eq('session_id',SESS?.session_id||'')
-    .eq('status','active')
+    .eq('status','active').eq('relieved',false)
   if(error){console.error('[SEARCH]',error.message);resultsEl.style.display='none';return}
 
   const matches=(students||[]).filter(s=>
@@ -2615,7 +2615,7 @@ async function loadStudentPerfAnalysis(enrollmentId, name, classId, sectionId){
   // Get ALL class marks for percentile calculation
   const{data:allEnr}=await sb.from('student_enrollments').select('enrollment_id')
     .eq('class_id',actualClassId).eq('section_id',actualSecId)
-    .eq('session_id',SESS?.session_id||'').eq('status','active')
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
   const allEids=(allEnr||[]).map(e=>e.enrollment_id)
   const{data:allMarks}=await sb.from('marks').select('enrollment_id,assessment_id,marks_obtained,is_absent')
     .in('enrollment_id',allEids).eq('subject_id',subId)
@@ -2744,7 +2744,7 @@ async function loadPerfAnalysis(){
   const selAssess=(assessments||[]).filter(a=>selectedIds.includes(a.assessment_id))
   if(!selAssess.length){emp2(el,'No assessments selected');return}
   // Get students
-  const{data:students}=await sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name,father_name)').eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no')
+  const{data:students}=await sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name,father_name)').eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no')
   if(!students?.length){emp2(el,'No students found');return}
   const eids=students.map(s=>s.enrollment_id)
   // Get marks
@@ -2837,7 +2837,7 @@ async function loadPerfAnalysis(){
       const secCtx=document.getElementById(secCanId)?.getContext('2d')
       if(secCtx){
         const secAvgs=await Promise.all(allSections.map(async sec=>{
-          const{data:secEnr}=await sb.from('student_enrollments').select('enrollment_id').eq('section_id',sec.section_id).eq('session_id',SESS?.session_id||'').eq('status','active')
+          const{data:secEnr}=await sb.from('student_enrollments').select('enrollment_id').eq('section_id',sec.section_id).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
           const secEids=(secEnr||[]).map(e=>e.enrollment_id)
           const{data:secMarks}=await sb.from('marks').select('marks_obtained,assessment_id').in('enrollment_id',secEids).eq('subject_id',subId).eq('is_absent',false)
           const avgs=selAssess.map(a=>{
@@ -2865,7 +2865,7 @@ async function obsLoadStudents(){
   ldg(el);const[secId,classId]=val.split('|')
   const{data:students}=await sb.from('student_enrollments')
     .select('enrollment_id,roll_no,students(full_name,father_name,student_id)')
-    .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no')
+    .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no')
   _obsRaw=students||[]
   renderObsStudents(_obsRaw)
 }
