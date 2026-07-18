@@ -293,6 +293,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item" onclick="goTo('marksoverview',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg>Marks Overview</div>
     <div class="sb-item" onclick="goTo('timetable',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="16" x2="21" y2="16"/></svg>School Timetable</div>
     <div class="sb-item" onclick="goTo('promotion',this)"><svg viewBox="0 0 24 24"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 21 3 17 7 13"/><line x1="3" y1="17" x2="15" y2="17"/></svg>Promotion</div>
+    <div class="sb-item" onclick="goTo('relieving',this)"><svg viewBox="0 0 24 24"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M12 19a7 7 0 1 1 0-14"/></svg>Student Relieving</div>
     <div class="sb-item" onclick="goTo('reportcards',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Report Card Templates</div>
     <div class="sb-label">Attendance</div>
     <div class="sb-item" onclick="goTo('calendar',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Holiday Calendar</div>
@@ -554,6 +555,30 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
 
     <!-- PROMOTION -->
+    <div class="page" id="page-relieving">
+      <div class="page-head"><div><h2>Student Relieving</h2><p>Relieve students who have left mid-session. Relieved students disappear from all teacher views and are not promoted to the next session, but their records stay in the database for this session.</p></div></div>
+      <div class="tab-row" style="margin-bottom:16px">
+        <button class="tab-btn active" onclick="switchTab('reltab','active',this)">Active Students</button>
+        <button class="tab-btn" onclick="switchTab('reltab','relieved',this)">Relieved Students</button>
+      </div>
+
+      <div id="reltab-active">
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg"><label>Class</label><select id="rl_class" onchange="rlLoadSections()"><option value="">Select class</option></select></div>
+            <div class="fg"><label>Section</label><select id="rl_section"><option value="">All sections</option></select></div>
+            <div class="fg"><label>Search</label><input id="rl_search" placeholder="Name or father" oninput="renderRelieveActive()"></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadRelieveActive()">Load</button>
+          </div>
+        </div>
+        <div id="rl_activeWrap"></div>
+      </div>
+
+      <div id="reltab-relieved" style="display:none">
+        <div id="rl_relievedWrap"><div style="padding:20px;color:var(--ink-soft);font-size:13px">Loading relieved students…</div></div>
+      </div>
+    </div>
+
     <div class="page" id="page-promotion">
       <div class="page-head"><div><h2>Promotion</h2><p>End-of-session bulk promotion — set overrides then confirm</p></div></div>
       <div class="step-row">
@@ -1134,8 +1159,8 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',settings:'Settings',requests:'Access Requests'}
-const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',settings:'Settings',requests:'Access Requests'}
+const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests}
 function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
@@ -1549,6 +1574,9 @@ async function openEditDemoModal(){
     '<div class="form-row"><div class="fg" id="ed_stream_fg" style="display:none"><label>Stream *</label><select id="ed_stream"></select></div><div class="fg"><label>Roll No.</label><input id="ed_roll" value="'+esc(e.roll_no||'')+'"></div><div class="fg"><label>S.No</label><input id="ed_sno" value="'+esc(e.s_no||'')+'"></div></div>'+
     '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px 12px;font-size:11.5px;color:var(--ink-soft);line-height:1.5">Classes with streams (11th / 12th) must have one selected — tuition is set per stream, so a blank stream bills &#8377;0.<br>Blank S.No means <b>promoted but not yet re-admitted</b>; the Fee Portal flags them.</div>',
     '<button class="btn btn-dark" onclick="saveEditDemo()">Save Changes</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+  // Remember the enrollment BEFORE editing, to detect a section move on save.
+  window._edBefore={class_id:e.class_id, section_id:e.section_id, roll_no:e.roll_no,
+                    full_name:s.full_name, eid:_profileEnrollId}
   await edLoadSecStream(e.section_id, e.stream_id)
 }
 
@@ -1574,6 +1602,87 @@ async function edLoadSecStream(preSec, preStream){
       if(preStream&&strs.find(x=>x.stream_id===preStream))ssel.value=preStream
     }
   }else if(ssel){ssel.innerHTML=''}
+}
+
+// Next roll in a section (highest + 1), same rule as admission.
+async function adminNextRollFor(classId, sectionId){
+  const{data:rolls}=await sb.from('student_enrollments')
+    .select('roll_no').eq('class_id',classId).eq('section_id',sectionId)
+    .eq('session_id',SESS?.session_id||'').eq('status','active')
+  const max=(rolls||[]).reduce((m,r)=>(r.roll_no||0)>m?(r.roll_no||0):m,0)
+  return max+1
+}
+
+// "8th-A" style label from ids.
+async function labelForClassSection(classId, sectionId){
+  try{
+    const{data:c}=await sb.from('classes').select('name').eq('class_id',classId).maybeSingle()
+    const{data:s}=await sb.from('class_sections').select('name').eq('section_id',sectionId).maybeSingle()
+    return (c?.name||'?')+'-'+(s?.name||'?')
+  }catch(e){return '?'}
+}
+
+// Notify the class teacher(s) of the given (class,section) pairs.
+// Silently skips a section with no class teacher. De-dupes recipients so a
+// teacher who owns both origin and destination gets one message.
+async function adminNotifyCTs({pairs, subject, body}){
+  try{
+    const sectionIds=[...new Set(pairs.map(p=>p.section_id).filter(Boolean))]
+    if(!sectionIds.length)return
+    const{data:cts}=await sb.from('class_teacher_map')
+      .select('teacher_id,section_id').eq('session_id',SESS?.session_id||'')
+      .in('section_id',sectionIds)
+    const recipients=[...new Set((cts||[]).map(r=>r.teacher_id).filter(Boolean))]
+    if(!recipients.length)return
+    const now=new Date().toISOString()
+    const rows=recipients.map(tid=>({
+      sender_type:'admin', sender_id:SPS.admin?.admin_id,
+      recipient_type:'teacher', recipient_id:tid,
+      subject, body, message_type:'system_notification', sent_at:now
+    }))
+    await sb.from('messages').insert(rows)
+  }catch(e){console.warn('adminNotifyCTs failed',e)}
+}
+
+// Batched add-notification: one message per (class,section) whose teacher
+// exists, listing the students added there. "Batched if multiple, single if one."
+async function notifyBulkAdd(enrollRows, valid, ins){
+  try{
+    // Group student names by section_id
+    const byId=new Map()  // student_id -> name
+    valid.forEach((r,i)=>{ if(ins[i]) byId.set(ins[i].student_id, r.full_name||'a student') })
+    const bySection=new Map() // section_id -> {classId, names[]}
+    enrollRows.forEach(er=>{
+      if(!er.section_id)return
+      if(!bySection.has(er.section_id))bySection.set(er.section_id,{classId:er.class_id,names:[]})
+      bySection.get(er.section_id).names.push(byId.get(er.student_id)||'a student')
+    })
+    if(!bySection.size)return
+
+    const sectionIds=[...bySection.keys()]
+    const{data:cts}=await sb.from('class_teacher_map')
+      .select('teacher_id,section_id').eq('session_id',SESS?.session_id||'')
+      .in('section_id',sectionIds)
+    const ctBySection={}; (cts||[]).forEach(r=>{ if(r.teacher_id)ctBySection[r.section_id]=r.teacher_id })
+
+    const now=new Date().toISOString()
+    const rows=[]
+    for(const [secId,info] of bySection){
+      const tid=ctBySection[secId]; if(!tid)continue   // no CT -> skip silently
+      const label=await labelForClassSection(info.classId, secId)
+      const n=info.names.length
+      const body = n===1
+        ? 'Admin added '+info.names[0]+' to '+label+'.'
+        : 'Admin added '+n+' students to '+label+': '+info.names.join(', ')+'.'
+      rows.push({
+        sender_type:'admin', sender_id:SPS.admin?.admin_id,
+        recipient_type:'teacher', recipient_id:tid,
+        subject:(n===1?'Student added to your class':n+' students added to your class'),
+        body, message_type:'system_notification', sent_at:now
+      })
+    }
+    if(rows.length)await sb.from('messages').insert(rows)
+  }catch(e){console.warn('notifyBulkAdd failed',e)}
 }
 
 async function saveEditDemo(){
@@ -1606,13 +1715,39 @@ async function saveEditDemo(){
     family_code:$('ed_family')?.value?.trim()||null
   }).eq('student_id',sid)
   if(e1){toast('Failed: '+e1.message,'error');return}
+  // Did the section (or class) change? If so, give the student the next roll in
+  // the destination section, mirroring the class-teacher move behaviour.
+  const before=window._edBefore||{}
+  const movedSection = before.section_id && before.section_id!==secId
+  const movedClass   = before.class_id && before.class_id!==cid
+  let rollToSet=parseInt($('ed_roll')?.value)||null
+  if(movedSection||movedClass){
+    rollToSet=await adminNextRollFor(cid, secId)
+  }
+
   const{error:e2}=await sb.from('student_enrollments').update({
     class_id:cid, section_id:secId, stream_id:streamId,
-    roll_no:parseInt($('ed_roll')?.value)||null,
-    s_no:sno
+    roll_no:rollToSet, s_no:sno
   }).eq('enrollment_id',eid)
   if(e2){toast('Demographics saved, but enrollment update failed: '+e2.message,'error');return}
-  toast('Student updated','success');closeModal();openProfile(eid);loadStudents()
+
+  if(movedSection||movedClass){
+    const nm=$('ed_name')?.value?.trim()||before.full_name||'Student'
+    const fromLabel=await labelForClassSection(before.class_id, before.section_id)
+    const toLabel=await labelForClassSection(cid, secId)
+    toast('Student updated · moved to '+toLabel+' (Roll '+rollToSet+')','success')
+    await adminNotifyCTs({
+      // Notify destination + origin section teachers. Admin isn't a CT, so no self-skip.
+      pairs:[{class_id:before.class_id,section_id:before.section_id},
+             {class_id:cid,section_id:secId}],
+      subject:'Student moved: '+nm,
+      body:nm+' was moved from '+fromLabel+' to '+toLabel+' by admin.'
+    })
+  } else {
+    toast('Student updated','success')
+  }
+  window._edBefore=null
+  closeModal();openProfile(eid);loadStudents()
 }
 
 function openUploadDocModal(){
@@ -1662,6 +1797,13 @@ async function submitAdmission(e){
     const maxR=(rolls||[]).reduce((m,r)=>r.roll_no>m?r.roll_no:m,0)
     const streamId=$('adm_stream')?.value||null
     const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:String(maxN+1),status:'active',is_new_admission:true,readmission_date:null})
+    if(!ee){
+      await adminNotifyCTs({
+        pairs:[{class_id:classId,section_id:secId}],
+        subject:'Student added to your class',
+        body:'Admin added '+($('adm_name')?.value?.trim()||'a student')+' to '+(await labelForClassSection(classId,secId))+'.'
+      })
+    }
     if(ee)throw ee
     // Upload photo if provided
     const photoFile=$('adm_photo')?.files[0]
@@ -1827,7 +1969,11 @@ async function commitImport(count,type){
     if(enrollRows.length){
       const{error:ee}=await sb.from('student_enrollments').insert(enrollRows)
       if(ee)toast('Imported but enrollment failed: '+ee.message,'error')
-      else toast(valid.length+' student(s) imported & enrolled'+(skipped.length?' ('+skipped.length+' skipped)':'')+'✓','success')
+      else{
+        toast(valid.length+' student(s) imported & enrolled'+(skipped.length?' ('+skipped.length+' skipped)':'')+'✓','success')
+        // Notify each destination section's class teacher — batched per section.
+        await notifyBulkAdd(enrollRows, valid, ins)
+      }
     } else {
       toast(valid.length+' student(s) imported (no class = enrollment skipped)','success')
     }
@@ -2326,6 +2472,131 @@ async function loadMarksTable(){
 }
 
 // ═══════════ PROMOTION ═══════════
+// ═══════════ STUDENT RELIEVING ═══════════
+let _relieveActive=[]   // current active-list rows loaded for relieving
+
+function loadRelievingShell(){
+  $('rl_class').innerHTML='<option value="">Select class</option>'+
+    (ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  loadRelievedList()
+}
+
+async function rlLoadSections(){
+  const cid=$('rl_class').value
+  const sel=$('rl_section')
+  if(!cid){sel.innerHTML='<option value="">All sections</option>';return}
+  const{data:secs}=await sb.from('class_sections').select('section_id,name')
+    .eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  sel.innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+}
+
+async function loadRelieveActive(){
+  const cid=$('rl_class').value
+  if(!cid){toast('Select a class first','error');return}
+  const secId=$('rl_section').value
+  let q=sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,s_no,class_id,section_id,students(student_id,full_name,father_name),classes(name),class_sections(name)')
+    .eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  if(secId)q=q.eq('section_id',secId)
+  const{data}=await q.order('roll_no',{nullsFirst:true})
+  _relieveActive=data||[]
+  renderRelieveActive()
+}
+
+function renderRelieveActive(){
+  const wrap=$('rl_activeWrap')
+  const term=($('rl_search')?.value||'').toLowerCase()
+  let list=_relieveActive
+  if(term)list=list.filter(e=>(e.students?.full_name||'').toLowerCase().includes(term)||(e.students?.father_name||'').toLowerCase().includes(term))
+  if(!list.length){wrap.innerHTML='<div class="card"><div style="padding:16px;color:var(--ink-soft);font-size:13px">No active students'+(term?' match your search':' loaded')+'.</div></div>';return}
+  wrap.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student</th><th>Father</th><th>Class</th><th>S.No</th><th></th></tr></thead><tbody>'+
+    list.map(e=>'<tr>'+
+      '<td class="mono">'+(e.roll_no||'—')+'</td>'+
+      '<td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td>'+
+      '<td>'+esc(e.students?.father_name||'—')+'</td>'+
+      '<td>'+esc(e.classes?.name||'?')+'-'+esc(e.class_sections?.name||'?')+'</td>'+
+      '<td class="mono">'+(e.s_no||'—')+'</td>'+
+      '<td><button class="btn btn-danger btn-xs" data-eid="'+e.enrollment_id+'" onclick="openRelieveModal(this.dataset.eid)">Relieve</button></td>'+
+    '</tr>').join('')+'</tbody></table></div></div>'
+}
+
+function openRelieveModal(eid){
+  const e=_relieveActive.find(x=>x.enrollment_id===eid)
+  if(!e)return
+  const nm=e.students?.full_name||'this student'
+  const label=(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')
+  openModal('Relieve Student',
+    '<div style="font-size:14px;line-height:1.6">Relieve <b>'+esc(nm)+'</b> from <b>'+esc(label)+'</b>?</div>'+
+    '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:8px;line-height:1.55">They will disappear from all teacher views immediately and will not be promoted to the next session. Their '+esc(SESS?.session_id||'')+' records (marks, fees, attendance) stay in the database and remain visible when you view this session later.</div>'+
+    '<div class="form-row" style="margin-top:16px"><div class="fg"><label>Reason (optional)</label><input id="rl_reason" placeholder="e.g. Transferred to another school"></div></div>'+
+    '<input type="hidden" id="rl_eid" value="'+eid+'">',
+    '<button class="btn btn-danger" onclick="confirmRelieve()">Relieve Student</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+
+async function confirmRelieve(){
+  const eid=$('rl_eid')?.value
+  const reason=$('rl_reason')?.value?.trim()||null
+  const e=_relieveActive.find(x=>x.enrollment_id===eid)
+  if(!e){toast('Student not found','error');return}
+  const{error}=await sb.from('student_enrollments').update({
+    relieved:true, relieved_date:new Date().toISOString().slice(0,10),
+    relieved_by:SPS.admin?.admin_id||null, relieved_reason:reason
+  }).eq('enrollment_id',eid)
+  if(error){toast('Failed: '+error.message,'error');return}
+
+  const nm=e.students?.full_name||'Student'
+  const label=(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')
+  toast('✓ '+nm+' relieved from '+label,'success')
+
+  // Notify the section's class teacher.
+  await adminNotifyCTs({
+    pairs:[{class_id:e.class_id,section_id:e.section_id}],
+    subject:'Student relieved',
+    body:nm+' has been relieved from '+label+' by admin'+(reason?' ('+reason+')':'')+' and removed from your class.'
+  })
+
+  closeModal()
+  _relieveActive=_relieveActive.filter(x=>x.enrollment_id!==eid)
+  renderRelieveActive()
+  loadRelievedList()
+}
+
+async function loadRelievedList(){
+  const{data}=await sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,s_no,relieved_date,relieved_reason,class_id,section_id,students(full_name,father_name),classes(name),class_sections(name)')
+    .eq('session_id',SESS?.session_id||'').eq('relieved',true)
+    .order('relieved_date',{ascending:false})
+  const wrap=$('rl_relievedWrap')
+  if(!data||!data.length){wrap.innerHTML='<div class="card"><div style="padding:16px;color:var(--ink-soft);font-size:13px">No relieved students in '+esc(SESS?.session_id||'this session')+'.</div></div>';return}
+  wrap.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Student</th><th>Father</th><th>Class</th><th>Relieved On</th><th>Reason</th><th></th></tr></thead><tbody>'+
+    data.map(e=>'<tr>'+
+      '<td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td>'+
+      '<td>'+esc(e.students?.father_name||'—')+'</td>'+
+      '<td>'+esc(e.classes?.name||'?')+'-'+esc(e.class_sections?.name||'?')+'</td>'+
+      '<td class="mono">'+(e.relieved_date||'—')+'</td>'+
+      '<td style="font-size:12px;color:var(--ink-soft)">'+esc(e.relieved_reason||'—')+'</td>'+
+      '<td><button class="btn btn-soft btn-xs" data-eid="'+e.enrollment_id+'" data-nm="'+esc(e.students?.full_name||'student')+'" onclick="restoreRelieved(this.dataset.eid,this.dataset.nm)">Restore</button></td>'+
+    '</tr>').join('')+'</tbody></table></div></div>'
+}
+
+async function restoreRelieved(eid, nm){
+  const ok=await new Promise(res=>{
+    openModal('Restore Student',
+      '<div style="font-size:14px;line-height:1.6">Restore <b>'+esc(nm)+'</b> to their class?</div>'+
+      '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:8px">They will reappear in teacher views and be included in promotion again.</div>',
+      '<button class="btn btn-dark" id="rs_ok">Restore</button><button class="btn btn-ghost" id="rs_cancel">Cancel</button>')
+    $('rs_ok').onclick=()=>{closeModal();res(true)}
+    $('rs_cancel').onclick=()=>{closeModal();res(false)}
+  })
+  if(!ok)return
+  const{error}=await sb.from('student_enrollments').update({
+    relieved:false, relieved_date:null, relieved_by:null, relieved_reason:null
+  }).eq('enrollment_id',eid)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('✓ '+nm+' restored','success')
+  loadRelievedList()
+}
+
 async function loadPromotionShell(){$('pr_class').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'" data-name="'+esc(c.name)+'">'+esc(c.name)+'</option>').join('')}
 async function promoLoadSections(){const cid=$('pr_class')?.value,sel=$('pr_section');if(sel)sel.innerHTML='<option value="">All sections</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');if(sel)sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('');await loadStreamsFor(cid,'pr_stream')}
 async function loadPromotionStudents(){
@@ -2333,7 +2604,7 @@ async function loadPromotionStudents(){
   if(!classId){toast('Select a class','error');return}
   const el=$('promoTable');ldg(el);$('promoConfirm').style.display='none'
   const promoStreamId=$('pr_stream')?.value||null
-  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,status,students(full_name,student_id),class_sections(name),classes(name)').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').order('roll_no')
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,status,students(full_name,student_id),class_sections(name),classes(name)').eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').eq('relieved',false).order('roll_no')
   if(secId)q=q.eq('section_id',secId)
   if(promoStreamId)q=q.eq('stream_id',promoStreamId)
   const{data,error}=await q
