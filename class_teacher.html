@@ -248,7 +248,14 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24" style="width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
     </div>
     <div class="topbar-title" id="pageTitle">Class Dashboard<span class="crumb" id="pagecrumb">Class Teacher Portal</span></div>
-    <div class="user-chip" onclick="window.location.replace('teacher.html')">
+    <div id="ctSwitchWrap" style="position:relative;margin-left:auto;display:none">
+      <button id="ctSwitchBtn" onclick="toggleClassMenu(event)" style="display:flex;align-items:center;gap:7px;padding:8px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--white);cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink)">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--grn);flex-shrink:0"></span>
+        <span id="ctSwitchLabel">—</span>
+        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:var(--ink-soft);fill:none;stroke-width:2.2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+    <div class="user-chip" onclick="window.location.replace('teacher.html')" title="Switch to Main Teacher view">
       <div class="avatar-sm" id="topAvatar">?</div>
       <div><div style="font-size:12.5px;font-weight:700" id="topName">Loading…</div><div style="font-size:10px;color:var(--ink-faint)" id="topRole"></div></div>
     </div>
@@ -534,10 +541,10 @@ async function loadClass(ct){
 
   // Header + sidebar labels
   const rl=$('topRole'),lbl=$('sbClassLabel')
-  const many=MY_CLASSES.length>1
-  if(rl)rl.textContent='Class Teacher · '+labelFor(ct)+(many?' ▾':'')
+  if(rl)rl.textContent='Class Teacher · '+labelFor(ct)
   if(lbl)lbl.textContent='Class Teacher · '+labelFor(ct)
-  // Reflect selection in the switcher dropdown
+  // Switcher pill label + active row
+  const pill=$('ctSwitchLabel'); if(pill)pill.textContent=labelFor(ct)
   const dd=$('ctSwitchMenu')
   if(dd)[...dd.querySelectorAll('[data-mapid]')].forEach(x=>{
     x.classList.toggle('active', x.dataset.mapid===String(ct.map_id))
@@ -557,43 +564,44 @@ async function loadClass(ct){
   await renderDashboard()
 }
 
-// Top-bar dropdown — only rendered when there is more than one class.
+// Top-bar dropdown — only shown when there is more than one class. It lives in
+// its OWN pill (#ctSwitchWrap), NOT inside the user-chip, whose click navigates
+// to the main teacher portal. Nesting the two caused clicks to bubble and jump
+// portals mid-switch.
 function buildClassSwitcher(){
-  const role=$('topRole')
-  if(!role)return
-  // Wrap topRole click to toggle a menu, only if multi-class
   if(MY_CLASSES.length<2)return
-  role.style.cursor='pointer'
-  role.parentElement.style.position='relative'
-  role.onclick=toggleClassMenu
+  const wrap=$('ctSwitchWrap')
+  if(!wrap)return
+  wrap.style.display=''
   let menu=$('ctSwitchMenu')
   if(!menu){
     menu=document.createElement('div')
     menu.id='ctSwitchMenu'
-    menu.style.cssText='position:absolute;top:110%;right:0;min-width:190px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px -12px rgba(40,30,90,.3);padding:6px;z-index:60;display:none'
-    role.parentElement.appendChild(menu)
+    menu.style.cssText='position:absolute;top:112%;right:0;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px -12px rgba(40,30,90,.3);padding:6px;z-index:60;display:none'
+    wrap.appendChild(menu)
   }
   menu.innerHTML='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);padding:7px 10px 4px">Your classes</div>'+
-    MY_CLASSES.map(ct=>'<div class="ct-switch-item" data-mapid="'+ct.map_id+'" onclick="pickClass(\''+ct.map_id+'\')" '+
-      'style="padding:9px 11px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">'+
-      '<span style="width:7px;height:7px;border-radius:50%;background:var(--grn);flex-shrink:0"></span>'+esc(labelFor(ct))+
+    MY_CLASSES.map(ct=>'<div class="ct-switch-item" data-mapid="'+ct.map_id+'" onclick="pickClass(event,\''+ct.map_id+'\')" '+
+      'style="padding:9px 11px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap">'+
+      '<span style="width:7px;height:7px;border-radius:50%;background:var(--grn);flex-shrink:0"></span>Class '+esc(labelFor(ct))+
     '</div>').join('')
   if(!document.getElementById('ctSwitchStyle')){
     const st=document.createElement('style');st.id='ctSwitchStyle'
-    st.textContent='.ct-switch-item:hover{background:var(--lav-100)}.ct-switch-item.active{background:var(--lav-200)}'
+    st.textContent='.ct-switch-item:hover{background:var(--lav-100)}.ct-switch-item.active{background:var(--lav-200)}#ctSwitchBtn:hover{border-color:var(--grn)}'
     document.head.appendChild(st)
   }
 }
 function toggleClassMenu(e){
-  e?.stopPropagation()
+  if(e){e.stopPropagation();e.preventDefault()}
   const m=$('ctSwitchMenu');if(!m)return
-  m.style.display=m.style.display==='none'?'block':'none'
+  m.style.display=m.style.display==='none'||!m.style.display?'block':'none'
 }
 document.addEventListener('click',e=>{
   const m=$('ctSwitchMenu')
-  if(m&&m.style.display==='block'&&!e.target.closest('#ctSwitchMenu')&&e.target.id!=='topRole')m.style.display='none'
+  if(m&&m.style.display==='block'&&!e.target.closest('#ctSwitchWrap'))m.style.display='none'
 })
-async function pickClass(mapId){
+async function pickClass(e,mapId){
+  if(e){e.stopPropagation();e.preventDefault()}
   const ct=MY_CLASSES.find(x=>String(x.map_id)===String(mapId))
   const m=$('ctSwitchMenu');if(m)m.style.display='none'
   if(ct&&ct.map_id!==MY_CLASS?.map_id)await loadClass(ct)
@@ -616,7 +624,7 @@ function showClassPicker(){
         'style="display:flex;align-items:center;gap:13px;padding:15px 16px;border:1.5px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;text-align:left;transition:border-color .15s,transform .1s;font-family:inherit" '+
         'onmouseover="this.style.borderColor=\'var(--grn)\';this.style.transform=\'translateY(-1px)\'" '+
         'onmouseout="this.style.borderColor=\'var(--line)\';this.style.transform=\'none\'">'+
-        '<div style="width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,#3A9F60,#216F40);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">'+esc(labelFor(ct))+'</div>'+
+        '<div style="min-width:44px;height:44px;padding:0 12px;border-radius:12px;background:linear-gradient(135deg,#3A9F60,#216F40);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0;letter-spacing:.02em">'+esc(labelFor(ct))+'</div>'+
         '<div><div style="font-size:14.5px;font-weight:700;color:var(--ink)">Class '+esc(labelFor(ct))+'</div>'+
         '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:1px">'+(ct.can_edit_profiles?'Full access':'View · attendance · dues')+'</div></div>'+
       '</button>').join('')+
