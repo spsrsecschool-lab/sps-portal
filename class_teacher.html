@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="icon" type="image/png" href="favicon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Class Teacher Portal — Shiv Public School</title>
@@ -438,6 +437,8 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 <script>
 // ═══════════ GLOBALS ═══════════
 let sb, TEACHER=null, SESS=null, MY_CLASS=null
+let MY_CLASSES=[]   // all class-teacher rows for this teacher this session
+let _ctChan=null    // realtime channel, re-subscribed per class
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
 const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',myclass:'Manage My Class',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
@@ -491,38 +492,151 @@ SPS.ready().then(async()=>{
   const{data:sess}=await sb.from('sessions').select('*').eq('is_current',true).maybeSingle()
   SESS=sess
 
-  // Get class teacher assignment
-  const{data:ct}=await sb.from('class_teacher_map')
+  // A teacher may be class teacher of several sections. Fetch them all.
+  const{data:cts}=await sb.from('class_teacher_map')
     .select('*,classes(name,class_id),class_sections(name,section_id)')
-    .eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
-  if(!ct){toast('You are not assigned as a class teacher this session','error');setTimeout(()=>location.replace('teacher.html'),2500);return}
-  MY_CLASS=ct
+    .eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'')
+    .order('class_id')
+  if(!cts||!cts.length){toast('You are not assigned as a class teacher this session','error');setTimeout(()=>location.replace('teacher.html'),2500);return}
+  MY_CLASSES=cts
 
-  // Update UI
-  const av=$('topAvatar'),nm=$('topName'),rl=$('topRole'),lbl=$('sbClassLabel')
+  // Top-bar identity (class-independent)
+  const av=$('topAvatar'),nm=$('topName')
   if(av)av.textContent=initials(TEACHER.full_name)
   if(nm)nm.textContent=TEACHER.full_name||TEACHER.username
-  if(rl)rl.textContent='Class Teacher · '+(MY_CLASS.classes?.name||'?')+'-'+(MY_CLASS.class_sections?.name||'?')
-  if(lbl)lbl.textContent='Class Teacher · '+(MY_CLASS.classes?.name||'?')+'-'+(MY_CLASS.class_sections?.name||'?')
 
-  // Load all students for this class
+  if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
+
+  buildClassSwitcher()
+  if(MY_CLASSES.length===1){
+    await loadClass(MY_CLASSES[0])
+  }else{
+    // More than one class — ask which to open rather than guessing.
+    showClassPicker()
+  }
+  loadBroadcasts()
+  subscribeProfileAccess()
+})
+
+// ═══════════ MULTI-CLASS SWITCHING ═══════════
+// A class teacher may hold several sections. loadClass() re-points MY_CLASS
+// and reloads everything that reads it; the picker and the top-bar dropdown
+// both call it. Everything downstream keys on MY_CLASS.class_id / section_id,
+// so swapping MY_CLASS + reloading is all that's needed.
+
+function labelFor(ct){
+  return (ct.classes?.name||'?')+'-'+(ct.class_sections?.name||'?')
+}
+
+async function loadClass(ct){
+  MY_CLASS=ct
+  hideClassPicker()
+
+  // Header + sidebar labels
+  const rl=$('topRole'),lbl=$('sbClassLabel')
+  const many=MY_CLASSES.length>1
+  if(rl)rl.textContent='Class Teacher · '+labelFor(ct)+(many?' ▾':'')
+  if(lbl)lbl.textContent='Class Teacher · '+labelFor(ct)
+  // Reflect selection in the switcher dropdown
+  const dd=$('ctSwitchMenu')
+  if(dd)[...dd.querySelectorAll('[data-mapid]')].forEach(x=>{
+    x.classList.toggle('active', x.dataset.mapid===String(ct.map_id))
+  })
+
+  // Students for this class
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
 
-  if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
-  await renderDashboard()
-  loadBroadcasts()
+  // Re-scope the realtime access watcher to THIS row
   subscribeProfileAccess()
+
+  // Repaint whatever view is open (default dashboard)
+  await renderDashboard()
+}
+
+// Top-bar dropdown — only rendered when there is more than one class.
+function buildClassSwitcher(){
+  const role=$('topRole')
+  if(!role)return
+  // Wrap topRole click to toggle a menu, only if multi-class
+  if(MY_CLASSES.length<2)return
+  role.style.cursor='pointer'
+  role.parentElement.style.position='relative'
+  role.onclick=toggleClassMenu
+  let menu=$('ctSwitchMenu')
+  if(!menu){
+    menu=document.createElement('div')
+    menu.id='ctSwitchMenu'
+    menu.style.cssText='position:absolute;top:110%;right:0;min-width:190px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px -12px rgba(40,30,90,.3);padding:6px;z-index:60;display:none'
+    role.parentElement.appendChild(menu)
+  }
+  menu.innerHTML='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);padding:7px 10px 4px">Your classes</div>'+
+    MY_CLASSES.map(ct=>'<div class="ct-switch-item" data-mapid="'+ct.map_id+'" onclick="pickClass(\''+ct.map_id+'\')" '+
+      'style="padding:9px 11px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">'+
+      '<span style="width:7px;height:7px;border-radius:50%;background:var(--grn);flex-shrink:0"></span>'+esc(labelFor(ct))+
+    '</div>').join('')
+  if(!document.getElementById('ctSwitchStyle')){
+    const st=document.createElement('style');st.id='ctSwitchStyle'
+    st.textContent='.ct-switch-item:hover{background:var(--lav-100)}.ct-switch-item.active{background:var(--lav-200)}'
+    document.head.appendChild(st)
+  }
+}
+function toggleClassMenu(e){
+  e?.stopPropagation()
+  const m=$('ctSwitchMenu');if(!m)return
+  m.style.display=m.style.display==='none'?'block':'none'
+}
+document.addEventListener('click',e=>{
+  const m=$('ctSwitchMenu')
+  if(m&&m.style.display==='block'&&!e.target.closest('#ctSwitchMenu')&&e.target.id!=='topRole')m.style.display='none'
 })
+async function pickClass(mapId){
+  const ct=MY_CLASSES.find(x=>String(x.map_id)===String(mapId))
+  const m=$('ctSwitchMenu');if(m)m.style.display='none'
+  if(ct&&ct.map_id!==MY_CLASS?.map_id)await loadClass(ct)
+}
+
+// First-open picker (more than one class, nothing loaded yet)
+function showClassPicker(){
+  let ov=$('ctPickerOverlay')
+  if(!ov){
+    ov=document.createElement('div')
+    ov.id='ctPickerOverlay'
+    ov.style.cssText='position:fixed;inset:0;background:rgba(34,31,53,.5);backdrop-filter:blur(4px);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px'
+    document.body.appendChild(ov)
+  }
+  ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:420px;width:100%;padding:28px;box-shadow:0 30px 70px -25px rgba(40,30,90,.4)">'+
+    '<div style="font-size:19px;font-weight:800;color:var(--ink)">Which class do you want to open?</div>'+
+    '<div style="font-size:13px;color:var(--ink-soft);margin-top:6px">You\'re the class teacher of '+MY_CLASSES.length+' sections this session. You can switch anytime from the top bar.</div>'+
+    '<div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">'+
+      MY_CLASSES.map(ct=>'<button onclick="pickClassInitial(\''+ct.map_id+'\')" '+
+        'style="display:flex;align-items:center;gap:13px;padding:15px 16px;border:1.5px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;text-align:left;transition:border-color .15s,transform .1s;font-family:inherit" '+
+        'onmouseover="this.style.borderColor=\'var(--grn)\';this.style.transform=\'translateY(-1px)\'" '+
+        'onmouseout="this.style.borderColor=\'var(--line)\';this.style.transform=\'none\'">'+
+        '<div style="width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,#3A9F60,#216F40);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">'+esc(labelFor(ct))+'</div>'+
+        '<div><div style="font-size:14.5px;font-weight:700;color:var(--ink)">Class '+esc(labelFor(ct))+'</div>'+
+        '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:1px">'+(ct.can_edit_profiles?'Full access':'View · attendance · dues')+'</div></div>'+
+      '</button>').join('')+
+    '</div></div>'
+  ov.style.display='flex'
+}
+function hideClassPicker(){const ov=$('ctPickerOverlay');if(ov)ov.style.display='none'}
+async function pickClassInitial(mapId){
+  const ct=MY_CLASSES.find(x=>String(x.map_id)===String(mapId))
+  if(ct)await loadClass(ct)
+}
 
 let _lastCanEdit=null
 function subscribeProfileAccess(){
   _lastCanEdit=MY_CLASS?.can_edit_profiles===true
-  sb.channel('ct_access_'+TEACHER.teacher_id)
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'class_teacher_map',filter:'teacher_id=eq.'+TEACHER.teacher_id},payload=>{
+  // Re-scope to the active class: with several classes, watching by teacher_id
+  // would fire on any of them and clobber the wrong MY_CLASS. Filter by map_id.
+  if(_ctChan){try{sb.removeChannel(_ctChan)}catch(e){}_ctChan=null}
+  _ctChan=sb.channel('ct_access_'+MY_CLASS.map_id)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'class_teacher_map',filter:'map_id=eq.'+MY_CLASS.map_id},payload=>{
       const now=payload.new?.can_edit_profiles===true
       if(now!==_lastCanEdit){
         _lastCanEdit=now
