@@ -1776,12 +1776,7 @@ function toggleSidebar(){
 }
 function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
 
-function goTo(id, el, fromPop = false){
-  // If el is not provided (like during a Back button event), find the matching sidebar item
-  if (!el && id) {
-    el = document.querySelector(`.sb-item[onclick*="'${id}'"]`) || document.querySelector(`.sb-item[onclick*="${id}"]`);
-  }
-
+function goTo(id,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
   if(pg){pg.style.animation='none';void pg.offsetHeight;pg.style.animation='';pg.classList.add('active')}
@@ -1796,11 +1791,6 @@ function goTo(id, el, fromPop = false){
   if(id==='profile')loadProfile()
   if(id==='critical')loadCriticalStudents()
   if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t}
-
-  // Manage browser history state
-  if (!fromPop) {
-    history.pushState({ pageId: id }, "", "#" + id);
-  }
 }
 
 
@@ -2021,20 +2011,8 @@ SPS.ready().then(async()=>{
   if(_isClassTeacher&&$('switchCTBtn'))$('switchCTBtn').style.display=''
   subscribeMessages(TEACHER.teacher_id)
   subscribeActivity(TEACHER.teacher_id)
- // ... existing code in SPS.ready().then()
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
-  await Promise.all([renderDashboard(), checkUnreadMessages(), loadBroadcasts()])
 
-  // --- ADD ROUTING INITIALIZATION HERE ---
-  const initialPage = location.hash.replace('#', '') || 'dashboard';
-  history.replaceState({ pageId: initialPage }, "", "#" + initialPage);
-  goTo(initialPage, null, true);
-
-  window.addEventListener('popstate', function(e) {
-    const pageId = (e.state && e.state.pageId) || 'dashboard';
-    goTo(pageId, null, true);
-  });
-})
   // Populate subject dropdowns
   const subjects=[...new Map(MY_MAPPINGS.map(m=>[m.subject_id,m])).values()]
   const subOpts=subjects.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||m.subject_id)+'</option>').join('')
