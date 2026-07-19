@@ -211,6 +211,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Manage My Class
     </div>
+    <div class="sb-item" onclick="goTo('readmit',this)">
+      <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Re-admission Status
+    </div>
     <div class="sb-item" onclick="goTo('rollnos',this)">
       <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
       Roll Numbers
@@ -352,6 +356,16 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     </div>
 
     <!-- ROLL NUMBERS -->
+    <div class="page" id="page-readmit">
+      <div class="page-head"><div><h2>Re-admission Status</h2><p>Students re-admitted this session have an S.No generated. Those still pending have not yet been re-admitted in the Fee Portal.</p></div></div>
+      <div class="grid-3" id="readmitStats" style="margin-bottom:16px"></div>
+      <div class="tab-row" style="margin-bottom:16px">
+        <button class="tab-btn active" onclick="rdTab('done',this)">Re-admitted</button>
+        <button class="tab-btn" onclick="rdTab('pending',this)">Pending</button>
+      </div>
+      <div id="readmitWrap"></div>
+    </div>
+
     <div class="page" id="page-rollnos">
       <div class="page-head"><div><h2>Roll Numbers</h2><p>Assign or change roll numbers for your students</p></div>
         <button class="btn btn-primary" onclick="saveAllRollNos()">Save All Changes</button>
@@ -450,7 +464,7 @@ let _enrChan=null   // enrollment (section-move) channel, re-subscribed per clas
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _currentTab='dashboard'   // which tab is open, so class-switch can refresh it
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',myclass:'Manage My Class',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
+const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -479,6 +493,7 @@ function goTo(id,el){
   if(id==='daily'&&!$('att_date').value){$('att_date').value=today()}
   if(id==='attreport'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
   if(id==='myclass')loadMyClass()
+  if(id==='readmit')loadReadmit()
   if(id==='rollnos')loadRollNos()
   if(id==='assessmarks')loadAssessDropdown()
   if(id==='dues')loadDues()
@@ -587,6 +602,7 @@ async function refreshCurrentTab(){
     case 'daily':       await loadDailyAttendance(); break
     case 'attreport':   await loadAttReport();       break
     case 'myclass':     await loadMyClass();         break
+    case 'readmit':     await loadReadmit();         break
     case 'rollnos':     await loadRollNos();         break
     case 'assessmarks': await loadAssessDropdown();  break
     case 'dues':        await loadDues();            break
@@ -1535,6 +1551,65 @@ async function uploadStudentDoc(studentId, input){
 // submitProfileEditReq replaced above
 
 // ═══════════ ROLL NUMBERS ═══════════
+let _rdView='done'   // which readmit subtab is showing
+
+function rdTab(which,btn){
+  _rdView=which
+  btn.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'))
+  btn.classList.add('active')
+  renderReadmit()
+}
+
+async function loadReadmit(){
+  // CLASS_STUDENTS is already the active class's active, non-relieved roster.
+  // Re-admitted = has an s_no; pending = s_no is blank/null.
+  renderReadmit()
+}
+
+function renderReadmit(){
+  const wrap=$('readmitWrap'), stats=$('readmitStats')
+  const all=CLASS_STUDENTS||[]
+  const done=all.filter(s=>s.s_no!=null && String(s.s_no).trim()!=='')
+  const pending=all.filter(s=>!(s.s_no!=null && String(s.s_no).trim()!==''))
+
+  if(stats)stats.innerHTML=
+    '<div class="stat-card"><span class="lbl">Total</span><span class="val">'+all.length+'</span></div>'+
+    '<div class="stat-card"><span class="lbl" style="color:var(--grn)">Re-admitted</span><span class="val" style="color:var(--grn)">'+done.length+'</span><span class="sub">S.No generated</span></div>'+
+    '<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+pending.length+'</span><span class="sub">Not yet re-admitted</span></div>'
+
+  const list=_rdView==='done'?done:pending
+  if(!list.length){emp(wrap,_rdView==='done'?'No students re-admitted yet.':'No pending students — everyone is re-admitted. 🎉');return}
+
+  // Sort: re-admitted by s_no ascending; pending by name.
+  const sorted=[...list].sort((a,b)=>{
+    if(_rdView==='done'){
+      const x=parseInt(String(a.s_no).replace(/\D/g,''))||0, y=parseInt(String(b.s_no).replace(/\D/g,''))||0
+      return x-y
+    }
+    return (a.students?.full_name||'').localeCompare(b.students?.full_name||'')
+  })
+
+  let html='<div class="card"><div class="table-wrap"><table><thead><tr>'
+    +'<th>'+(_rdView==='done'?'S.No':'#')+'</th><th>Roll</th><th>Name</th><th>Father\'s Name</th>'
+    +(_rdView==='done'?'<th>Status</th>':'<th>Status</th>')+'</tr></thead><tbody>'
+  sorted.forEach((s,i)=>{
+    html+='<tr>'
+      +'<td style="font-family:var(--mono);font-weight:700">'+(_rdView==='done'?esc(String(s.s_no)):String(i+1))+'</td>'
+      +'<td style="font-family:var(--mono)">'+esc(s.roll_no!=null?String(s.roll_no):'—')+'</td>'
+      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td>'+esc(s.students?.father_name||'—')+'</td>'
+      +'<td>'+(_rdView==='done'
+          ?'<span class="pill pill-grn">Re-admitted</span>'
+          :'<span class="pill pill-danger">Pending</span>')+'</td>'
+    +'</tr>'
+  })
+  html+='</tbody></table></div></div>'
+  if(_rdView==='pending'){
+    html+='<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--ink-soft);margin-top:12px;line-height:1.55">These students are promoted but not yet re-admitted for '+esc(SESS?.session_id||'this session')+'. Re-admission (which generates their S.No) is done by the admin or through the Fee Portal.</div>'
+  }
+  wrap.innerHTML=html
+}
+
 async function loadRollNos(){
   const el=$('rollNoWrap')
   if(!CLASS_STUDENTS.length){emp(el,'No students enrolled.');return}
@@ -1716,10 +1791,37 @@ async function loadExamFeeDropdown(){
   const sel=$('ef_assess')
   if(!sel)return
   sel.innerHTML='<option value="">Loading…</option>'
-  // Get exam fees unlocked for this class
-  const{data:fees}=await sb.from('exam_fees').select('*,assessments(name)').eq('class_id',MY_CLASS.class_id).eq('is_collection_unlocked',true)
+  // Exam fees aren't stored per class — they belong to an ASSESSMENT, which
+  // links to classes via assessment_classes. So: find the assessments that
+  // include MY class, then list their unlocked exam fees.
+  const{data:acRows}=await sb.from('assessment_classes')
+    .select('assessment_id').eq('class_id',MY_CLASS.class_id)
+  const myAssessmentIds=[...new Set((acRows||[]).map(r=>r.assessment_id))]
+  if(!myAssessmentIds.length){sel.innerHTML='<option value="">No assessments for your class yet</option>';return}
+
+  const{data:fees}=await sb.from('exam_fees')
+    .select('*,assessments(name)')
+    .in('assessment_id',myAssessmentIds)
+    .eq('is_collection_unlocked',true)
   if(!fees?.length){sel.innerHTML='<option value="">No exam fees unlocked for your class</option>';return}
-  sel.innerHTML='<option value="">Select assessment</option>'+fees.map(f=>'<option value="'+f.exam_fee_id+'">'+esc(f.assessments?.name||f.exam_fee_id)+'  (₹'+f.amount+')</option>').join('')
+
+  // Label with assessment name + the fee's own label (from class_group) so two
+  // fees on the same assessment are distinguishable.
+  sel.innerHTML='<option value="">Select exam fee</option>'+fees.map(f=>{
+    const feeLabel=labelFromGroup(f.class_group)
+    const aName=f.assessments?.name||'Assessment'
+    const shown=feeLabel&&feeLabel!=='Fee'?aName+' — '+feeLabel:aName
+    return '<option value="'+f.exam_fee_id+'">'+esc(shown)+'  (₹'+f.amount+')</option>'
+  }).join('')
+}
+
+// The admin stores an exam fee's label inside class_group as "Label-<timestamp>".
+// Strip the trailing timestamp to recover the human label.
+function labelFromGroup(g){
+  if(!g)return 'Fee'
+  const parts=String(g).split('-')
+  if(parts.length>1 && /^\d+$/.test(parts[parts.length-1])) parts.pop()
+  return parts.join('-')||'Fee'
 }
 
 async function loadExamFees(){
