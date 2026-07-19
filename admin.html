@@ -1498,9 +1498,15 @@ async function toggleTeacher(id,active){confirmAct((active?'Deactivate':'Activat
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
   if(!SESS)return; ldg($('studentBody'))
-  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).order('s_no',{nullsFirst:false}).limit(1000)
+  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(1000)
   if(error){toast('Failed to load students','error');console.error('[loadStudents] error:',error);return}
-  _studentsRaw=data||[]
+  _studentsRaw=(data||[]).sort((a,b)=>{
+    // Stable ascending sort by student_id (STU-0001, STU-0002 ...). Client-side
+    // so it's guaranteed — a fragile foreign-table sort could silently no-op and
+    // reintroduce the unstable order that made moved rows vanish past the cap.
+    const x=a.students?.student_id||'', y=b.students?.student_id||''
+    return x<y?-1:x>y?1:0
+  })
   const uniq=[...new Map(_studentsRaw.map(e=>[e.classes?.class_id,e.classes?.name])).entries()]
   $('studentClassFilter').innerHTML='<option value="">All Classes</option>'+uniq.map(([id,n])=>'<option value="'+id+'">'+esc(n||'')+'</option>').join('')
   filterStudents()
