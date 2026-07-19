@@ -1893,6 +1893,25 @@ function subscribeActivity(teacherId){
     }).subscribe()
 }
 
+function subscribeMarksLock(teacherId){
+  // When admin grants/revokes marks access, the marks_lock_state row for this
+  // teacher changes. If the teacher is looking at the matching marks table,
+  // re-render it live so it unlocks/locks without a manual refresh.
+  sb.channel('markslock_'+teacherId)
+    .on('postgres_changes',{event:'*',schema:'public',table:'marks_lock_state',filter:'teacher_id=eq.'+teacherId},payload=>{
+      const row=payload.new||payload.old||{}
+      const m=_currentMarksMeta||{}
+      // Only re-render if the change concerns the assessment+subject+section on screen.
+      if(m.assessId && row.assessment_id===m.assessId && row.subject_id===m.subId && row.section_id===m.secId){
+        const wasLocked=_marksLocked
+        if(typeof loadMarksTable==='function')loadMarksTable().then(()=>{
+          if(wasLocked && !_marksLocked)toast('✓ Marks edit access granted — you can now enter marks','success')
+          else if(!wasLocked && _marksLocked)toast('Marks have been locked','info')
+        })
+      }
+    }).subscribe()
+}
+
 function subscribeMessages(recipientId){
   if(!recipientId)return
   const ch=sb.channel('msgs_'+recipientId)
@@ -2023,6 +2042,7 @@ SPS.ready().then(async()=>{
   if(_isClassTeacher&&$('switchCTBtn'))$('switchCTBtn').style.display=''
   subscribeMessages(TEACHER.teacher_id)
   subscribeActivity(TEACHER.teacher_id)
+  subscribeMarksLock(TEACHER.teacher_id)
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
 
   // Populate subject dropdowns
