@@ -238,6 +238,7 @@
         <div class="mode-toggle">
           <button class="mode-btn active" id="btnModeManual" onclick="switchCounterMode('manual')">Manual Entry</button>
           <button class="mode-btn" id="btnModeAuto" onclick="switchCounterMode('auto')">Auto-Allocate (Family Waterfall)</button>
+          <button class="mode-btn" id="btnModeExtra" onclick="switchCounterMode('extra')">Exam / Misc Fees</button>
         </div>
         <div id="manualAllocGrid" style="display:none;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
         <div id="autoAllocContainer" style="display:none;margin-bottom:16px;">
@@ -253,6 +254,7 @@
           </div>
           <div id="autoAllocPreview" style="margin-top:12px;background:rgba(79,142,247,.08);padding:12px;border-radius:8px;border:1px solid rgba(79,142,247,.2);display:none;"></div>
         </div>
+        <div id="extraFeesContainer" style="display:none;margin-bottom:16px;"></div>
         <div class="lock-bar unmatched" id="lockBar">
           <span class="lk-total" id="lk_total">Total: ₹0</span>
           <span class="lk-status unmatched" id="lk_status">Enter amounts above</span>
@@ -572,6 +574,13 @@ let viewSession = null;
 let students = [];             // hydrated: enrollment JOIN student
 let payments = [];             // flattened payment_allocations (old row shape)
 let bundles = {};              // payment_id -> payments row
+// Exam & misc fees are OUTSIDE the tuition/annual/prev allocation engine.
+// They live in their own tables; exam_fee_payments / misc_fee_payments are the
+// single source of truth, shared with the class-teacher portal.
+let examFees = [];             // exam_fees rows (unlocked), + _assessmentName, _classIds
+let miscFees = [];             // misc_fees rows (unlocked)
+let examFeePays = {};          // exam_fee_id + '_' + enrollment_id -> payment row
+let miscFeePays = {};          // misc_fee_id + '_' + enrollment_id -> payment row
 let activityLog = [];
 // fee_master is keyed on (class, stream). Nur-10th have no stream so they
 // live under '_'; 11th/12th get one entry per stream_id.
@@ -815,6 +824,26 @@ async function loadAll(){
         remarks:       b.remarks||''
       };
     });
+
+    // ── Exam & misc fees (separate from tuition allocation) ──────────────
+    // Exam fees: unlocked ones, mapped to the classes of their assessment.
+    const{data:efRows}=await sb.from('exam_fees').select('*,assessments(name)').eq('is_collection_unlocked',true);
+    const efIds=(efRows||[]).map(f=>f.assessment_id);
+    const{data:acRows}=efIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',efIds):{data:[]};
+    const classesByAssess={};(acRows||[]).forEach(r=>{(classesByAssess[r.assessment_id]=classesByAssess[r.assessment_id]||[]).push(r.class_id)});
+    examFees=(efRows||[]).map(f=>({...f,_assessmentName:f.assessments?.name||'Assessment',_classIds:classesByAssess[f.assessment_id]||[]}));
+
+    // Misc fees: unlocked ones for this session (already carry class_id/section_id).
+    const{data:mfRows}=await sb.from('misc_fees').select('*').eq('session_id',viewSession||'').eq('is_collection_unlocked',true);
+    miscFees=mfRows||[];
+
+    // Payment status for both (single source of truth, shared with teachers).
+    const efPayIds=examFees.map(f=>f.exam_fee_id);
+    const{data:efp}=efPayIds.length?await sb.from('exam_fee_payments').select('*').in('exam_fee_id',efPayIds):{data:[]};
+    examFeePays={};(efp||[]).forEach(p=>{examFeePays[p.exam_fee_id+'_'+p.enrollment_id]=p});
+    const mfPayIds=miscFees.map(f=>f.misc_fee_id);
+    const{data:mfp}=mfPayIds.length?await sb.from('misc_fee_payments').select('*').in('misc_fee_id',mfPayIds):{data:[]};
+    miscFeePays={};(mfp||[]).forEach(p=>{miscFeePays[p.misc_fee_id+'_'+p.enrollment_id]=p});
 
     // Activity log
     const {data:al}=await sb.from('activity_log').select('*').eq('action_type','fee')
@@ -1248,18 +1277,98 @@ function switchCounterMode(mode){
   counterMode=mode;
   $('btnModeManual').className=mode==='manual'?'mode-btn active':'mode-btn';
   $('btnModeAuto').className=mode==='auto'?'mode-btn active':'mode-btn';
+  const be=$('btnModeExtra'); if(be)be.className=mode==='extra'?'mode-btn active':'mode-btn';
+  const ec=$('extraFeesContainer');
+  // Reset visibility of all three panels
+  $('manualAllocGrid').style.display='none';
+  $('autoAllocContainer').style.display='none';
+  if(ec)ec.style.display='none';
   if(mode==='manual'){
     buildManualGrid();
     $('manualAllocGrid').style.display='flex';
-    $('autoAllocContainer').style.display='none';
     updateFamilyLock();
-  }else{
-    $('manualAllocGrid').style.display='none';
+  }else if(mode==='auto'){
     $('autoAllocContainer').style.display='block';
     $('c_totalCash').value='';
     $('autoAllocPreview').style.display='none';
     autoAllocPlan=[]; updateFamilyLock();
+  }else if(mode==='extra'){
+    // Exam / Misc fees — separate from the allocation engine entirely.
+    if(ec)ec.style.display='block';
+    buildExtraFeesPanel();
   }
+}
+
+// Which exam fees apply to a student? Those whose assessment includes the
+// student's class. Misc fees: those matching the student's class (and section,
+// if the misc fee targets a specific one).
+function extraFeesFor(stu){
+  const exams=examFees.filter(f=>(f._classIds||[]).includes(stu.class_id)).map(f=>({
+    kind:'exam', id:f.exam_fee_id, name:f._assessmentName+(labelFromGroupFP(f.class_group)&&labelFromGroupFP(f.class_group)!=='Fee'?' — '+labelFromGroupFP(f.class_group):''),
+    amount:+f.amount||0, pay:examFeePays[f.exam_fee_id+'_'+stu.enrollment_id]||null
+  }));
+  const misc=miscFees.filter(f=>f.class_id===stu.class_id && (!f.section_id||f.section_id===stu.section_id)).map(f=>({
+    kind:'misc', id:f.misc_fee_id, name:f.name||'Misc Fee',
+    amount:+f.amount||0, pay:miscFeePays[f.misc_fee_id+'_'+stu.enrollment_id]||null
+  }));
+  return [...exams,...misc];
+}
+function labelFromGroupFP(g){
+  if(!g)return 'Fee';
+  const parts=String(g).split('-');
+  if(parts.length>1 && /^\d+$/.test(parts[parts.length-1])) parts.pop();
+  return parts.join('-')||'Fee';
+}
+
+function buildExtraFeesPanel(){
+  const el=$('extraFeesContainer'); if(!el)return;
+  if(!activeSiblings.length){el.innerHTML='<p style="color:var(--muted);font-size:13px">Select a family first.</p>';return;}
+  let html='';
+  activeSiblings.forEach(stu=>{
+    const fees=extraFeesFor(stu);
+    if(!fees.length)return;
+    html+='<div style="margin-bottom:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+      +'<div style="padding:10px 14px;background:rgba(0,0,0,.02);font-weight:700;font-size:13px">'+esc(stu.name)+' <span style="color:var(--muted);font-weight:500">· '+esc(stu.cls)+'</span></div>'
+      +'<div style="padding:6px 0">';
+    fees.forEach(f=>{
+      const paid=f.pay?.is_paid;
+      const by=f.pay?.collected_by_type;
+      let status,action;
+      if(paid && by==='admin'){status='<span style="color:var(--muted);font-size:12px">✓ Paid via Admin</span>';action='<button class="btn btn-danger btn-sm" onclick="undoExtraFee(\''+f.kind+'\',\''+f.id+'\',\''+stu.enrollment_id+'\')">Undo</button>';}
+      else if(paid && by==='teacher'){status='<span style="color:var(--success);font-size:12px">✓ Paid via Teacher</span>';action='<span style="color:var(--muted);font-size:11px">collected in class</span>';}
+      else{status='<span style="color:var(--danger);font-size:12px">Pending</span>';action='<button class="btn btn-success btn-sm" onclick="collectExtraFee(\''+f.kind+'\',\''+f.id+'\',\''+stu.enrollment_id+'\','+f.amount+')">Collect ₹'+f.amount+'</button>';}
+      html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-top:1px solid var(--border)">'
+        +'<div style="min-width:0"><div style="font-size:13px;font-weight:600">'+esc(f.name)+' <span style="color:var(--muted);font-weight:500">(₹'+f.amount+')</span></div><div style="margin-top:2px">'+status+'</div></div>'
+        +'<div style="flex-shrink:0">'+action+'</div></div>';
+    });
+    html+='</div></div>';
+  });
+  el.innerHTML=html||'<p style="color:var(--muted);font-size:13px;padding:8px">No exam or misc fees apply to this family.</p>';
+}
+
+async function collectExtraFee(kind, feeId, enrollmentId, amount){
+  const table=kind==='exam'?'exam_fee_payments':'misc_fee_payments';
+  const idCol=kind==='exam'?'exam_fee_id':'misc_fee_id';
+  const row={[idCol]:feeId,enrollment_id:enrollmentId,is_paid:true,collected_by_type:'admin',collected_by_id:(ME||'admin'),paid_at:new Date().toISOString()};
+  const{error}=await sb.from(table).upsert(row,{onConflict:idCol+',enrollment_id'});
+  if(error){toast('Failed: '+error.message);return;}
+  // Update local cache so the panel reflects immediately without a full reload.
+  const key=feeId+'_'+enrollmentId;
+  if(kind==='exam')examFeePays[key]=row; else miscFeePays[key]=row;
+  toast('Collected ₹'+amount+' ✓');
+  buildExtraFeesPanel();
+}
+
+async function undoExtraFee(kind, feeId, enrollmentId){
+  const table=kind==='exam'?'exam_fee_payments':'misc_fee_payments';
+  const idCol=kind==='exam'?'exam_fee_id':'misc_fee_id';
+  const row={[idCol]:feeId,enrollment_id:enrollmentId,is_paid:false,collected_by_type:null,collected_by_id:null,paid_at:null};
+  const{error}=await sb.from(table).upsert(row,{onConflict:idCol+',enrollment_id'});
+  if(error){toast('Failed: '+error.message);return;}
+  const key=feeId+'_'+enrollmentId;
+  if(kind==='exam')examFeePays[key]=row; else miscFeePays[key]=row;
+  toast('Payment reversed');
+  buildExtraFeesPanel();
 }
 
 function buildManualGrid(){
