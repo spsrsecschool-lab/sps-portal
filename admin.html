@@ -524,6 +524,10 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="assessExamFeesContent"></div>
       </div>
+      <div class="sub-page" id="sub-assess-overrides">
+        <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="assessOverridesContent"></div>
+      </div>
       <div class="sub-page" id="sub-assess-status">
         <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="assessStatusContent"></div>
@@ -2369,7 +2373,7 @@ function openAssessEditById(id,classNames){const a=window._assessMap?.[id];if(!a
 let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
-  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, marks unlock toggle</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div></div>'
+  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, marks unlock toggle</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div></div>'
 }
 function openAssessSettings(){if(!_currentAssess)return;const a=_currentAssess;openSub('assessments','sub-assess-settings');$('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="'+esc(a.name)+'"></div><div class="fg"><label>Date</label><input type="date" id="ae_date" value="'+(a.commencement_date||'')+'"></div></div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="'+(a.submission_deadline?.slice(0,16)||'')+'"></div></div><div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch '+(a.is_marks_unlocked?'on':'')+'" id="ae_unlock" onclick="this.classList.toggle(\'on\')"></div></div><button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'}
 function openExamFees(){if(!_currentAssess)return;const a=_currentAssess,ef=a.exam_fees||[];openSub('assessments','sub-assess-examfees');$('assessExamFeesContent').innerHTML='<div class="page-head"><div><h2>Exam Fees — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div id="efRows">'+ef.map(f=>'<div class="form-row" id="efr_'+f.exam_fee_id+'"><div class="fg"><label>Class Group</label><input id="efg_'+f.exam_fee_id+'" value="'+esc(f.class_group||'')+'"></div><div class="fg"><label>Amount ₹</label><input type="number" id="efa_'+f.exam_fee_id+'" value="'+(f.amount||'')+'"></div><div class="fg" style="flex:0;align-items:flex-end"><div class="switch '+(f.is_collection_unlocked?'on':'')+'" id="efu_'+f.exam_fee_id+'" onclick="this.classList.toggle(\'on\')" style="margin-top:20px"></div></div><div style="display:flex;gap:5px;align-items:flex-end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="saveEF(\''+f.exam_fee_id+'\',\''+a.assessment_id+'\')">Save</button><button class="btn btn-danger btn-xs" onclick="deleteEF(\''+f.exam_fee_id+'\')">×</button></div></div>').join('')+'</div><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="addEFRow(\''+a.assessment_id+'\')">+ Add Fee Row</button></div>'}
@@ -2387,6 +2391,69 @@ async function openSubmissionStatus(){
   const byTeacher={};maps.forEach(m=>{if(!byTeacher[m.teacher_id])byTeacher[m.teacher_id]={name:m.teachers?.full_name||'—',rows:[]};byTeacher[m.teacher_id].rows.push(m)})
   el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="card"><div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Section</th><th>Subject</th><th>Status</th></tr></thead><tbody>'+Object.entries(byTeacher).map(([tid,t])=>t.rows.map((r,i)=>{const lk=lockMap[tid+'_'+r.subject_id+'_'+r.section_id];const status=lk===true?'<span class="pill pill-success">Submitted & Locked</span>':lk===false?'<span class="pill pill-warn">In Progress</span>':'<span class="pill pill-neutral">Not Started</span>';return'<tr>'+(i===0?'<td rowspan="'+t.rows.length+'" style="font-weight:700;vertical-align:top">'+esc(t.name)+'</td>':'')+'<td>'+esc(r.classes?.name||'—')+'</td><td>'+esc(r.class_sections?.name||'—')+'</td><td>'+esc(r.subjects?.name||'—')+'</td><td>'+status+'</td></tr>'}).join('')).join('')+'</tbody></table></div></div>'
 }
+async function openMarkOverrides(){
+  if(!_currentAssess)return
+  const a=_currentAssess
+  openSub('assessments','sub-assess-overrides')
+  const el=$('assessOverridesContent')
+  el.innerHTML='<div class="page-head"><div><h2>Max Marks Overrides — '+esc(a.name)+'</h2><p>Global default: Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'. Add an override only where a subject in a class differs.</p></div></div><div class="loading-row"><div class="spinner"></div></div>'
+
+  // Classes linked to THIS assessment (overrides only make sense for them).
+  const{data:acRows}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',a.assessment_id)
+  const classIds=[...new Set((acRows||[]).map(r=>r.class_id))]
+  const classes=(ALL_CLASSES||[]).filter(c=>classIds.includes(c.class_id))
+  const subjects=(ALL_SUBJECTS||[]).filter(s=>s.is_active)
+
+  // Existing overrides
+  const{data:ovs}=await sb.from('assessment_mark_overrides').select('*').eq('assessment_id',a.assessment_id)
+  window._markOverrides=ovs||[]
+
+  const clsOpts=classes.map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  const subOpts=subjects.map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
+  const clsName=id=>(ALL_CLASSES.find(c=>c.class_id===id)?.name)||'?'
+  const subName=id=>(ALL_SUBJECTS.find(s=>s.subject_id===id)?.name)||'?'
+
+  let html='<div class="card" style="max-width:720px;margin-bottom:16px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.05em;margin-bottom:10px">Add Override</div>'
+    +'<div class="form-row"><div class="fg"><label>Class *</label><select id="ov_class">'+(clsOpts||'<option value="">No classes linked</option>')+'</select></div>'
+    +'<div class="fg"><label>Subject *</label><select id="ov_subject">'+(subOpts||'<option value="">No subjects</option>')+'</select></div></div>'
+    +'<div class="form-row"><div class="fg"><label>Max Marks *</label><input type="number" id="ov_max" min="1" placeholder="e.g. 20"></div>'
+    +'<div class="fg"><label>Pass Marks *</label><input type="number" id="ov_pass" min="0" placeholder="e.g. 7"></div></div>'
+    +'<button class="btn btn-dark" onclick="saveMarkOverride()">Add Override</button></div>'
+
+  if((ovs||[]).length){
+    html+='<div class="card" style="max-width:720px"><div class="table-wrap"><table><thead><tr><th>Class</th><th>Subject</th><th>Max</th><th>Pass</th><th></th></tr></thead><tbody>'
+      +ovs.map(o=>'<tr><td style="font-weight:600">'+esc(clsName(o.class_id))+'</td><td>'+esc(subName(o.subject_id))+'</td><td class="mono">'+o.max_marks+'</td><td class="mono">'+o.pass_marks+'</td>'
+      +'<td><button class="btn btn-danger btn-xs" data-oid="'+o.override_id+'" onclick="deleteMarkOverride(this.dataset.oid)">Remove</button></td></tr>').join('')
+      +'</tbody></table></div></div>'
+  }else{
+    html+='<div style="color:var(--ink-faint);font-size:13px;padding:8px">No overrides yet — every subject uses the assessment default.</div>'
+  }
+  el.innerHTML=html
+}
+
+async function saveMarkOverride(){
+  const a=_currentAssess; if(!a)return
+  const classId=$('ov_class')?.value, subjectId=$('ov_subject')?.value
+  const max=parseInt($('ov_max')?.value), pass=parseInt($('ov_pass')?.value)
+  if(!classId||!subjectId){toast('Pick a class and subject','error');return}
+  if(!(max>0)){toast('Max marks must be a positive number','error');return}
+  if(!(pass>=0)||pass>max){toast('Pass marks must be between 0 and max','error');return}
+  const{error}=await sb.from('assessment_mark_overrides').upsert({
+    assessment_id:a.assessment_id, class_id:classId, subject_id:subjectId,
+    max_marks:max, pass_marks:pass
+  },{onConflict:'assessment_id,class_id,subject_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Override saved','success')
+  openMarkOverrides()
+}
+
+async function deleteMarkOverride(id){
+  const{error}=await sb.from('assessment_mark_overrides').delete().eq('override_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Override removed','success')
+  openMarkOverrides()
+}
+
 function openAddAssessmentModal(){
   const clsChecks=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" value="'+c.class_id+'" class="na_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(c.name)+'</span></label>').join('')
   openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Date</label><input type="date" id="na_date"></div><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div class="form-row"><div class="fg"><label>Max Marks</label><input id="na_maxmarks" type="number" value="100" min="1"></div><div class="fg"><label>Pass Marks</label><input id="na_passmarks" type="number" value="33" min="1"></div></div><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
