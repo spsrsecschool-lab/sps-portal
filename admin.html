@@ -209,6 +209,7 @@ tbody tr:hover td{background:var(--lav-50)}
 .loading-row{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--ink-faint);gap:10px;font-size:13px}
 .spinner{width:18px;height:18px;border:2px solid var(--lav-200);border-top-color:var(--indigo);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulseDot{0%{transform:scale(1);opacity:.5}70%{transform:scale(2.6);opacity:0}100%{transform:scale(2.6);opacity:0}}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;color:var(--ink-faint);text-align:center}
 .empty-state svg{width:36px;height:36px;stroke:var(--lav-300);fill:none;margin-bottom:10px}
 .empty-state p{font-size:12.5px;max-width:240px}
@@ -331,10 +332,18 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="grid-5" style="margin-bottom:18px" id="dashStats"><div class="loading-row" style="grid-column:1/-1"><div class="spinner"></div></div></div>
 
       <!-- TODAY AT SCHOOL -->
-      <div class="card" style="margin-bottom:18px">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <h3 style="margin:0">Today at School</h3>
-          <span id="todayDateLbl" style="font-size:12px;color:var(--ink-faint)"></span>
+      <div style="margin-bottom:18px;border-radius:var(--radius-lg);padding:20px 22px;position:relative;overflow:hidden;background:linear-gradient(135deg,var(--indigo-100) 0%,#F3F1FE 55%,var(--white) 100%);border:1px solid var(--indigo-100);box-shadow:0 6px 22px -12px rgba(91,79,232,.35)">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--indigo),var(--indigo-dark))"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:2px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="position:relative;display:inline-flex;width:9px;height:9px">
+              <span style="position:absolute;inset:0;border-radius:50%;background:var(--indigo);opacity:.4;animation:pulseDot 1.8s ease-out infinite"></span>
+              <span style="position:relative;width:9px;height:9px;border-radius:50%;background:var(--indigo)"></span>
+            </span>
+            <h3 style="margin:0;color:var(--indigo-dark);font-size:16px">Today at School</h3>
+            <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--indigo);background:var(--white);border:1px solid var(--indigo-100);padding:3px 8px;border-radius:999px">Live</span>
+          </div>
+          <span id="todayDateLbl" style="font-size:12px;color:var(--indigo-dark);font-weight:600"></span>
         </div>
         <div id="todayPanel"><div class="loading-row"><div class="spinner"></div></div></div>
       </div>
@@ -1005,6 +1014,25 @@ function subscribeRequests(){
     }).subscribe((s)=>console.log('[RT] Requests channel:',s))
 }
 
+// Keep the "Today at School" panel live: repaint it (only while the dashboard
+// is the visible page) whenever any table it reads changes. Debounced so a
+// burst of attendance marks triggers one repaint.
+let _todayDebounce=null
+function subscribeTodayPanel(){
+  const bump=()=>{
+    if(!$('page-dashboard')?.classList.contains('active'))return
+    clearTimeout(_todayDebounce)
+    _todayDebounce=setTimeout(()=>{if($('page-dashboard')?.classList.contains('active'))renderTodayPanel()},500)
+  }
+  sb.channel('admin_today')
+    .on('postgres_changes',{event:'*',schema:'public',table:'student_attendance'},bump)
+    .on('postgres_changes',{event:'*',schema:'public',table:'teacher_attendance'},bump)
+    .on('postgres_changes',{event:'*',schema:'public',table:'access_requests'},bump)
+    .on('postgres_changes',{event:'*',schema:'public',table:'activity_log'},bump)
+    .on('postgres_changes',{event:'*',schema:'public',table:'student_enrollments'},bump)
+    .subscribe((s)=>console.log('[RT] Today panel channel:',s))
+}
+
 function subscribeAdminMessages(adminId){
   if(!adminId)return
   const ch=sb.channel('admin_msgs_'+adminId)
@@ -1069,7 +1097,7 @@ SPS.ready().then(async()=>{
   await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths(); checkPendingRequests()
   // Start message notifications
   initAdminNotifications()
-  if(SPS.admin?.admin_id){subscribeAdminMessages(SPS.admin.admin_id);subscribeRequests();console.log('[RT] Admin subscribed:',SPS.admin.admin_id);if(typeof initPushNotifications==='function')initPushNotifications(sb,'admin',SPS.admin.admin_id)}
+  if(SPS.admin?.admin_id){subscribeAdminMessages(SPS.admin.admin_id);subscribeRequests();subscribeTodayPanel();console.log('[RT] Admin subscribed:',SPS.admin.admin_id);if(typeof initPushNotifications==='function')initPushNotifications(sb,'admin',SPS.admin.admin_id)}
   const cf=document.getElementById('ca_from'),ct=document.getElementById('ca_to')
   if(cf)cf.value=today(); if(ct)ct.value=today()
   document.getElementById('admSessionLabel').textContent=SESS?SESS.session_id:'—'
@@ -1337,7 +1365,7 @@ async function renderTodayPanel(){
   html+='</div></div>'
 
   // Recent activity feed
-  const{data:acts}=await sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(8)
+  const{data:acts}=await sb.from('activity_log').select('*').eq('user_type','admin').order('created_at',{ascending:false}).limit(8)
   html+='<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Recent activity</div>'
   if(acts&&acts.length){
     html+=acts.map(a=>'<div class="log-row"><div class="log-dot" style="background:var(--indigo)"></div><div><div class="txt">'+esc(a.message||a.action_type||'Activity')+'</div><div class="ts">'+rel(a.created_at)+'</div></div></div>').join('')
