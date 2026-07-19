@@ -329,6 +329,16 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page active" id="page-dashboard">
       <div class="page-head"><div><h2>Dashboard</h2><p>School overview for the current session</p></div></div>
       <div class="grid-5" style="margin-bottom:18px" id="dashStats"><div class="loading-row" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+
+      <!-- TODAY AT SCHOOL -->
+      <div class="card" style="margin-bottom:18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">Today at School</h3>
+          <span id="todayDateLbl" style="font-size:12px;color:var(--ink-faint)"></span>
+        </div>
+        <div id="todayPanel"><div class="loading-row"><div class="spinner"></div></div></div>
+      </div>
+
       <div class="grid-2" id="dashCards">
         <div class="card"><h3>Recent Messages</h3><div id="dashMessages"><div class="loading-row"><div class="spinner"></div></div></div>
           <button class="btn btn-soft btn-sm" style="margin-top:10px" onclick="goTo('messages',document.querySelector('.sb-item[onclick*=messages]'))">View All Messages</button>
@@ -1221,6 +1231,120 @@ async function renderDashboard(){
   $('dashMessages').innerHTML=msgs.length
     ?msgs.map(m=>'<div class="log-row"><div class="log-dot" style="background:'+(m.read_at?'var(--lav-300)':'var(--indigo)')+'"></div><div><div class="txt" style="font-weight:'+(m.read_at?400:700)+'">'+esc(m.subject||'(no subject)')+'</div><div class="ts">'+esc(m.sender_type==='teacher'?(sMap[m.sender_id]||m.sender_id):'Admin')+' · '+rel(m.sent_at)+'</div></div></div>').join('')
     :'<p style="font-size:12.5px;color:var(--ink-faint)">Inbox is empty.</p>'
+  renderTodayPanel()
+}
+
+// ═══════════ TODAY AT SCHOOL ═══════════
+async function renderTodayPanel(){
+  const el=$('todayPanel'); if(!el)return
+  const today=new Date(); const iso=today.toISOString().slice(0,10)
+  const lbl=$('todayDateLbl'); if(lbl)lbl.textContent=today.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})
+  const sid=SESS.session_id
+
+  // Active enrollments for the session, with class + section, so we can map
+  // today's attendance to classes and know who hasn't marked yet.
+  const{data:enr}=await sb.from('student_enrollments')
+    .select('enrollment_id,class_id,section_id,is_new_admission,readmission_date,classes(name),class_sections(name)')
+    .eq('session_id',sid).eq('status','active').eq('relieved',false)
+  const enrById={}; (enr||[]).forEach(e=>{enrById[e.enrollment_id]=e})
+  const totalStudents=(enr||[]).length
+
+  const[attR,tchAttR,reqR,tchAllR]=await Promise.all([
+    sb.from('student_attendance').select('enrollment_id,status').eq('date',iso),
+    sb.from('teacher_attendance').select('teacher_id,status').eq('date',iso),
+    sb.from('access_requests').select('*',{count:'exact',head:true}).eq('status','pending'),
+    sb.from('teachers').select('teacher_id',{count:'exact',head:true}).eq('is_active',true)
+  ])
+
+  // Only count attendance rows for students actually in this session.
+  const att=(attR.data||[]).filter(a=>enrById[a.enrollment_id])
+  const P=att.filter(a=>a.status==='P').length
+  const A=att.filter(a=>a.status==='A').length
+  const L=att.filter(a=>a.status==='L').length
+  const marked=att.length
+  const presentTotal=P+L   // late still counts as present in school
+  const pctPresent=marked?Math.round(presentTotal/marked*100):0
+
+  // Class-wise present/total, and which sections haven't marked at all.
+  const bySection={}   // section_id -> {class, sec, total, marked, present}
+  ;(enr||[]).forEach(e=>{
+    const k=e.section_id
+    if(!bySection[k])bySection[k]={cls:e.classes?.name||'?',sec:e.class_sections?.name||'?',total:0,marked:0,present:0}
+    bySection[k].total++
+  })
+  att.forEach(a=>{
+    const e=enrById[a.enrollment_id]; if(!e)return
+    const b=bySection[e.section_id]; if(!b)return
+    b.marked++; if(a.status==='P'||a.status==='L')b.present++
+  })
+  const sections=Object.values(bySection).sort((x,y)=>(x.cls+x.sec).localeCompare(y.cls+y.sec))
+  const notMarked=sections.filter(s=>s.marked===0)
+
+  // Staff present / absent today
+  const tchToday=tchAttR.data||[]
+  const staffPresent=tchToday.filter(t=>t.status==='Present').length
+  const staffAbsent=tchToday.filter(t=>t.status==='Absent').length
+  const staffTotal=tchAllR.count||0
+  const staffUnmarked=Math.max(0,staffTotal-tchToday.length)
+
+  // New admissions today (readmission_date = today, or is_new_admission set today —
+  // we key on readmission_date since that's a date column).
+  const newAdmToday=(enr||[]).filter(e=>e.readmission_date && String(e.readmission_date).slice(0,10)===iso).length
+
+  const pendingReq=reqR.count||0
+
+  // ── Render ──
+  const stat=(label,val,sub,color)=>'<div style="flex:1;min-width:120px;background:var(--lav-50);border:1px solid var(--line);border-radius:12px;padding:12px 14px">'
+    +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);font-weight:700">'+label+'</div>'
+    +'<div style="font-size:24px;font-weight:800;color:'+(color||'var(--ink)')+';margin-top:2px">'+val+'</div>'
+    +(sub?'<div style="font-size:11px;color:var(--ink-soft);margin-top:1px">'+sub+'</div>':'')+'</div>'
+
+  let html='<div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0 4px">'
+    +stat('Students Present',presentTotal+' / '+marked, pctPresent+'% of marked'+(marked<totalStudents?' · '+(totalStudents-marked)+' unmarked':''), pctPresent>=75?'var(--grn,#216F40)':'var(--warn,#E8A23D)')
+    +stat('Absent',A,'students today','#C0392B')
+    +stat('Staff Present',staffPresent+' / '+staffTotal, staffAbsent+' absent'+(staffUnmarked?' · '+staffUnmarked+' unmarked':''), 'var(--grn,#216F40)')
+    +stat('Pending Requests',pendingReq, pendingReq?'need your review':'all clear', pendingReq?'#C0392B':'var(--ink-soft)')
+    +stat('New Admissions',newAdmToday,'today')
+    +'</div>'
+
+  // Class-wise table
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">'
+  html+='<div><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Class-wise attendance</div>'
+  if(sections.length){
+    html+='<div style="max-height:280px;overflow-y:auto"><table style="width:100%;font-size:12.5px"><thead><tr>'
+      +'<th style="text-align:left">Class</th><th style="text-align:center">Present</th><th style="text-align:center">Total</th><th style="text-align:center">%</th></tr></thead><tbody>'
+    sections.forEach(s=>{
+      const pc=s.marked?Math.round(s.present/s.marked*100):null
+      const col=s.marked===0?'var(--ink-faint)':(pc>=75?'var(--grn,#216F40)':'var(--warn,#E8A23D)')
+      html+='<tr><td style="font-weight:600">'+esc(s.cls)+'-'+esc(s.sec)+'</td>'
+        +'<td style="text-align:center;font-family:var(--mono)">'+(s.marked?s.present:'—')+'</td>'
+        +'<td style="text-align:center;font-family:var(--mono)">'+s.total+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:'+col+'">'+(s.marked?pc+'%':'—')+'</td></tr>'
+    })
+    html+='</tbody></table></div>'
+  }else{html+='<p style="font-size:12px;color:var(--ink-faint)">No classes with students yet.</p>'}
+  html+='</div>'
+
+  // Not-yet-marked panel
+  html+='<div><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Attendance not marked yet</div>'
+  if(notMarked.length){
+    html+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
+      +notMarked.map(s=>'<span style="background:var(--warn-soft);color:#B77A1E;border:1px solid var(--warn);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600">'+esc(s.cls)+'-'+esc(s.sec)+'</span>').join('')
+      +'</div><div style="font-size:11px;color:var(--ink-faint);margin-top:8px">'+notMarked.length+' of '+sections.length+' sections pending.</div>'
+  }else if(sections.length){
+    html+='<div style="background:var(--grn-100);border:1px solid var(--grn);border-radius:10px;padding:12px;font-size:12.5px;color:var(--grn,#216F40);font-weight:600">✓ All sections have marked attendance today.</div>'
+  }else{html+='<p style="font-size:12px;color:var(--ink-faint)">—</p>'}
+  html+='</div></div>'
+
+  // Recent activity feed
+  const{data:acts}=await sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(8)
+  html+='<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Recent activity</div>'
+  if(acts&&acts.length){
+    html+=acts.map(a=>'<div class="log-row"><div class="log-dot" style="background:var(--indigo)"></div><div><div class="txt">'+esc(a.message||a.action_type||'Activity')+'</div><div class="ts">'+rel(a.created_at)+'</div></div></div>').join('')
+  }else{html+='<p style="font-size:12px;color:var(--ink-faint)">No recent activity logged.</p>'}
+  html+='</div>'
+
+  el.innerHTML=html
 }
 
 // ═══════════ MESSAGES ═══════════
