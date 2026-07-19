@@ -3713,7 +3713,8 @@ async function approveProfileRequest(requestId, teacherId){
     reviewed_by:SPS.admin?.admin_id,
     reviewed_at:new Date().toISOString()
   }).eq('request_id',requestId)
-  logActivity('teacher',teacherId,'profile_access','Admin granted you access to edit your profile')
+  const _ptch=await sb.from('teachers').select('full_name').eq('teacher_id',teacherId).maybeSingle()
+  logActivity('admin',SPS.admin?.admin_id,'profile_access','Granted '+(_ptch.data?.full_name||teacherId)+' access to edit their profile')
   await sb.from('messages').insert({
     sender_type:'admin',sender_id:SPS.admin?.admin_id,
     recipient_type:'teacher',recipient_id:teacherId,
