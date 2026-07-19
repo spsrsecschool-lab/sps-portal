@@ -590,7 +590,7 @@ async function loadClass(ct){
 
   // Students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -766,7 +766,7 @@ async function onRosterChanged(){
   clearTimeout(_rosterDebounce)
   _rosterDebounce=setTimeout(async()=>{
     const{data:students}=await sb.from('student_enrollments')
-      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
       .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
     const before=CLASS_STUDENTS.length
@@ -1414,7 +1414,7 @@ async function saveStudentProfile(){
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -1543,7 +1543,7 @@ async function saveStudentProfile(studentId){
   if(error){toast('Failed to save: '+error.message,'error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -1694,7 +1694,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -1834,35 +1834,74 @@ async function loadDues(){
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   if(!eids.length){emp(el,'No students in your class.');return}
 
-  // Real model: `payments` are bundles (payment_id, session_id, paid_at) and the
-  // per-month amounts live in `payment_allocations` (enrollment_id, head, amount,
-  // payment_date). head is a month name / 'Annual' / 'Prev Balance'. This mirrors
-  // the fee portal's Fee Matrix.
-  const[{data:fm},{data:bundles},{data:allocs},{data:wv}]=await Promise.all([
-    sb.from('fee_master').select('*').eq('session_id',sid).eq('class_id',MY_CLASS.class_id),
-    sb.from('payments').select('payment_id,paid_at,payment_date,session_id').eq('session_id',sid),
-    sb.from('payment_allocations').select('payment_id,enrollment_id,head,amount,payment_date').in('enrollment_id',eids),
-    sb.from('fee_waivers').select('enrollment_id,head,amount').in('enrollment_id',eids)
+  // ── Load everything needed to compute EFFECTIVE fees, incl. sibling discount.
+  // Sibling discount needs cross-class family data, so we fetch all enrollments
+  // of the families present in this class, plus fee_master for ALL classes and
+  // the class sort order (to find the 'youngest' sibling exactly like the fee
+  // portal does).
+  const myFamilyCodes=[...new Set(CLASS_STUDENTS.map(s=>s.family_code||s.students?.family_code).filter(Boolean))]
+
+  const[{data:fmAll},{data:clsRows},{data:famEnr},{data:bundles},{data:allocs},{data:wv}]=await Promise.all([
+    sb.from('fee_master').select('*').eq('session_id',sid),
+    sb.from('classes').select('class_id,name,sort_order').order('sort_order'),
+    myFamilyCodes.length
+      ? sb.from('student_enrollments')
+          .select('enrollment_id,class_id,stream_id,s_no,tuition_override,students!inner(family_code)')
+          .eq('session_id',sid).eq('status','active').eq('relieved',false)
+          .in('students.family_code',myFamilyCodes)
+      : Promise.resolve({data:[]}),
+    sb.from('payments').select('payment_id,session_id').eq('session_id',sid),
+    sb.from('payment_allocations').select('payment_id,enrollment_id,head,amount'),
+    sb.from('fee_waivers').select('enrollment_id,head,amount')
   ])
 
   const bundleById={}; (bundles||[]).forEach(b=>{bundleById[b.payment_id]=b})
 
-  // tuition/annual base for this class, keyed by stream ('_' = no stream)
-  const feeByStream={}; (fm||[]).forEach(r=>{feeByStream[r.stream_id||'_']={tuition:+r.monthly_tuition||0,annual:+r.annual_charge||0}})
-  const baseFor=stu=>feeByStream[stu.stream_id||'_']||feeByStream['_']||{tuition:0,annual:0}
-  // A student's real monthly tuition = per-student override if set, else the
-  // class/stream base. (Sibling discounts depend on cross-class family data the
-  // class teacher doesn't hold, so we don't apply them here — override + base
-  // covers the case you flagged where ₹700 IS the correct full fee.)
-  const tuitionFor=stu=>{
+  // Class order for sibling 'youngest' determination.
+  const clsOrder={}; (clsRows||[]).forEach((c,i)=>{clsOrder[c.class_id]=c.sort_order!=null?c.sort_order:i})
+  const clsIdxOf=cid=>clsOrder[cid]!=null?clsOrder[cid]:999
+
+  // fee_master lookup: class_id -> stream_id('_') -> {tuition, annual, sibDisc}
+  const FM={}; (fmAll||[]).forEach(r=>{
+    if(!FM[r.class_id])FM[r.class_id]={}
+    FM[r.class_id][r.stream_id||'_']={tuition:+r.monthly_tuition||0,annual:+r.annual_charge||0,sibDisc:+r.sibling_discount_flat||0}
+  })
+  const fmFor=(cid,sid2)=>(FM[cid]&&(FM[cid][sid2||'_']||FM[cid]['_']))||{tuition:0,annual:0,sibDisc:0}
+
+  // Group family enrollments by family_code for sibling counting.
+  const famByCode={}; (famEnr||[]).forEach(e=>{
+    const fc=e.students?.family_code; if(!fc)return
+    ;(famByCode[fc]=famByCode[fc]||[]).push(e)
+  })
+
+  // Effective monthly tuition for a student — mirrors the fee portal's rule:
+  //   override > sibling-discount(youngest of 3+) > class base.
+  function effTuition(stu){
     const ov=stu.tuition_override
-    if(ov!==null&&ov!==undefined&&ov!=='') return parseFloat(ov)||0
-    return baseFor(stu).tuition
+    if(ov!==null&&ov!==undefined&&ov!=='')return parseFloat(ov)||0
+    const base=fmFor(stu.class_id,stu.stream_id).tuition
+    const fc=stu.family_code||stu.students?.family_code
+    if(!fc)return base
+    const sibs=famByCode[fc]||[]
+    if(sibs.length<3)return base
+    // youngest = last after sort by class desc, then s_no asc
+    const sorted=[...sibs].sort((a,b)=>{
+      const d=clsIdxOf(b.class_id)-clsIdxOf(a.class_id); if(d)return d
+      const an=(a.s_no==null||a.s_no==='')?Infinity:parseInt(a.s_no)||0
+      const bn=(b.s_no==null||b.s_no==='')?Infinity:parseInt(b.s_no)||0
+      return an-bn
+    })
+    const youngest=sorted[sorted.length-1]
+    if(youngest && youngest.enrollment_id===stu.enrollment_id){
+      const flat=fmFor(stu.class_id,stu.stream_id).sibDisc
+      return (flat>0)?flat:base
+    }
+    return base
   }
-  const annualFor=stu=>{
+  function effAnnual(stu){
     const ov=stu.annual_override
-    if(ov!==null&&ov!==undefined&&ov!=='') return parseFloat(ov)||0
-    return baseFor(stu).annual
+    if(ov!==null&&ov!==undefined&&ov!=='')return parseFloat(ov)||0
+    return fmFor(stu.class_id,stu.stream_id).annual
   }
 
   // Build per-(enrollment, head) total paid
@@ -1875,6 +1914,12 @@ async function loadDues(){
   })
   const waived={}; (wv||[]).forEach(w=>{waived[w.enrollment_id+'|'+w.head]=(waived[w.enrollment_id+'|'+w.head]||0)+(+w.amount||0)})
 
+  // Only show months up to the current one (when viewing the current session).
+  // Future months render blank — no Paid/Unpaid for months that haven't arrived.
+  const now2=new Date(), startYr=parseInt(sid.split('-')[0]||now2.getFullYear())
+  const isCurrentSession=(now2.getFullYear()===startYr&&now2.getMonth()>=3)||(now2.getFullYear()===startYr+1&&now2.getMonth()<3)
+  const curIdx=(now2.getMonth()-3+12)%12   // April=0 … Mar=11
+  const monthsToStatus = isCurrentSession ? (curIdx+1) : 12   // how many months get a status
   const months=FEE_MONTHS
 
   // Status pill for a given paid vs net-due.
@@ -1899,15 +1944,22 @@ async function loadDues(){
 
   const rows=sorted.map(s=>{
     const eid=s.enrollment_id
-    const mt=tuitionFor(s), ann=annualFor(s)
-    // Annual cell
+    const mt=effTuition(s), ann=effAnnual(s)
+    // Annual cell — zero annual charge counts as Paid.
     const annPaid=paidByKey[eid+'|'+FEE_HEAD_ANNUAL]||0
     const annNet=Math.max(0,ann-(waived[eid+'|'+FEE_HEAD_ANNUAL]||0))
-    const annCell='<td class="matrix-cell '+(annPaid<=0?(annNet<=0?'cell-waived':'cell-unpaid'):(annPaid>=annNet?'cell-paid':'cell-partial'))+'" style="background:var(--lav-50);font-weight:700;color:'+(annPaid<=0?(annNet<=0?'var(--ink-faint)':'#C0392B'):(annPaid>=annNet?'var(--grn)':'var(--warn)'))+'">'+(annPaid<=0?(annNet<=0?'—':'Unpaid'):(annPaid>=annNet?'Paid':'Partial'))+'</td>'
-    // Month cells
-    const cells=months.map(m=>{
+    let annStatus,annClsC,annColor
+    if(annNet<=0){annStatus='Paid';annClsC='cell-paid';annColor='var(--grn)'}
+    else if(annPaid<=0){annStatus='Unpaid';annClsC='cell-unpaid';annColor='#C0392B'}
+    else if(annPaid>=annNet){annStatus='Paid';annClsC='cell-paid';annColor='var(--grn)'}
+    else{annStatus='Partial';annClsC='cell-partial';annColor='var(--warn)'}
+    const annCell='<td class="matrix-cell '+annClsC+'" style="background:var(--lav-50);font-weight:700;color:'+annColor+'">'+annStatus+'</td>'
+    // Month cells — future months blank; zero net-due counts as Paid.
+    const cells=months.map((m,idx)=>{
+      if(idx>=monthsToStatus) return '<td class="matrix-cell" style="color:var(--ink-faint)"></td>'
       const paid=paidByKey[eid+'|'+m]||0
       const net=Math.max(0,mt-(waived[eid+'|'+m]||0))
+      if(net<=0) return '<td class="matrix-cell cell-paid" style="color:var(--grn);font-weight:700">Paid</td>'
       return cellFor(paid,net)
     }).join('')
     return '<tr>'
