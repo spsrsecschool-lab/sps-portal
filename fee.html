@@ -826,24 +826,36 @@ async function loadAll(){
     });
 
     // ── Exam & misc fees (separate from tuition allocation) ──────────────
-    // Exam fees: unlocked ones, mapped to the classes of their assessment.
-    const{data:efRows}=await sb.from('exam_fees').select('*,assessments(name)').eq('is_collection_unlocked',true);
-    const efIds=(efRows||[]).map(f=>f.assessment_id);
-    const{data:acRows}=efIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',efIds):{data:[]};
-    const classesByAssess={};(acRows||[]).forEach(r=>{(classesByAssess[r.assessment_id]=classesByAssess[r.assessment_id]||[]).push(r.class_id)});
-    examFees=(efRows||[]).map(f=>({...f,_assessmentName:f.assessments?.name||'Assessment',_classIds:classesByAssess[f.assessment_id]||[]}));
+    // Isolated in its own try/catch: these are additive, so a failure here must
+    // NOT block the core fee portal from loading and rendering.
+    try{
+      // Exam fees: unlocked ones. Fetch WITHOUT an embed (the assessments embed
+      // can 400 if the FK/schema-cache relationship isn't set), then fetch names
+      // separately by id.
+      const{data:efRows,error:efErr}=await sb.from('exam_fees').select('*').eq('is_collection_unlocked',true);
+      if(efErr)throw efErr;
+      const efIds=[...new Set((efRows||[]).map(f=>f.assessment_id).filter(Boolean))];
+      const{data:acRows}=efIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',efIds):{data:[]};
+      const{data:asmtRows}=efIds.length?await sb.from('assessments').select('assessment_id,name').in('assessment_id',efIds):{data:[]};
+      const asmtName={};(asmtRows||[]).forEach(a=>{asmtName[a.assessment_id]=a.name});
+      const classesByAssess={};(acRows||[]).forEach(r=>{(classesByAssess[r.assessment_id]=classesByAssess[r.assessment_id]||[]).push(r.class_id)});
+      examFees=(efRows||[]).map(f=>({...f,_assessmentName:asmtName[f.assessment_id]||'Assessment',_classIds:classesByAssess[f.assessment_id]||[]}));
 
-    // Misc fees: unlocked ones for this session (already carry class_id/section_id).
-    const{data:mfRows}=await sb.from('misc_fees').select('*').eq('session_id',viewSession||'').eq('is_collection_unlocked',true);
-    miscFees=mfRows||[];
+      // Misc fees: unlocked ones for this session (already carry class_id/section_id).
+      const{data:mfRows}=await sb.from('misc_fees').select('*').eq('session_id',viewSession||'').eq('is_collection_unlocked',true);
+      miscFees=mfRows||[];
 
-    // Payment status for both (single source of truth, shared with teachers).
-    const efPayIds=examFees.map(f=>f.exam_fee_id);
-    const{data:efp}=efPayIds.length?await sb.from('exam_fee_payments').select('*').in('exam_fee_id',efPayIds):{data:[]};
-    examFeePays={};(efp||[]).forEach(p=>{examFeePays[p.exam_fee_id+'_'+p.enrollment_id]=p});
-    const mfPayIds=miscFees.map(f=>f.misc_fee_id);
-    const{data:mfp}=mfPayIds.length?await sb.from('misc_fee_payments').select('*').in('misc_fee_id',mfPayIds):{data:[]};
-    miscFeePays={};(mfp||[]).forEach(p=>{miscFeePays[p.misc_fee_id+'_'+p.enrollment_id]=p});
+      // Payment status for both (single source of truth, shared with teachers).
+      const efPayIds=examFees.map(f=>f.exam_fee_id);
+      const{data:efp}=efPayIds.length?await sb.from('exam_fee_payments').select('*').in('exam_fee_id',efPayIds):{data:[]};
+      examFeePays={};(efp||[]).forEach(p=>{examFeePays[p.exam_fee_id+'_'+p.enrollment_id]=p});
+      const mfPayIds=miscFees.map(f=>f.misc_fee_id);
+      const{data:mfp}=mfPayIds.length?await sb.from('misc_fee_payments').select('*').in('misc_fee_id',mfPayIds):{data:[]};
+      miscFeePays={};(mfp||[]).forEach(p=>{miscFeePays[p.misc_fee_id+'_'+p.enrollment_id]=p});
+    }catch(exErr){
+      console.warn('[fee] exam/misc fee load failed (non-fatal):',exErr);
+      examFees=[];miscFees=[];examFeePays={};miscFeePays={};
+    }
 
     // Activity log
     const {data:al}=await sb.from('activity_log').select('*').eq('action_type','fee')
