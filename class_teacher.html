@@ -167,6 +167,16 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 .bc-dismiss{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:20px;line-height:1;padding:0 4px;flex-shrink:0}
 .bc-dismiss:hover{color:var(--ink)}
 
+
+  /* Fee matrix (Student Dues) — mirrors the fee portal */
+  .matrix-cell{text-align:center;font-family:var(--mono);font-size:11px;min-width:110px;padding:6px 8px!important;vertical-align:middle!important}
+  .matrix-cell .pay-amt{font-weight:600;font-size:11.5px;color:var(--ink)}
+  .matrix-cell .pay-date{color:var(--ink-faint);font-size:9px}
+  .matrix-cell .payment-row{display:flex;justify-content:center;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .matrix-cell .payment-row:last-child{border-bottom:none}
+  .cell-paid{background:rgba(46,166,90,.14)} .cell-partial{background:rgba(232,162,61,.16)} .cell-unpaid{background:rgba(214,69,69,.08)} .cell-waived{background:rgba(232,162,61,.10)}
+  .dm-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700}
+  .dm-green{background:var(--grn-100);color:var(--grn)} .dm-yellow{background:var(--warn-soft);color:var(--warn)} .dm-red{background:#FBE9E9;color:#C0392B}
 </style>
 </head>
 <body>
@@ -711,16 +721,20 @@ function subscribeProfileAccess(){
   // recorded in the fee portal. The payments table has no class_id, so we
   // check whether the changed row's enrollment belongs to this class before
   // repainting (debounced), and only if the dues tab is actually open.
+  const _onPay=(payload)=>{
+    const row=payload.new||payload.old||{}
+    if(row.session_id && SESS && row.session_id!==SESS.session_id) return
+    if(_currentTab!=='dues') return  // only repaint if the matrix is showing
+    // payment_allocations rows carry enrollment_id; payments (bundle) may not.
+    const eid=row.enrollment_id
+    if(eid && !CLASS_STUDENTS.some(s=>s.enrollment_id===eid)) return
+    clearTimeout(_duesDebounce)
+    _duesDebounce=setTimeout(()=>{loadDues()},400)
+  }
   _payChan=sb.channel('ct_pay_'+MY_CLASS.section_id)
-    .on('postgres_changes',{event:'*',schema:'public',table:'payments'},payload=>{
-      const row=payload.new||payload.old||{}
-      if(row.session_id && SESS && row.session_id!==SESS.session_id) return
-      const eid=row.enrollment_id
-      if(!eid || !CLASS_STUDENTS.some(s=>s.enrollment_id===eid)) return  // not my class
-      if(_currentTab!=='dues') return  // only repaint if the matrix is showing
-      clearTimeout(_duesDebounce)
-      _duesDebounce=setTimeout(()=>{loadDues()},400)
-    }).subscribe((status)=>console.log('[RT] CT payments channel:',status))
+    .on('postgres_changes',{event:'*',schema:'public',table:'payment_allocations'},_onPay)
+    .on('postgres_changes',{event:'*',schema:'public',table:'payments'},_onPay)
+    .subscribe((status)=>console.log('[RT] CT payments channel:',status))
 
   _ctChan=sb.channel('ct_access_'+MY_CLASS.map_id)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'class_teacher_map',filter:'map_id=eq.'+MY_CLASS.map_id},payload=>{
@@ -1810,6 +1824,10 @@ async function loadAssessMarks(){
 // ═══════════ STUDENT DUES ═══════════
 const FEE_MONTHS=['April','May','June','July','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
 const FEE_HEAD_ANNUAL='Annual'
+const FEE_HEAD_PREV='Prev Balance'
+
+function dmINR(n){return '₹'+(Math.round((n||0)*100)/100).toLocaleString('en-IN')}
+function dmDate(iso){if(!iso)return'—';const d=new Date(iso);if(isNaN(d))return'—';return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'})}
 
 async function loadDues(){
   const el=$('duesWrap')
@@ -1818,66 +1836,89 @@ async function loadDues(){
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   if(!eids.length){emp(el,'No students in your class.');return}
 
-  // Fee master (tuition/annual per class+stream) + payments + waivers.
-  const[{data:fm},{data:pays},{data:wv}]=await Promise.all([
+  // Real model: `payments` are bundles (payment_id, session_id, paid_at) and the
+  // per-month amounts live in `payment_allocations` (enrollment_id, head, amount,
+  // payment_date). head is a month name / 'Annual' / 'Prev Balance'. This mirrors
+  // the fee portal's Fee Matrix.
+  const[{data:fm},{data:bundles},{data:allocs},{data:wv}]=await Promise.all([
     sb.from('fee_master').select('*').eq('session_id',sid).eq('class_id',MY_CLASS.class_id),
-    sb.from('payments').select('enrollment_id,month,tuition,annual').eq('session_id',sid).in('enrollment_id',eids),
+    sb.from('payments').select('payment_id,paid_at,payment_date,session_id').eq('session_id',sid),
+    sb.from('payment_allocations').select('payment_id,enrollment_id,head,amount,payment_date').in('enrollment_id',eids),
     sb.from('fee_waivers').select('enrollment_id,head,amount').in('enrollment_id',eids)
   ])
+
+  const bundleById={}; (bundles||[]).forEach(b=>{bundleById[b.payment_id]=b})
 
   // tuition/annual for this class, keyed by stream ('_' = no stream)
   const feeByStream={}; (fm||[]).forEach(r=>{feeByStream[r.stream_id||'_']={tuition:+r.monthly_tuition||0,annual:+r.annual_charge||0}})
   const feeFor=stu=>feeByStream[stu.stream_id||'_']||feeByStream['_']||{tuition:0,annual:0}
 
-  // paid sums: tuition per (eid,month); annual per eid
-  const tPaid={}, aPaid={}
-  ;(pays||[]).forEach(p=>{
-    tPaid[p.enrollment_id+'|'+p.month]=(tPaid[p.enrollment_id+'|'+p.month]||0)+(+p.tuition||0)
-    aPaid[p.enrollment_id]=(aPaid[p.enrollment_id]||0)+(+p.annual||0)
+  // Build per-(enrollment, head) list of payment rows {amt, date}
+  const payByKey={}   // eid|head -> [{amt,date}]
+  ;(allocs||[]).forEach(a=>{
+    const b=bundleById[a.payment_id]||{}
+    // Skip allocations whose bundle isn't in this session (defensive).
+    if(b.session_id && b.session_id!==sid) return
+    const date=b.paid_at || (a.payment_date?a.payment_date+'T00:00:00':(b.payment_date?b.payment_date+'T00:00:00':null))
+    const key=a.enrollment_id+'|'+a.head
+    ;(payByKey[key]=payByKey[key]||[]).push({amt:+a.amount||0,date})
   })
-  // waivers: per (eid,head)
   const waived={}; (wv||[]).forEach(w=>{waived[w.enrollment_id+'|'+w.head]=(waived[w.enrollment_id+'|'+w.head]||0)+(+w.amount||0)})
 
-  // Active months: up to the current month if viewing the current session.
-  const now=new Date(), sessStartYr=parseInt((sid.split('-')[0]||now.getFullYear()))
-  let endIdx=12
-  // Academic year starts in April. Compute how many months are active so far.
-  const mIdx=(now.getMonth()-3+12)%12 // April=0 … Mar=11
-  const isCurrent=(now.getFullYear()===sessStartYr && now.getMonth()>=3)||(now.getFullYear()===sessStartYr+1 && now.getMonth()<3)
-  if(isCurrent)endIdx=mIdx+1
-  const activeMonths=FEE_MONTHS.slice(0,Math.max(1,endIdx))
+  // Active months: April → current month if viewing the current session.
+  const now=new Date(), sessStartYr=parseInt(sid.split('-')[0]||now.getFullYear())
+  const isCurrent=(now.getFullYear()===sessStartYr&&now.getMonth()>=3)||(now.getFullYear()===sessStartYr+1&&now.getMonth()<3)
+  // Show ALL 12 months (as requested); active-month logic only affects nothing here.
+  const months=FEE_MONTHS
 
-  // Build the matrix. A month cell is PAID if net tuition due <= 0.
-  // Annual is a single status column. No previous-balance shown to teacher.
-  let html='<div class="card" style="overflow-x:auto"><h3>Fee Status — '+esc(MY_CLASS.classes?.name||'')+'-'+esc(MY_CLASS.class_sections?.name||'')+'</h3>'
-    +'<p style="font-size:12px;color:var(--ink-soft);margin:4px 0 12px">Paid / Unpaid per month. This does not show amounts or previous-year balances.</p>'
-    +'<table style="min-width:900px"><thead><tr>'
-    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
+  let head='<th class="sticky-col" style="left:0;min-width:50px">S.No</th>'
     +'<th class="sticky-col" style="left:50px;min-width:150px">Name</th>'
-    +activeMonths.map(m=>'<th style="text-align:center;white-space:nowrap;font-size:11px">'+m+'</th>').join('')
-    +'<th style="text-align:center;font-size:11px">Annual</th></tr></thead><tbody>'
+    +'<th class="sticky-col" style="left:200px;min-width:130px">Father\'s Name</th>'
+    +months.map(m=>'<th style="min-width:120px;text-align:center">'+m+'</th>').join('')
+    +'<th style="min-width:120px;text-align:center">Annual</th>'
 
-  const sorted=[...CLASS_STUDENTS].sort((a,b)=>(a.roll_no||9999)-(b.roll_no||9999))
-  sorted.forEach(s=>{
-    const f=feeFor(s), eid=s.enrollment_id
-    html+='<tr><td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no!=null?String(s.roll_no):'—')+'</td>'
-      +'<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
-    activeMonths.forEach(m=>{
-      const due=Math.max(0,(f.tuition-(waived[eid+'|'+m]||0))-(tPaid[eid+'|'+m]||0))
-      const paid=due<=0
-      html+='<td style="text-align:center">'+(paid
-        ?'<span class="pill pill-grn" style="font-size:10px">Paid</span>'
-        :'<span class="pill pill-danger" style="font-size:10px">Unpaid</span>')+'</td>'
-    })
-    // Annual
-    const annDue=Math.max(0,(f.annual-(waived[eid+'|'+FEE_HEAD_ANNUAL]||0))-(aPaid[eid]||0))
-    html+='<td style="text-align:center">'+(annDue<=0
-      ?'<span class="pill pill-grn" style="font-size:10px">Paid</span>'
-      :'<span class="pill pill-danger" style="font-size:10px">Unpaid</span>')+'</td>'
-    html+='</tr>'
+  const sorted=[...CLASS_STUDENTS].sort((a,b)=>{
+    const x=parseInt(String(a.s_no).replace(/\D/g,''))||9999, y=parseInt(String(b.s_no).replace(/\D/g,''))||9999
+    return x-y
   })
-  html+='</tbody></table></div>'
-  el.innerHTML=html
+
+  const rows=sorted.map(s=>{
+    const f=feeFor(s), eid=s.enrollment_id
+    const cells=months.map(m=>{
+      const pays=payByKey[eid+'|'+m]||[]
+      const paid=pays.reduce((sum,p)=>sum+p.amt,0)
+      const wvd=waived[eid+'|'+m]||0
+      const net=Math.max(0,f.tuition-wvd)
+      const cls2=paid===0?(net===0?'cell-waived':'cell-unpaid'):(paid>=net?'cell-paid':'cell-partial')
+      const content=pays.length
+        ? pays.map(p=>'<div class="payment-row"><span class="pay-amt">'+dmINR(p.amt)+'</span><span class="pay-date">'+dmDate(p.date)+'</span></div>').join('')
+        : '<span style="color:var(--ink-faint)">—</span>'
+      return '<td class="matrix-cell '+cls2+'">'+content+'</td>'
+    }).join('')
+    // Annual
+    const annPays=payByKey[eid+'|'+FEE_HEAD_ANNUAL]||[]
+    const annPaid=annPays.reduce((sum,p)=>sum+p.amt,0)
+    const annWv=waived[eid+'|'+FEE_HEAD_ANNUAL]||0
+    const annNet=Math.max(0,f.annual-annWv)
+    const annCls=annPaid===0?(annNet===0?'cell-waived':'cell-unpaid'):(annPaid>=annNet?'cell-paid':'cell-partial')
+    const annContent=annPays.length
+      ? annPays.map(p=>'<div class="payment-row"><span class="pay-amt">'+dmINR(p.amt)+'</span><span class="pay-date">'+dmDate(p.date)+'</span></div>').join('')
+      : '<span style="color:var(--ink-faint)">—</span>'
+    return '<tr>'
+      +'<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.s_no!=null&&String(s.s_no).trim()!==''?('#'+s.s_no):'—')+'</td>'
+      +'<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'<br><span style="font-size:9px;color:var(--ink-faint);font-weight:500">'+esc(s.family_code||s.students?.family_code||'')+'</span></td>'
+      +'<td class="sticky-col" style="left:200px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+      +cells
+      +'<td class="matrix-cell '+annCls+'">'+annContent+'</td>'
+      +'</tr>'
+  }).join('')
+
+  el.innerHTML='<div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    +'<span class="dm-pill dm-green">■ Paid</span><span class="dm-pill dm-yellow">■ Partial</span><span class="dm-pill dm-red">■ Unpaid</span>'
+    +'<span style="margin-left:auto;font-size:12px;color:var(--ink-soft)">Class '+esc(MY_CLASS.classes?.name||'')+'-'+esc(MY_CLASS.class_sections?.name||'')+' · '+sorted.length+' students</span>'
+    +'</div>'
+    +'<div style="font-size:11.5px;color:var(--ink-faint);margin-bottom:10px">Shows monthly tuition and annual status. Previous-year balances are not shown here.</div>'
+    +'<div class="card" style="overflow-x:auto;padding:0"><table style="min-width:1100px;border-collapse:collapse"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>'
 }
 
 // ═══════════ EXAM FEE COLLECTION ═══════════
