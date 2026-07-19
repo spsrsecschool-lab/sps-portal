@@ -1697,6 +1697,19 @@ async function loadAssessMarks(){
   const uniqueSubs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
   if(!uniqueSubs.length){emp(el,'No subjects configured for your class.');return}
 
+  // Per-subject max/pass overrides for this assessment + my class. Falls back
+  // to the assessment default for any subject without an override.
+  const _defMax=assess?.max_marks||100, _defPass=assess?.pass_marks||Math.round(_defMax*0.33)
+  let _ovMap={}
+  try{
+    const{data:_ovs}=await sb.from('assessment_mark_overrides')
+      .select('subject_id,max_marks,pass_marks')
+      .eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
+    ;(_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  }catch(e){}
+  const subMax=sid=>_ovMap[sid]?_ovMap[sid].max:_defMax
+  const subPass=sid=>_ovMap[sid]?_ovMap[sid].pass:_defPass
+
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   // Get marks for all students in this assessment
   const{data:marks}=await sb.from('marks').select('*').in('enrollment_id',eids).eq('assessment_id',assessId)
@@ -1737,7 +1750,7 @@ async function loadAssessMarks(){
     +'<th class="sticky-col" style="left:190px;min-width:130px">Father\'s Name</th>'
   uniqueSubs.forEach(m=>{
     html+='<th style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')
-      +(assess?.max_marks?'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+assess.max_marks+'</span>':'')
+      +'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+subMax(m.subject_id)+'</span>'
       +'</th>'
   })
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att. Days</th><th style="text-align:center">Att. %</th></tr></thead><tbody>'
@@ -1748,7 +1761,7 @@ async function loadAssessMarks(){
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
       if(mk?.is_absent)hasAbsent=true
-      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained);possible+=(assess?.max_marks||100)}
+      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained);possible+=subMax(m.subject_id)}
     })
     const pct=!hasAbsent&&possible>0?Math.round(total/possible*100):null
     const attInfo=attMap[s.enrollment_id]||{}
@@ -1760,8 +1773,7 @@ async function loadAssessMarks(){
     html+='<td class="sticky-col" style="left:190px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
-      const maxM=assess?.max_marks||100
-      const pass=Math.round(maxM*0.33)
+      const pass=subPass(m.subject_id)
       if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
       if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';return}
       const fail=parseFloat(mk.marks_obtained)<pass
