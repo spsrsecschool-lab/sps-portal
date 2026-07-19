@@ -3455,12 +3455,20 @@ async function approveMarksRequest(requestId){
   }).eq('request_id',requestId)
   logActivity('teacher',req.teacher_id,'marks_unlock','Admin granted you access to enter/edit marks')
 
-  // Notify teacher
+  // Notify teacher — with human-readable assessment / class / subject names,
+  // not raw UUIDs.
+  const _asmt=await sb.from('assessments').select('name').eq('assessment_id',req.assessment_id).maybeSingle()
+  const _sec=req.section_id?await sb.from('class_sections').select('name').eq('section_id',req.section_id).maybeSingle():{data:null}
+  const asmtNm=_asmt.data?.name||'assessment'
+  const clsNm=(ALL_CLASSES.find(c=>c.class_id===req.class_id)?.name)||'?'
+  const subNm=(ALL_SUBJECTS.find(s=>s.subject_id===req.subject_id)?.name)||'?'
+  const secNm=_sec.data?.name||''
+  const clsSec=clsNm+(secNm?'-'+secNm:'')
   await sb.from('messages').insert({
     sender_type:'admin',sender_id:SPS.admin?.admin_id,
     recipient_type:'teacher',recipient_id:req.teacher_id,
     subject:'Marks Edit Access Approved',
-    body:'Your request to edit marks has been approved.\nAssessment: '+req.assessment_id+'\nYou can now edit and submit marks. Access will be locked after submission.',
+    body:'Your request to edit marks has been approved.\n\nAssessment: '+asmtNm+'\nClass: '+clsSec+'\nSubject: '+subNm+'\n\nYou can now edit and submit marks. Access will be locked after submission.',
     message_type:'system_notification',sent_at:new Date().toISOString()
   })
 
