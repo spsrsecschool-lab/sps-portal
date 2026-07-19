@@ -1498,14 +1498,9 @@ async function toggleTeacher(id,active){confirmAct((active?'Deactivate':'Activat
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
   if(!SESS)return; ldg($('studentBody'))
-  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).order('roll_no',{nullsFirst:true}).limit(500)
+  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).order('s_no',{nullsFirst:false}).limit(1000)
   if(error){toast('Failed to load students','error');console.error('[loadStudents] error:',error);return}
   _studentsRaw=data||[]
-  // Diagnostic: rows whose class/section embed came back null would render blank
-  // or behave oddly. Log count + any broken joins so we can see the vanish.
-  const _broken=(_studentsRaw||[]).filter(e=>!e.classes||!e.class_sections)
-  console.log('[loadStudents] fetched',(_studentsRaw||[]).length,'rows;',_broken.length,'with a null class/section join')
-  if(_broken.length)console.warn('[loadStudents] broken-join rows:',_broken.map(e=>({name:e.students?.full_name,class_id:e.class_id,section_id:e.section_id,cls:e.classes,sec:e.class_sections})))
   const uniq=[...new Map(_studentsRaw.map(e=>[e.classes?.class_id,e.classes?.name])).entries()]
   $('studentClassFilter').innerHTML='<option value="">All Classes</option>'+uniq.map(([id,n])=>'<option value="'+id+'">'+esc(n||'')+'</option>').join('')
   filterStudents()
@@ -1516,7 +1511,7 @@ function filterStudents(){
   const rows=(_studentsRaw||[]).filter(e=>{const st=e.students;return(!s||st?.full_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))&&(!cls||e.classes?.class_id===cls)&&(!stat||e.status===stat)&&(!streamF||e.stream_id===streamF)})
   const body=$('studentBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="9"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/></svg><p>No students found.</p></div></td></tr>';return}
-  body.innerHTML=rows.slice(0,250).map(e=>{const s=e.students;return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
+  body.innerHTML=rows.slice(0,1000).map(e=>{const s=e.students;return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
 }
 async function openProfile(enrollId){
   _profileEnrollId=enrollId; $('profileModal').classList.add('show')
