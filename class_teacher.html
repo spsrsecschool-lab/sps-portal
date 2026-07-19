@@ -461,6 +461,8 @@ let sb, TEACHER=null, SESS=null, MY_CLASS=null
 let MY_CLASSES=[]   // all class-teacher rows for this teacher this session
 let _ctChan=null    // realtime channel, re-subscribed per class
 let _enrChan=null   // enrollment (section-move) channel, re-subscribed per class
+let _payChan=null   // payments channel, so the dues matrix updates live
+let _duesDebounce=null  // debounce for live dues repaint
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _currentTab='dashboard'   // which tab is open, so class-switch can refresh it
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
@@ -690,6 +692,7 @@ function subscribeProfileAccess(){
   // would fire on any of them and clobber the wrong MY_CLASS. Filter by map_id.
   if(_ctChan){try{sb.removeChannel(_ctChan)}catch(e){}_ctChan=null}
   if(_enrChan){try{sb.removeChannel(_enrChan)}catch(e){}_enrChan=null}
+  if(_payChan){try{sb.removeChannel(_payChan)}catch(e){}_payChan=null}
 
   // Watch section moves within this class so a change made elsewhere (another
   // device, or admin) reflects live: students arriving into or leaving the
@@ -703,6 +706,21 @@ function subscribeProfileAccess(){
       if(wasHere===isHere) return   // no cross-section change relevant to us
       onRosterChanged()
     }).subscribe((status)=>console.log('[RT] CT enrollment channel:',status))
+
+  // Watch payments so the Student Dues matrix updates live when a fee is
+  // recorded in the fee portal. The payments table has no class_id, so we
+  // check whether the changed row's enrollment belongs to this class before
+  // repainting (debounced), and only if the dues tab is actually open.
+  _payChan=sb.channel('ct_pay_'+MY_CLASS.section_id)
+    .on('postgres_changes',{event:'*',schema:'public',table:'payments'},payload=>{
+      const row=payload.new||payload.old||{}
+      if(row.session_id && SESS && row.session_id!==SESS.session_id) return
+      const eid=row.enrollment_id
+      if(!eid || !CLASS_STUDENTS.some(s=>s.enrollment_id===eid)) return  // not my class
+      if(_currentTab!=='dues') return  // only repaint if the matrix is showing
+      clearTimeout(_duesDebounce)
+      _duesDebounce=setTimeout(()=>{loadDues()},400)
+    }).subscribe((status)=>console.log('[RT] CT payments channel:',status))
 
   _ctChan=sb.channel('ct_access_'+MY_CLASS.map_id)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'class_teacher_map',filter:'map_id=eq.'+MY_CLASS.map_id},payload=>{
@@ -1790,12 +1808,76 @@ async function loadAssessMarks(){
 }
 
 // ═══════════ STUDENT DUES ═══════════
+const FEE_MONTHS=['April','May','June','July','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
+const FEE_HEAD_ANNUAL='Annual'
+
 async function loadDues(){
   const el=$('duesWrap')
   ldg(el,'Loading fee data…')
-  // Fee data comes from fee portal — check app_data or misc_fees/payments
-  // Show a placeholder with note if fee portal not yet integrated
-  emp(el,'Student dues data comes from the Fee Portal. Fee portal integration will be available once the fee portal is built for this session.')
+  const sid=SESS?.session_id||''
+  const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  if(!eids.length){emp(el,'No students in your class.');return}
+
+  // Fee master (tuition/annual per class+stream) + payments + waivers.
+  const[{data:fm},{data:pays},{data:wv}]=await Promise.all([
+    sb.from('fee_master').select('*').eq('session_id',sid).eq('class_id',MY_CLASS.class_id),
+    sb.from('payments').select('enrollment_id,month,tuition,annual').eq('session_id',sid).in('enrollment_id',eids),
+    sb.from('fee_waivers').select('enrollment_id,head,amount').in('enrollment_id',eids)
+  ])
+
+  // tuition/annual for this class, keyed by stream ('_' = no stream)
+  const feeByStream={}; (fm||[]).forEach(r=>{feeByStream[r.stream_id||'_']={tuition:+r.monthly_tuition||0,annual:+r.annual_charge||0}})
+  const feeFor=stu=>feeByStream[stu.stream_id||'_']||feeByStream['_']||{tuition:0,annual:0}
+
+  // paid sums: tuition per (eid,month); annual per eid
+  const tPaid={}, aPaid={}
+  ;(pays||[]).forEach(p=>{
+    tPaid[p.enrollment_id+'|'+p.month]=(tPaid[p.enrollment_id+'|'+p.month]||0)+(+p.tuition||0)
+    aPaid[p.enrollment_id]=(aPaid[p.enrollment_id]||0)+(+p.annual||0)
+  })
+  // waivers: per (eid,head)
+  const waived={}; (wv||[]).forEach(w=>{waived[w.enrollment_id+'|'+w.head]=(waived[w.enrollment_id+'|'+w.head]||0)+(+w.amount||0)})
+
+  // Active months: up to the current month if viewing the current session.
+  const now=new Date(), sessStartYr=parseInt((sid.split('-')[0]||now.getFullYear()))
+  let endIdx=12
+  // Academic year starts in April. Compute how many months are active so far.
+  const mIdx=(now.getMonth()-3+12)%12 // April=0 … Mar=11
+  const isCurrent=(now.getFullYear()===sessStartYr && now.getMonth()>=3)||(now.getFullYear()===sessStartYr+1 && now.getMonth()<3)
+  if(isCurrent)endIdx=mIdx+1
+  const activeMonths=FEE_MONTHS.slice(0,Math.max(1,endIdx))
+
+  // Build the matrix. A month cell is PAID if net tuition due <= 0.
+  // Annual is a single status column. No previous-balance shown to teacher.
+  let html='<div class="card" style="overflow-x:auto"><h3>Fee Status — '+esc(MY_CLASS.classes?.name||'')+'-'+esc(MY_CLASS.class_sections?.name||'')+'</h3>'
+    +'<p style="font-size:12px;color:var(--ink-soft);margin:4px 0 12px">Paid / Unpaid per month. This does not show amounts or previous-year balances.</p>'
+    +'<table style="min-width:900px"><thead><tr>'
+    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
+    +'<th class="sticky-col" style="left:50px;min-width:150px">Name</th>'
+    +activeMonths.map(m=>'<th style="text-align:center;white-space:nowrap;font-size:11px">'+m+'</th>').join('')
+    +'<th style="text-align:center;font-size:11px">Annual</th></tr></thead><tbody>'
+
+  const sorted=[...CLASS_STUDENTS].sort((a,b)=>(a.roll_no||9999)-(b.roll_no||9999))
+  sorted.forEach(s=>{
+    const f=feeFor(s), eid=s.enrollment_id
+    html+='<tr><td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no!=null?String(s.roll_no):'—')+'</td>'
+      +'<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+    activeMonths.forEach(m=>{
+      const due=Math.max(0,(f.tuition-(waived[eid+'|'+m]||0))-(tPaid[eid+'|'+m]||0))
+      const paid=due<=0
+      html+='<td style="text-align:center">'+(paid
+        ?'<span class="pill pill-grn" style="font-size:10px">Paid</span>'
+        :'<span class="pill pill-danger" style="font-size:10px">Unpaid</span>')+'</td>'
+    })
+    // Annual
+    const annDue=Math.max(0,(f.annual-(waived[eid+'|'+FEE_HEAD_ANNUAL]||0))-(aPaid[eid]||0))
+    html+='<td style="text-align:center">'+(annDue<=0
+      ?'<span class="pill pill-grn" style="font-size:10px">Paid</span>'
+      :'<span class="pill pill-danger" style="font-size:10px">Unpaid</span>')+'</td>'
+    html+='</tr>'
+  })
+  html+='</tbody></table></div>'
+  el.innerHTML=html
 }
 
 // ═══════════ EXAM FEE COLLECTION ═══════════
