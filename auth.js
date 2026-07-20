@@ -20,12 +20,7 @@
   window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
       persistSession: true,
-      // Auto-refresh is DISABLED at construction. On PWA/tab reopen, an eager
-      // background token refresh races the initial getSession() and deadlocks
-      // the auth machinery → portal hangs on "checking session". We validate
-      // the stored session first (synchronously, no network), resolve the app,
-      // THEN start auto-refresh manually in the background. See checkAccess().
-      autoRefreshToken: false,
+      autoRefreshToken: true,
       detectSessionInUrl: false,
       lock: async (_name, _acquireTimeout, fn) => await fn()
     }
@@ -154,43 +149,18 @@
 
   function getSessionResilient() {
     return new Promise(resolve => {
-      // FAST PATH: the persisted token lives in localStorage and survives tab/
-      // PWA reopen. Read it synchronously first. If it's present and not
-      // expired, use it immediately — this avoids the race where getSession()
-      // or an INITIAL_SESSION(null) event resolves before the session is ready
-      // and wrongly bounces us to login.
-      const stored = readStoredSession()
-      if (stored) {
-        const exp = stored.expires_at ? stored.expires_at * 1000 : 0
-        // If still valid (or no expiry info), trust it now.
-        if (!exp || exp > Date.now()) { resolve(stored); return }
-        // Expired: let supabase refresh it below, but still don't hang.
-      }
-
       let done = false
       const finish = s => { if (!done) { done = true; resolve(s) } }
 
-      // Only treat a NON-null session from these as authoritative — a null from
-      // an early event/getSession must not trigger a login redirect while the
-      // token might still be loading/refreshing.
+      // Match login.html's proven resolver exactly. INITIAL_SESSION fires on
+      // load with the stored session; getSession() is the normal path; the
+      // timeout reads the persisted token from storage as a last resort.
       const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
-        if (session) finish(session)
-        else if (event === 'SIGNED_OUT') finish(null)
+        if (event === 'INITIAL_SESSION') finish(session || readStoredSession())
       })
-
-      sb.auth.getSession()
-        .then(({ data }) => { if (data?.session) finish(data.session) })
-        .catch(() => {})
-
-      // Final fallback: after a grace period, resolve to whatever storage has
-      // (possibly null → login). Longer than before so a slow refresh completes.
-      setTimeout(() => { if (!done) finish(readStoredSession()) }, 3000)
-
-      Promise.resolve().then(() => {
-        const iv = setInterval(() => {
-          if (done) { clearInterval(iv); try { sub.subscription.unsubscribe() } catch (_) {} }
-        }, 500)
-      })
+      sb.auth.getSession().then(({ data }) => finish(data?.session || readStoredSession())).catch(() => {})
+      setTimeout(() => { if (!done) finish(readStoredSession()) }, 1500)
+      const iv = setInterval(() => { if (done) { clearInterval(iv); try { sub.subscription.unsubscribe() } catch (_) {} } }, 500)
     })
   }
 
@@ -240,18 +210,6 @@
 
     console.log('[boot] 5 resolving ready()')
     SPS._resolveReady()
-
-    // NOW that the app is unblocked, start token auto-refresh in the background.
-    // Doing this AFTER resolve means a refresh can never stall the initial gate.
-    try {
-      if (sb.auth.startAutoRefresh) sb.auth.startAutoRefresh()
-      // Nudge a refresh if the stored token is close to expiry, but don't await
-      // it — the app is already running on the current (still-valid) token.
-      const exp = session.expires_at ? session.expires_at * 1000 : 0
-      if (exp && exp - Date.now() < 120000) {
-        sb.auth.refreshSession().catch(() => {})
-      }
-    } catch (_) {}
     console.log('[boot] 6 ready resolved ✓')
    } catch (e) {
     // Never leave the portal hanging on its loading wheel. If session/portal
