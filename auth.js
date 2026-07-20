@@ -39,6 +39,12 @@
   // ── SESSION CACHE ────────────────────────────────────────────
   function getLocalUser() {
     try {
+      // Prefer localStorage (shared across tabs) so a fresh tab doesn't need to
+      // re-run detectPortals() — which can be blocked by browser tracking
+      // prevention (e.g. Edge) and would then wrongly bounce to login.
+      // Fall back to sessionStorage for older sessions.
+      const ls = localStorage.getItem('sps_user_v2')
+      if (ls) return JSON.parse(ls)
       return JSON.parse(sessionStorage.getItem('sps_user') || 'null')
     } catch { return null }
   }
@@ -188,16 +194,30 @@
       SPS.portals = cached.portals
     } else {
       console.log('[boot] 3 detecting portals…')
-      const detected = await detectPortals(session.user.id)
+      let detected = null
+      // detectPortals hits the DB, which browser tracking-prevention (e.g. Edge)
+      // can intermittently block, throwing an opaque error. Retry once before
+      // giving up rather than bouncing the user to login.
+      try {
+        detected = await detectPortals(session.user.id)
+      } catch (e1) {
+        console.warn('[boot] detectPortals failed once, retrying…', e1)
+        await new Promise(r => setTimeout(r, 600))
+        detected = await detectPortals(session.user.id)  // if this throws, outer catch handles it
+      }
       console.log('[boot] 3b detected:', detected.portals)
       SPS.teacher = detected.teacher
       SPS.admin   = detected.admin
       SPS.portals = detected.portals
-      sessionStorage.setItem('sps_user', JSON.stringify({
+      const payload = JSON.stringify({
         teacher: SPS.teacher,
         admin:   SPS.admin,
         portals: SPS.portals,
-      }))
+      })
+      // Persist to BOTH: localStorage is shared across tabs (so a new tab skips
+      // detectPortals entirely), sessionStorage kept for back-compat.
+      try { localStorage.setItem('sps_user_v2', payload) } catch (_) {}
+      try { sessionStorage.setItem('sps_user', payload) } catch (_) {}
     }
 
     const key = window.PORTAL_KEY
@@ -213,10 +233,24 @@
     SPS._resolveReady()
     console.log('[boot] 6 ready resolved ✓')
    } catch (e) {
-    // Never leave the portal hanging on its loading wheel. If session/portal
-    // resolution fails (e.g. a transient network error on cold start), clear
-    // the cache and send the user back to login rather than spinning forever.
     console.error('[auth] checkAccess failed:', e)
+    // If we still have a valid session AND a cached portal list, the failure
+    // was almost certainly a blocked/transient DB call (e.g. Edge tracking
+    // prevention) — NOT a real auth problem. Boot from cache instead of
+    // bouncing to login (which would just hit the same block).
+    const cachedFallback = getLocalUser()
+    if (SPS.session && cachedFallback && cachedFallback.portals) {
+      console.warn('[auth] booting from cached portals after detect failure')
+      SPS.teacher = cachedFallback.teacher
+      SPS.admin   = cachedFallback.admin
+      SPS.portals = cachedFallback.portals
+      const key = window.PORTAL_KEY
+      if (key && !SPS.portals.includes(key)) { redirectToLogin('access'); return }
+      SPS._booted = true
+      SPS._resolveReady()
+      return
+    }
+    // No session or no cache — genuinely can't proceed.
     try { sessionStorage.removeItem('sps_user') } catch (_) {}
     redirectToLogin()
    }
@@ -234,6 +268,7 @@
   SPS.signOut = async function() {
     await sb.auth.signOut()
     sessionStorage.removeItem('sps_user')
+    try { localStorage.removeItem('sps_user_v2') } catch (_) {}
     redirectToLogin()
   }
 
@@ -268,6 +303,7 @@ SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'
       if (!SPS._booted) { console.log('[auth-event] ignoring pre-boot SIGNED_OUT'); return }
       if (readStoredSession()) { console.log('[auth-event] ignoring SIGNED_OUT — token still in storage'); return }
       sessionStorage.removeItem('sps_user')
+      try { localStorage.removeItem('sps_user_v2') } catch (_) {}
       redirectToLogin()
     }
   })
