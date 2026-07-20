@@ -272,6 +272,21 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 .stack{display:flex;flex-direction:column;gap:18px}
 .field-grp{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px}
 
+
+  .tab-row{display:flex;gap:8px;flex-wrap:wrap}
+  .tab-btn{font-family:var(--font);font-size:12.5px;font-weight:700;padding:9px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--line);background:var(--white);color:var(--ink-soft);cursor:pointer;transition:all .12s}
+  .tab-btn:hover{background:var(--lav-100)}
+  .tab-btn.active{background:var(--grn);border-color:var(--grn);color:#fff}
+
+  /* Fee matrix (Student Dues) — mirrors the fee portal */
+  .matrix-cell{text-align:center;font-family:var(--mono);font-size:11px;min-width:110px;padding:6px 8px!important;vertical-align:middle!important}
+  .matrix-cell .pay-amt{font-weight:600;font-size:11.5px;color:var(--ink)}
+  .matrix-cell .pay-date{color:var(--ink-faint);font-size:9px}
+  .matrix-cell .payment-row{display:flex;justify-content:center;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .matrix-cell .payment-row:last-child{border-bottom:none}
+  .cell-paid{background:rgba(46,166,90,.14)} .cell-partial{background:rgba(232,162,61,.16)} .cell-unpaid{background:rgba(214,69,69,.08)} .cell-waived{background:rgba(232,162,61,.10)}
+  .dm-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700}
+  .dm-green{background:var(--grn-100);color:var(--grn)} .dm-yellow{background:var(--warn-soft);color:var(--warn)} .dm-red{background:#FBE9E9;color:#C0392B}
 </style>
 </head>
 <body>
@@ -323,6 +338,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     <div class="sb-item" onclick="goTo('myclass',this)">
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Manage My Class
+    </div>
+    <div class="sb-item" onclick="goTo('readmit',this)">
+      <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Re-admission Status
     </div>
     <div class="sb-item" onclick="goTo('rollnos',this)">
       <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -456,6 +475,17 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
         </div>
       </div>
       <div id="classListWrap"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
+    </div>
+
+    <!-- RE-ADMISSION STATUS -->
+    <div class="page" id="page-readmit">
+      <div class="page-head"><div><h2>Re-admission Status</h2><p>Students re-admitted this session have an S.No generated. Those still pending have not yet been re-admitted in the Fee Portal.</p></div></div>
+      <div class="grid-3" id="readmitStats" style="margin-bottom:16px"></div>
+      <div class="tab-row" style="margin-bottom:16px">
+        <button class="tab-btn active" onclick="rdTab('done',this)">Re-admitted</button>
+        <button class="tab-btn" onclick="rdTab('pending',this)">Pending</button>
+      </div>
+      <div id="readmitWrap"></div>
     </div>
 
     <!-- ROLL NUMBERS -->
@@ -689,7 +719,7 @@ let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _isClassTeacher=true, _myClassTeacher=null, MY_MAPPINGS=[]
 
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Dashboard',messages:'Messages',marks:'Marks & Assessments',daily:'Daily Attendance',attreport:'Attendance Report',myclass:'Manage My Class',rollnos:'Roll Numbers',dues:'Student Dues',examfees:'Exam Fee Collection',myattendance:'My Attendance',profile:'My Profile'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',marks:'Marks & Assessments',daily:'Daily Attendance',attreport:'Attendance Report',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',dues:'Student Dues',examfees:'Exam Fee Collection',myattendance:'My Attendance',profile:'My Profile'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -717,6 +747,7 @@ function goTo(id,el){
   if(id==='daily'&&!$('att_date').value){$('att_date').value=today()}
   if(id==='attreport'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
   if(id==='myclass'&&!_classRaw.length)loadMyClass()
+  if(id==='readmit')loadReadmit()
   if(id==='rollnos')loadRollNos()
   if(id==='dues')loadDues()
   if(id==='examfees')loadExamFeeDropdown()
@@ -760,7 +791,7 @@ SPS.ready().then(async()=>{
 
   // Load all students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -1197,8 +1228,11 @@ async function viewStudentProfile(eid){
   const s=enr.students||{}
   window._profileStudentId=s.student_id
 
-  const{data:ctPerms}=await sb.from('class_teacher_map').select('can_edit_profiles').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS?.session_id||'').maybeSingle()
-  const canEdit=ctPerms?.can_edit_profiles===true
+  // Read edit-rights from the ACTIVE class row (MY_CLASS), which the realtime
+  // watcher keeps current. A per-open .maybeSingle() query on class_teacher_map
+  // throws if the teacher holds more than one row — reading from the already
+  // fetched MY_CLASS avoids that hazard entirely.
+  const canEdit=MY_CLASS?.can_edit_profiles===true
   const reqPending=window._profileReqPending||(function(){try{return localStorage.getItem('sps_mt_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''))==='1'}catch(e){return false}})()
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s.student_id||'')
 
@@ -1238,6 +1272,15 @@ async function viewStudentProfile(eid){
     +(canEdit?'<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer">Change Photo<input type="file" accept="image/*" style="display:none" onchange="uploadStudentPhoto(_profileStudentId,this)"></label>':'')
     +'</div></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
+    +'<div style="margin-top:6px;margin-bottom:14px"><label style="'+lbl+'">Class &amp; Section</label>'
+    +(canEdit
+      ?'<div style="display:flex;align-items:center;gap:10px">'
+        +'<div style="font-weight:700;font-size:14px;white-space:nowrap">'+esc(MY_CLASS.classes?.name||'?')+'</div>'
+        +'<select id="sp_section" style="'+inp+';flex:1" onchange="onSectionPick(this)"><option>Loading…</option></select>'
+        +'</div>'
+        +'<div id="sp_sectionHint" style="font-size:11px;color:var(--ink-faint);margin-top:5px">Change the section to move this student within '+esc(MY_CLASS.classes?.name||'this class')+'.</div>'
+      :'<div style="font-weight:700;font-size:14px">'+esc(MY_CLASS.classes?.name||'?')+' &middot; '+esc(MY_CLASS.class_sections?.name||'?')+'</div>')
+    +'</div>'
     +(!canEdit?'<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;font-size:12.5px;margin-bottom:14px">'+(reqPending?'Editing is locked. Your access request has been sent — waiting for admin approval.':'Profile editing is locked. Request access from admin to make changes.')+'</div>':'')
     +'<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:8px">Documents</div>'
     +docsHtml
@@ -1250,6 +1293,122 @@ async function viewStudentProfile(eid){
     +(!canEdit&&!reqPending?'<button class="btn btn-soft" onclick="requestProfileEditAccess()">Request Edit Access</button>':'')
 
   openModal('Student Profile',body,foot)
+  if(canEdit) populateSectionPicker(enr)
+}
+
+// Fetch the OTHER sections of the SAME class so the teacher can move the
+// student within her class (LKG-A -> LKG-B). Cross-class moves are not offered.
+async function populateSectionPicker(enr){
+  const sel=$('sp_section'); if(!sel)return
+  const{data:secs}=await sb.from('class_sections')
+    .select('section_id,name').eq('class_id',MY_CLASS.class_id)
+    .eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  const list=secs||[]
+  sel.innerHTML=list.map(x=>'<option value="'+x.section_id+'"'+(x.section_id===enr.section_id?' selected':'')+'>'+esc(x.name)+'</option>').join('')
+  sel.dataset.current=enr.section_id
+  sel.dataset.eid=enr.enrollment_id
+  // If the class has only one section there is nowhere to move to.
+  if(list.length<2){
+    sel.disabled=true
+    const hint=$('sp_sectionHint'); if(hint)hint.textContent='This class has only one section.'
+  }
+}
+
+// On picking a different section, confirm then move.
+async function onSectionPick(sel){
+  const target=sel.value, current=sel.dataset.current, eid=sel.dataset.eid
+  if(target===current)return
+  const targetName=sel.selectedOptions[0]?.textContent||'?'
+  const stuName=CLASS_STUDENTS.find(s=>s.enrollment_id===eid)?.students?.full_name||'this student'
+  const proceed=await confirmMove(stuName, (MY_CLASS.classes?.name||'')+'-'+targetName)
+  if(!proceed){ sel.value=current; return }
+  await moveStudentSection(eid, target, targetName)
+}
+
+function confirmMove(stuName, targetLabel){
+  return new Promise(resolve=>{
+    const body='<div style="font-size:14px;line-height:1.6;color:var(--ink)">Move <b>'+esc(stuName)+'</b> to <b>'+esc(targetLabel)+'</b>?</div>'
+      +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:8px">They will leave your current section and appear in '+esc(targetLabel)+'.</div>'
+    const foot='<button class="btn btn-ghost" id="mv_cancel">Cancel</button><button class="btn btn-primary" id="mv_ok">Move Student</button>'
+    openModal('Move student?',body,foot)
+    const done=v=>{closeModal();resolve(v)}
+    $('mv_ok').onclick=()=>done(true)
+    $('mv_cancel').onclick=()=>done(false)
+  })
+}
+
+async function moveStudentSection(eid, newSectionId, newSectionName){
+  const stu=CLASS_STUDENTS.find(s=>s.enrollment_id===eid)
+  const stuName=stu?.students?.full_name||'Student'
+  const fromSectionId=MY_CLASS.section_id
+  const fromLabel=(MY_CLASS.classes?.name||'')+'-'+(MY_CLASS.class_sections?.name||'')
+  const toLabel=(MY_CLASS.classes?.name||'')+'-'+newSectionName
+
+  // Next roll number in the destination section (highest + 1), same rule the
+  // admin uses on admission. Keeps rolls contiguous and collision-free.
+  const newRoll=await nextRollFor(MY_CLASS.class_id, newSectionId)
+
+  const{error}=await sb.from('student_enrollments')
+    .update({section_id:newSectionId, roll_no:newRoll}).eq('enrollment_id',eid)
+  if(error){toast('Move failed: '+error.message,'error');return}
+
+  toast('✓ '+stuName+' moved to '+toLabel+' (Roll '+newRoll+')','success')
+  if(typeof prependActivity==='function')prependActivity(stuName+' moved to '+toLabel,'access')
+
+  // Notify the class teachers of BOTH sections — except whoever did the move.
+  const actor=TEACHER.full_name||TEACHER.username||'A teacher'
+  await notifyCTs({
+    classId:MY_CLASS.class_id,
+    sectionIds:[fromSectionId,newSectionId],
+    exceptTeacherId:TEACHER.teacher_id,
+    subject:'Student moved: '+stuName,
+    body:stuName+' was moved from '+fromLabel+' to '+toLabel+' by '+actor+'.'
+  })
+
+  closeModal()
+
+  // The student left this section -> drop from the current roster immediately.
+  if(newSectionId!==MY_CLASS.section_id){
+    CLASS_STUDENTS=CLASS_STUDENTS.filter(s=>s.enrollment_id!==eid)
+    _classRaw=_classRaw.filter(s=>s.enrollment_id!==eid)
+    if($('page-myclass')?.classList.contains('active'))renderClassList(_classRaw)
+    if($('page-readmit')?.classList.contains('active'))renderReadmit()
+    if($('page-dues')?.classList.contains('active'))loadDues()
+  }
+}
+
+// Highest roll_no in a section + 1 (or 1 if empty). Shared by move + any future
+// admission path in this portal.
+async function nextRollFor(classId, sectionId){
+  const{data:rolls}=await sb.from('student_enrollments')
+    .select('roll_no').eq('class_id',classId).eq('section_id',sectionId)
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  const max=(rolls||[]).reduce((m,r)=>(r.roll_no||0)>m?(r.roll_no||0):m,0)
+  return max+1
+}
+
+// Send a system_notification to the class teacher(s) of the given sections.
+// Silently skips a section with no class teacher, and skips exceptTeacherId
+// (so a teacher isn't notified about their own action). De-dupes recipients.
+async function notifyCTs({classId, sectionIds, exceptTeacherId, subject, body}){
+  try{
+    const{data:cts}=await sb.from('class_teacher_map')
+      .select('teacher_id,section_id')
+      .eq('class_id',classId).eq('session_id',SESS?.session_id||'')
+      .in('section_id',sectionIds)
+    const recipientIds=[...new Set((cts||[]).map(c=>c.teacher_id).filter(id=>id!==exceptTeacherId))]
+    if(!recipientIds.length){
+      toast('Note: no class teacher assigned to the destination section yet','info')
+      return
+    }
+    await Promise.all(recipientIds.map(tid=>
+      sb.from('messages').insert({
+        sender_type:'admin',sender_id:'SYSTEM',
+        recipient_type:'teacher',recipient_id:tid,
+        subject,body,message_type:'system_notification',sent_at:new Date().toISOString()
+      })
+    ))
+  }catch(e){console.warn('notifyCTs failed',e)}
 }
 
 async function saveStudentProfile(){
@@ -1267,7 +1426,7 @@ async function saveStudentProfile(){
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -1396,7 +1555,7 @@ async function saveStudentProfile(studentId){
   if(error){toast('Failed to save: '+error.message,'error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -1435,6 +1594,65 @@ async function uploadStudentDoc(studentId, input){
 
 // submitProfileEditReq replaced above
 
+// ═══════════ RE-ADMISSION STATUS ═══════════
+let _rdView='done'   // which readmit subtab is showing
+
+function rdTab(which,btn){
+  _rdView=which
+  btn.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'))
+  btn.classList.add('active')
+  renderReadmit()
+}
+
+async function loadReadmit(){
+  // CLASS_STUDENTS is already the active class's active, non-relieved roster.
+  // Re-admitted = has an s_no; pending = s_no is blank/null.
+  renderReadmit()
+}
+
+function renderReadmit(){
+  const wrap=$('readmitWrap'), stats=$('readmitStats')
+  const all=CLASS_STUDENTS||[]
+  const done=all.filter(s=>s.s_no!=null && String(s.s_no).trim()!=='')
+  const pending=all.filter(s=>!(s.s_no!=null && String(s.s_no).trim()!==''))
+
+  if(stats)stats.innerHTML=
+    '<div class="stat-card"><span class="lbl">Total</span><span class="val">'+all.length+'</span></div>'+
+    '<div class="stat-card"><span class="lbl" style="color:var(--grn)">Re-admitted</span><span class="val" style="color:var(--grn)">'+done.length+'</span><span class="sub">S.No generated</span></div>'+
+    '<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+pending.length+'</span><span class="sub">Not yet re-admitted</span></div>'
+
+  const list=_rdView==='done'?done:pending
+  if(!list.length){emp(wrap,_rdView==='done'?'No students re-admitted yet.':'No pending students — everyone is re-admitted. 🎉');return}
+
+  // Sort: re-admitted by s_no ascending; pending by name.
+  const sorted=[...list].sort((a,b)=>{
+    if(_rdView==='done'){
+      const x=parseInt(String(a.s_no).replace(/\D/g,''))||0, y=parseInt(String(b.s_no).replace(/\D/g,''))||0
+      return x-y
+    }
+    return (a.students?.full_name||'').localeCompare(b.students?.full_name||'')
+  })
+
+  let html='<div class="card"><div class="table-wrap"><table><thead><tr>'
+    +'<th>'+(_rdView==='done'?'S.No':'#')+'</th><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Status</th></tr></thead><tbody>'
+  sorted.forEach((s,i)=>{
+    html+='<tr>'
+      +'<td style="font-family:var(--mono);font-weight:700">'+(_rdView==='done'?esc(String(s.s_no)):String(i+1))+'</td>'
+      +'<td style="font-family:var(--mono)">'+esc(s.roll_no!=null?String(s.roll_no):'—')+'</td>'
+      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td>'+esc(s.students?.father_name||'—')+'</td>'
+      +'<td>'+(_rdView==='done'
+          ?'<span class="pill pill-grn">Re-admitted</span>'
+          :'<span class="pill pill-danger">Pending</span>')+'</td>'
+    +'</tr>'
+  })
+  html+='</tbody></table></div></div>'
+  if(_rdView==='pending'){
+    html+='<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--ink-soft);margin-top:12px;line-height:1.55">These students are promoted but not yet re-admitted for '+esc(SESS?.session_id||'this session')+'. Re-admission (which generates their S.No) is done by the admin or through the Fee Portal.</div>'
+  }
+  wrap.innerHTML=html
+}
+
 // ═══════════ ROLL NUMBERS ═══════════
 async function loadRollNos(){
   const el=$('rollNoWrap')
@@ -1471,7 +1689,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -1587,12 +1805,159 @@ async function loadAssessMarks(){
 }
 
 // ═══════════ STUDENT DUES ═══════════
+const FEE_MONTHS=['April','May','June','July','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
+const FEE_HEAD_ANNUAL='Annual'
+const FEE_HEAD_PREV='Prev Balance'
+
 async function loadDues(){
   const el=$('duesWrap')
   ldg(el,'Loading fee data…')
-  // Fee data comes from fee portal — check app_data or misc_fees/payments
-  // Show a placeholder with note if fee portal not yet integrated
-  emp(el,'Student dues data comes from the Fee Portal. Fee portal integration will be available once the fee portal is built for this session.')
+  const sid=SESS?.session_id||''
+  const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  if(!eids.length){emp(el,'No students in your class.');return}
+
+  // ── Load everything needed to compute EFFECTIVE fees, incl. sibling discount.
+  // Sibling discount needs cross-class family data, so we fetch all enrollments
+  // of the families present in this class, plus fee_master for ALL classes and
+  // the class sort order (to find the 'youngest' sibling exactly like the fee
+  // portal does).
+  const myFamilyCodes=[...new Set(CLASS_STUDENTS.map(s=>s.family_code||s.students?.family_code).filter(Boolean))]
+
+  const[{data:fmAll},{data:clsRows},{data:famEnr},{data:bundles},{data:allocs},{data:wv}]=await Promise.all([
+    sb.from('fee_master').select('*').eq('session_id',sid),
+    sb.from('classes').select('class_id,name,sort_order').order('sort_order'),
+    myFamilyCodes.length
+      ? sb.from('student_enrollments')
+          .select('enrollment_id,class_id,stream_id,s_no,tuition_override,students!inner(family_code)')
+          .eq('session_id',sid).eq('status','active').eq('relieved',false)
+          .in('students.family_code',myFamilyCodes)
+      : Promise.resolve({data:[]}),
+    sb.from('payments').select('payment_id,session_id').eq('session_id',sid),
+    sb.from('payment_allocations').select('payment_id,enrollment_id,head,amount'),
+    sb.from('fee_waivers').select('enrollment_id,head,amount')
+  ])
+
+  const bundleById={}; (bundles||[]).forEach(b=>{bundleById[b.payment_id]=b})
+
+  // Class order for sibling 'youngest' determination.
+  const clsOrder={}; (clsRows||[]).forEach((c,i)=>{clsOrder[c.class_id]=c.sort_order!=null?c.sort_order:i})
+  const clsIdxOf=cid=>clsOrder[cid]!=null?clsOrder[cid]:999
+
+  // fee_master lookup: class_id -> stream_id('_') -> {tuition, annual, sibDisc}
+  const FM={}; (fmAll||[]).forEach(r=>{
+    if(!FM[r.class_id])FM[r.class_id]={}
+    FM[r.class_id][r.stream_id||'_']={tuition:+r.monthly_tuition||0,annual:+r.annual_charge||0,sibDisc:+r.sibling_discount_flat||0}
+  })
+  const fmFor=(cid,sid2)=>(FM[cid]&&(FM[cid][sid2||'_']||FM[cid]['_']))||{tuition:0,annual:0,sibDisc:0}
+
+  // Group family enrollments by family_code for sibling counting.
+  const famByCode={}; (famEnr||[]).forEach(e=>{
+    const fc=e.students?.family_code; if(!fc)return
+    ;(famByCode[fc]=famByCode[fc]||[]).push(e)
+  })
+
+  // Effective monthly tuition for a student — mirrors the fee portal's rule:
+  //   override > sibling-discount(youngest of 3+) > class base.
+  function effTuition(stu){
+    const ov=stu.tuition_override
+    if(ov!==null&&ov!==undefined&&ov!=='')return parseFloat(ov)||0
+    const base=fmFor(stu.class_id,stu.stream_id).tuition
+    const fc=stu.family_code||stu.students?.family_code
+    if(!fc)return base
+    const sibs=famByCode[fc]||[]
+    if(sibs.length<3)return base
+    // youngest = last after sort by class desc, then s_no asc
+    const sorted=[...sibs].sort((a,b)=>{
+      const d=clsIdxOf(b.class_id)-clsIdxOf(a.class_id); if(d)return d
+      const an=(a.s_no==null||a.s_no==='')?Infinity:parseInt(a.s_no)||0
+      const bn=(b.s_no==null||b.s_no==='')?Infinity:parseInt(b.s_no)||0
+      return an-bn
+    })
+    const youngest=sorted[sorted.length-1]
+    if(youngest && youngest.enrollment_id===stu.enrollment_id){
+      const flat=fmFor(stu.class_id,stu.stream_id).sibDisc
+      return (flat>0)?flat:base
+    }
+    return base
+  }
+  function effAnnual(stu){
+    const ov=stu.annual_override
+    if(ov!==null&&ov!==undefined&&ov!=='')return parseFloat(ov)||0
+    return fmFor(stu.class_id,stu.stream_id).annual
+  }
+
+  // Build per-(enrollment, head) total paid
+  const paidByKey={}   // eid|head -> total amount
+  ;(allocs||[]).forEach(a=>{
+    const b=bundleById[a.payment_id]||{}
+    if(b.session_id && b.session_id!==sid) return
+    const key=a.enrollment_id+'|'+a.head
+    paidByKey[key]=(paidByKey[key]||0)+(+a.amount||0)
+  })
+  const waived={}; (wv||[]).forEach(w=>{waived[w.enrollment_id+'|'+w.head]=(waived[w.enrollment_id+'|'+w.head]||0)+(+w.amount||0)})
+
+  // Only show months up to the current one (when viewing the current session).
+  // Future months render blank — no Paid/Unpaid for months that haven't arrived.
+  const now2=new Date(), startYr=parseInt(sid.split('-')[0]||now2.getFullYear())
+  const isCurrentSession=(now2.getFullYear()===startYr&&now2.getMonth()>=3)||(now2.getFullYear()===startYr+1&&now2.getMonth()<3)
+  const curIdx=(now2.getMonth()-3+12)%12   // April=0 … Mar=11
+  const monthsToStatus = isCurrentSession ? (curIdx+1) : 12   // how many months get a status
+  const months=FEE_MONTHS
+
+  // Status pill for a given paid vs net-due.
+  const cellFor=(paid,net)=>{
+    const cls2=paid<=0?(net<=0?'cell-waived':'cell-unpaid'):(paid>=net?'cell-paid':'cell-partial')
+    const label=paid<=0?(net<=0?'—':'Unpaid'):(paid>=net?'Paid':'Partial')
+    const color=cls2==='cell-paid'?'var(--grn)':cls2==='cell-partial'?'var(--warn)':cls2==='cell-unpaid'?'#C0392B':'var(--ink-faint)'
+    return '<td class="matrix-cell '+cls2+'" style="color:'+color+';font-weight:700">'+label+'</td>'
+  }
+
+  // Annual is the FIRST column after the fixed ones, then the months.
+  let head='<th class="sticky-col" style="left:0;min-width:50px">S.No</th>'
+    +'<th style="min-width:150px">Name</th>'
+    +'<th style="min-width:130px">Father\'s Name</th>'
+    +'<th style="min-width:90px;text-align:center;background:var(--lav-100)">Annual</th>'
+    +months.map(m=>'<th style="min-width:80px;text-align:center">'+m+'</th>').join('')
+
+  const sorted=[...CLASS_STUDENTS].sort((a,b)=>{
+    const x=parseInt(String(a.s_no).replace(/\D/g,''))||9999, y=parseInt(String(b.s_no).replace(/\D/g,''))||9999
+    return x-y
+  })
+
+  const rows=sorted.map(s=>{
+    const eid=s.enrollment_id
+    const mt=effTuition(s), ann=effAnnual(s)
+    // Annual cell — zero annual charge counts as Paid.
+    const annPaid=paidByKey[eid+'|'+FEE_HEAD_ANNUAL]||0
+    const annNet=Math.max(0,ann-(waived[eid+'|'+FEE_HEAD_ANNUAL]||0))
+    let annStatus,annClsC,annColor
+    if(annNet<=0){annStatus='Paid';annClsC='cell-paid';annColor='var(--grn)'}
+    else if(annPaid<=0){annStatus='Unpaid';annClsC='cell-unpaid';annColor='#C0392B'}
+    else if(annPaid>=annNet){annStatus='Paid';annClsC='cell-paid';annColor='var(--grn)'}
+    else{annStatus='Partial';annClsC='cell-partial';annColor='var(--warn)'}
+    const annCell='<td class="matrix-cell '+annClsC+'" style="background:var(--lav-50);font-weight:700;color:'+annColor+'">'+annStatus+'</td>'
+    // Month cells — future months blank; zero net-due counts as Paid.
+    const cells=months.map((m,idx)=>{
+      if(idx>=monthsToStatus) return '<td class="matrix-cell" style="color:var(--ink-faint)"></td>'
+      const paid=paidByKey[eid+'|'+m]||0
+      const net=Math.max(0,mt-(waived[eid+'|'+m]||0))
+      if(net<=0) return '<td class="matrix-cell cell-paid" style="color:var(--grn);font-weight:700">Paid</td>'
+      return cellFor(paid,net)
+    }).join('')
+    return '<tr>'
+      +'<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.s_no!=null&&String(s.s_no).trim()!==''?('#'+s.s_no):'—')+'</td>'
+      +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+      +annCell+cells
+      +'</tr>'
+  }).join('')
+
+  el.innerHTML='<div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    +'<span class="dm-pill dm-green">■ Paid</span><span class="dm-pill dm-yellow">■ Partial</span><span class="dm-pill dm-red">■ Unpaid</span>'
+    +'<span style="margin-left:auto;font-size:12px;color:var(--ink-soft)">Class '+esc(MY_CLASS.classes?.name||'')+'-'+esc(MY_CLASS.class_sections?.name||'')+' · '+sorted.length+' students</span>'
+    +'</div>'
+    +'<div style="font-size:11.5px;color:var(--ink-faint);margin-bottom:10px">Monthly tuition and annual status. Amounts and previous-year balances are not shown.</div>'
+    +'<div class="card" style="overflow-x:auto;padding:0"><table style="min-width:1000px;border-collapse:collapse"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>'
 }
 
 // ═══════════ EXAM FEE COLLECTION ═══════════
@@ -2522,13 +2887,17 @@ function renderViewFields(t){
 }
 
 let _lastCanEditStudents=null
+let _payChan=null   // payments channel, so the dues matrix updates live
+let _duesDebounce=null  // debounce for live dues repaint
+
 function subscribeProfileAccess(){
-  _lastCanEditStudents=null
+  _lastCanEditStudents=MY_CLASS?.can_edit_profiles===true
   sb.channel('mt_access_'+TEACHER.teacher_id)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'class_teacher_map',filter:'teacher_id=eq.'+TEACHER.teacher_id},payload=>{
       const now=payload.new?.can_edit_profiles===true
       if(now!==_lastCanEditStudents){
         _lastCanEditStudents=now
+        if(MY_CLASS)MY_CLASS.can_edit_profiles=now   // keep the source viewStudentProfile reads in sync
         if(now){
           try{localStorage.removeItem('sps_mt_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''))}catch(e){}
           window._profileReqPending=false
@@ -2545,6 +2914,25 @@ function subscribeProfileAccess(){
         }
       }
     }).subscribe()
+
+  // Watch payments so the Student Dues matrix updates live when a fee is
+  // recorded in the fee portal. The payments table has no class_id, so we
+  // check whether the changed row's enrollment belongs to this class before
+  // repainting (debounced), and only if the dues tab is actually open.
+  if(_payChan){try{sb.removeChannel(_payChan)}catch(e){}_payChan=null}
+  const _onPay=(payload)=>{
+    const row=payload.new||payload.old||{}
+    if(row.session_id && SESS && row.session_id!==SESS.session_id) return
+    if(!$('page-dues')?.classList.contains('active')) return  // only repaint if the matrix is showing
+    const eid=row.enrollment_id
+    if(eid && !CLASS_STUDENTS.some(s=>s.enrollment_id===eid)) return
+    clearTimeout(_duesDebounce)
+    _duesDebounce=setTimeout(()=>{loadDues()},400)
+  }
+  _payChan=sb.channel('mt_pay_'+MY_CLASS.section_id)
+    .on('postgres_changes',{event:'*',schema:'public',table:'payment_allocations'},_onPay)
+    .on('postgres_changes',{event:'*',schema:'public',table:'payments'},_onPay)
+    .subscribe((status)=>console.log('[RT] MT payments channel:',status))
 }
 function prependActivity(text,type){
   const actEl=$('dashActivity');if(!actEl)return
