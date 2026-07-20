@@ -16,8 +16,7 @@
   // supabase-js v2 wraps auth calls in a browser LockManager lock; on repeat
   // visits (expired token being auto-refreshed, or a zombie tab holding the
   // lock) getSession() waits on that lock forever → page stuck on "Loading…".
-  // Bypassing the lock removes the deadlock. This is the workaround
-  // recommended by Supabase maintainers for this known issue.
+  // Bypassing the lock removes the deadlock. Safe for this app.
   window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
       persistSession: true,
@@ -26,9 +25,6 @@
       lock: async (_name, _acquireTimeout, fn) => await fn()
     }
   })
-
-  // Capture a local reference to avoid shadowing conflicts from global variables (like `let sb` in portal scripts)
-  const sb = window.sb
 
   // ── SPS NAMESPACE ────────────────────────────────────────────
   window.SPS = {
@@ -51,21 +47,12 @@
   let _sessionId = null
   async function getCurrentSessionId() {
     if (_sessionId) return _sessionId
-    try {
-      const { data, error } = await sb
-        .from('sessions')
-        .select('session_id')
-        .eq('is_current', true)
-        .maybeSingle()
-      if (error) {
-        console.warn("Could not query session ID:", error)
-        return null
-      }
-      _sessionId = data?.session_id || null
-    } catch (e) {
-      console.error("Exception in getCurrentSessionId:", e)
-      _sessionId = null
-    }
+    const { data } = await sb
+      .from('sessions')
+      .select('session_id')
+      .eq('is_current', true)
+      .maybeSingle()
+    _sessionId = data?.session_id || null
     return _sessionId
   }
   SPS.getSessionId = getCurrentSessionId
@@ -74,96 +61,70 @@
   async function detectPortals(userId) {
     const results = { portals: [], teacher: null, admin: null }
 
-    try {
-      const { data: adminRow, error: adminErr } = await sb
-        .from('admins')
-        .select('admin_id')
-        .eq('auth_user_id', userId)
-        .maybeSingle()
+    const { data: adminRow } = await sb
+      .from('admins')
+      .select('admin_id')
+      .eq('auth_user_id', userId)
+      .maybeSingle()
 
-      if (adminErr) console.warn("Admin check error:", adminErr)
-
-      if (adminRow) {
-        results.admin = adminRow
-        results.portals = ['admin']
-        return results
-      }
-
-      const { data: teacherRow, error: teachErr } = await sb
-        .from('teachers')
-        .select('teacher_id, full_name, designation, is_active')
-        .eq('auth_user_id', userId)
-        .maybeSingle()
-
-      if (teachErr) console.warn("Teacher check error:", teachErr)
-
-      if (!teacherRow || !teacherRow.is_active) {
-        return results
-      }
-      results.teacher = teacherRow
-
-      const sessionId = await getCurrentSessionId()
-      
-      // Prevent querying subsequent mappings if session is not found
-      if (!sessionId) {
-        results.portals = ['main_teacher']
-        return results
-      }
-
-      const { data: motherRow, error: mothErr } = await sb
-        .from('mother_teacher_map')
-        .select('map_id')
-        .eq('teacher_id', teacherRow.teacher_id)
-        .eq('session_id', sessionId)
-        .maybeSingle()
-
-      if (mothErr) console.warn("Mother teacher map error:", mothErr)
-
-      if (motherRow) {
-        results.portals = ['mother_teacher']
-        return results
-      }
-
-      results.portals.push('main_teacher')
-
-      const { data: classRow, error: classErr } = await sb
-        .from('class_teacher_map')
-        .select('map_id')
-        .eq('teacher_id', teacherRow.teacher_id)
-        .eq('session_id', sessionId)
-        .maybeSingle()
-
-      if (classErr) console.warn("Class teacher map error:", classErr)
-
-      if (classRow) results.portals.push('class_teacher')
-    } catch (e) {
-      console.error("Exception in portal detection:", e)
+    if (adminRow) {
+      results.admin = adminRow
+      results.portals = ['admin']
+      return results
     }
+
+    const { data: teacherRow } = await sb
+      .from('teachers')
+      .select('teacher_id, full_name, designation, is_active')
+      .eq('auth_user_id', userId)
+      .maybeSingle()
+
+    if (!teacherRow || !teacherRow.is_active) {
+      return results
+    }
+    results.teacher = teacherRow
+
+    const sessionId = await getCurrentSessionId()
+
+    // NOTE: a teacher can hold MULTIPLE mother/class-teacher rows (e.g. class
+    // teacher of two sections). .maybeSingle() THROWS on >1 row, which would
+    // reject detectPortals and hang the portal on its loading wheel forever
+    // (only on cold starts where the sessionStorage cache is gone). Use a
+    // limited list + length check instead so multiple rows are fine.
+    const { data: motherRows } = await sb
+      .from('mother_teacher_map')
+      .select('map_id')
+      .eq('teacher_id', teacherRow.teacher_id)
+      .eq('session_id', sessionId)
+      .limit(1)
+
+    if (motherRows && motherRows.length) {
+      results.portals = ['mother_teacher']
+      return results
+    }
+
+    results.portals.push('main_teacher')
+
+    const { data: classRows } = await sb
+      .from('class_teacher_map')
+      .select('map_id')
+      .eq('teacher_id', teacherRow.teacher_id)
+      .eq('session_id', sessionId)
+      .limit(1)
+
+    if (classRows && classRows.length) results.portals.push('class_teacher')
 
     return results
   }
 
   // ── ACCESS CHECK ─────────────────────────────────────────────
   async function checkAccess() {
-    let { data: { session }, error } = await sb.auth.getSession()
+   try {
+    const { data: { session } } = await sb.auth.getSession()
 
-    // FIX: if getSession() comes back empty or errored, don't immediately
-    // assume the user is logged out. On some repeat visits this can happen
-    // transiently (e.g. a background token refresh mid-flight). Retry via
-    // getUser(), which re-validates directly against the Supabase server,
-    // before giving up and sending the person to the login screen.
-    if (error || !session) {
-      const { data: { user }, error: userErr } = await sb.auth.getUser()
-      if (userErr || !user) {
-        redirectToLogin()
-        return
-      }
-      const retry = await sb.auth.getSession()
-      session = retry.data.session
-      if (!session) {
-        redirectToLogin()
-        return
-      }
+    if (!session) {
+      redirectToLogin()
+      return
     }
 
     SPS.session = session
@@ -193,6 +154,14 @@
     }
 
     SPS._resolveReady()
+   } catch (e) {
+    // Never leave the portal hanging on its loading wheel. If session/portal
+    // resolution fails (e.g. a transient network error on cold start), clear
+    // the cache and send the user back to login rather than spinning forever.
+    console.error('[auth] checkAccess failed:', e)
+    try { sessionStorage.removeItem('sps_user') } catch (_) {}
+    redirectToLogin()
+   }
   }
 
   // ── REDIRECT ─────────────────────────────────────────────────
@@ -216,8 +185,8 @@
     SPS._resolveReady = resolve
   })
   SPS.ready = () => SPS._ready
-  SPS.serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhZmlnb2hwaGNlZ252dmNvamJ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjkxMzI4OSwiZXhwIjoyMDk4NDg5Mjg5fQ.vVrXctA7VIInyTdpSq0xq8yrFMfr9lksRgDERg3HMHA'
-  SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'
+SPS.serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhZmlnb2hwaGNlZ252dmNvamJ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjkxMzI4OSwiZXhwIjoyMDk4NDg5Mjg5fQ.vVrXctA7VIInyTdpSq0xq8yrFMfr9lksRgDERg3HMHA'
+SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'
 
   // ── HELPERS PORTALS CAN USE ──────────────────────────────────
   SPS.isAdmin        = () => SPS.portals.includes('admin')
