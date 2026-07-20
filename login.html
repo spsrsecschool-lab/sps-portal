@@ -710,13 +710,44 @@ async function signOut() {
 // ─── SESSION CHECK ON LOAD ───────────────────────────────────
 // If the user already has a valid session, skip the login form
 // and route them directly (or show portal selector again).
+
+// getSession() can hang on tab/PWA reopen (supabase-js auth lock races with
+// token auto-refresh). Resolve from whichever wins: INITIAL_SESSION event,
+// getSession(), or a timeout that reads the token straight from storage. This
+// GUARANTEES we never spin on "Checking session…" forever.
+function readStoredSessionLogin() {
+  try {
+    const ref = (SUPABASE_URL.match(/https:\/\/([^.]+)\./) || [])[1]
+    if (!ref) return null
+    const raw = localStorage.getItem('sb-' + ref + '-auth-token')
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const sess = parsed.currentSession || parsed.session || parsed
+    return (sess && sess.access_token && sess.user) ? sess : null
+  } catch { return null }
+}
+function getSessionResilientLogin() {
+  return new Promise(resolve => {
+    let done = false
+    const finish = s => { if (!done) { done = true; resolve(s) } }
+    const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') finish(session || null)
+    })
+    sb.auth.getSession().then(({ data }) => finish(data?.session || null)).catch(() => {})
+    setTimeout(() => { if (!done) finish(readStoredSessionLogin()) }, 1500)
+    const iv = setInterval(() => { if (done) { clearInterval(iv); try { sub.subscription.unsubscribe() } catch (_) {} } }, 500)
+  })
+}
+
 async function checkExistingSession() {
   try {
-    const { data: { session }, error } = await sb.auth.getSession()
-    if (error) throw error
+    console.log('[login] checking existing session…')
+    const session = await getSessionResilientLogin()
+    console.log('[login] session resolved:', !!session)
 
     if (session) {
       const { portals, teacher, admin } = await detectPortals(session.user.id)
+      console.log('[login] detected portals:', portals)
       if (portals && portals.length > 0) {
         routeToPortal(portals, teacher, admin)
         return
@@ -726,6 +757,7 @@ async function checkExistingSession() {
     console.error("Error checking existing session:", err)
   }
 
+  console.log('[login] no session/portals → showing login form')
   // Safely fallback to showing the login form instead of hanging
   hidePageLoader()
 }
