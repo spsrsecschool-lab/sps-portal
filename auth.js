@@ -141,23 +141,38 @@
 
   function getSessionResilient() {
     return new Promise(resolve => {
+      // FAST PATH: the persisted token lives in localStorage and survives tab/
+      // PWA reopen. Read it synchronously first. If it's present and not
+      // expired, use it immediately — this avoids the race where getSession()
+      // or an INITIAL_SESSION(null) event resolves before the session is ready
+      // and wrongly bounces us to login.
+      const stored = readStoredSession()
+      if (stored) {
+        const exp = stored.expires_at ? stored.expires_at * 1000 : 0
+        // If still valid (or no expiry info), trust it now.
+        if (!exp || exp > Date.now()) { resolve(stored); return }
+        // Expired: let supabase refresh it below, but still don't hang.
+      }
+
       let done = false
       const finish = s => { if (!done) { done = true; resolve(s) } }
 
-      // 1. INITIAL_SESSION event
+      // Only treat a NON-null session from these as authoritative — a null from
+      // an early event/getSession must not trigger a login redirect while the
+      // token might still be loading/refreshing.
       const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
-        if (event === 'INITIAL_SESSION') finish(session || null)
+        if (session) finish(session)
+        else if (event === 'SIGNED_OUT') finish(null)
       })
 
-      // 2. normal getSession
       sb.auth.getSession()
-        .then(({ data }) => finish(data?.session || null))
+        .then(({ data }) => { if (data?.session) finish(data.session) })
         .catch(() => {})
 
-      // 3. storage fallback if nothing resolved in time
-      setTimeout(() => { if (!done) finish(readStoredSession()) }, 1500)
+      // Final fallback: after a grace period, resolve to whatever storage has
+      // (possibly null → login). Longer than before so a slow refresh completes.
+      setTimeout(() => { if (!done) finish(readStoredSession()) }, 3000)
 
-      // cleanup after resolve
       Promise.resolve().then(() => {
         const iv = setInterval(() => {
           if (done) { clearInterval(iv); try { sub.subscription.unsubscribe() } catch (_) {} }
@@ -169,9 +184,12 @@
   // ── ACCESS CHECK ─────────────────────────────────────────────
   async function checkAccess() {
    try {
+    console.log('[boot] 1 checkAccess start')
     const session = await getSessionResilient()
+    console.log('[boot] 2 session resolved:', !!session)
 
     if (!session) {
+      console.log('[boot] no session → login')
       redirectToLogin()
       return
     }
@@ -181,11 +199,14 @@
 
     const cached = getLocalUser()
     if (cached && cached.portals) {
+      console.log('[boot] 3 using cached portals:', cached.portals)
       SPS.teacher = cached.teacher
       SPS.admin   = cached.admin
       SPS.portals = cached.portals
     } else {
+      console.log('[boot] 3 detecting portals…')
       const detected = await detectPortals(session.user.id)
+      console.log('[boot] 3b detected:', detected.portals)
       SPS.teacher = detected.teacher
       SPS.admin   = detected.admin
       SPS.portals = detected.portals
@@ -197,12 +218,16 @@
     }
 
     const key = window.PORTAL_KEY
+    console.log('[boot] 4 PORTAL_KEY:', key, 'portals:', SPS.portals)
     if (key && !SPS.portals.includes(key)) {
+      console.log('[boot] key not in portals → access redirect')
       redirectToLogin('access')
       return
     }
 
+    console.log('[boot] 5 resolving ready()')
     SPS._resolveReady()
+    console.log('[boot] 6 ready resolved ✓')
    } catch (e) {
     // Never leave the portal hanging on its loading wheel. If session/portal
     // resolution fails (e.g. a transient network error on cold start), clear
