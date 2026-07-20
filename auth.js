@@ -117,10 +117,59 @@
     return results
   }
 
+  // ── RESILIENT SESSION READ ───────────────────────────────────
+  // getSession() can hang on PWA/tab reopen when supabase-js is mid token
+  // refresh (the auth lock, even bypassed, races with autoRefreshToken and the
+  // INITIAL_SESSION event). To guarantee we never spin forever, we resolve the
+  // session from whichever of these wins first:
+  //   1. onAuthStateChange INITIAL_SESSION (fires on load with the stored session)
+  //   2. getSession() (normal path)
+  //   3. a short timeout that reads the persisted token straight from storage
+  function readStoredSession() {
+    try {
+      const ref = (SUPABASE_URL.match(/https:\/\/([^.]+)\./) || [])[1]
+      if (!ref) return null
+      const raw = localStorage.getItem('sb-' + ref + '-auth-token')
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      // supabase stores either the session object or {currentSession,...}
+      const sess = parsed.currentSession || parsed.session || parsed
+      if (sess && sess.access_token && sess.user) return sess
+      return null
+    } catch { return null }
+  }
+
+  function getSessionResilient() {
+    return new Promise(resolve => {
+      let done = false
+      const finish = s => { if (!done) { done = true; resolve(s) } }
+
+      // 1. INITIAL_SESSION event
+      const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
+        if (event === 'INITIAL_SESSION') finish(session || null)
+      })
+
+      // 2. normal getSession
+      sb.auth.getSession()
+        .then(({ data }) => finish(data?.session || null))
+        .catch(() => {})
+
+      // 3. storage fallback if nothing resolved in time
+      setTimeout(() => { if (!done) finish(readStoredSession()) }, 1500)
+
+      // cleanup after resolve
+      Promise.resolve().then(() => {
+        const iv = setInterval(() => {
+          if (done) { clearInterval(iv); try { sub.subscription.unsubscribe() } catch (_) {} }
+        }, 500)
+      })
+    })
+  }
+
   // ── ACCESS CHECK ─────────────────────────────────────────────
   async function checkAccess() {
    try {
-    const { data: { session } } = await sb.auth.getSession()
+    const session = await getSessionResilient()
 
     if (!session) {
       redirectToLogin()
