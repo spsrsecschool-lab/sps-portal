@@ -209,6 +209,7 @@
     }
 
     console.log('[boot] 5 resolving ready()')
+    SPS._booted = true
     SPS._resolveReady()
     console.log('[boot] 6 ready resolved ✓')
    } catch (e) {
@@ -237,6 +238,7 @@
   }
 
   // ── READY PROMISE ────────────────────────────────────────────
+  SPS._booted = false
   SPS._resolveReady = null
   SPS._ready = new Promise(resolve => {
     SPS._resolveReady = resolve
@@ -254,8 +256,17 @@ SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'
     name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   // ── LISTEN FOR SIGN OUT FROM ANOTHER TAB ─────────────────────
-  sb.auth.onAuthStateChange((event) => {
+  // Guard: ignore auth events until the initial checkAccess() has resolved.
+  // On a fresh tab, supabase-js can emit a transient SIGNED_OUT during initial
+  // hydration/refresh; acting on it would wrongly redirect a logged-in user to
+  // login. We only honor a SIGNED_OUT that happens AFTER we've booted.
+  sb.auth.onAuthStateChange((event, session) => {
+    console.log('[auth-event]', event, 'booted=', SPS._booted, 'hasSession=', !!session)
     if (event === 'SIGNED_OUT') {
+      // Only a real sign-out clears local state and redirects. During initial
+      // boot, or if the token is still in storage, ignore it.
+      if (!SPS._booted) { console.log('[auth-event] ignoring pre-boot SIGNED_OUT'); return }
+      if (readStoredSession()) { console.log('[auth-event] ignoring SIGNED_OUT — token still in storage'); return }
       sessionStorage.removeItem('sps_user')
       redirectToLogin()
     }
