@@ -20,7 +20,12 @@
   window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
       persistSession: true,
-      autoRefreshToken: true,
+      // Auto-refresh is DISABLED at construction. On PWA/tab reopen, an eager
+      // background token refresh races the initial getSession() and deadlocks
+      // the auth machinery → portal hangs on "checking session". We validate
+      // the stored session first (synchronously, no network), resolve the app,
+      // THEN start auto-refresh manually in the background. See checkAccess().
+      autoRefreshToken: false,
       detectSessionInUrl: false,
       lock: async (_name, _acquireTimeout, fn) => await fn()
     }
@@ -131,9 +136,17 @@
       if (!ref) return null
       const raw = localStorage.getItem('sb-' + ref + '-auth-token')
       if (!raw) return null
-      const parsed = JSON.parse(raw)
-      // supabase stores either the session object or {currentSession,...}
-      const sess = parsed.currentSession || parsed.session || parsed
+      let parsed
+      try { parsed = JSON.parse(raw) } catch { return null }
+      // supabase-js v2 has stored this in a few shapes across versions:
+      //   { access_token, refresh_token, user, expires_at, ... }  (flat)
+      //   { currentSession: {...}, expiresAt }                    (older)
+      //   { session: {...} }                                      (some builds)
+      const sess =
+        (parsed && parsed.access_token && parsed.user) ? parsed :
+        (parsed && parsed.currentSession) ? parsed.currentSession :
+        (parsed && parsed.session) ? parsed.session :
+        null
       if (sess && sess.access_token && sess.user) return sess
       return null
     } catch { return null }
@@ -227,6 +240,18 @@
 
     console.log('[boot] 5 resolving ready()')
     SPS._resolveReady()
+
+    // NOW that the app is unblocked, start token auto-refresh in the background.
+    // Doing this AFTER resolve means a refresh can never stall the initial gate.
+    try {
+      if (sb.auth.startAutoRefresh) sb.auth.startAutoRefresh()
+      // Nudge a refresh if the stored token is close to expiry, but don't await
+      // it — the app is already running on the current (still-valid) token.
+      const exp = session.expires_at ? session.expires_at * 1000 : 0
+      if (exp && exp - Date.now() < 120000) {
+        sb.auth.refreshSession().catch(() => {})
+      }
+    } catch (_) {}
     console.log('[boot] 6 ready resolved ✓')
    } catch (e) {
     // Never leave the portal hanging on its loading wheel. If session/portal
