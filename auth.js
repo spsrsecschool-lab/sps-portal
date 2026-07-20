@@ -25,6 +25,13 @@
       lock: async (_name, _acquireTimeout, fn) => await fn()
     }
   })
+  // Bind a LOCAL reference to the client. Portal pages (teacher.html etc.)
+  // declare their own top-level `let sb`, which creates a global lexical
+  // binding that shadows window.sb and is `undefined` until their init runs
+  // AFTER this code. Referencing bare `sb` here would resolve to that undefined
+  // binding → "Cannot read properties of undefined (reading 'from')". Using this
+  // local const guarantees every reference below hits the real client.
+  const sb = window.sb
 
   // ── SPS NAMESPACE ────────────────────────────────────────────
   window.SPS = {
