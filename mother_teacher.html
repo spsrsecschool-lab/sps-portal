@@ -2504,13 +2504,19 @@ async function loadViewMarks(){
 
 
 // Special-case: all active subjects assigned to the mother teacher's class
+let MK_SUBJECTS_ARE_CONFIGURED=false   // false when falling back to "all subjects" (nothing mapped in admin yet)
+
 async function loadClassSubjects(){
   // Subjects come from class_subject_assignments for this class
   const{data:csa}=await sb.from('class_subject_assignments')
     .select('subject_id,subjects(subject_id,name,short_code)')
     .eq('class_id',MY_CLASS.class_id).eq('session_id',SESS?.session_id||'').eq('is_active',true)
   let subs=(csa||[]).map(r=>r.subjects).filter(Boolean)
-  // Fallback: if none configured, load all active subjects
+  MK_SUBJECTS_ARE_CONFIGURED=subs.length>0
+  // Fallback: if none configured, load all active subjects so marks entry etc.
+  // still work — a mother teacher covers every subject for her class by design.
+  // NOTE: this is a fallback for functionality only. Don't present these as
+  // real "assignments" anywhere (e.g. the profile page) — see loadProfile().
   if(!subs.length){
     const{data:allSubs}=await sb.from('subjects').select('subject_id,name,short_code').eq('is_active',true).order('name')
     subs=allSubs||[]
@@ -2816,7 +2822,14 @@ async function loadMyAttendance(){
 async function loadProfile(){
   const el=$('profileContent');ldg(el)
   if(!MK_SUBJECTS.length)await loadClassSubjects()
-  MY_MAPPINGS=MK_SUBJECTS.map(s=>({subjects:{name:s.name},classes:{name:MY_CLASS.classes?.name},class_sections:{name:MY_CLASS.class_sections?.name}}))
+  // Only build "assignment" pills from REAL class_subject_assignments rows.
+  // When admin hasn't configured any yet, MK_SUBJECTS falls back to every
+  // active subject in the school (so marks entry still works) — showing that
+  // fallback as individually "assigned" subjects here would be misleading,
+  // since none of those mappings actually exist in admin.
+  MY_MAPPINGS=MK_SUBJECTS_ARE_CONFIGURED
+    ?MK_SUBJECTS.map(s=>({subjects:{name:s.name},classes:{name:MY_CLASS.classes?.name},class_sections:{name:MY_CLASS.class_sections?.name}}))
+    :[]
   const{data:t}=await sb.from('teachers').select('*').eq('teacher_id',TEACHER.teacher_id).maybeSingle()
   if(!t){emp(el,'Could not load profile.');return}
   TEACHER={...TEACHER,...t}
@@ -2826,6 +2839,9 @@ async function loadProfile(){
 
   const canEdit=t.can_edit_own_profile
   const mapTags=MY_MAPPINGS.map(m=>'<span class="map-tag">'+esc(m.subjects?.name||'?')+' · '+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</span>').join('')
+  const mapEmptyMsg=MK_SUBJECTS_ARE_CONFIGURED
+    ?'No assignments yet.'
+    :'No subject assignments configured in admin yet. As mother teacher you can still enter marks for every subject of your class by default.'
 
   el.innerHTML='<div class="profile-hero"><div class="avatar-lg">'+photoHtml+'</div><div><h3>'+esc(t.full_name||'—')+'</h3><div class="desig">'+esc(t.designation||'Teacher')+' · '+esc(t.employee_code||t.teacher_id)+'</div><div class="tag-row"><span class="pill '+(t.is_active?'pill-success':'pill-danger')+'">'+(t.is_active?'Active':'Inactive')+'</span><span class="pill pill-neutral">'+esc(ctInfo)+'</span></div></div></div>'
     +'<div class="grid-2">'
@@ -2833,7 +2849,7 @@ async function loadProfile(){
     +(canEdit?renderEditForm(t):renderViewFields(t))
     +(canEdit?'<div style="margin-top:14px;display:flex;gap:10px"><button class="btn btn-primary" onclick="saveProfileEdit()">Save Changes</button><button class="btn btn-ghost" onclick="loadProfile()">Cancel</button></div>':'<div style="margin-top:16px"><button class="btn btn-soft btn-sm" onclick="requestProfileEdit()">Request Edit Access</button></div>')
     +'</div>'
-    +'<div class="stack"><div class="card"><h3>Class-Subject Assignments</h3><div style="display:flex;flex-wrap:wrap;gap:6px">'+( mapTags||'<span style="font-size:12.5px;color:var(--ink-faint)">No assignments yet.</span>')+'</div></div></div>'
+    +'<div class="stack"><div class="card"><h3>Class-Subject Assignments</h3><div style="display:flex;flex-wrap:wrap;gap:6px">'+( mapTags||'<span style="font-size:12.5px;color:var(--ink-faint)">'+esc(mapEmptyMsg)+'</span>')+'</div></div></div>'
     +'</div>'
 }
 
