@@ -287,6 +287,37 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
   .cell-paid{background:rgba(46,166,90,.14)} .cell-partial{background:rgba(232,162,61,.16)} .cell-unpaid{background:rgba(214,69,69,.08)} .cell-waived{background:rgba(232,162,61,.10)}
   .dm-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700}
   .dm-green{background:var(--grn-100);color:var(--grn)} .dm-yellow{background:var(--warn-soft);color:var(--warn)} .dm-red{background:#FBE9E9;color:#C0392B}
+
+  /* Styled date-range controls + attendance calendar (My Attendance) */
+  .mono-num{font-family:var(--mono)}
+  .att-controls{padding:18px 20px}
+  .att-control-row{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+  .att-field{display:flex;flex-direction:column;gap:6px}
+  .att-field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint)}
+  .att-field input[type=date]{font-family:var(--font);font-size:13.5px;font-weight:600;color:var(--ink);background:var(--lav-50);border:1.5px solid var(--line);border-radius:10px;padding:10px 13px;outline:none;transition:border-color .15s,background .15s;cursor:pointer}
+  .att-field input[type=date]:focus{border-color:var(--grn);background:#fff;box-shadow:0 0 0 3px rgba(222,49,99,.10)}
+  .att-arrow{font-size:16px;color:var(--ink-faint);padding-bottom:11px;font-weight:700}
+  .att-load-btn{padding:11px 22px;border-radius:10px;display:inline-flex;align-items:center;gap:7px}
+  .att-cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px}
+  .att-tile{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:1.5px solid transparent;transition:transform .12s,box-shadow .12s;position:relative}
+  .att-tile:hover{transform:translateY(-2px);box-shadow:0 6px 14px -6px rgba(0,0,0,.25);z-index:1}
+  .att-tile .d-num{font-size:13px;font-weight:800;line-height:1}
+  .att-tile .d-dow{font-size:8.5px;font-weight:600;opacity:.65;text-transform:uppercase;letter-spacing:.03em}
+  .att-tile .d-time{font-size:8px;font-family:var(--mono);opacity:.75;margin-top:1px}
+  .att-tile.t-present{background:var(--success-soft);color:var(--success);border-color:rgba(43,182,115,.25)}
+  .att-tile.t-late{background:var(--warn-soft);color:var(--warn);border-color:rgba(232,162,61,.3)}
+  .att-tile.t-absent{background:var(--danger-soft);color:var(--danger);border-color:rgba(229,85,107,.28)}
+  .att-tile.t-off{background:var(--lav-100);color:var(--ink-faint);border-color:var(--line)}
+  .att-tile.t-none{background:transparent;color:var(--ink-faint);border:1.5px dashed var(--line)}
+  .att-legend{display:flex;gap:18px;margin-top:16px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);font-weight:600}
+  .att-legend .lg{display:inline-flex;align-items:center;gap:6px}
+  .att-legend .sw{width:14px;height:14px;border-radius:5px;display:inline-block}
+  .att-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+  .att-table thead th{background:var(--lav-100);padding:11px 16px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)}
+  .att-table thead th:first-child{border-top-left-radius:12px}
+  .att-table thead th:last-child{border-top-right-radius:12px}
+  .att-table tbody td{padding:11px 16px;border-top:1px solid var(--line)}
+  .att-table tbody tr:hover td{background:var(--lav-50)}
 </style>
 </head>
 <body>
@@ -643,11 +674,15 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     <!-- MYATTENDANCE (ported from teacher.html) -->
     <div class="page" id="page-myattendance">
       <div class="page-head"><div><h2>My Attendance</h2><p>Your daily in/out record from staff attendance</p></div></div>
-      <div class="card" style="margin-bottom:18px">
-        <div class="form-row" style="margin-bottom:0">
-          <div class="fg" style="max-width:180px"><label>From</label><input type="date" id="att_from"></div>
-          <div class="fg" style="max-width:180px"><label>To</label><input type="date" id="att_to"></div>
-          <button class="btn btn-soft" onclick="loadMyAttendance()">Load</button>
+      <div class="card att-controls" style="margin-bottom:18px">
+        <div class="att-control-row">
+          <div class="att-field"><label>From</label><input type="date" id="att_from"></div>
+          <div class="att-arrow">→</div>
+          <div class="att-field"><label>To</label><input type="date" id="att_to"></div>
+          <button class="btn btn-primary att-load-btn" onclick="loadMyAttendance()">
+            <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><polyline points="21 3 21 9 15 9"/></svg>
+            Load
+          </button>
         </div>
       </div>
       <div id="myAttResult"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Select a date range and click Load.</div></div>
@@ -2794,6 +2829,11 @@ async function loadMyAttendance(){
   const pct=workingDays>0?Math.round((present/workingDays)*100):0
   const total=data.length
 
+  const kindOf=s=>(s==='P'||s==='Present')?'present':(s==='L'||s==='Late')?'late':(s==='Off'||s==='Holiday'||s==='WO')?'off':'absent'
+  const labelOf={present:'Present',late:'Late',absent:'Absent',off:'Weekly Off'}
+  const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  const hhmm=t=>t?String(t).slice(0,5):''
+
   let html='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px">'
     +'<div class="stat-card"><span class="lbl">Present</span><span class="val" style="color:var(--success)">'+present+'</span><span class="sub">'+pct+'% of working days</span></div>'
     +'<div class="stat-card"><span class="lbl">Late</span><span class="val" style="color:var(--warn)">'+late+'</span></div>'
@@ -2801,24 +2841,54 @@ async function loadMyAttendance(){
     +'<div class="stat-card"><span class="lbl">Weekly Off</span><span class="val" style="color:var(--ink-soft)">'+off+'</span></div>'
     +'<div class="stat-card"><span class="lbl">Total Days</span><span class="val">'+total+'</span></div>'
     +'</div>'
-    +'<div class="card"><h3>Attendance Log</h3>'
-    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
-    +'<thead><tr><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Date</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Status</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">In Time</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Out Time</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Notes</th></tr></thead><tbody>'
+
+  html+='<div class="card" style="margin-bottom:18px"><h3>Overview</h3><div class="att-cal">'
+  data.forEach(r=>{
+    const k=kindOf(r.status)
+    const d=new Date(r.date+'T12:00:00')
+    const dnum=isNaN(d)?'':d.getDate()
+    const dow=isNaN(d)?'':DOW[d.getDay()]
+    const tin=hhmm(r.time_in)
+    html+='<div class="att-tile t-'+k+'" title="'+esc(fmtD(r.date)+' · '+labelOf[k])+(tin?' · in '+tin:'')+'">'
+      +'<span class="d-num">'+dnum+'</span>'
+      +'<span class="d-dow">'+dow+'</span>'
+      +(k==='present'||k==='late'?'<span class="d-time">'+(tin||'')+'</span>':k==='off'?'<span class="d-time">WO</span>':k==='absent'?'<span class="d-time">A</span>':'')
+      +'</div>'
+  })
+  html+='</div>'
+  html+='<div class="att-legend">'
+    +'<span class="lg"><span class="sw" style="background:var(--success)"></span>Present</span>'
+    +'<span class="lg"><span class="sw" style="background:var(--warn)"></span>Late</span>'
+    +'<span class="lg"><span class="sw" style="background:var(--danger)"></span>Absent</span>'
+    +'<span class="lg"><span class="sw" style="background:var(--lav-200,#F3D4DE);border:1px solid var(--line)"></span>Weekly Off</span>'
+    +'</div></div>'
+
+  html+='<div class="card"><h3>Daily In / Out Time</h3>'
+    +'<div class="table-wrap"><table class="att-table">'
+    +'<thead><tr><th>Date</th><th>Day</th><th>Status</th><th>In Time</th><th>Out Time</th><th>Hours</th></tr></thead><tbody>'
     +data.map(r=>{
-      const isOff=r.status==='Off'||r.status==='Holiday'||r.status==='WO'
-      const statusPill=r.status==='P'||r.status==='Present'
-        ?'<span style="background:var(--success-soft);color:var(--success);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Present</span>'
-        :r.status==='L'||r.status==='Late'
-        ?'<span style="background:var(--warn-soft);color:var(--warn);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Late</span>'
-        :isOff
-        ?'<span style="background:var(--lav-100);color:var(--ink-soft);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Weekly Off</span>'
-        :'<span style="background:var(--danger-soft);color:var(--danger);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Absent</span>'
-      return '<tr style="border-top:1px solid var(--line)">'
-        +'<td style="padding:10px 14px;font-weight:600">'+fmtD(r.date)+'</td>'
-        +'<td style="padding:10px 14px">'+statusPill+'</td>'
-        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.time_in?String(r.time_in).slice(0,5):'—')+'</td>'
-        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.time_out?String(r.time_out).slice(0,5):'—')+'</td>'
-        +'<td style="padding:10px 14px;color:var(--ink-soft);font-size:12px">'+(isOff?'Weekly off':'—')+'</td>'
+      const k=kindOf(r.status)
+      const d=new Date(r.date+'T12:00:00')
+      const dow=isNaN(d)?'—':DOW[d.getDay()]
+      const tin=hhmm(r.time_in), tout=hhmm(r.time_out)
+      let hours='—'
+      if(tin&&tout){
+        const[h1,m1]=tin.split(':').map(Number),[h2,m2]=tout.split(':').map(Number)
+        let mins=(h2*60+m2)-(h1*60+m1)
+        if(mins>0)hours=Math.floor(mins/60)+'h '+String(mins%60).padStart(2,'0')+'m'
+      }
+      const pill=k==='present'
+        ?'<span class="pill pill-success">Present</span>'
+        :k==='late'?'<span class="pill pill-warn">Late</span>'
+        :k==='off'?'<span class="pill" style="background:var(--lav-100);color:var(--ink-soft)">Weekly Off</span>'
+        :'<span class="pill pill-danger">Absent</span>'
+      return '<tr>'
+        +'<td style="font-weight:600">'+fmtD(r.date)+'</td>'
+        +'<td style="color:var(--ink-soft)">'+dow+'</td>'
+        +'<td>'+pill+'</td>'
+        +'<td class="mono-num">'+(tin||'—')+'</td>'
+        +'<td class="mono-num">'+(tout||'—')+'</td>'
+        +'<td class="mono-num" style="color:var(--ink-soft)">'+hours+'</td>'
         +'</tr>'
     }).join('')
     +'</tbody></table></div></div>'
