@@ -2371,7 +2371,7 @@ async function loadMyAttendance(){
   if(!from||!to){toast('Select date range','error');return}
   el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div>'
   const{data,error}=await sb.from('teacher_attendance')
-    .select('date,status,in_time,out_time,notes')
+    .select('date,status,time_in,time_out')
     .eq('teacher_id',TEACHER.teacher_id)
     .gte('date',from).lte('date',to).order('date')
   if(error){el.innerHTML='<div style="color:var(--danger);padding:20px">Error: '+esc(error.message)+'</div>';return}
@@ -2382,30 +2382,36 @@ async function loadMyAttendance(){
   const present=data.filter(r=>r.status==='P'||r.status==='Present').length
   const late=data.filter(r=>r.status==='L'||r.status==='Late').length
   const absent=data.filter(r=>r.status==='A'||r.status==='Absent').length
+  const off=data.filter(r=>r.status==='Off'||r.status==='Holiday'||r.status==='WO').length
+  const workingDays=data.length-off   // off days don't count toward attendance %
+  const pct=workingDays>0?Math.round((present/workingDays)*100):0
   const total=data.length
-  const pct=Math.round((present/total)*100)
 
-  let html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">'
-    +'<div class="stat-card"><span class="lbl">Present</span><span class="val" style="color:var(--success)">'+present+'</span><span class="sub">'+pct+'% attendance</span></div>'
+  let html='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px">'
+    +'<div class="stat-card"><span class="lbl">Present</span><span class="val" style="color:var(--success)">'+present+'</span><span class="sub">'+pct+'% of working days</span></div>'
     +'<div class="stat-card"><span class="lbl">Late</span><span class="val" style="color:var(--warn)">'+late+'</span></div>'
     +'<div class="stat-card"><span class="lbl">Absent</span><span class="val" style="color:var(--danger)">'+absent+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Weekly Off</span><span class="val" style="color:var(--ink-soft)">'+off+'</span></div>'
     +'<div class="stat-card"><span class="lbl">Total Days</span><span class="val">'+total+'</span></div>'
     +'</div>'
     +'<div class="card"><h3>Attendance Log</h3>'
     +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
     +'<thead><tr><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Date</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Status</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">In Time</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Out Time</th><th style="background:var(--lav-100);padding:10px 14px;text-align:left">Notes</th></tr></thead><tbody>'
     +data.map(r=>{
+      const isOff=r.status==='Off'||r.status==='Holiday'||r.status==='WO'
       const statusPill=r.status==='P'||r.status==='Present'
         ?'<span style="background:var(--success-soft);color:var(--success);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Present</span>'
         :r.status==='L'||r.status==='Late'
         ?'<span style="background:var(--warn-soft);color:var(--warn);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Late</span>'
+        :isOff
+        ?'<span style="background:var(--lav-100);color:var(--ink-soft);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Weekly Off</span>'
         :'<span style="background:var(--danger-soft);color:var(--danger);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">Absent</span>'
       return '<tr style="border-top:1px solid var(--line)">'
         +'<td style="padding:10px 14px;font-weight:600">'+fmtD(r.date)+'</td>'
         +'<td style="padding:10px 14px">'+statusPill+'</td>'
-        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.in_time?r.in_time.slice(0,5):'—')+'</td>'
-        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.out_time?r.out_time.slice(0,5):'—')+'</td>'
-        +'<td style="padding:10px 14px;color:var(--ink-soft);font-size:12px">'+esc(r.notes||'—')+'</td>'
+        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.time_in?String(r.time_in).slice(0,5):'—')+'</td>'
+        +'<td style="padding:10px 14px;font-family:var(--mono)">'+(r.time_out?String(r.time_out).slice(0,5):'—')+'</td>'
+        +'<td style="padding:10px 14px;color:var(--ink-soft);font-size:12px">'+(isOff?'Weekly off':'—')+'</td>'
         +'</tr>'
     }).join('')
     +'</tbody></table></div></div>'
