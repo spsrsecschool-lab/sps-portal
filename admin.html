@@ -312,6 +312,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-label">Attendance &amp; Calendar</div>
     <div class="sb-item" onclick="goTo('classatt',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Class Attendance</div>
     <div class="sb-item" onclick="goTo('calendar',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Holiday Calendar</div>
+    <div class="sb-item" onclick="goTo('staffatt',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3 3-1.5-1.5"/></svg>Staff Attendance</div>
     <div class="sb-label">Other Portals</div>
     <a class="sb-link" href="fee.html" target="_blank"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.5 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/></svg>Fee Portal<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
     <a class="sb-link" href="staff-attendance.html" target="_blank"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Staff Attendance<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
@@ -708,6 +709,26 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
     <div id="reqTab-marks"><div id="marksReqList"><div class="loading-row"><div class="spinner"></div></div></div></div>
     <div id="reqTab-profile" style="display:none"><div id="profileReqList"><div class="loading-row"><div class="spinner"></div></div></div></div>
+  </div>
+
+  <div class="page" id="page-staffatt">
+    <div class="page-head"><div><h2>Staff Attendance</h2><p>Upload the biometric attendance export. Teachers see their own record in the "My Attendance" tab of their portal.</p></div></div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3>Upload attendance file</h3>
+      <div class="form-row" style="margin-bottom:14px">
+        <div class="fg" style="max-width:190px"><label>Period start</label><input type="date" id="sa_from"></div>
+        <div class="fg" style="max-width:190px"><label>Period end</label><input type="date" id="sa_to"></div>
+        <div class="fg" style="max-width:300px"><label>Attendance CSV</label>
+          <input type="file" id="sa_file" accept=".csv" onchange="parseStaffAtt(this)" style="font-family:var(--font);font-size:12.5px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50)">
+        </div>
+      </div>
+      <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:11.5px;color:var(--ink-soft);line-height:1.6">
+        Export the biometric report as CSV (the day-columns matrix with <b>Emp Code</b>, <b>Emp Name</b>, then one column per day). The dates are auto-read from the file header; adjust the period above if needed. Emp Code is matched to each teacher's <b>Employee Code</b>. Times → Present, <b>A</b> → Absent, <b>WO-I</b> → Weekly Off.
+      </div>
+    </div>
+
+    <div id="saPreview"></div>
   </div>
 
   <div class="page" id="page-settings">
@@ -1214,8 +1235,8 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',settings:'Settings',requests:'Access Requests'}
-const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',settings:'Settings',requests:'Access Requests'}
+const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
 function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
@@ -3056,6 +3077,171 @@ async function downloadAttSample(){
   const cls=ALL_CLASSES.find(cl=>cl.class_id===classId)?.name||'class'
   const a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(csv);a.download='att_'+cls+'_'+fromDate+'_to_'+toDate+'.csv';a.click()
   toast('Downloaded — fill P / A / L / H in the date columns','success')
+}
+
+// ═══════════ STAFF ATTENDANCE (biometric CSV upload) ═══════════
+let _saParsed=null
+let _saTeachersByCode=null
+
+async function initStaffAtt(){
+  const{data:tchs}=await sb.from('teachers').select('teacher_id,employee_code,full_name,is_active')
+  _saTeachersByCode={}
+  ;(tchs||[]).forEach(t=>{ if(t.employee_code!=null) _saTeachersByCode[String(t.employee_code).trim()]=t })
+  $('saPreview').innerHTML='<div class="card" style="text-align:center;padding:40px;color:var(--ink-faint)">Pick the period, then choose your biometric CSV to preview and import.</div>'
+}
+
+function parseCSVGrid(text){
+  const rows=[]; let row=[], field='', i=0, inQ=false
+  while(i<text.length){
+    const c=text[i]
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i+=2;continue} inQ=false;i++;continue }
+      field+=c;i++;continue
+    }
+    if(c==='"'){inQ=true;i++;continue}
+    if(c===','){row.push(field);field='';i++;continue}
+    if(c==='\r'){i++;continue}
+    if(c==='\n'){row.push(field);rows.push(row);row=[];field='';i++;continue}
+    field+=c;i++
+  }
+  if(field!==''||row.length){row.push(field);rows.push(row)}
+  return rows
+}
+
+function parseTimes(cell){
+  const times=(cell.match(/\d{1,2}:\d{2}/g)||[])
+  if(!times.length)return null
+  const norm=t=>{const[h,m]=t.split(':');return String(h).padStart(2,'0')+':'+m+':00'}
+  return {tin:norm(times[0]), tout:times.length>1?norm(times[times.length-1]):null}
+}
+
+function parseStaffAtt(input){
+  const file=input.files?.[0]; if(!file)return
+  const reader=new FileReader()
+  reader.onload=ev=>{
+    try{ buildStaffPreview(parseCSVGrid(ev.target.result)) }
+    catch(e){ toast('Could not parse file: '+e.message,'error'); console.error(e) }
+  }
+  reader.readAsText(file)
+}
+
+function parseLooseDate(s){
+  const M={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
+  const m=String(s).match(/(\d{1,2})[-\/]([A-Za-z]{3})[-\/](\d{4})/)
+  if(!m)return null
+  const mm=M[m[2].toLowerCase()]; if(!mm)return null
+  return m[3]+'-'+mm+'-'+String(m[1]).padStart(2,'0')
+}
+
+function buildStaffPreview(grid){
+  let periodFrom=null, periodTo=null
+  for(const r of grid.slice(0,8)){
+    const joined=r.join(' ')
+    const m=joined.match(/(\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{4}).*?(?:To|to)\s*(\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{4})/)
+    if(m){ periodFrom=parseLooseDate(m[1]); periodTo=parseLooseDate(m[2]); break }
+  }
+  if(periodFrom&&!$('sa_from').value)$('sa_from').value=periodFrom
+  if(periodTo&&!$('sa_to').value)$('sa_to').value=periodTo
+
+  let headerIdx=-1
+  for(let i=0;i<grid.length;i++){ if(grid[i].some(c=>/emp\s*code/i.test(c))){headerIdx=i;break} }
+  if(headerIdx<0){toast('Could not find the "Emp Code" header row in the file','error');return}
+  const header=grid[headerIdx]
+  const codeCol=header.findIndex(c=>/emp\s*code/i.test(c))
+  const nameCol=header.findIndex(c=>/emp\s*name/i.test(c))
+  const dayCols=[]
+  header.forEach((c,idx)=>{ const n=parseInt(String(c).trim()); if(!isNaN(n)&&n>=1&&n<=31&&String(c).trim()===String(n)) dayCols.push({col:idx,day:n}) })
+  if(!dayCols.length){toast('No day columns found in the header','error');return}
+
+  const rows=[]
+  for(let i=headerIdx+1;i<grid.length;i++){
+    const r=grid[i]
+    const code=String(r[codeCol]??'').trim()
+    const name=String(r[nameCol]??'').trim()
+    if(!code&&!name)continue
+    if(/generated by/i.test(r.join(' ')))break
+    if(!code)continue
+    const days={}
+    dayCols.forEach(({col,day})=>{
+      const cell=String(r[col]??'').trim()
+      if(!cell)return
+      if(/^WO/i.test(cell)||/^H$/i.test(cell)){days[day]={status:'Off'};return}
+      if(/^A$/i.test(cell)){days[day]={status:'A'};return}
+      const t=parseTimes(cell)
+      if(t){days[day]={status:'P',tin:t.tin,tout:t.tout}}
+    })
+    rows.push({empCode:code, empName:name, days})
+  }
+  _saParsed={rows, dayCols, period:{from:periodFrom,to:periodTo}}
+  renderStaffPreview()
+}
+
+function renderStaffPreview(){
+  const el=$('saPreview'); if(!_saParsed)return
+  const {rows,dayCols}=_saParsed
+  const matched=rows.filter(r=>_saTeachersByCode[r.empCode])
+  const unmatched=rows.filter(r=>!_saTeachersByCode[r.empCode])
+  const summarize=r=>{const vals=Object.values(r.days);return {p:vals.filter(d=>d.status==='P').length, a:vals.filter(d=>d.status==='A').length, off:vals.filter(d=>d.status==='Off').length}}
+
+  let html='<div class="grid-4" style="margin-bottom:16px">'
+    +'<div class="stat-card"><span class="lbl">Employees in file</span><span class="val">'+rows.length+'</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--success,#2BB673)">Matched</span><span class="val" style="color:var(--success,#2BB673)">'+matched.length+'</span><span class="sub">will be imported</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--danger,#E5556B)">Unmatched</span><span class="val" style="color:var(--danger,#E5556B)">'+unmatched.length+'</span><span class="sub">no Employee Code match</span></div>'
+    +'<div class="stat-card"><span class="lbl">Day columns</span><span class="val">'+dayCols.length+'</span></div>'
+    +'</div>'
+  if(unmatched.length){
+    html+='<div class="card" style="margin-bottom:16px;border-color:var(--danger,#E5556B)"><h3 style="color:var(--danger,#E5556B)">Unmatched employees ('+unmatched.length+')</h3>'
+      +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">These Emp Codes don\'t match any teacher\'s Employee Code. Fix the code on the teacher (Staff &amp; Teachers → Edit) or in the file, then re-upload. They will be skipped.</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+unmatched.map(r=>'<span class="pill pill-warn">'+esc(r.empCode)+' · '+esc(r.empName||'?')+'</span>').join('')+'</div></div>'
+  }
+  html+='<div class="card" style="margin-bottom:16px"><div class="table-wrap"><table><thead><tr>'
+    +'<th>Emp Code</th><th>File Name</th><th>Matched Teacher</th><th>Present</th><th>Absent</th><th>Off</th></tr></thead><tbody>'
+  rows.forEach(r=>{
+    const t=_saTeachersByCode[r.empCode]; const s=summarize(r)
+    html+='<tr'+(t?'':' style="opacity:.5"')+'><td class="mono">'+esc(r.empCode)+'</td><td>'+esc(r.empName||'—')+'</td>'
+      +'<td>'+(t?'<span style="font-weight:600">'+esc(t.full_name)+'</span>':'<span class="pill pill-danger">no match</span>')+'</td>'
+      +'<td class="mono" style="text-align:center;color:var(--success,#2BB673)">'+s.p+'</td>'
+      +'<td class="mono" style="text-align:center;color:var(--danger,#E5556B)">'+s.a+'</td>'
+      +'<td class="mono" style="text-align:center;color:var(--ink-soft)">'+s.off+'</td></tr>'
+  })
+  html+='</tbody></table></div></div>'
+  html+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn btn-primary" onclick="commitStaffAtt()"'+(matched.length?'':' disabled')+'>Import '+matched.length+' teacher'+(matched.length!==1?'s':'')+'\u2019 attendance</button>'
+    +'<span style="font-size:12px;color:var(--ink-soft)">Existing records in the selected period for these teachers will be replaced.</span></div>'
+  el.innerHTML=html
+}
+
+async function commitStaffAtt(){
+  if(!_saParsed){toast('Nothing to import','error');return}
+  const from=$('sa_from').value, to=$('sa_to').value
+  if(!from||!to){toast('Set the period start and end dates','error');return}
+  const year=parseInt(from.slice(0,4)), monthFrom=parseInt(from.slice(5,7)), fromDay=parseInt(from.slice(8,10))
+  const dateForDay=(day)=>{ let y=year,m=monthFrom; if(day<fromDay){m+=1;if(m>12){m=1;y+=1}} return y+'-'+String(m).padStart(2,'0')+'-'+String(day).padStart(2,'0') }
+
+  const matched=_saParsed.rows.filter(r=>_saTeachersByCode[r.empCode])
+  const records=[]
+  matched.forEach(r=>{
+    const t=_saTeachersByCode[r.empCode]
+    Object.entries(r.days).forEach(([day,d])=>{
+      const date=dateForDay(parseInt(day))
+      if(date<from||date>to)return
+      records.push({teacher_id:t.teacher_id, date, status:d.status, time_in:d.tin||null, time_out:d.tout||null, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
+    })
+  })
+  if(!records.length){toast('No records fall within the selected period','error');return}
+
+  toast('Importing '+records.length+' records…','info')
+  const teacherIds=[...new Set(records.map(r=>r.teacher_id))]
+  const{error:delErr}=await sb.from('teacher_attendance').delete().in('teacher_id',teacherIds).gte('date',from).lte('date',to)
+  if(delErr){toast('Cleanup failed: '+delErr.message,'error');return}
+  let inserted=0, errs=0
+  for(let i=0;i<records.length;i+=500){
+    const{error}=await sb.from('teacher_attendance').insert(records.slice(i,i+500))
+    if(error)errs++; else inserted+=records.slice(i,i+500).length
+  }
+  if(errs){toast('Imported with '+errs+' error batch(es)','error')}
+  else{toast('✓ Imported '+inserted+' records for '+teacherIds.length+' teachers','success')}
+  $('sa_file').value=''
+  $('saPreview').innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:15px;font-weight:700;color:var(--success,#2BB673)">✓ Import complete</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">'+inserted+' records saved. Teachers can now see this in their My Attendance tab.</div></div>'
 }
 
 function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3).map(h=>h.replace(/^d_/,'').trim());const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};// Normalise date: handle DD/MM/YYYY (Excel Indian locale) → YYYY-MM-DD
