@@ -279,6 +279,10 @@ tbody tr:hover td{background:var(--lav-50)}
 .msg-compose-box textarea{width:100%;font-family:var(--font);font-size:13px;padding:12px 14px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;outline:none;min-height:80px;background:var(--white);box-sizing:border-box}
 .msg-compose-box textarea:focus{border-color:var(--indigo)}
 
+
+  .dow-chip{font-family:var(--font);font-size:12px;font-weight:700;padding:8px 14px;border-radius:9px;border:1.5px solid var(--line);background:var(--white);color:var(--ink-soft);cursor:pointer;transition:all .12s}
+  .dow-chip:hover{background:var(--lav-50)}
+  .dow-chip.on{background:var(--danger,#E5556B);border-color:var(--danger,#E5556B);color:#fff}
 </style>
 </head>
 <body>
@@ -738,7 +742,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="tab-btn" onclick="switchTab('settingsTab','classes',this)">Classes &amp; Sections</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','subjects',this)">Subjects</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','streams',this)">Streams</button>
-        <button class="tab-btn" onclick="switchTab('settingsTab','credentials',this)">Credentials</button>
+        <button class="tab-btn" onclick="switchTab('settingsTab','attendance',this)">Attendance</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','danger',this)">Danger Zone</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','ctcontrol',this)">Class Teacher Control</button>
       </div>
@@ -828,24 +832,39 @@ tbody tr:hover td{background:var(--lav-50)}
         </div>
       </div>
 
-      <div id="settingsTab-credentials" style="display:none">
-        <div class="card" style="max-width:540px;margin-bottom:18px">
-          <h3>Reset Teacher Password</h3>
-          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Sends a password reset email to the teacher's Supabase Auth account.</p>
-          <div class="form-row" style="margin-bottom:0">
-            <div class="fg"><label>Teacher</label><select id="resetTeacherSel"><option value="">Select teacher</option></select></div>
-            <button class="btn btn-dark btn-sm" style="align-self:flex-end" onclick="resetTeacherPassword()">Send Reset Email</button>
-          </div>
-        </div>
-        <div class="card" style="max-width:540px">
-          <h3>Staff Attendance Thresholds</h3>
-          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Default yellow/red zone for the Staff Attendance portal analytics.</p>
+      <div id="settingsTab-attendance" style="display:none">
+        <!-- School-wide defaults -->
+        <div class="card" style="max-width:640px;margin-bottom:18px">
+          <h3>Default Staff Schedule</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Applies to every teacher who doesn't have a custom schedule below. A staff member is marked <b>Late</b> when their biometric in-time is after the "Late after" time.</p>
           <div class="form-row">
-            <div class="fg"><label>Shift Start Time</label><input type="time" id="threshShift" value="09:00"></div>
-            <div class="fg"><label>Yellow Zone (late days)</label><input type="number" id="threshYellow" value="3" min="1"></div>
-            <div class="fg"><label>Red Zone (late days)</label><input type="number" id="threshRed" value="5" min="1"></div>
+            <div class="fg"><label>Shift Start</label><input type="time" id="def_shift_start" value="07:20"></div>
+            <div class="fg"><label>Shift End</label><input type="time" id="def_shift_end" value="13:15"></div>
+            <div class="fg"><label>Late after</label><input type="time" id="def_late_after" value="07:30"></div>
           </div>
-          <button class="btn btn-dark btn-sm" onclick="saveThresholds()">Save Thresholds</button>
+          <div style="margin-top:4px"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:8px">Recurring Weekly Off Days</label>
+            <div id="weeklyOffDays" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+          </div>
+          <button class="btn btn-dark btn-sm" style="margin-top:16px" onclick="saveAttDefaults()">Save Defaults</button>
+        </div>
+
+        <!-- Per-teacher schedules -->
+        <div class="card" style="margin-bottom:18px">
+          <h3>Per-Teacher Schedules</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Override the default for individual teachers (e.g. someone working 11:00–12:30). Leave a field blank to use the default. Blank rows follow the defaults above.</p>
+          <div id="teacherSchedList"><div class="loading-row"><div class="spinner"></div></div></div>
+        </div>
+
+        <!-- Specific off-days -->
+        <div class="card" style="max-width:640px">
+          <h3>Extra Off Days</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Mark specific dates as staff off-days (on top of recurring weekly-offs and whatever the biometric file marked). Applies to all staff.</p>
+          <div class="form-row" style="margin-bottom:14px">
+            <div class="fg" style="max-width:190px"><label>Date</label><input type="date" id="offDayDate"></div>
+            <div class="fg"><label>Label (optional)</label><input id="offDayLabel" placeholder="e.g. Local holiday"></div>
+            <button class="btn btn-dark btn-sm" style="align-self:flex-end" onclick="addStaffOffDay()">Add</button>
+          </div>
+          <div id="offDaysList"></div>
         </div>
       </div>
 
@@ -3082,12 +3101,36 @@ async function downloadAttSample(){
 // ═══════════ STAFF ATTENDANCE (biometric CSV upload) ═══════════
 let _saParsed=null
 let _saTeachersByCode=null
+let _saDefaults=null, _saScheds={}, _saOffDates=new Set(), _saWeeklyOff=new Set()
 
 async function initStaffAtt(){
-  const{data:tchs}=await sb.from('teachers').select('teacher_id,employee_code,full_name,is_active')
+  const[{data:tchs},{data:def},{data:scheds},{data:offs}]=await Promise.all([
+    sb.from('teachers').select('teacher_id,employee_code,full_name,is_active'),
+    sb.from('attendance_settings').select('*').eq('id',1).maybeSingle(),
+    sb.from('teacher_schedules').select('*'),
+    sb.from('staff_off_days').select('date')
+  ])
   _saTeachersByCode={}
   ;(tchs||[]).forEach(t=>{ if(t.employee_code!=null) _saTeachersByCode[String(t.employee_code).trim()]=t })
+  // Late/off rule inputs
+  _saDefaults=def||{default_late_after:'07:30',weekly_off_days:[0]}
+  _saScheds={}; (scheds||[]).forEach(s=>_saScheds[s.teacher_id]=s)
+  _saOffDates=new Set((offs||[]).map(o=>o.date))
+  _saWeeklyOff=new Set(_saDefaults.weekly_off_days||[])
   $('saPreview').innerHTML='<div class="card" style="text-align:center;padding:40px;color:var(--ink-faint)">Pick the period, then choose your biometric CSV to preview and import.</div>'
+}
+
+// The "late after" time that applies to a given teacher (their override, else default).
+function lateAfterFor(teacherId){
+  const s=_saScheds[teacherId]
+  const t=(s&&s.late_after)?s.late_after:_saDefaults?.default_late_after||'07:30'
+  return String(t).slice(0,5)   // 'HH:MM'
+}
+// Is this date an admin-decided off day (recurring weekly-off OR specific date)?
+function isAdminOff(dateStr){
+  if(_saOffDates&&_saOffDates.has(dateStr))return true
+  const d=new Date(dateStr+'T12:00:00')
+  return !isNaN(d)&&_saWeeklyOff&&_saWeeklyOff.has(d.getDay())
 }
 
 function parseCSVGrid(text){
@@ -3221,10 +3264,21 @@ async function commitStaffAtt(){
   const records=[]
   matched.forEach(r=>{
     const t=_saTeachersByCode[r.empCode]
+    const lateAfter=lateAfterFor(t.teacher_id)   // 'HH:MM' for this teacher
     Object.entries(r.days).forEach(([day,d])=>{
       const date=dateForDay(parseInt(day))
       if(date<from||date>to)return
-      records.push({teacher_id:t.teacher_id, date, status:d.status, time_in:d.tin||null, time_out:d.tout||null, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
+      let status=d.status, tin=d.tin||null, tout=d.tout||null
+      // Rule: admin-decided off (recurring weekly-off or specific date) wins —
+      // the day becomes Off regardless of what the biometric file said.
+      if(isAdminOff(date)){
+        status='Off'
+      } else if(status==='Present' && tin){
+        // Rule: a Present day is re-classified as Late if the in-time is
+        // strictly after this teacher's "late after" time.
+        if(String(tin).slice(0,5) > lateAfter) status='Late'
+      }
+      records.push({teacher_id:t.teacher_id, date, status, time_in:tin, time_out:tout, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
     })
   })
   if(!records.length){toast('No records fall within the selected period','error');return}
@@ -3458,18 +3512,117 @@ async function createStream(){
   toast('Stream added','success');if($('newStreamName'))$('newStreamName').value='';loadStreamsList()
 }
 async function toggleStream(id,active){await sb.from('streams').update({is_active:!active}).eq('stream_id',id);toast('Updated','success');loadStreamsList()}
-function loadResetList(){const sel=$('resetTeacherSel');if(!sel)return;sel.innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+esc(t.username)+'">'+esc(t.full_name)+'</option>').join('')}
-async function resetTeacherPassword(){
-  const uname=$('resetTeacherSel')?.value
-  if(!uname){toast('Select a teacher','error');return}
-  const{error}=await sb.auth.resetPasswordForEmail(uname+'@'+AUTH_EMAIL_DOMAIN)
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast('Reset email sent','success')
+// ═══════════ ATTENDANCE SETTINGS (defaults, per-teacher schedules, off-days) ═══════════
+let _attDefaults=null, _teacherScheds={}, _staffOffDays=[]
+const DOW_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
+async function loadAttendanceSettings(){
+  const[{data:def},{data:scheds},{data:offs}]=await Promise.all([
+    sb.from('attendance_settings').select('*').eq('id',1).maybeSingle(),
+    sb.from('teacher_schedules').select('*'),
+    sb.from('staff_off_days').select('*').order('date',{ascending:false})
+  ])
+  _attDefaults=def||{default_shift_start:'07:20',default_shift_end:'13:15',default_late_after:'07:30',weekly_off_days:[0]}
+  _teacherScheds={}; (scheds||[]).forEach(s=>_teacherScheds[s.teacher_id]=s)
+  _staffOffDays=offs||[]
+
+  // Defaults form
+  const hm=t=>t?String(t).slice(0,5):''
+  if($('def_shift_start'))$('def_shift_start').value=hm(_attDefaults.default_shift_start)||'07:20'
+  if($('def_shift_end'))$('def_shift_end').value=hm(_attDefaults.default_shift_end)||'13:15'
+  if($('def_late_after'))$('def_late_after').value=hm(_attDefaults.default_late_after)||'07:30'
+
+  // Weekly-off day chips
+  const woSet=new Set(_attDefaults.weekly_off_days||[])
+  const wd=$('weeklyOffDays')
+  if(wd)wd.innerHTML=DOW_NAMES.map((d,i)=>'<button type="button" class="dow-chip'+(woSet.has(i)?' on':'')+'" data-dow="'+i+'" onclick="toggleWeeklyOff('+i+',this)">'+d+'</button>').join('')
+
+  renderTeacherScheds()
+  renderStaffOffDays()
 }
-async function saveThresholds(){
-  const{error}=await sb.from('attendance_thresholds').upsert({shift_start_time:$('threshShift')?.value||'09:00',yellow_zone_lates:parseInt($('threshYellow')?.value||3),red_zone_lates:parseInt($('threshRed')?.value||5),updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()})
+
+function toggleWeeklyOff(i,btn){btn.classList.toggle('on')}
+
+async function saveAttDefaults(){
+  const woChips=[...document.querySelectorAll('#weeklyOffDays .dow-chip.on')].map(b=>parseInt(b.dataset.dow))
+  const{error}=await sb.from('attendance_settings').upsert({
+    id:1,
+    default_shift_start:$('def_shift_start').value||'07:20',
+    default_shift_end:$('def_shift_end').value||'13:15',
+    default_late_after:$('def_late_after').value||'07:30',
+    weekly_off_days:woChips,
+    updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()
+  })
   if(error){toast('Failed: '+error.message,'error');return}
-  toast('Thresholds saved','success')
+  toast('Defaults saved ✓','success')
+  loadAttendanceSettings()
+}
+
+function renderTeacherScheds(){
+  const el=$('teacherSchedList');if(!el)return
+  const teachers=ALL_TEACHERS.filter(t=>t.is_active).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||''))
+  if(!teachers.length){el.innerHTML='<div style="color:var(--ink-faint);font-size:12.5px">No active teachers.</div>';return}
+  const hm=t=>t?String(t).slice(0,5):''
+  const dph=hm(_attDefaults.default_shift_start), dph2=hm(_attDefaults.default_shift_end), dpl=hm(_attDefaults.default_late_after)
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Shift Start</th><th>Shift End</th><th>Late After</th><th></th></tr></thead><tbody>'
+    +teachers.map(t=>{
+      const s=_teacherScheds[t.teacher_id]||{}
+      const custom=!!_teacherScheds[t.teacher_id]
+      return '<tr data-tid="'+esc(t.teacher_id)+'">'
+        +'<td style="font-weight:600">'+esc(t.full_name)+(custom?' <span class="pill pill-grn" style="font-size:9px">custom</span>':'')+'</td>'
+        +'<td><input type="time" class="ts-in ts-start" value="'+hm(s.shift_start)+'" placeholder="'+dph+'" style="font-family:var(--mono);font-size:12px;padding:5px 7px;border:1.5px solid var(--line);border-radius:7px;background:var(--lav-50)"></td>'
+        +'<td><input type="time" class="ts-in ts-end" value="'+hm(s.shift_end)+'" placeholder="'+dph2+'" style="font-family:var(--mono);font-size:12px;padding:5px 7px;border:1.5px solid var(--line);border-radius:7px;background:var(--lav-50)"></td>'
+        +'<td><input type="time" class="ts-in ts-late" value="'+hm(s.late_after)+'" placeholder="'+dpl+'" style="font-family:var(--mono);font-size:12px;padding:5px 7px;border:1.5px solid var(--line);border-radius:7px;background:var(--lav-50)"></td>'
+        +'<td style="display:flex;gap:6px"><button class="btn btn-dark btn-xs" onclick="saveTeacherSched(this,\''+esc(t.teacher_id)+'\')">Save</button>'
+          +(custom?'<button class="btn btn-ghost btn-xs" onclick="clearTeacherSched(\''+esc(t.teacher_id)+'\')">Reset</button>':'')+'</td>'
+        +'</tr>'
+    }).join('')
+    +'</tbody></table></div>'
+}
+
+async function saveTeacherSched(btn,tid){
+  const row=btn.closest('tr')
+  const g=cls=>{const v=row.querySelector('.'+cls)?.value;return v||null}
+  const rec={teacher_id:tid,shift_start:g('ts-start'),shift_end:g('ts-end'),late_after:g('ts-late'),updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()}
+  // If all three blank, treat as "use default" → delete any existing row.
+  if(!rec.shift_start&&!rec.shift_end&&!rec.late_after){
+    await sb.from('teacher_schedules').delete().eq('teacher_id',tid)
+    delete _teacherScheds[tid]
+    toast('Using default schedule','success');renderTeacherScheds();return
+  }
+  const{error}=await sb.from('teacher_schedules').upsert(rec,{onConflict:'teacher_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  _teacherScheds[tid]=rec
+  toast('Schedule saved ✓','success');renderTeacherScheds()
+}
+
+async function clearTeacherSched(tid){
+  await sb.from('teacher_schedules').delete().eq('teacher_id',tid)
+  delete _teacherScheds[tid]
+  toast('Reset to default','success');renderTeacherScheds()
+}
+
+function renderStaffOffDays(){
+  const el=$('offDaysList');if(!el)return
+  if(!_staffOffDays.length){el.innerHTML='<div style="color:var(--ink-faint);font-size:12.5px">No extra off-days set.</div>';return}
+  el.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:8px">'+_staffOffDays.map(o=>
+    '<span class="pill pill-neutral" style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px">'+esc(fmtD(o.date))+(o.label?' · '+esc(o.label):'')
+    +'<button onclick="removeStaffOffDay(\''+esc(o.date)+'\')" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:15px;line-height:1;padding:0">&times;</button></span>'
+  ).join('')+'</div>'
+}
+
+async function addStaffOffDay(){
+  const date=$('offDayDate')?.value, label=$('offDayLabel')?.value?.trim()||null
+  if(!date){toast('Pick a date','error');return}
+  const{error}=await sb.from('staff_off_days').upsert({date,label,created_by:SPS.admin?.admin_id,created_at:new Date().toISOString()},{onConflict:'date'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  if($('offDayDate'))$('offDayDate').value='';if($('offDayLabel'))$('offDayLabel').value=''
+  toast('Off-day added ✓','success');loadAttendanceSettings()
+}
+
+async function removeStaffOffDay(date){
+  await sb.from('staff_off_days').delete().eq('date',date)
+  toast('Removed','success');loadAttendanceSettings()
 }
 function switchSettingsTab(key,btn){
   document.querySelectorAll('[id^="settingsTab-"]').forEach(t=>t.style.display='none')
@@ -4162,7 +4315,7 @@ function loadSettings(){
   loadClassesList()
   loadSubjectsList()
   loadStreamsList()
-  loadResetList()
+  loadAttendanceSettings()
   loadClassTeacherControl()
 }
 
