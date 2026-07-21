@@ -950,46 +950,14 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <div class="page-head">
         <div><h2>My Attendance</h2><p>Your daily in/out record from staff attendance</p></div>
       </div>
-      <div class="form-row" style="max-width:420px">
-        <div class="field-grp"><label>From</label><input type="date" value="2026-06-01"></div>
-        <div class="field-grp"><label>To</label><input type="date" value="2026-06-30"></div>
-      </div>
       <div class="card" style="margin-bottom:18px">
-        <h3>June 2026 — Overview</h3>
-        <div class="att-strip">
-          <div class="att-day" style="background:var(--success-soft);color:var(--success)">1</div>
-          <div class="att-day" style="background:var(--success-soft);color:var(--success)">2</div>
-          <div class="att-day" style="background:var(--warn-soft);color:var(--warn)">3</div>
-          <div class="att-day" style="background:var(--success-soft);color:var(--success)">4</div>
-          <div class="att-day" style="background:var(--lav-100);color:var(--ink-faint)">5</div>
-          <div class="att-day" style="background:var(--lav-100);color:var(--ink-faint)">6</div>
-          <div class="att-day" style="background:var(--success-soft);color:var(--success)">8</div>
-          <div class="att-day" style="background:var(--success-soft);color:var(--success)">9</div>
-          <div class="att-day" style="background:var(--danger-soft);color:var(--danger)">10</div>
-          <div class="att-day" style="background:var(--success-soft);color:var(--success)">11</div>
-          <div class="att-day" style="background:var(--success-soft);color:var(--success)">12</div>
-        </div>
-        <div style="display:flex;gap:16px;margin-top:16px;font-size:11.5px;color:var(--ink-soft)">
-          <span><span class="att-day" style="display:inline-flex;width:14px;height:14px;background:var(--success);vertical-align:middle;margin-right:5px;border-radius:4px"></span>On Time</span>
-          <span><span class="att-day" style="display:inline-flex;width:14px;height:14px;background:var(--warn);vertical-align:middle;margin-right:5px;border-radius:4px"></span>Late</span>
-          <span><span class="att-day" style="display:inline-flex;width:14px;height:14px;background:var(--danger);vertical-align:middle;margin-right:5px;border-radius:4px"></span>Absent</span>
+        <div class="form-row" style="margin-bottom:0">
+          <div class="fg" style="max-width:180px"><label>From</label><input type="date" id="att_from"></div>
+          <div class="fg" style="max-width:180px"><label>To</label><input type="date" id="att_to"></div>
+          <button class="btn btn-primary" onclick="loadMyAttendance()">Load</button>
         </div>
       </div>
-      <div class="card">
-        <h3>Daily In / Out Time</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Date</th><th>Time In</th><th>Time Out</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td class="mono-num">01 Jun</td><td class="mono-num">08:52</td><td class="mono-num">15:40</td><td><span class="pill pill-success">On Time</span></td></tr>
-              <tr><td class="mono-num">02 Jun</td><td class="mono-num">08:47</td><td class="mono-num">15:35</td><td><span class="pill pill-success">On Time</span></td></tr>
-              <tr><td class="mono-num">03 Jun</td><td class="mono-num">09:24</td><td class="mono-num">15:42</td><td><span class="pill pill-warn">Late</span></td></tr>
-              <tr><td class="mono-num">04 Jun</td><td class="mono-num">08:55</td><td class="mono-num">15:38</td><td><span class="pill pill-success">On Time</span></td></tr>
-              <tr><td class="mono-num">10 Jun</td><td>—</td><td>—</td><td><span class="pill pill-danger">Absent</span></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <div id="myAttResult"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Select a date range and click Load.</div></div>
     </div>
 
     <!-- MESSAGES -->
