@@ -3265,30 +3265,36 @@ function interpretPunches(times, teacherId){
 }
 
 function buildStaffPreview(grid){
-  // Period from the title: "For Period : 01/07/2026 To 21/07/2026"
+  // Period from the title. Two variants exist:
+  //   "For Period : 01/07/2026 To 21/07/2026"  (range export)
+  //   "On Dated : 11/07/2026"                  (single-day export)
   let periodFrom=null, periodTo=null
   for(const r of grid.slice(0,10)){
     const joined=r.join(' ')
-    const m=joined.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s*(?:To|to)\s*(\d{1,2}\/\d{1,2}\/\d{4})/)
-    if(m){ periodFrom=parseLooseDate(m[1]); periodTo=parseLooseDate(m[2]); break }
+    const range=joined.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s*(?:To|to)\s*(\d{1,2}\/\d{1,2}\/\d{4})/)
+    if(range){ periodFrom=parseLooseDate(range[1]); periodTo=parseLooseDate(range[2]); break }
+    const single=joined.match(/(?:On\s*Dated|Date)\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i)
+    if(single){ periodFrom=periodTo=parseLooseDate(single[1]); break }
   }
-  if(periodFrom&&!$('sa_from').value)$('sa_from').value=periodFrom
-  if(periodTo&&!$('sa_to').value)$('sa_to').value=periodTo
+  if(periodFrom)$('sa_from').value=periodFrom
+  if(periodTo)$('sa_to').value=periodTo
 
-  // Find the row of DATE headers (cells like DD/MM/YYYY). Record each date and
-  // the column it starts at — a date "block" runs until the next date's column.
-  let dateRowIdx=-1, dateCols=null
-  for(let i=0;i<grid.length;i++){
-    const hits=[]
-    grid[i].forEach((c,idx)=>{ if(/^\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/.test(c)) hits.push({col:idx,date:parseLooseDate(c.trim())}) })
-    if(hits.length>=3){ dateRowIdx=i; dateCols=hits; break }
-  }
-  if(dateRowIdx<0||!dateCols){toast('Could not find the date header row in the file','error');return}
-
-  // Find the EMP Code header row (has "EMP Code"); employees start below it.
+  // Find the EMP Code header row; employee data starts below it.
   let empHeaderIdx=-1
   for(let i=0;i<grid.length;i++){ if(grid[i].some(c=>/emp\s*code/i.test(c))){empHeaderIdx=i;break} }
-  const startRow=(empHeaderIdx>=0?empHeaderIdx:dateRowIdx)+1
+
+  // The DATE header row sits ABOVE the EMP Code row. Pick the row with the most
+  // DD/MM/YYYY cells (a single-day export has just one, a range export has many).
+  const searchEnd=empHeaderIdx>=0?empHeaderIdx:Math.min(grid.length,15)
+  let dateCols=null, best=0
+  for(let i=0;i<searchEnd;i++){
+    const hits=[]
+    grid[i].forEach((c,idx)=>{ if(/^\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/.test(c)) hits.push({col:idx,date:parseLooseDate(c.trim())}) })
+    if(hits.length>best){ best=hits.length; dateCols=hits }
+  }
+  if(!dateCols||!dateCols.length){toast('Could not find the date header row in the file','error');return}
+
+  const startRow=(empHeaderIdx>=0?empHeaderIdx:0)+1
 
   // Block boundaries: each date owns columns [col, nextDateCol)
   const blocks=dateCols.map((d,k)=>({date:d.date, from:d.col, to:(k+1<dateCols.length?dateCols[k+1].col:1e9)}))
