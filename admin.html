@@ -298,6 +298,28 @@ tbody tr:hover td{background:var(--lav-50)}
   .menu-card.soon:hover{transform:none;box-shadow:none;border-color:var(--line)}
   .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-soft);background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;margin-bottom:16px}
   .back-btn:hover{background:var(--lav-50)}
+
+  /* ═══ Staff attendance register (View Attendance) ═══ */
+  .sa-matrix{border-collapse:separate;border-spacing:0;font-size:11.5px;width:max-content;min-width:100%}
+  .sa-matrix th,.sa-matrix td{border-bottom:1px solid var(--line);white-space:nowrap}
+  .sa-matrix thead th{background:var(--lav-100);color:var(--ink-soft);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:7px 4px;text-align:center;position:sticky;top:0;z-index:3}
+  .sa-matrix .sa-name{position:sticky;left:0;z-index:4;background:var(--white);text-align:left;padding:7px 12px;min-width:190px;font-weight:600;border-right:2px solid var(--line)}
+  .sa-matrix thead .sa-name{z-index:6;background:var(--lav-100)}
+  .sa-matrix tbody tr:hover .sa-name{background:var(--lav-50)}
+  .sa-matrix tbody tr:hover td{background:var(--lav-50)}
+  .sa-dcell{width:30px;min-width:30px;text-align:center;padding:5px 2px;font-weight:700;font-family:var(--mono);font-size:10.5px;cursor:default}
+  .m-p{background:rgba(43,182,115,.16);color:#1B7F52}
+  .m-l{background:rgba(232,162,61,.20);color:#8A5A00}
+  .m-a{background:rgba(229,85,107,.16);color:#B5122B}
+  .m-o{background:var(--lav-100);color:var(--ink-faint)}
+  .m-none{color:var(--ink-faint)}
+  .sa-wkend{background:rgba(0,0,0,.03)}
+  .sa-tot{text-align:center;font-weight:800;font-family:var(--mono);font-size:11px;padding:5px 8px;background:var(--lav-50)}
+  .sa-name-btn{background:none;border:none;padding:0;font:inherit;color:var(--indigo,#5B4FE8);cursor:pointer;text-align:left;font-weight:600}
+  .sa-name-btn:hover{text-decoration:underline}
+  .sa-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);font-weight:600;align-items:center}
+  .sa-legend .sw{width:13px;height:13px;border-radius:4px;display:inline-block;margin-right:5px;vertical-align:-2px}
+  .sa-scroll{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:var(--radius-md)}
 </style>
 </head>
 <body>
@@ -816,14 +838,27 @@ tbody tr:hover td{background:var(--lav-50)}
       <div id="saPreview"></div>
     </div>
 
-    <!-- VIEW (placeholder) -->
+    <!-- VIEW -->
     <div id="sa-view" style="display:none">
       <button class="back-btn" onclick="openSaSub('sa-menu')">&#8592; Back</button>
-      <div class="page-head"><div><h2>View Attendance</h2><p>Browse staff attendance records</p></div></div>
-      <div class="card" style="text-align:center;padding:50px;color:var(--ink-faint)">
-        <div style="font-size:14px;font-weight:700;margin-bottom:6px">Coming soon</div>
-        <div style="font-size:12.5px">This section will let you browse and review staff attendance.</div>
+      <div class="page-head">
+        <div><h2>View Attendance</h2><p>Monthly register for all staff. Click a name for their full day-by-day record.</p></div>
+        <button class="btn btn-ghost btn-sm" onclick="exportStaffRegister()">Export CSV</button>
       </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="form-row" style="margin-bottom:0;align-items:flex-end">
+          <div class="fg" style="max-width:190px"><label>Month</label><input type="month" id="sv_month"></div>
+          <div style="font-size:11.5px;color:var(--ink-faint);padding-bottom:11px">or</div>
+          <div class="fg" style="max-width:175px"><label>From</label><input type="date" id="sv_from"></div>
+          <div class="fg" style="max-width:175px"><label>To</label><input type="date" id="sv_to"></div>
+          <div class="fg" style="max-width:230px"><label>Search staff</label><input id="sv_search" placeholder="Name or code…" oninput="renderStaffRegister()"></div>
+          <button class="btn btn-primary btn-sm" onclick="loadStaffRegister()">Load</button>
+        </div>
+      </div>
+
+      <div id="svStats"></div>
+      <div id="svRegister"></div>
     </div>
 
   </div>
@@ -3184,12 +3219,228 @@ async function initStaffAtt(){
   if(p)p.innerHTML='<div class="card" style="text-align:center;padding:40px;color:var(--ink-faint)">Pick the period, then choose your biometric CSV to preview and import.</div>'
 }
 
+// ═══════════ VIEW ATTENDANCE (staff register) ═══════════
+let _svRows=[], _svDates=[], _svTeachers=[], _svRange={from:null,to:null}
+
+// Month input → from/to, so either control works.
+function svResolveRange(){
+  const m=$('sv_month')?.value
+  let from=$('sv_from')?.value, to=$('sv_to')?.value
+  if(m&&(!from||!to||m!==_svLastMonth)){
+    const[y,mo]=m.split('-').map(Number)
+    from=m+'-01'
+    to=m+'-'+String(new Date(y,mo,0).getDate()).padStart(2,'0')
+    if($('sv_from'))$('sv_from').value=from
+    if($('sv_to'))$('sv_to').value=to
+    _svLastMonth=m
+  }
+  return {from,to}
+}
+let _svLastMonth=null
+
+async function loadStaffRegister(){
+  const{from,to}=svResolveRange()
+  if(!from||!to){toast('Pick a month or a date range','error');return}
+  if(from>to){toast('"From" is after "To"','error');return}
+  _svRange={from,to}
+  ldg($('svRegister'),'Loading register…')
+  if($('svStats'))$('svStats').innerHTML=''
+
+  await loadStaffAttRules()   // so weekly-offs render even where no row exists
+
+  const{data:tchs}=await sb.from('teachers')
+    .select('teacher_id,full_name,employee_code,is_active').eq('is_active',true).order('full_name')
+  _svTeachers=tchs||[]
+
+  // Paged fetch — PostgREST caps a plain select at 1000 rows.
+  let rows=[], page=0
+  while(true){
+    const{data:chunk,error}=await sb.from('teacher_attendance')
+      .select('teacher_id,date,status,time_in,time_out')
+      .gte('date',from).lte('date',to)
+      .order('date').range(page*1000,(page+1)*1000-1)
+    if(error){toast('Load failed: '+error.message,'error');return}
+    rows=rows.concat(chunk||[])
+    if(!chunk||chunk.length<1000)break
+    if(++page>50)break
+  }
+  _svRows=rows
+  _svDates=eachDate(from,to)
+  renderStaffRegister()
+}
+
+function svKind(status){
+  if(status==='Present'||status==='P')return 'p'
+  if(status==='Late'||status==='L')return 'l'
+  if(status==='Off'||status==='Holiday'||status==='WO')return 'o'
+  if(status==='Absent'||status==='A')return 'a'
+  return null
+}
+
+function renderStaffRegister(){
+  const el=$('svRegister'); if(!el)return
+  if(!_svDates.length){emp(el,'Pick a period and click Load.');return}
+
+  const q=($('sv_search')?.value||'').toLowerCase().trim()
+  const teachers=_svTeachers.filter(t=>!q
+    ||(t.full_name||'').toLowerCase().includes(q)
+    ||String(t.employee_code||'').toLowerCase().includes(q))
+  if(!teachers.length){emp(el,'No staff match that search.');return}
+
+  // Index: teacher|date → record
+  const byKey={}; _svRows.forEach(r=>{byKey[r.teacher_id+'|'+r.date]=r})
+  const DOW=['S','M','T','W','T','F','S']
+
+  // ── Overall stats
+  let tp=0,tl=0,ta=0,to_=0
+  teachers.forEach(t=>_svDates.forEach(d=>{
+    const k=svKind(byKey[t.teacher_id+'|'+d]?.status)
+    if(k==='p')tp++;else if(k==='l')tl++;else if(k==='a')ta++;else if(k==='o')to_++
+  }))
+  const workedCells=tp+tl+ta
+  const attPct=workedCells?Math.round(((tp+tl)/workedCells)*100):0
+  if($('svStats'))$('svStats').innerHTML='<div class="grid-4" style="margin-bottom:16px">'
+    +'<div class="stat-card"><span class="lbl">Staff</span><span class="val">'+teachers.length+'</span><span class="sub">'+_svDates.length+' days in range</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--success,#2BB673)">Present</span><span class="val" style="color:var(--success,#2BB673)">'+tp+'</span><span class="sub">'+attPct+'% turnout</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--warn,#E8A23D)">Late</span><span class="val" style="color:var(--warn,#E8A23D)">'+tl+'</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--danger,#E5556B)">Absent</span><span class="val" style="color:var(--danger,#E5556B)">'+ta+'</span></div>'
+    +'</div>'
+
+  // ── Header
+  let html='<div class="sa-scroll"><table class="sa-matrix"><thead><tr>'
+    +'<th class="sa-name">Staff</th>'
+  _svDates.forEach(d=>{
+    const dt=new Date(d+'T12:00:00')
+    const wknd=isAdminOff(d)
+    html+='<th class="'+(wknd?'sa-wkend':'')+'">'+dt.getDate()+'<br><span style="font-weight:400;opacity:.6">'+DOW[dt.getDay()]+'</span></th>'
+  })
+  html+='<th style="background:var(--lav-50)">P</th><th style="background:var(--lav-50)">L</th><th style="background:var(--lav-50)">A</th><th style="background:var(--lav-50)">Off</th></tr></thead><tbody>'
+
+  // ── Rows
+  teachers.forEach(t=>{
+    let p=0,l=0,a=0,o=0
+    let cells=''
+    _svDates.forEach(d=>{
+      const rec=byKey[t.teacher_id+'|'+d]
+      const k=svKind(rec?.status)
+      const tin=rec?.time_in?String(rec.time_in).slice(0,5):''
+      const tout=rec?.time_out?String(rec.time_out).slice(0,5):''
+      const tip=fmtD(d)+(k?' · '+rec.status:' · no record')+(tin?' · in '+tin:'')+(tout?' · out '+tout:'')
+      let ch='·', cls='m-none'
+      if(k==='p'){ch='P';cls='m-p';p++}
+      else if(k==='l'){ch='L';cls='m-l';l++}
+      else if(k==='a'){ch='A';cls='m-a';a++}
+      else if(k==='o'){ch='—';cls='m-o';o++}
+      else if(isAdminOff(d)){ch='—';cls='m-o'}
+      cells+='<td class="sa-dcell '+cls+'" title="'+esc(tip)+'">'+ch+'</td>'
+    })
+    html+='<tr><td class="sa-name"><button class="sa-name-btn" onclick="showTeacherAttDetail(\''+esc(t.teacher_id)+'\')">'+esc(t.full_name||'?')+'</button>'
+      +'<div style="font-size:9.5px;color:var(--ink-faint);font-weight:500">'+esc(t.employee_code||'—')+'</div></td>'
+      +cells
+      +'<td class="sa-tot" style="color:#1B7F52">'+p+'</td><td class="sa-tot" style="color:#8A5A00">'+l+'</td>'
+      +'<td class="sa-tot" style="color:#B5122B">'+a+'</td><td class="sa-tot" style="color:var(--ink-faint)">'+o+'</td></tr>'
+  })
+
+  // ── Per-day totals
+  html+='<tr style="background:var(--lav-100);font-weight:800"><td class="sa-name" style="background:var(--lav-100)">Present that day</td>'
+  _svDates.forEach(d=>{
+    const n=teachers.filter(t=>{const k=svKind(byKey[t.teacher_id+'|'+d]?.status);return k==='p'||k==='l'}).length
+    html+='<td class="sa-dcell" style="background:var(--lav-100)">'+(n||'')+'</td>'
+  })
+  html+='<td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td></tr>'
+  html+='</tbody></table></div>'
+
+  html+='<div class="sa-legend" style="margin-top:14px">'
+    +'<span><span class="sw" style="background:rgba(43,182,115,.5)"></span>P Present</span>'
+    +'<span><span class="sw" style="background:rgba(232,162,61,.6)"></span>L Late</span>'
+    +'<span><span class="sw" style="background:rgba(229,85,107,.5)"></span>A Absent</span>'
+    +'<span><span class="sw" style="background:var(--lav-200,#E5E1F5)"></span>— Off</span>'
+    +'<span><span class="sw" style="border:1px dashed var(--line)"></span>· No record</span>'
+    +'<span style="margin-left:auto;color:var(--ink-faint)">Hover a cell for in/out times</span>'
+    +'</div>'
+  el.innerHTML=html
+}
+
+// Drill-down: one teacher's full day-by-day record for the loaded range.
+function showTeacherAttDetail(tid){
+  const t=_svTeachers.find(x=>x.teacher_id===tid); if(!t)return
+  const byDate={}; _svRows.filter(r=>r.teacher_id===tid).forEach(r=>byDate[r.date]=r)
+  const DOWL=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  let p=0,l=0,a=0,o=0
+  let body='<div style="max-height:60vh;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+    +'<thead><tr>'+['Date','Day','Status','In','Out','Hours'].map(h=>'<th style="position:sticky;top:0;background:var(--lav-100);padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft)">'+h+'</th>').join('')+'</tr></thead><tbody>'
+  _svDates.forEach(d=>{
+    const r=byDate[d], k=svKind(r?.status)
+    if(k==='p')p++;else if(k==='l')l++;else if(k==='a')a++;else if(k==='o')o++
+    const tin=r?.time_in?String(r.time_in).slice(0,5):null
+    const tout=r?.time_out?String(r.time_out).slice(0,5):null
+    let hours='—'
+    if(tin&&tout){const[h1,m1]=tin.split(':').map(Number),[h2,m2]=tout.split(':').map(Number)
+      const mins=(h2*60+m2)-(h1*60+m1); if(mins>0)hours=Math.floor(mins/60)+'h '+String(mins%60).padStart(2,'0')+'m'}
+    const pill=k==='p'?'<span class="pill pill-success">Present</span>'
+      :k==='l'?'<span class="pill pill-warn">Late</span>'
+      :k==='o'?'<span class="pill" style="background:var(--lav-100);color:var(--ink-soft)">Off</span>'
+      :k==='a'?'<span class="pill pill-danger">Absent</span>'
+      :'<span style="color:var(--ink-faint);font-size:11px">no record</span>'
+    const miss='<span style="color:var(--warn,#E8A23D);font-size:10.5px;font-weight:700">Missed</span>'
+    const dt=new Date(d+'T12:00:00')
+    body+='<tr style="border-top:1px solid var(--line)">'
+      +'<td style="padding:7px 10px;font-weight:600">'+fmtD(d)+'</td>'
+      +'<td style="padding:7px 10px;color:var(--ink-soft)">'+DOWL[dt.getDay()]+'</td>'
+      +'<td style="padding:7px 10px">'+pill+'</td>'
+      +'<td style="padding:7px 10px;font-family:var(--mono)">'+(tin||((k==='p'||k==='l')?miss:'—'))+'</td>'
+      +'<td style="padding:7px 10px;font-family:var(--mono)">'+(tout||((k==='p'||k==='l')?miss:'—'))+'</td>'
+      +'<td style="padding:7px 10px;font-family:var(--mono);color:var(--ink-soft)">'+hours+'</td></tr>'
+  })
+  body+='</tbody></table></div>'
+  const head='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
+    +'<span class="pill pill-success">Present '+p+'</span><span class="pill pill-warn">Late '+l+'</span>'
+    +'<span class="pill pill-danger">Absent '+a+'</span><span class="pill" style="background:var(--lav-100);color:var(--ink-soft)">Off '+o+'</span>'
+    +'</div>'
+  openModal((t.full_name||'Staff')+' — '+fmtD(_svRange.from)+' to '+fmtD(_svRange.to), head+body,
+    '<button class="btn btn-ghost" onclick="closeModal()">Close</button>', true)
+}
+
+function exportStaffRegister(){
+  if(!_svDates.length){toast('Load a period first','error');return}
+  const byKey={}; _svRows.forEach(r=>{byKey[r.teacher_id+'|'+r.date]=r})
+  const q=($('sv_search')?.value||'').toLowerCase().trim()
+  const teachers=_svTeachers.filter(t=>!q||(t.full_name||'').toLowerCase().includes(q)||String(t.employee_code||'').toLowerCase().includes(q))
+  const esc2=v=>'"'+String(v??'').replace(/"/g,'""')+'"'
+  let csv=[['Code','Name',..._svDates,'Present','Late','Absent','Off'].map(esc2).join(',')]
+  teachers.forEach(t=>{
+    let p=0,l=0,a=0,o=0
+    const cells=_svDates.map(d=>{
+      const r=byKey[t.teacher_id+'|'+d], k=svKind(r?.status)
+      if(k==='p')p++;else if(k==='l')l++;else if(k==='a')a++;else if(k==='o')o++
+      if(!r)return ''
+      const tin=r.time_in?String(r.time_in).slice(0,5):''
+      const tout=r.time_out?String(r.time_out).slice(0,5):''
+      return r.status+(tin||tout?' '+tin+'-'+tout:'')
+    })
+    csv.push([t.employee_code||'',t.full_name||'',...cells,p,l,a,o].map(esc2).join(','))
+  })
+  const blob=new Blob([csv.join('\n')],{type:'text/csv;charset=utf-8'})
+  const url=URL.createObjectURL(blob), link=document.createElement('a')
+  link.href=url; link.download='staff-attendance-'+_svRange.from+'-to-'+_svRange.to+'.csv'
+  document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url)
+  toast('Exported ✓','success')
+}
+
 // Card-menu navigation for the Staff Attendance page.
 function openSaSub(id){
   ;['sa-menu','sa-settings','sa-upload','sa-view'].forEach(s=>{const el=$(s);if(el)el.style.display='none'})
   const el=$(id); if(el)el.style.display='block'
   // The settings view needs its data loaded when opened.
   if(id==='sa-settings')loadAttendanceSettings()
+  if(id==='sa-view'){
+    // Default to the current month the first time it's opened.
+    if($('sv_month')&&!$('sv_month').value){
+      const n=new Date()
+      $('sv_month').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')
+      loadStaffRegister()
+    }
+  }
 }
 
 // Re-apply the CURRENT rules to attendance already stored in the DB, without
