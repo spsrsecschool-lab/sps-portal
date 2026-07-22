@@ -730,6 +730,10 @@ tbody tr:hover td{background:var(--lav-50)}
       <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:11.5px;color:var(--ink-soft);line-height:1.6">
         Export the biometric <b>All Punch Employee List</b> as CSV. Dates are auto-read from the file header; adjust the period above if needed. Emp Code is matched to each teacher's <b>Employee Code</b>. Punches are read as first = in, last = out. If only an out punch exists (or the first punch falls in the second half of the shift), the in punch is recorded as <b>missed</b> and no Late is applied. Late and off-days follow the rules in <b>Settings → Attendance</b>.
       </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line)">
+        <button class="btn btn-ghost btn-sm" onclick="recalcStaffAtt()">Recalculate with current rules</button>
+        <span style="font-size:11.5px;color:var(--ink-soft)">Re-applies late thresholds and off-days to already-imported data for the period above — no CSV needed. Run this after changing a schedule or weekly-off setting.</span>
+      </div>
     </div>
 
     <div id="saPreview"></div>
@@ -3103,21 +3107,70 @@ let _saParsed=null
 let _saTeachersByCode=null
 let _saDefaults=null, _saScheds={}, _saOffDates=new Set(), _saWeeklyOff=new Set()
 
-async function initStaffAtt(){
-  const[{data:tchs},{data:def},{data:scheds},{data:offs}]=await Promise.all([
-    sb.from('teachers').select('teacher_id,employee_code,full_name,is_active'),
+// Load the current late/off rules from the DB into the module globals.
+// Called on page open, and again right before any import/recalculate so the
+// newest settings always apply.
+async function loadStaffAttRules(){
+  const[{data:def},{data:scheds},{data:offs}]=await Promise.all([
     sb.from('attendance_settings').select('*').eq('id',1).maybeSingle(),
     sb.from('teacher_schedules').select('*'),
     sb.from('staff_off_days').select('date')
   ])
-  _saTeachersByCode={}
-  ;(tchs||[]).forEach(t=>{ if(t.employee_code!=null) _saTeachersByCode[String(t.employee_code).trim()]=t })
-  // Late/off rule inputs
-  _saDefaults=def||{default_late_after:'07:30',weekly_off_days:[0]}
+  _saDefaults=def||{default_shift_start:'07:20',default_shift_end:'13:15',default_late_after:'07:30',weekly_off_days:[0]}
   _saScheds={}; (scheds||[]).forEach(s=>_saScheds[s.teacher_id]=s)
   _saOffDates=new Set((offs||[]).map(o=>o.date))
   _saWeeklyOff=new Set(_saDefaults.weekly_off_days||[])
+}
+
+async function initStaffAtt(){
+  const{data:tchs}=await sb.from('teachers').select('teacher_id,employee_code,full_name,is_active')
+  _saTeachersByCode={}
+  ;(tchs||[]).forEach(t=>{ if(t.employee_code!=null) _saTeachersByCode[String(t.employee_code).trim()]=t })
+  await loadStaffAttRules()
   $('saPreview').innerHTML='<div class="card" style="text-align:center;padding:40px;color:var(--ink-faint)">Pick the period, then choose your biometric CSV to preview and import.</div>'
+}
+
+// Re-apply the CURRENT rules to attendance already stored in the DB, without
+// needing the CSV again. Also fills in any missing days in the period (weekly
+// offs / absences). Use after changing a schedule or off-day setting.
+async function recalcStaffAtt(){
+  const from=$('sa_from').value, to=$('sa_to').value
+  if(!from||!to){toast('Set the period start and end dates first','error');return}
+  await loadStaffAttRules()
+
+  const[{data:tchs},{data:existing}]=await Promise.all([
+    sb.from('teachers').select('teacher_id,full_name').eq('is_active',true),
+    sb.from('teacher_attendance').select('teacher_id,date,time_in,time_out').gte('date',from).lte('date',to)
+  ])
+  if(!tchs?.length){toast('No active teachers','error');return}
+
+  // Existing punches keyed by teacher+date, so we can re-evaluate them.
+  const byKey={}
+  ;(existing||[]).forEach(r=>{byKey[r.teacher_id+'|'+r.date]={tin:r.time_in,tout:r.time_out}})
+
+  const dates=eachDate(from,to)
+  const records=[]
+  tchs.forEach(t=>{
+    const lateAfter=lateAfterFor(t.teacher_id)
+    dates.forEach(date=>{
+      const stored=byKey[t.teacher_id+'|'+date]
+      // Only treat it as a punch day if there is at least one real time.
+      const punch=(stored&&(stored.tin||stored.tout))?stored:null
+      const res=resolveDay(date, punch, lateAfter)
+      records.push({teacher_id:t.teacher_id, date, status:res.status, time_in:res.time_in, time_out:res.time_out, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
+    })
+  })
+
+  toast('Recalculating '+records.length+' records…','info')
+  let done=0, errs=0, firstErr=null
+  for(let i=0;i<records.length;i+=500){
+    const chunk=records.slice(i,i+500)
+    const{error}=await sb.from('teacher_attendance').upsert(chunk,{onConflict:'teacher_id,date'})
+    if(error){errs++; if(!firstErr)firstErr=error; console.error('[staffatt] recalc batch failed:',error,chunk[0])}
+    else done+=chunk.length
+  }
+  if(errs)toast('Recalculated '+done+', '+errs+' batch(es) failed: '+(firstErr?.message||''),'error')
+  else toast('✓ Recalculated '+done+' records with the current rules','success')
 }
 
 // The "late after" time that applies to a given teacher (their override, else default).
@@ -3313,30 +3366,51 @@ function renderStaffPreview(){
   el.innerHTML=html
 }
 
+// All ISO dates from `from` to `to` inclusive.
+function eachDate(from,to){
+  const out=[], d=new Date(from+'T12:00:00'), end=new Date(to+'T12:00:00')
+  while(d<=end){
+    out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'))
+    d.setDate(d.getDate()+1)
+  }
+  return out
+}
+
+// Decide the stored row for one teacher on one date, given that day's punches
+// (or none). Shared by the CSV import and the Recalculate action so both always
+// apply identical rules.
+function resolveDay(date, punch, lateAfter){
+  // Admin-decided off (recurring weekly-off or a specific off date) always wins.
+  if(isAdminOff(date)) return {status:'Off', time_in:punch?.tin||null, time_out:punch?.tout||null}
+  // No punch at all on a working day → absent.
+  if(!punch) return {status:'Absent', time_in:null, time_out:null}
+  // Present, promoted to Late only when there IS a real in-punch that is after
+  // this teacher's cut-off. A missed in-punch is never marked late.
+  let status='Present'
+  if(punch.tin && String(punch.tin).slice(0,5) > lateAfter) status='Late'
+  return {status, time_in:punch.tin||null, time_out:punch.tout||null}
+}
+
 async function commitStaffAtt(){
   if(!_saParsed){toast('Nothing to import','error');return}
   const from=$('sa_from').value, to=$('sa_to').value
   if(!from||!to){toast('Set the period start and end dates','error');return}
+  // Always work from the CURRENT rules, in case they were edited since the
+  // page was opened.
+  await loadStaffAttRules()
 
   const matched=_saParsed.rows.filter(r=>_saTeachersByCode[r.empCode])
+  const dates=eachDate(from,to)
   const records=[]
   matched.forEach(r=>{
     const t=_saTeachersByCode[r.empCode]
-    const lateAfter=lateAfterFor(t.teacher_id)   // 'HH:MM' for this teacher
-    Object.entries(r.days).forEach(([date,d])=>{
-      // days are keyed by full ISO date (YYYY-MM-DD) in the raw-punch format.
-      if(date<from||date>to)return
-      let status=d.status, tin=d.tin||null, tout=d.tout||null
-      // Rule: admin-decided off (recurring weekly-off or specific date) wins —
-      // the day becomes Off regardless of what the biometric file said.
-      if(isAdminOff(date)){
-        status='Off'
-      } else if(status==='Present' && tin){
-        // Rule: a Present day is re-classified as Late if the in-time is
-        // strictly after this teacher's "late after" time.
-        if(String(tin).slice(0,5) > lateAfter) status='Late'
-      }
-      records.push({teacher_id:t.teacher_id, date, status, time_in:tin, time_out:tout, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
+    const lateAfter=lateAfterFor(t.teacher_id)
+    // Walk EVERY date in the period — not just days with punches — so weekly
+    // offs and absences get rows too (the raw punch file only lists days with
+    // activity, so they'd otherwise be missing entirely).
+    dates.forEach(date=>{
+      const res=resolveDay(date, r.days[date], lateAfter)
+      records.push({teacher_id:t.teacher_id, date, status:res.status, time_in:res.time_in, time_out:res.time_out, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
     })
   })
   if(!records.length){toast('No records fall within the selected period','error');return}
