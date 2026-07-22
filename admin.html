@@ -728,7 +728,7 @@ tbody tr:hover td{background:var(--lav-50)}
         </div>
       </div>
       <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:11.5px;color:var(--ink-soft);line-height:1.6">
-        Export the biometric report as CSV (the day-columns matrix with <b>Emp Code</b>, <b>Emp Name</b>, then one column per day). The dates are auto-read from the file header; adjust the period above if needed. Emp Code is matched to each teacher's <b>Employee Code</b>. Times → Present, <b>A</b> → Absent, <b>WO-I</b> → Weekly Off.
+        Export the biometric <b>All Punch Employee List</b> as CSV. Dates are auto-read from the file header; adjust the period above if needed. Emp Code is matched to each teacher's <b>Employee Code</b>. Punches are read as first = in, last = out. If only an out punch exists (or the first punch falls in the second half of the shift), the in punch is recorded as <b>missed</b> and no Late is applied. Late and off-days follow the rules in <b>Settings → Attendance</b>.
       </div>
     </div>
 
@@ -3169,68 +3169,129 @@ function parseStaffAtt(input){
 }
 
 function parseLooseDate(s){
+  s=String(s).trim()
+  // Numeric DD/MM/YYYY (raw punch format)
+  let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if(m)return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0')
+  // Month-name DD-MMM-YYYY (older matrix format)
   const M={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
-  const m=String(s).match(/(\d{1,2})[-\/]([A-Za-z]{3})[-\/](\d{4})/)
-  if(!m)return null
-  const mm=M[m[2].toLowerCase()]; if(!mm)return null
-  return m[3]+'-'+mm+'-'+String(m[1]).padStart(2,'0')
+  m=s.match(/(\d{1,2})[-\/]([A-Za-z]{3})[-\/](\d{4})/)
+  if(m){const mm=M[m[2].toLowerCase()];if(mm)return m[3]+'-'+mm+'-'+String(m[1]).padStart(2,'0')}
+  return null
+}
+
+// Interpret a day's raw punch times into in/out, applying the machine's quirks:
+//  • in punch but no out punch        → Present, out = missed punch (null)
+//  • only/first punch near shift end  → the in punch was never made and the
+//    machine logged the out punch first → Present, in = missed punch (null),
+//    that time becomes the OUT time. Late is NOT evaluated (no real in-time).
+//  • in → out → in (or more punches)  → first = in, LAST = out (the middle
+//    out punch is ignored), which is what first/last already gives us.
+// "Near shift end" = at/after the midpoint of that teacher's shift, so it
+// adapts to short shifts (e.g. 11:00–12:30) without a hard-coded threshold.
+function interpretPunches(times, teacherId){
+  if(!times||!times.length)return null
+  const s=_saScheds[teacherId]||{}
+  const hm=t=>String(t||'').slice(0,5)
+  const shiftStart=hm(s.shift_start||_saDefaults?.default_shift_start||'07:20')
+  const shiftEnd  =hm(s.shift_end  ||_saDefaults?.default_shift_end  ||'13:15')
+  const mins=t=>{const[h,m]=String(t).split(':').map(Number);return (h||0)*60+(m||0)}
+  const midpoint=(mins(shiftStart)+mins(shiftEnd))/2
+  const norm=t=>{const[h,m]=String(t).split(':');return String(h).padStart(2,'0')+':'+m+':00'}
+
+  // First punch already in the back half of the shift → in punch was missed.
+  if(mins(times[0])>=midpoint){
+    return {status:'Present', tin:null, tout:norm(times[times.length-1]), missedIn:true}
+  }
+  // Single punch in the front half → that's the in punch; out was missed.
+  if(times.length===1){
+    return {status:'Present', tin:norm(times[0]), tout:null, missedOut:true}
+  }
+  // Normal (or multi-punch) day: first = in, last = out.
+  return {status:'Present', tin:norm(times[0]), tout:norm(times[times.length-1])}
 }
 
 function buildStaffPreview(grid){
+  // Period from the title: "For Period : 01/07/2026 To 21/07/2026"
   let periodFrom=null, periodTo=null
-  for(const r of grid.slice(0,8)){
+  for(const r of grid.slice(0,10)){
     const joined=r.join(' ')
-    const m=joined.match(/(\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{4}).*?(?:To|to)\s*(\d{1,2}[-\/][A-Za-z]{3}[-\/]\d{4})/)
+    const m=joined.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s*(?:To|to)\s*(\d{1,2}\/\d{1,2}\/\d{4})/)
     if(m){ periodFrom=parseLooseDate(m[1]); periodTo=parseLooseDate(m[2]); break }
   }
   if(periodFrom&&!$('sa_from').value)$('sa_from').value=periodFrom
   if(periodTo&&!$('sa_to').value)$('sa_to').value=periodTo
 
-  let headerIdx=-1
-  for(let i=0;i<grid.length;i++){ if(grid[i].some(c=>/emp\s*code/i.test(c))){headerIdx=i;break} }
-  if(headerIdx<0){toast('Could not find the "Emp Code" header row in the file','error');return}
-  const header=grid[headerIdx]
-  const codeCol=header.findIndex(c=>/emp\s*code/i.test(c))
-  const nameCol=header.findIndex(c=>/emp\s*name/i.test(c))
-  const dayCols=[]
-  header.forEach((c,idx)=>{ const n=parseInt(String(c).trim()); if(!isNaN(n)&&n>=1&&n<=31&&String(c).trim()===String(n)) dayCols.push({col:idx,day:n}) })
-  if(!dayCols.length){toast('No day columns found in the header','error');return}
+  // Find the row of DATE headers (cells like DD/MM/YYYY). Record each date and
+  // the column it starts at — a date "block" runs until the next date's column.
+  let dateRowIdx=-1, dateCols=null
+  for(let i=0;i<grid.length;i++){
+    const hits=[]
+    grid[i].forEach((c,idx)=>{ if(/^\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/.test(c)) hits.push({col:idx,date:parseLooseDate(c.trim())}) })
+    if(hits.length>=3){ dateRowIdx=i; dateCols=hits; break }
+  }
+  if(dateRowIdx<0||!dateCols){toast('Could not find the date header row in the file','error');return}
+
+  // Find the EMP Code header row (has "EMP Code"); employees start below it.
+  let empHeaderIdx=-1
+  for(let i=0;i<grid.length;i++){ if(grid[i].some(c=>/emp\s*code/i.test(c))){empHeaderIdx=i;break} }
+  const startRow=(empHeaderIdx>=0?empHeaderIdx:dateRowIdx)+1
+
+  // Block boundaries: each date owns columns [col, nextDateCol)
+  const blocks=dateCols.map((d,k)=>({date:d.date, from:d.col, to:(k+1<dateCols.length?dateCols[k+1].col:1e9)}))
 
   const rows=[]
-  for(let i=headerIdx+1;i<grid.length;i++){
+  for(let i=startRow;i<grid.length;i++){
     const r=grid[i]
-    const code=String(r[codeCol]??'').trim()
-    const name=String(r[nameCol]??'').trim()
-    if(!code&&!name)continue
     if(/generated by/i.test(r.join(' ')))break
-    if(!code)continue
+    const code=String(r[0]??'').trim()
+    if(!/^\d+$/.test(code))continue          // employee rows start with a numeric code
+    // Name = first non-empty cell after the code column.
+    let name=''
+    for(let c=1;c<r.length;c++){ const v=String(r[c]??'').trim(); if(v){name=v;break} }
+
+    // Gather all times per date block, merging duplicate dates (e.g. 15/07 split).
+    const byDate={}
+    blocks.forEach(b=>{
+      const times=[]
+      for(let c=b.from;c<b.to&&c<r.length;c++){
+        const mm=String(r[c]??'').match(/\d{1,2}:\d{2}/g)
+        if(mm)times.push(...mm)
+      }
+      if(times.length){ (byDate[b.date]=byDate[b.date]||[]).push(...times) }
+    })
+
+    // first punch = in, last = out, with missed-punch handling per the machine's
+    // quirks. Needs the teacher's shift, so resolve the match here.
+    const tMatch=_saTeachersByCode[code]
     const days={}
-    dayCols.forEach(({col,day})=>{
-      const cell=String(r[col]??'').trim()
-      if(!cell)return
-      if(/^WO/i.test(cell)||/^H$/i.test(cell)){days[day]={status:'Off'};return}
-      if(/^A$/i.test(cell)){days[day]={status:'Absent'};return}
-      const t=parseTimes(cell)
-      if(t){days[day]={status:'Present',tin:t.tin,tout:t.tout}}
+    Object.entries(byDate).forEach(([date,times])=>{
+      const res=interpretPunches(times, tMatch?tMatch.teacher_id:null)
+      if(res)days[date]=res
     })
     rows.push({empCode:code, empName:name, days})
   }
-  _saParsed={rows, dayCols, period:{from:periodFrom,to:periodTo}}
+
+  _saParsed={rows, dateKeyed:true, period:{from:periodFrom,to:periodTo}}
   renderStaffPreview()
 }
 
 function renderStaffPreview(){
   const el=$('saPreview'); if(!_saParsed)return
-  const {rows,dayCols}=_saParsed
+  const {rows}=_saParsed
   const matched=rows.filter(r=>_saTeachersByCode[r.empCode])
   const unmatched=rows.filter(r=>!_saTeachersByCode[r.empCode])
-  const summarize=r=>{const vals=Object.values(r.days);return {p:vals.filter(d=>d.status==='Present').length, a:vals.filter(d=>d.status==='Absent').length, off:vals.filter(d=>d.status==='Off').length}}
+  const summarize=r=>{const vals=Object.values(r.days);return {
+    p:vals.length,
+    missed:vals.filter(d=>d.missedIn||d.missedOut).length
+  }}
+  const allDates=new Set(); rows.forEach(r=>Object.keys(r.days).forEach(d=>allDates.add(d)))
 
   let html='<div class="grid-4" style="margin-bottom:16px">'
     +'<div class="stat-card"><span class="lbl">Employees in file</span><span class="val">'+rows.length+'</span></div>'
     +'<div class="stat-card"><span class="lbl" style="color:var(--success,#2BB673)">Matched</span><span class="val" style="color:var(--success,#2BB673)">'+matched.length+'</span><span class="sub">will be imported</span></div>'
     +'<div class="stat-card"><span class="lbl" style="color:var(--danger,#E5556B)">Unmatched</span><span class="val" style="color:var(--danger,#E5556B)">'+unmatched.length+'</span><span class="sub">no Employee Code match</span></div>'
-    +'<div class="stat-card"><span class="lbl">Day columns</span><span class="val">'+dayCols.length+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Dates in file</span><span class="val">'+allDates.size+'</span></div>'
     +'</div>'
   if(unmatched.length){
     html+='<div class="card" style="margin-bottom:16px;border-color:var(--danger,#E5556B)"><h3 style="color:var(--danger,#E5556B)">Unmatched employees ('+unmatched.length+')</h3>'
@@ -3238,14 +3299,13 @@ function renderStaffPreview(){
       +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+unmatched.map(r=>'<span class="pill pill-warn">'+esc(r.empCode)+' · '+esc(r.empName||'?')+'</span>').join('')+'</div></div>'
   }
   html+='<div class="card" style="margin-bottom:16px"><div class="table-wrap"><table><thead><tr>'
-    +'<th>Emp Code</th><th>File Name</th><th>Matched Teacher</th><th>Present</th><th>Absent</th><th>Off</th></tr></thead><tbody>'
+    +'<th>Emp Code</th><th>File Name</th><th>Matched Teacher</th><th>Days</th><th>Missed punches</th></tr></thead><tbody>'
   rows.forEach(r=>{
     const t=_saTeachersByCode[r.empCode]; const s=summarize(r)
     html+='<tr'+(t?'':' style="opacity:.5"')+'><td class="mono">'+esc(r.empCode)+'</td><td>'+esc(r.empName||'—')+'</td>'
       +'<td>'+(t?'<span style="font-weight:600">'+esc(t.full_name)+'</span>':'<span class="pill pill-danger">no match</span>')+'</td>'
       +'<td class="mono" style="text-align:center;color:var(--success,#2BB673)">'+s.p+'</td>'
-      +'<td class="mono" style="text-align:center;color:var(--danger,#E5556B)">'+s.a+'</td>'
-      +'<td class="mono" style="text-align:center;color:var(--ink-soft)">'+s.off+'</td></tr>'
+      +'<td class="mono" style="text-align:center;color:'+(s.missed?'var(--warn,#E8A23D)':'var(--ink-faint)')+'">'+(s.missed||'—')+'</td></tr>'
   })
   html+='</tbody></table></div></div>'
   html+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn btn-primary" onclick="commitStaffAtt()"'+(matched.length?'':' disabled')+'>Import '+matched.length+' teacher'+(matched.length!==1?'s':'')+'\u2019 attendance</button>'
@@ -3257,16 +3317,14 @@ async function commitStaffAtt(){
   if(!_saParsed){toast('Nothing to import','error');return}
   const from=$('sa_from').value, to=$('sa_to').value
   if(!from||!to){toast('Set the period start and end dates','error');return}
-  const year=parseInt(from.slice(0,4)), monthFrom=parseInt(from.slice(5,7)), fromDay=parseInt(from.slice(8,10))
-  const dateForDay=(day)=>{ let y=year,m=monthFrom; if(day<fromDay){m+=1;if(m>12){m=1;y+=1}} return y+'-'+String(m).padStart(2,'0')+'-'+String(day).padStart(2,'0') }
 
   const matched=_saParsed.rows.filter(r=>_saTeachersByCode[r.empCode])
   const records=[]
   matched.forEach(r=>{
     const t=_saTeachersByCode[r.empCode]
     const lateAfter=lateAfterFor(t.teacher_id)   // 'HH:MM' for this teacher
-    Object.entries(r.days).forEach(([day,d])=>{
-      const date=dateForDay(parseInt(day))
+    Object.entries(r.days).forEach(([date,d])=>{
+      // days are keyed by full ISO date (YYYY-MM-DD) in the raw-punch format.
       if(date<from||date>to)return
       let status=d.status, tin=d.tin||null, tout=d.tout||null
       // Rule: admin-decided off (recurring weekly-off or specific date) wins —
