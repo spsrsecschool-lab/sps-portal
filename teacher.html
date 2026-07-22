@@ -2451,8 +2451,8 @@ async function loadMyAttendance(){
         +'<td style="font-weight:600">'+fmtD(r.date)+'</td>'
         +'<td style="color:var(--ink-soft)">'+dow+'</td>'
         +'<td>'+pill+'</td>'
-        +'<td class="mono-num">'+(tin||'—')+'</td>'
-        +'<td class="mono-num">'+(tout||'—')+'</td>'
+        +'<td class="mono-num">'+(tin?tin:(k==='present'||k==='late'?'<span style="color:var(--warn);font-size:11px;font-weight:700">Missed punch</span>':'—'))+'</td>'
+        +'<td class="mono-num">'+(tout?tout:(k==='present'||k==='late'?'<span style="color:var(--warn);font-size:11px;font-weight:700">Missed punch</span>':'—'))+'</td>'
         +'<td class="mono-num" style="color:var(--ink-soft)">'+hours+'</td>'
         +'</tr>'
     }).join('')
