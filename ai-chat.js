@@ -167,7 +167,14 @@
       body: JSON.stringify(payload)
     })
     var data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Request failed.')
+    if (!res.ok) {
+      // 429 is a quota pause, not a failure — word it so the user knows to wait
+      // rather than assuming the assistant is broken.
+      if (res.status === 429) {
+        throw new Error(data.error || 'Too many requests just now — give it a minute and ask again.')
+      }
+      throw new Error(data.error || 'Request failed.')
+    }
     return data
   }
 
