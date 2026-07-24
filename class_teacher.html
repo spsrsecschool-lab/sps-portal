@@ -21,6 +21,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="ai-chat.js"></script>
 <script src="push.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -188,6 +189,11 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
   .cell-paid{background:rgba(46,166,90,.14)} .cell-partial{background:rgba(232,162,61,.16)} .cell-unpaid{background:rgba(214,69,69,.08)} .cell-waived{background:rgba(232,162,61,.10)}
   .dm-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700}
   .dm-green{background:var(--grn-100);color:var(--grn)} .dm-yellow{background:var(--warn-soft);color:var(--warn)} .dm-red{background:#FBE9E9;color:#C0392B}
+
+  .tab-row{display:flex;gap:8px;flex-wrap:wrap}
+  .tab-btn{font-family:var(--font);font-size:12.5px;font-weight:700;padding:9px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--line);background:var(--white);color:var(--ink-soft);cursor:pointer;transition:all .12s}
+  .tab-btn:hover{background:var(--lav-100)}
+  .tab-btn.active{background:var(--grn);border-color:var(--grn);color:#fff}
 </style>
 </head>
 <body>
