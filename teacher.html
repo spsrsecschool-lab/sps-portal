@@ -1864,6 +1864,31 @@ async function confirmMarks(){
     .eq('status','approved').maybeSingle()
   if(req)await sb.from('access_requests').update({status:'completed',marks_submitted_at:new Date().toISOString()}).eq('request_id',req.request_id)
 
+  // Notify the class teacher(s) of this section that marks were submitted — but
+  // only for admin assessments (skip a teacher's own class tests), and don't
+  // message yourself if you are also the class teacher of this section.
+  try{
+    if(assessForLock.created_by_teacher_id!==TEACHER.teacher_id){
+      const{data:cts}=await sb.from('class_teacher_map')
+        .select('teacher_id').eq('section_id',secId).eq('session_id',SESS?.session_id||'')
+      const assessName=assessForLock.name||'assessment'
+      const myMap=MY_MAPPINGS.find(m=>m.subject_id===subId&&m.section_id===secId)||MY_MAPPINGS.find(m=>m.section_id===secId)||{}
+      const subName=myMap.subjects?.name||'a subject'
+      const clsName=(myMap.classes?.name||'')+'-'+(myMap.class_sections?.name||'')
+      for(const ct of (cts||[])){
+        if(ct.teacher_id===TEACHER.teacher_id)continue   // don't message yourself
+        await sb.from('messages').insert({
+          sender_type:'teacher',sender_id:TEACHER.teacher_id,
+          recipient_type:'teacher',recipient_id:ct.teacher_id,
+          subject:'Marks submitted — '+subName+' ('+clsName+')',
+          body:(TEACHER.full_name||'A subject teacher')+' has submitted marks for '+subName
+            +' in '+clsName+' for "'+assessName+'".',
+          message_type:'direct',sent_at:new Date().toISOString()
+        })
+      }
+    }
+  }catch(e){console.warn('[marks-notify] class teacher notice failed',e)}
+
   toast('Marks saved ✓','success')
   loadMarksTable()
 }
