@@ -1124,7 +1124,7 @@ function goTo(id,el){
   if(window.innerWidth<=760)closeMobileSidebar()
   if(id!=='marks')['sub-menu','sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'})
   if(id==='marks'){['sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'});const sm=$('sub-menu');if(sm)sm.style.display='block';meInitAssessments()}
-  if(id==='timetable')loadMyTimetable()
+  if(id==='timetable'){window._timetableStale=false;loadMyTimetable()}
   if(id==='messages')loadMessages()
   if(id==='profile')loadProfile()
   if(id==='critical')loadCriticalStudents()
@@ -1245,16 +1245,24 @@ function subscribeMarksLock(teacherId){
 
 function subscribeTimetable(teacherId){
   // When admin adds/edits/removes a period for THIS teacher, refresh the
-  // timetable live if they're on that page — no manual reload needed.
+  // timetable live. We subscribe WITHOUT a server-side filter (some tables
+  // aren't set up for filtered realtime) and check the teacher_id in JS, so a
+  // change always reaches us; then we reload if the page is open, or mark it
+  // stale so it refreshes the next time the teacher opens the tab.
   if(!teacherId)return
   sb.channel('timetable_'+teacherId)
-    .on('postgres_changes',{event:'*',schema:'public',table:'timetable_entries',filter:'teacher_id=eq.'+teacherId},payload=>{
-      console.log('[RT] Timetable change:',payload.eventType)
-      // Only reload if the timetable page is currently visible.
+    .on('postgres_changes',{event:'*',schema:'public',table:'timetable_entries'},payload=>{
+      const row=payload.new||payload.old||{}
+      console.log('[RT] Timetable change:',payload.eventType,'teacher:',row.teacher_id)
+      // Ignore changes for other teachers.
+      if(row.teacher_id && row.teacher_id!==teacherId)return
       const pg=document.getElementById('page-timetable')
       if(pg && pg.classList.contains('active') && typeof loadMyTimetable==='function'){
         loadMyTimetable()
         toast('Your timetable was updated','info')
+      }else{
+        // Not looking at it now — refresh silently next time they open the tab.
+        window._timetableStale=true
       }
     }).subscribe((s)=>console.log('[RT] Timetable channel:',s))
 }
