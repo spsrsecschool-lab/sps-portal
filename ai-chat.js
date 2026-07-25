@@ -18,30 +18,77 @@
 
   var BOT_NAME = 'Sakha'
 
-  // Owl mascot. Uses currentColor for the body so it themes to each portal,
-  // with fixed cream face + amber beak. Wrapped so we can drop it in at any size.
-  function owl (size, onDark) {
-    var faceStroke = onDark ? 'rgba(255,255,255,.9)' : 'currentColor'
+  // Small brown-owl avatar for message rows (static). Matches the perched owl's
+  // palette so the character is consistent everywhere.
+  function owl (size) {
     return '<svg viewBox="0 0 48 48" width="' + size + '" height="' + size + '" fill="none" style="display:block">' +
-      // ear tufts
-      '<path d="M14 12 L17 5 L20 13 Z" fill="currentColor"/>' +
-      '<path d="M34 12 L31 5 L28 13 Z" fill="currentColor"/>' +
-      // body
-      '<path d="M24 8 C33 8 39 15 39 25 C39 35 32 42 24 42 C16 42 9 35 9 25 C9 15 15 8 24 8 Z" fill="currentColor"/>' +
-      // belly
-      '<ellipse cx="24" cy="30" rx="8.5" ry="9" fill="' + (onDark ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.85)') + '"/>' +
-      // eye discs
-      '<circle cx="18" cy="21" r="7" fill="#FFF7E8"/>' +
-      '<circle cx="30" cy="21" r="7" fill="#FFF7E8"/>' +
-      // pupils
-      '<circle cx="18.7" cy="21" r="3.2" fill="#2A2A3A"/>' +
-      '<circle cx="29.3" cy="21" r="3.2" fill="#2A2A3A"/>' +
-      '<circle cx="19.8" cy="19.9" r="1" fill="#fff"/>' +
-      '<circle cx="30.4" cy="19.9" r="1" fill="#fff"/>' +
-      // beak
-      '<path d="M24 24 L21 27 L24 29 L27 27 Z" fill="#F5A623"/>' +
-      // little feet
-      '<path d="M20 41 l-1.5 3 M22 41.5 l0 3 M28 41 l1.5 3 M26 41.5 l0 3" stroke="#F5A623" stroke-width="1.4" stroke-linecap="round"/>' +
+      '<path d="M14 14 q-2 -5 2 -8 q2 3 2 7 Z" fill="#7A4526"/>' +
+      '<path d="M34 14 q2 -5 -2 -8 q-2 3 -2 7 Z" fill="#7A4526"/>' +
+      '<path d="M24 8 C33 8 39 16 39 26 C39 38 32 44 24 44 C16 44 9 38 9 26 C9 16 15 8 24 8 Z" fill="#9A5B33"/>' +
+      '<ellipse cx="24" cy="30" rx="9" ry="10" fill="#D9A876"/>' +
+      '<ellipse cx="24" cy="22" rx="13" ry="11" fill="#F2E4CE"/>' +
+      '<circle cx="18" cy="22" r="6" fill="#fff"/><circle cx="30" cy="22" r="6" fill="#fff"/>' +
+      '<circle cx="18.5" cy="22" r="3.4" fill="#3A2416"/><circle cx="29.5" cy="22" r="3.4" fill="#3A2416"/>' +
+      '<circle cx="19.6" cy="20.8" r="1.1" fill="#fff"/><circle cx="30.6" cy="20.8" r="1.1" fill="#fff"/>' +
+      '<g fill="none" stroke="#2A2A2A" stroke-width="1.4"><circle cx="18" cy="22" r="7"/><circle cx="30" cy="22" r="7"/></g>' +
+      '<path d="M24 25 L21 28 L24 31 L27 28 Z" fill="#E8912B"/>' +
+      '<path d="M20 43 l-1.5 3 M28 43 l1.5 3" stroke="#E8912B" stroke-width="1.6" stroke-linecap="round"/>' +
+      '</svg>'
+  }
+
+  // The full animated perched owl (brown, glasses) that sits on the card's top
+  // edge and reacts to conversation state. Returned as an HTML string.
+  function perchedOwl () {
+    return '<svg viewBox="0 0 84 100" xmlns="http://www.w3.org/2000/svg">' +
+      '<text class="zzz z1" x="62" y="24" font-size="11" fill="#7A4526">z</text>' +
+      '<text class="zzz z2" x="68" y="16" font-size="9" fill="#7A4526">z</text>' +
+      '<text class="zzz z3" x="73" y="10" font-size="7" fill="#7A4526">z</text>' +
+      '<g class="owl-body-grp">' +
+        '<g fill="#E8912B">' +
+          '<path d="M34 88 q-4 4 -6 8 q3 1 5 -1 q0 3 2 4 q2 -2 2 -5 q2 2 4 1 q-2 -4 -5 -7 Z"/>' +
+          '<path d="M50 88 q4 4 6 8 q-3 1 -5 -1 q0 3 -2 4 q-2 -2 -2 -5 q-2 2 -4 1 q2 -4 5 -7 Z"/>' +
+        '</g>' +
+        '<path d="M36 78 q6 10 12 0 Z" fill="#7A4526"/>' +
+        '<path class="wing wing-l" d="M17 46 q-7 8 -3 26 q6 3 10 -2 q-5 -12 -3 -22 Z" fill="#7A4526"/>' +
+        '<path class="wing wing-r" d="M67 46 q7 8 3 26 q-6 3 -10 -2 q5 -12 3 -22 Z" fill="#7A4526"/>' +
+        '<g class="head-grp">' +
+          '<path d="M24 26 q-3 -8 3 -12 q3 4 3 11 Z" fill="#7A4526"/>' +
+          '<path d="M60 26 q3 -8 -3 -12 q-3 4 -3 11 Z" fill="#7A4526"/>' +
+          '<path d="M42 16 C58 16 66 28 66 46 C66 68 56 84 42 84 C28 84 18 68 18 46 C18 28 26 16 42 16 Z" fill="#9A5B33"/>' +
+          '<path d="M42 16 C30 16 22 26 20 42 C24 34 32 30 42 30 Z" fill="#C08552" opacity=".55"/>' +
+          '<path d="M42 40 C53 40 58 52 58 62 C58 74 50 82 42 82 C34 82 26 74 26 62 C26 52 31 40 42 40 Z" fill="#D9A876"/>' +
+          '<g stroke="#C08552" stroke-width="1" fill="none" opacity=".6">' +
+            '<path d="M34 54 q4 4 8 0 M42 54 q4 4 8 0"/>' +
+            '<path d="M31 62 q5 5 11 0 M42 62 q5 5 11 0"/>' +
+            '<path d="M34 70 q4 4 8 0 M42 70 q4 4 8 0"/>' +
+          '</g>' +
+          '<ellipse cx="42" cy="40" rx="24" ry="20" fill="#F2E4CE"/>' +
+          '<path d="M42 22 a24 20 0 0 0 -24 18 q0 -20 24 -20 Z" fill="#fff" opacity=".4"/>' +
+          '<circle cx="31" cy="40" r="11" fill="#fff"/>' +
+          '<circle cx="53" cy="40" r="11" fill="#fff"/>' +
+          '<g class="pupil">' +
+            '<circle cx="32" cy="40" r="6.5" fill="#3A2416"/>' +
+            '<circle cx="52" cy="40" r="6.5" fill="#3A2416"/>' +
+            '<circle cx="34" cy="37.6" r="2.1" fill="#fff"/>' +
+            '<circle cx="54" cy="37.6" r="2.1" fill="#fff"/>' +
+          '</g>' +
+          '<g class="lids">' +
+            '<path class="lid" d="M20 40 a11 11 0 0 1 22 0 v2 h-22 Z" fill="#9A5B33"/>' +
+            '<path class="lid" d="M42 40 a11 11 0 0 1 22 0 v2 h-22 Z" fill="#9A5B33"/>' +
+          '</g>' +
+          '<g class="lids">' +
+            '<path class="lid" d="M23 42 h16 M45 42 h16" stroke="#7A4526" stroke-width="1.5" stroke-linecap="round"/>' +
+          '</g>' +
+          '<g class="glasses" fill="none" stroke="#2A2A2A" stroke-width="2.4">' +
+            '<circle cx="31" cy="40" r="13"/>' +
+            '<circle cx="53" cy="40" r="13"/>' +
+            '<path d="M43.8 38 q0.2 -3 -2.6 -3 M40.2 38 q-0.2 -3 2.6 -3" stroke-width="2"/>' +
+            '<path d="M18 40 q-4 0 -6 3" stroke-width="2"/>' +
+            '<path d="M66 40 q4 0 6 3" stroke-width="2"/>' +
+          '</g>' +
+          '<path class="beak" d="M42 46 L37.5 50 L42 55 L46.5 50 Z" fill="#E8912B" stroke="#C9761B" stroke-width=".8" style="transform-origin:42px 50px"/>' +
+        '</g>' +
+      '</g>' +
       '</svg>'
   }
 
@@ -61,10 +108,36 @@
     'box-shadow:0 24px 60px rgba(0,0,0,.24);z-index:801;display:none;flex-direction:column;overflow:hidden}',
     '#aiPanel.open{display:flex;animation:aiUp .22s cubic-bezier(.2,.8,.2,1)}',
     '@keyframes aiUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}',
-    '#aiHead{padding:14px 16px;display:flex;align-items:center;gap:11px;flex-shrink:0;',
+    '#aiHead{padding:14px 16px 14px 96px;display:flex;align-items:center;gap:11px;flex-shrink:0;position:relative;',
     'background:linear-gradient(135deg,var(--indigo,var(--grn,#5B4FE8)),var(--indigo-dark,var(--grn-dark,#4A3FD6)));color:#fff}',
-    '#aiHead .av{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0}',
-    '#aiHead .av .owl{width:30px;height:30px;color:#fff}',
+    // perched owl sits straddling the header's top-left
+    '#aiOwl{position:absolute;left:10px;top:-46px;width:84px;height:100px;z-index:3;cursor:pointer;user-select:none}',
+    '#aiOwl svg{width:100%;height:100%;overflow:visible;display:block;filter:drop-shadow(0 6px 8px rgba(0,0,0,.18))}',
+    '.owl-body-grp{transform-origin:50% 80%;animation:owlBreathe 3.4s ease-in-out infinite}',
+    '@keyframes owlBreathe{0%,100%{transform:scaleY(1) translateY(0)}50%{transform:scaleY(1.03) translateY(-1px)}}',
+    '.lid{transition:transform .18s ease}',
+    '.eyes-open .lid{transform:translateY(-16px)}',
+    '.eyes-closed .lid{transform:translateY(0)}',
+    '.pupil{transition:transform .3s ease}',
+    '.look-up .pupil{transform:translateY(-1.6px)}',
+    '.head-grp{transform-origin:50% 70%;transition:transform .35s cubic-bezier(.3,1.4,.5,1)}',
+    '.tilt .head-grp{transform:rotate(-8deg)}',
+    '.waking{animation:owlWake .6s cubic-bezier(.3,1.5,.5,1)}',
+    '@keyframes owlWake{0%{transform:translateY(4px) scale(.96)}55%{transform:translateY(-8px) scale(1.05)}100%{transform:translateY(0) scale(1)}}',
+    '.talking .head-grp{animation:owlBob .28s ease-in-out infinite}',
+    '@keyframes owlBob{0%,100%{transform:translateY(0)}50%{transform:translateY(1.5px)}}',
+    '.talking .beak{animation:owlFlap .28s ease-in-out infinite}',
+    '@keyframes owlFlap{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.5) translateY(1px)}}',
+    '.wing{transform-origin:70% 40%;transition:transform .3s ease}',
+    '.thinking .wing-r{animation:owlScratch 1s ease-in-out infinite}',
+    '@keyframes owlScratch{0%,100%{transform:rotate(0)}50%{transform:rotate(-38deg) translate(-2px,-6px)}}',
+    '.zzz{opacity:0;font-weight:800}',
+    '.sleeping .zzz{animation:owlFloat 3s ease-in-out infinite}',
+    '.sleeping .z2{animation-delay:1s}.sleeping .z3{animation-delay:2s}',
+    '@keyframes owlFloat{0%{opacity:0;transform:translate(0,0) scale(.6)}30%{opacity:.9}100%{opacity:0;transform:translate(6px,-16px) scale(1.1)}}',
+    '.awake-idle .owl-body-grp{animation:owlBreathe 3.4s ease-in-out infinite, owlSway 6s ease-in-out infinite}',
+    '@keyframes owlSway{0%,100%{rotate:0deg}25%{rotate:2deg}75%{rotate:-2deg}}',
+    '@media(prefers-reduced-motion:reduce){.owl-body-grp,.talking .head-grp,.talking .beak,.thinking .wing-r,.sleeping .zzz,.awake-idle .owl-body-grp{animation:none}}',
     '#aiHead .t{font-family:var(--font,sans-serif);font-size:15px;font-weight:800;color:#fff;line-height:1.15;display:flex;align-items:center;gap:7px}',
     '#aiHead .s{font-size:10.5px;color:rgba(255,255,255,.8);display:flex;align-items:center;gap:5px;margin-top:1px}',
     '#aiHead .s::before{content:"";width:6px;height:6px;border-radius:50%;background:#3ED598;display:inline-block}',
@@ -106,18 +179,48 @@
   var fab = document.createElement('button')
   fab.id = 'aiFab'
   fab.title = 'Ask ' + BOT_NAME
-  fab.innerHTML = '<span class="owl">' + owl(34, true) + '</span>'
+  fab.innerHTML = '<span class="owl">' + owl(34) + '</span>'
 
   var panel = document.createElement('div')
   panel.id = 'aiPanel'
   panel.innerHTML =
     '<div id="aiHead">' +
-      '<div class="av">' + owl(30, true) + '</div>' +
-      '<div><div class="t">' + BOT_NAME + '</div><div class="s">Your school companion · online</div></div>' +
+      '<div id="aiOwl" class="sleeping eyes-closed" title="' + BOT_NAME + '">' + perchedOwl() + '</div>' +
+      '<div style="margin-left:8px"><div class="t">' + BOT_NAME + '</div><div class="s">Your school companion</div></div>' +
       '<button title="Close">&times;</button></div>' +
     '<div id="aiBody"></div>' +
     '<div id="aiFoot"><textarea id="aiInput" rows="1" placeholder="Ask ' + BOT_NAME + ' anything…"></textarea>' +
     '<button id="aiSend"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>'
+
+  // ── Owl state machine ────────────────────────────────────────────────────
+  var OWL_STATES = ['sleeping','awake-idle','tilt','thinking','talking','eyes-open','eyes-closed','look-up','waking']
+  var blinkTimer, idleTimer, talkTimer
+  function owlEl () { return document.getElementById('aiOwl') }
+  function owlClear () { var o = owlEl(); if (o) OWL_STATES.forEach(function (s) { o.classList.remove(s) }) }
+  function owlSleep () { var o = owlEl(); if (!o) return; owlClear(); o.classList.add('sleeping','eyes-closed'); clearInterval(blinkTimer) }
+  function owlWake () {
+    var o = owlEl(); if (!o) return
+    owlClear(); o.classList.add('waking','eyes-open','awake-idle')
+    setTimeout(function () { o.classList.remove('waking') }, 600)
+    owlStartBlink(); owlResetIdle()
+  }
+  function owlListen () { var o = owlEl(); if (!o) return; owlClear(); o.classList.add('eyes-open','tilt','awake-idle','look-up'); owlStartBlink(); owlResetIdle() }
+  function owlThink () { var o = owlEl(); if (!o) return; owlClear(); o.classList.add('eyes-open','thinking','look-up'); clearInterval(blinkTimer) }
+  function owlTalk () {
+    var o = owlEl(); if (!o) return
+    owlClear(); o.classList.add('eyes-open','talking','awake-idle'); owlStartBlink()
+    clearTimeout(talkTimer); talkTimer = setTimeout(owlWake, 2600)
+  }
+  function owlBlinkOnce () {
+    var o = owlEl(); if (!o || o.classList.contains('sleeping') || o.classList.contains('thinking')) return
+    o.classList.remove('eyes-open'); o.classList.add('eyes-closed')
+    setTimeout(function () { o.classList.remove('eyes-closed'); o.classList.add('eyes-open') }, 150)
+  }
+  function owlStartBlink () {
+    clearInterval(blinkTimer)
+    blinkTimer = setInterval(function () { if (Math.random() > 0.35) owlBlinkOnce() }, 2800)
+  }
+  function owlResetIdle () { clearTimeout(idleTimer); idleTimer = setTimeout(owlSleep, 12000) }
 
   function mount () {
     document.body.appendChild(fab)
@@ -131,13 +234,23 @@
     })
     inp.addEventListener('input', function () {
       inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 90) + 'px'
+      if (!BUSY) { inp.value.trim() ? owlListen() : owlWake() }  // don't override thinking/talking
+    })
+    inp.addEventListener('focus', function () { if (owlEl().classList.contains('sleeping')) owlWake() })
+    // tap the owl to wake / blink it
+    owlEl().addEventListener('click', function () {
+      owlEl().classList.contains('sleeping') ? owlWake() : owlBlinkOnce()
     })
     greet()
+    owlSleep()   // start asleep until the user engages
   }
 
   function toggle () {
     panel.classList.toggle('open')
-    if (panel.classList.contains('open')) setTimeout(function () { document.getElementById('aiInput').focus() }, 80)
+    if (panel.classList.contains('open')) {
+      owlWake()
+      setTimeout(function () { document.getElementById('aiInput').focus() }, 80)
+    }
   }
 
   // ── Rendering ────────────────────────────────────────────────────────────
@@ -153,7 +266,7 @@
       row.className = 'ai-row'
       var av = document.createElement('div')
       av.className = 'ai-av'
-      av.innerHTML = owl(20, true)
+      av.innerHTML = owl(20)
       row.appendChild(av); row.appendChild(msg)
       body.appendChild(row)
     } else if (cls === 'ai-me') {
@@ -173,7 +286,7 @@
     var b = document.getElementById('aiBody')
     var row = document.createElement('div')
     row.className = 'ai-row'
-    var av = document.createElement('div'); av.className = 'ai-av'; av.innerHTML = owl(20, true)
+    var av = document.createElement('div'); av.className = 'ai-av'; av.innerHTML = owl(20)
     var w = document.createElement('div')
     w.className = 'ai-msg ai-bot'
     w.textContent = "Hi, I'm " + BOT_NAME + " \uD83E\uDD89 — your school companion. Ask me about attendance, students, fees or staff, or tell me to send a message."
@@ -194,7 +307,7 @@
   function thinking () {
     var row = document.createElement('div')
     row.className = 'ai-row'
-    var av = document.createElement('div'); av.className = 'ai-av'; av.innerHTML = owl(20, true)
+    var av = document.createElement('div'); av.className = 'ai-av'; av.innerHTML = owl(20)
     var d = document.createElement('div')
     d.className = 'ai-dots'
     d.innerHTML = '<i></i><i></i><i></i>'
@@ -256,6 +369,7 @@
     inp.value = ''; inp.style.height = 'auto'
     bubble(text, 'ai-me')
     BUSY = true; document.getElementById('aiSend').disabled = true
+    owlThink()
     var dots = thinking()
     try {
       var data = await callFn({ message: text, history: HISTORY })
@@ -263,9 +377,11 @@
       if (data.history) HISTORY = data.history
       if (data.reply) bubble(data.reply, 'ai-bot')
       if (data.needsConfirmation) askConfirm(data.needsConfirmation)
+      owlTalk()
     } catch (e) {
       dots.remove()
       bubble(e.message, 'ai-err')
+      owlWake()
     } finally {
       BUSY = false; document.getElementById('aiSend').disabled = false
     }
@@ -275,14 +391,17 @@
     if (!PENDING) return
     var action = PENDING; PENDING = null
     BUSY = true; document.getElementById('aiSend').disabled = true
+    owlThink()
     var dots = thinking()
     try {
       var data = await callFn({ confirmedAction: action, history: HISTORY })
       dots.remove()
       bubble(data.reply || 'Done.', 'ai-bot')
+      owlTalk()
     } catch (e) {
       dots.remove()
       bubble(e.message, 'ai-err')
+      owlWake()
     } finally {
       BUSY = false; document.getElementById('aiSend').disabled = false
     }
