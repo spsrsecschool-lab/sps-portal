@@ -369,6 +369,65 @@
   }
   function scroll () { var b = document.getElementById('aiBody'); b.scrollTop = b.scrollHeight }
 
+  // ── Adaptive quick-suggestions ───────────────────────────────────────────
+  // The chips in the greeting reflect what THIS user actually asks — ranked
+  // by how often/recently they've asked it — falling back to sensible
+  // defaults when there isn't enough history yet. Anything not plain English
+  // (e.g. typed in Hindi) is never stored as a suggestion, so chips always
+  // stay in English regardless of what language a person chats in.
+  var SUGGEST_KEY = 'aiSuggest:' + location.hostname + location.pathname
+  var MAX_STORED = 12
+  var DEFAULT_SUGGESTIONS = [
+    'Who was absent today?',
+    'How many students do we have?',
+    'My attendance this month',
+    'Show pending fee requests',
+    'Which classes are unmarked today?'
+  ]
+
+  function isPlainEnglish (text) {
+    return /^[\x00-\x7F]*$/.test(text) // rejects Devanagari/other non-Latin scripts
+  }
+
+  function loadSuggestStore () {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(SUGGEST_KEY) || '[]')
+      return Array.isArray(parsed) ? parsed : []
+    } catch (e) { return [] }
+  }
+
+  function recordQuery (text) {
+    text = text.trim()
+    if (!text || text.length > 80 || !isPlainEnglish(text)) return
+    try {
+      var store = loadSuggestStore()
+      var existing = store.find(function (s) { return s.text.toLowerCase() === text.toLowerCase() })
+      if (existing) { existing.count++; existing.last = Date.now() }
+      else store.push({ text: text, count: 1, last: Date.now() })
+      store.sort(function (a, b) { return b.count - a.count || b.last - a.last })
+      localStorage.setItem(SUGGEST_KEY, JSON.stringify(store.slice(0, MAX_STORED)))
+    } catch (e) { /* storage unavailable — chips just stay on defaults */ }
+  }
+
+  function getSuggestions (n) {
+    var picks = loadSuggestStore().slice(0, n).map(function (s) { return s.text })
+    DEFAULT_SUGGESTIONS.forEach(function (d) {
+      if (picks.length < n && picks.indexOf(d) === -1) picks.push(d)
+    })
+    return picks.slice(0, n)
+  }
+
+  var chipsEl = null
+  function renderChips (box) {
+    box.innerHTML = ''
+    getSuggestions(3).forEach(function (s) {
+      var c = document.createElement('button')
+      c.className = 'ai-chip'; c.textContent = s
+      c.onclick = function () { document.getElementById('aiInput').value = s; send() }
+      box.appendChild(c)
+    })
+  }
+
   function greet () {
     var b = document.getElementById('aiBody')
     var row = document.createElement('div')
@@ -381,14 +440,9 @@
     b.appendChild(row)
     var chips = document.createElement('div')
     chips.style.cssText = 'display:flex;flex-wrap:wrap;margin-top:2px'
-    var suggestions = ['Who was absent today?', 'How many students do we have?', 'My attendance this month']
-    suggestions.forEach(function (s) {
-      var c = document.createElement('button')
-      c.className = 'ai-chip'; c.textContent = s
-      c.onclick = function () { document.getElementById('aiInput').value = s; send() }
-      chips.appendChild(c)
-    })
+    renderChips(chips)
     b.appendChild(chips)
+    chipsEl = chips
   }
 
   function thinking () {
@@ -455,6 +509,8 @@
     if (!text) return
     inp.value = ''; inp.style.height = 'auto'
     bubble(text, 'ai-me')
+    recordQuery(text)
+    if (chipsEl) renderChips(chipsEl)
     BUSY = true; document.getElementById('aiSend').disabled = true
     owlThink()
     var dots = thinking()
