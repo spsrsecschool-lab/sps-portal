@@ -108,7 +108,7 @@
        the perched owl extend above the card without being cut off. ── */
     '#aiPanel{position:fixed;bottom:94px;right:22px;width:398px;max-width:calc(100vw - 32px);height:576px;',
     'max-height:calc(100vh - 130px);max-height:calc(100dvh - 130px);',
-    'z-index:801;display:none;flex-direction:column;transition:top .15s ease,height .15s ease}',
+    'z-index:801;display:none;flex-direction:column}',
     '#aiPanel.open{display:flex;animation:aiUp .22s cubic-bezier(.2,.8,.2,1)}',
     '@keyframes aiUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}',
 
@@ -285,10 +285,11 @@
     })
     inp.addEventListener('focus', function () {
       if (owlEl().classList.contains('sleeping')) owlWake()
-      // keyboard opens asynchronously — poll briefly until visualViewport reports it
-      setTimeout(reposition, 60); setTimeout(reposition, 300); setTimeout(reposition, 600)
+      // keyboard opens asynchronously — a couple of quick checks catch it
+      // before visualViewport's own resize events take over
+      setTimeout(reposition, 30); setTimeout(reposition, 250)
     })
-    inp.addEventListener('blur', function () { setTimeout(reposition, 100); setTimeout(reposition, 350) })
+    inp.addEventListener('blur', function () { setTimeout(reposition, 250) })
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', reposition)
       window.visualViewport.addEventListener('scroll', reposition)
@@ -305,10 +306,12 @@
   function toggle () {
     panel.classList.toggle('open')
     if (panel.classList.contains('open')) {
+      fab.style.display = 'none'   // avoid a second floating button drifting with the keyboard
       owlWake()
       reposition()
       setTimeout(function () { document.getElementById('aiInput').focus() }, 80)
     } else {
+      fab.style.display = ''
       panel.style.top = ''; panel.style.bottom = ''; panel.style.height = ''
     }
   }
