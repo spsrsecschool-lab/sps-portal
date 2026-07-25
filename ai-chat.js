@@ -241,12 +241,17 @@
   // ── Mobile keyboard handling ─────────────────────────────────────────────
   // On mobile, `position:fixed` + `bottom` fights with the browser's own
   // (version-dependent) auto-adjustment of fixed elements when the keyboard
-  // opens — nudging `bottom` on top of that caused the panel to float in the
-  // wrong spot. Instead we compute an absolute `top` + `height` fresh from
+  // opens. Instead we compute an absolute `top` + `height` fresh from
   // visualViewport every time, so there's a single source of truth for where
   // the panel sits, on both desktop and mobile, keyboard open or not.
   var OWL_MARGIN = 54   // headroom above the card so the perched owl stays fully visible
   var MIN_PANEL_H = 240 // never shrink the card smaller than this
+
+  function keyboardInset () {
+    var vv = window.visualViewport
+    if (!vv) return 0
+    return Math.max(window.innerHeight - vv.height - vv.offsetTop, 0)
+  }
 
   function reposition () {
     if (!panel.classList.contains('open')) return
@@ -257,16 +262,30 @@
     }
     var isMobile = window.innerWidth <= 560
     var restGap = isMobile ? 84 : 94                                   // gap above fab when keyboard is closed
-    var kbInset = Math.max(window.innerHeight - vv.height - vv.offsetTop, 0)
+    var kbInset = keyboardInset()
     var gap = kbInset > 40 ? 10 : restGap                              // small gap above keyboard when it's open
-    var maxCardH = isMobile ? Math.min(vv.height * 0.72, 540) : 576
     var cardBottom = vv.offsetTop + vv.height - gap
     var minTop = vv.offsetTop + OWL_MARGIN
+    // Mobile: fill all the room between the owl and the bottom gap instead
+    // of capping at an arbitrary vh/px value. Desktop keeps a fixed card size.
+    var maxCardH = isMobile ? (cardBottom - minTop) : 576
     var cardTop = Math.max(minTop, cardBottom - maxCardH)
     var cardHeight = Math.max(cardBottom - cardTop, MIN_PANEL_H)
     panel.style.bottom = 'auto'
     panel.style.top = cardTop + 'px'
     panel.style.height = cardHeight + 'px'
+  }
+
+  // The browser auto-shifts `position:fixed` elements to stay above the
+  // keyboard — that's what was dragging the FAB up. Counter it with an
+  // equal, opposite translateY so the FAB visually stays put at the true
+  // bottom of the screen (and simply gets covered by the keyboard, same as
+  // it would if the page had no JS involvement at all).
+  function pinFab () {
+    var inset = keyboardInset()
+    fab.style.transition = 'none'   // avoid the hover-transition chasing this JS update
+    fab.style.transform = inset > 0 ? 'translateY(' + inset + 'px)' : ''
+    requestAnimationFrame(function () { fab.style.transition = '' })
   }
 
   function mount () {
@@ -287,17 +306,24 @@
       if (owlEl().classList.contains('sleeping')) owlWake()
       // keyboard opens asynchronously — a couple of quick checks catch it
       // before visualViewport's own resize events take over
-      setTimeout(reposition, 30); setTimeout(reposition, 250)
+      setTimeout(function () { reposition(); pinFab() }, 30)
+      setTimeout(function () { reposition(); pinFab() }, 250)
     })
-    inp.addEventListener('blur', function () { setTimeout(reposition, 250) })
+    inp.addEventListener('blur', function () { setTimeout(function () { reposition(); pinFab() }, 250) })
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', reposition)
-      window.visualViewport.addEventListener('scroll', reposition)
+      window.visualViewport.addEventListener('resize', function () { reposition(); pinFab() })
+      window.visualViewport.addEventListener('scroll', function () { reposition(); pinFab() })
     }
-    window.addEventListener('resize', reposition)
+    window.addEventListener('resize', function () { reposition(); pinFab() })
     // tap the owl to wake / blink it
     owlEl().addEventListener('click', function () {
       owlEl().classList.contains('sleeping') ? owlWake() : owlBlinkOnce()
+    })
+    // click/tap anywhere outside the panel and the FAB closes it
+    document.addEventListener('click', function (e) {
+      if (!panel.classList.contains('open')) return
+      if (panel.contains(e.target) || fab.contains(e.target)) return
+      toggle()
     })
     greet()
     owlSleep()   // start asleep until the user engages
@@ -306,12 +332,10 @@
   function toggle () {
     panel.classList.toggle('open')
     if (panel.classList.contains('open')) {
-      fab.style.display = 'none'   // avoid a second floating button drifting with the keyboard
       owlWake()
       reposition()
       setTimeout(function () { document.getElementById('aiInput').focus() }, 80)
     } else {
-      fab.style.display = ''
       panel.style.top = ''; panel.style.bottom = ''; panel.style.height = ''
     }
   }
