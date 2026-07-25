@@ -38,16 +38,40 @@
   body.light-theme thead tr th { background: var(--surface2); }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;display:flex}
-  #sidebar{width:220px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100}
-  .logo{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+  #sidebar{width:220px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;transition:transform .25s ease,width .25s ease}
+  .logo{padding:20px 18px 16px;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden}
   .logo h1{font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--accent);text-transform:uppercase}
   .logo p{font-size:10px;color:var(--muted);margin-top:3px}
-  nav{flex:1;padding:12px 0;overflow-y:auto}
-  nav a{display:flex;align-items:center;gap:10px;padding:9px 18px;font-size:12.5px;color:var(--muted);text-decoration:none;cursor:pointer;transition:all .15s;border-left:3px solid transparent}
+  nav{flex:1;padding:12px 0;overflow-y:auto;overflow-x:hidden}
+  nav a{display:flex;align-items:center;gap:10px;padding:9px 18px;font-size:12.5px;color:var(--muted);text-decoration:none;cursor:pointer;transition:all .15s;border-left:3px solid transparent;white-space:nowrap}
   nav a:hover{color:var(--text);background:var(--surface2)}
   nav a.active{color:var(--accent);background:rgba(79,142,247,.08);border-left-color:var(--accent)}
-  nav a .icon{font-size:15px}
-  .session-badge{margin:12px;padding:8px 10px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.2);border-radius:6px;font-size:11px;color:var(--accent);font-family:var(--mono)}
+  nav a .icon{font-size:15px;flex-shrink:0;width:16px;text-align:center}
+  .session-badge{margin:12px;padding:8px 10px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.2);border-radius:6px;font-size:11px;color:var(--accent);font-family:var(--mono);white-space:nowrap;overflow:hidden}
+  /* hamburger toggle button */
+  #sidebarToggle{background:var(--surface2);border:1px solid var(--border);color:var(--text);cursor:pointer;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  #sidebarToggle:hover{background:var(--border)}
+  /* overlay for mobile drawer */
+  #sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99}
+  #sidebarOverlay.show{display:block}
+
+  /* ── DESKTOP collapsed: sidebar shrinks to an icon rail ── */
+  @media(min-width:861px){
+    body.sb-collapsed #sidebar{width:60px}
+    body.sb-collapsed #sidebar .logo h1,
+    body.sb-collapsed #sidebar .logo p,
+    body.sb-collapsed #sidebar nav a span:not(.icon),
+    body.sb-collapsed #sidebar .session-badge{display:none}
+    body.sb-collapsed #sidebar nav a{justify-content:center;padding:11px 0}
+    body.sb-collapsed #main{margin-left:60px}
+  }
+
+  /* ── MOBILE: sidebar becomes an off-canvas drawer ── */
+  @media(max-width:860px){
+    #sidebar{transform:translateX(-100%);width:230px;box-shadow:2px 0 20px rgba(0,0,0,.25)}
+    body.sb-open #sidebar{transform:translateX(0)}
+    #main{margin-left:0!important}
+  }
   #main{margin-left:220px;flex:1;min-height:100vh;overflow-x:hidden}
   .topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:50}
   .topbar h2{font-size:14px;font-weight:600;flex:1}
@@ -201,8 +225,11 @@
   <div class="session-badge" id="sessionBadgeText">Session: —</div>
 </aside>
 
+<div id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
 <div id="main">
   <div class="topbar">
+    <button id="sidebarToggle" onclick="toggleSidebar()" title="Toggle menu" aria-label="Toggle menu">☰</button>
     <h2 id="pageTitle">Dashboard</h2>
     <div class="topbar-actions">
       <div id="connectionStatus" style="display:inline-flex;align-items:center;gap:8px;font-size:10px;font-family:var(--mono);font-weight:600;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none;text-transform:uppercase;letter-spacing:0.05em;">
@@ -261,7 +288,7 @@
           </div>
           <div class="form-group">
             <label style="color:var(--accent);font-weight:600;">Total Cash Received (₹)</label>
-            <input type="number" id="c_totalCash" placeholder="Enter lump sum…" style="font-size:20px;font-family:var(--mono);border-color:var(--accent);" oninput="runFamilyAutoAllocate()">
+            <input type="number" inputmode="decimal" id="c_totalCash" placeholder="Enter lump sum…" style="font-size:20px;font-family:var(--mono);border-color:var(--accent);" oninput="runFamilyAutoAllocate()">
           </div>
           <div id="autoAllocPreview" style="margin-top:12px;background:rgba(79,142,247,.08);padding:12px;border-radius:8px;border:1px solid rgba(79,142,247,.2);display:none;"></div>
         </div>
@@ -473,7 +500,7 @@
         <div class="divider"></div>
         <h3>Bulk-set Sibling Flat Fee</h3>
         <div class="form-row" style="align-items:flex-end">
-          <div class="form-group"><label>Amount (₹/mo)</label><input type="number" id="bulkSibFlat" placeholder="e.g. 100"></div>
+          <div class="form-group"><label>Amount (₹/mo)</label><input type="number" inputmode="decimal" id="bulkSibFlat" placeholder="e.g. 100"></div>
           <div class="form-group"><label>Apply to</label><select id="bulkSibScope"><option value="all">All Classes</option><option value="lower">Nur–5th only</option><option value="upper">6th and above</option></select></div>
           <button class="btn btn-ghost" onclick="bulkSetSibFlat()">Apply</button>
         </div>
@@ -514,7 +541,7 @@
   </div>
   <div class="form-group" style="margin-bottom:10px;">
     <label>Amount to Waive (₹) <span style="color:var(--red)">*</span></label>
-    <input type="number" id="wp_amount" placeholder="e.g. 500" min="0" style="font-size:15px;">
+    <input type="number" inputmode="decimal" id="wp_amount" placeholder="e.g. 500" min="0" style="font-size:15px;">
   </div>
   <div class="form-group" style="margin-bottom:14px;">
     <label>Reason / Remark <span style="color:var(--muted);font-size:10px">(optional)</span></label>
@@ -1407,14 +1434,14 @@ function buildManualGrid(){
           ${MONTHS.map(m=>`<option value="${m}">${m}</option>`).join('')}
         </select>
       </div>
-      <div style="display:flex;align-items:center;"><input type="number" class="m-tuit" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
-      <div style="display:flex;align-items:center;"><input type="number" class="m-ann" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
+      <div style="display:flex;align-items:center;"><input type="number" inputmode="decimal" class="m-tuit" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
+      <div style="display:flex;align-items:center;"><input type="number" inputmode="decimal" class="m-ann" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
     </div>`;
   });
   html+=`<div class="manual-sib-row" data-eid="FAMILY_PREV" style="display:grid;${COL};gap:12px;background:rgba(79,142,247,0.05);border:1px solid rgba(79,142,247,0.2);padding:8px 10px;border-radius:6px;align-items:center;">
     <div><span style="font-weight:600;color:var(--accent);">Global Family Prev Balance</span><div style="font-size:10px;color:var(--muted);margin-top:2px">Arrears carried forward</div></div>
     <div></div>
-    <div style="display:flex;align-items:center;"><input type="number" class="m-prev" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
+    <div style="display:flex;align-items:center;"><input type="number" inputmode="decimal" class="m-prev" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
   </div>`;
   $('manualAllocGrid').innerHTML=html;
 }
@@ -2049,15 +2076,15 @@ function renderProfileFields(stu,edit){
   const sibCount=siblingsOf(stu).length;
   $('prof_fees').innerHTML=`
     <div class="field-row"><label>Monthly Tuition Override (Base: ${fmtINR(feeFor(stu).tuition)}${stu.stream?' · '+esc(stu.stream):''})</label>
-      ${edit?`<input type="number" id="pf_tuitionOverride" value="${stu.tuitionOverride??''}" placeholder="Leave empty for default" class="editable">`
+      ${edit?`<input type="number" inputmode="decimal" id="pf_tuitionOverride" value="${stu.tuitionOverride??''}" placeholder="Leave empty for default" class="editable">`
             :`<div class="field-val mono">${fmtINR(mt)}${stu.tuitionOverride!=null?' ✎ custom':(sibCount>=3?' (Sibling Flat Fee)':'')}</div>`}
     </div>
     <div class="field-row"><label>Annual Charge Override (Base: ${fmtINR(baseAc)})</label>
-      ${edit?`<input type="number" id="pf_annualOverride" value="${stu.annualOverride??''}" placeholder="Leave empty for default" class="editable">`
+      ${edit?`<input type="number" inputmode="decimal" id="pf_annualOverride" value="${stu.annualOverride??''}" placeholder="Leave empty for default" class="editable">`
             :`<div class="field-val mono">${fmtINR(ac)}${stu.annualOverride!=null?' ✎ custom':(stu.isNew?' (New Adm. Waived)':'')}</div>`}
     </div>
     <div class="field-row"><label>Previous Balance</label>
-      ${edit?`<input type="number" id="pf_prevBalance" value="${stu.prevBalance||0}" class="editable">`
+      ${edit?`<input type="number" inputmode="decimal" id="pf_prevBalance" value="${stu.prevBalance||0}" class="editable">`
             :`<div class="field-val mono">${fmtINR(stu.prevBalance||0)}</div>`}
     </div>`;
 
@@ -2308,7 +2335,7 @@ function renderBacklog(){
     backlogData[stu.enrollment_id]={prevBal:0,prevDate:todayStr,annual:0,annualDate:todayStr};
     MONTHS.forEach(m=>{backlogData[stu.enrollment_id][m]={amt:0,date:todayStr}});
     const base=i*MONTHS.length;
-    const mCells=MONTHS.map((m,mi)=>`<td style="padding:4px 6px"><input type="number" data-eid="${stu.enrollment_id}" data-field="${m}_amt" placeholder="0" tabindex="${base+mi*2+1}" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td><td style="padding:4px 6px"><input type="date" data-eid="${stu.enrollment_id}" data-field="${m}_date" value="${todayStr}" tabindex="${base+mi*2+2}" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:130px"></td>`).join('');
+    const mCells=MONTHS.map((m,mi)=>`<td style="padding:4px 6px"><input type="number" inputmode="numeric" data-eid="${stu.enrollment_id}" data-field="${m}_amt" placeholder="0" tabindex="${base+mi*2+1}" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td><td style="padding:4px 6px"><input type="date" data-eid="${stu.enrollment_id}" data-field="${m}_date" value="${todayStr}" tabindex="${base+mi*2+2}" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:130px"></td>`).join('');
     return `<tr data-row-eid="${stu.enrollment_id}">
       <td class="sticky" style="padding:6px 12px">${snoCell(stu)}</td>
       <td class="sticky2" style="padding:6px 12px;min-width:180px">
@@ -2320,9 +2347,9 @@ function renderBacklog(){
           <button class="backlog-save-btn" title="Save this row" onclick="saveBacklogRow('${stu.enrollment_id}')">✓</button>
         </div>
       </td>
-      <td style="padding:4px 6px"><input type="number" data-eid="${stu.enrollment_id}" data-field="prevBal" placeholder="0" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td>
+      <td style="padding:4px 6px"><input type="number" inputmode="decimal" data-eid="${stu.enrollment_id}" data-field="prevBal" placeholder="0" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td>
       <td style="padding:4px 6px"><input type="date" data-eid="${stu.enrollment_id}" data-field="prevDate" value="${todayStr}" oninput="updateBacklog(this)" style="width:130px"></td>
-      <td style="padding:4px 6px"><input type="number" data-eid="${stu.enrollment_id}" data-field="annual" placeholder="0" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td>
+      <td style="padding:4px 6px"><input type="number" inputmode="decimal" data-eid="${stu.enrollment_id}" data-field="annual" placeholder="0" oninput="updateBacklog(this)" onkeydown="backlogRowKeydown(event,'${stu.enrollment_id}')" style="width:90px;text-align:right"></td>
       <td style="padding:4px 6px"><input type="date" data-eid="${stu.enrollment_id}" data-field="annualDate" value="${todayStr}" oninput="updateBacklog(this)" style="width:130px"></td>
       ${mCells}</tr>`;
   }).join('');
@@ -2916,9 +2943,9 @@ function renderSettings(){
       return `<tr>
         <td><b>${esc(r.cls)}</b></td>
         <td>${r.stream?`<span class="pill pill-blue">${esc(r.stream)}</span>`:'<span class="text-muted">—</span>'}</td>
-        <td><input type="number" id="fee_t_${i}" value="${f.tuition||0}" style="width:110px"></td>
-        <td><input type="number" id="fee_a_${i}" value="${f.annual||0}" style="width:110px"></td>
-        <td><input type="number" id="fee_s_${i}" value="${f.sibDisc||0}" style="width:110px"></td>
+        <td><input type="number" inputmode="decimal" id="fee_t_${i}" value="${f.tuition||0}" style="width:110px"></td>
+        <td><input type="number" inputmode="decimal" id="fee_a_${i}" value="${f.annual||0}" style="width:110px"></td>
+        <td><input type="number" inputmode="numeric" id="fee_s_${i}" value="${f.sibDisc||0}" style="width:110px"></td>
       </tr>`;
     }).join('')||'<tr><td colspan="5" class="text-muted" style="padding:14px">No classes defined. Add them in the Admin Portal.</td></tr>'}</tbody></table>`;
   renderSessionManager();
@@ -3417,7 +3444,30 @@ async function revertWaiver(month){
 // ══════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════
-document.querySelectorAll('nav a').forEach(a=>{a.onclick=()=>goTo(a.dataset.page)});
+// ── Collapsible sidebar ──────────────────────────────────────────────────
+// Mobile (≤860px): slides the drawer in/out. Desktop: collapses to an icon rail
+// and remembers the choice.
+function toggleSidebar(){
+  const mobile=window.matchMedia('(max-width:860px)').matches
+  if(mobile){
+    const open=document.body.classList.toggle('sb-open')
+    document.getElementById('sidebarOverlay').classList.toggle('show',open)
+  }else{
+    const collapsed=document.body.classList.toggle('sb-collapsed')
+    try{localStorage.setItem('feeSidebarCollapsed',collapsed?'1':'0')}catch(e){}
+  }
+}
+// restore desktop collapsed preference
+try{if(localStorage.getItem('feeSidebarCollapsed')==='1'&&!window.matchMedia('(max-width:860px)').matches)document.body.classList.add('sb-collapsed')}catch(e){}
+
+document.querySelectorAll('nav a').forEach(a=>{a.onclick=()=>{
+  goTo(a.dataset.page)
+  // On mobile, close the drawer after picking a page.
+  if(window.matchMedia('(max-width:860px)').matches){
+    document.body.classList.remove('sb-open')
+    document.getElementById('sidebarOverlay').classList.remove('show')
+  }
+}});
 window.addEventListener('online',  ()=>refreshAll());
 window.addEventListener('offline', ()=>updateStatus('offline'));
 
