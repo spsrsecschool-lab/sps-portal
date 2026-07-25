@@ -107,7 +107,8 @@
     /* ── Outer panel: fixed position only, NOT clipped — this is what lets
        the perched owl extend above the card without being cut off. ── */
     '#aiPanel{position:fixed;bottom:94px;right:22px;width:398px;max-width:calc(100vw - 32px);height:576px;',
-    'max-height:calc(100vh - 130px);z-index:801;display:none;flex-direction:column}',
+    'max-height:calc(100vh - 130px);max-height:calc(100dvh - 130px);',
+    'z-index:801;display:none;flex-direction:column;transition:top .15s ease,height .15s ease}',
     '#aiPanel.open{display:flex;animation:aiUp .22s cubic-bezier(.2,.8,.2,1)}',
     '@keyframes aiUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}',
 
@@ -180,7 +181,9 @@
     '.ai-chip{font-family:var(--font,sans-serif);font-size:11.5px;padding:7px 12px;border-radius:999px;border:1px solid var(--line,#ddd);',
     'background:#fff;color:var(--ink-soft,#555);cursor:pointer;margin:0 6px 6px 0;transition:all .12s}',
     '.ai-chip:hover{border-color:var(--indigo,var(--grn,#5B4FE8));color:var(--indigo,var(--grn,#5B4FE8));transform:translateY(-1px)}',
-    '@media(max-width:560px){#aiPanel{right:8px;left:8px;width:auto;bottom:84px;height:min(72vh,540px)}#aiFab{bottom:16px;right:16px}}'
+    '@media(max-width:560px){#aiPanel{right:8px;left:8px;width:auto;',
+    'bottom:84px;height:min(72vh,540px);height:min(72dvh,540px)}',
+    '#aiFab{bottom:16px;right:16px}}'
   ].join('')
   document.head.appendChild(css)
 
@@ -235,6 +238,37 @@
   }
   function owlResetIdle () { clearTimeout(idleTimer); idleTimer = setTimeout(owlSleep, 12000) }
 
+  // ── Mobile keyboard handling ─────────────────────────────────────────────
+  // On mobile, `position:fixed` + `bottom` fights with the browser's own
+  // (version-dependent) auto-adjustment of fixed elements when the keyboard
+  // opens — nudging `bottom` on top of that caused the panel to float in the
+  // wrong spot. Instead we compute an absolute `top` + `height` fresh from
+  // visualViewport every time, so there's a single source of truth for where
+  // the panel sits, on both desktop and mobile, keyboard open or not.
+  var OWL_MARGIN = 54   // headroom above the card so the perched owl stays fully visible
+  var MIN_PANEL_H = 240 // never shrink the card smaller than this
+
+  function reposition () {
+    if (!panel.classList.contains('open')) return
+    var vv = window.visualViewport
+    if (!vv) { // no visualViewport support — fall back to the plain CSS positioning
+      panel.style.top = ''; panel.style.bottom = ''; panel.style.height = ''
+      return
+    }
+    var isMobile = window.innerWidth <= 560
+    var restGap = isMobile ? 84 : 94                                   // gap above fab when keyboard is closed
+    var kbInset = Math.max(window.innerHeight - vv.height - vv.offsetTop, 0)
+    var gap = kbInset > 40 ? 10 : restGap                              // small gap above keyboard when it's open
+    var maxCardH = isMobile ? Math.min(vv.height * 0.72, 540) : 576
+    var cardBottom = vv.offsetTop + vv.height - gap
+    var minTop = vv.offsetTop + OWL_MARGIN
+    var cardTop = Math.max(minTop, cardBottom - maxCardH)
+    var cardHeight = Math.max(cardBottom - cardTop, MIN_PANEL_H)
+    panel.style.bottom = 'auto'
+    panel.style.top = cardTop + 'px'
+    panel.style.height = cardHeight + 'px'
+  }
+
   function mount () {
     document.body.appendChild(fab)
     document.body.appendChild(panel)
@@ -249,7 +283,17 @@
       inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 90) + 'px'
       if (!BUSY) { inp.value.trim() ? owlListen() : owlWake() }  // don't override thinking/talking
     })
-    inp.addEventListener('focus', function () { if (owlEl().classList.contains('sleeping')) owlWake() })
+    inp.addEventListener('focus', function () {
+      if (owlEl().classList.contains('sleeping')) owlWake()
+      // keyboard opens asynchronously — poll briefly until visualViewport reports it
+      setTimeout(reposition, 60); setTimeout(reposition, 300); setTimeout(reposition, 600)
+    })
+    inp.addEventListener('blur', function () { setTimeout(reposition, 100); setTimeout(reposition, 350) })
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', reposition)
+      window.visualViewport.addEventListener('scroll', reposition)
+    }
+    window.addEventListener('resize', reposition)
     // tap the owl to wake / blink it
     owlEl().addEventListener('click', function () {
       owlEl().classList.contains('sleeping') ? owlWake() : owlBlinkOnce()
@@ -262,7 +306,10 @@
     panel.classList.toggle('open')
     if (panel.classList.contains('open')) {
       owlWake()
+      reposition()
       setTimeout(function () { document.getElementById('aiInput').focus() }, 80)
+    } else {
+      panel.style.top = ''; panel.style.bottom = ''; panel.style.height = ''
     }
   }
 
