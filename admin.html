@@ -2543,7 +2543,30 @@ async function saveMapping(){
   window._pendingPeriods=[]
   closeModal();loadMapping()
 }
-async function removeMapping(id){confirmAct('Remove this mapping?','Teacher loses access to this class-subject.',async()=>{await sb.from('teacher_subject_class_map').delete().eq('map_id',id);toast('Removed','success');loadMapping()})}
+async function removeMapping(id){
+  // Fetch the mapping first so we can clean up the timetable entries that share
+  // its teacher+class+section+subject — otherwise the teacher keeps seeing the
+  // period in their timetable even though the mapping is gone.
+  const{data:m,error:mErr}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id').eq('map_id',id).limit(1)
+  if(mErr){toast('Could not load mapping: '+mErr.message,'error');return}
+  const map=(m&&m[0])||null
+  confirmAct('Remove this mapping?','Teacher loses access to this class-subject, and any matching timetable periods are removed.',async()=>{
+    if(map){
+      // remove orphaned timetable periods for this exact teacher/class/section/subject
+      let q=sb.from('timetable_entries').delete()
+        .eq('session_id',SESS.session_id)
+        .eq('teacher_id',map.teacher_id)
+        .eq('class_id',map.class_id)
+        .eq('subject_id',map.subject_id)
+      if(map.section_id) q=q.eq('section_id',map.section_id)
+      const{error:teErr}=await q
+      if(teErr){toast('Timetable cleanup failed: '+teErr.message,'error');return}
+    }
+    const{error}=await sb.from('teacher_subject_class_map').delete().eq('map_id',id)
+    if(error){toast('Remove failed: '+error.message,'error');return}
+    toast('Removed','success');loadMapping()
+  })
+}
 
 async function editMapping(mapId){
   const r=_mappingRaw.find(m=>m.map_id===mapId)
@@ -2766,7 +2789,41 @@ async function createAssessment(){
   toast('Assessment created for '+selectedClasses.length+' class(es)','success');closeModal();loadAssessments()
 }
 async function saveAssess(id){const{error}=await sb.from('assessments').update({name:$('ae_name')?.value?.trim(),commencement_date:$('ae_date')?.value||null,submission_deadline:$('ae_dl')?.value?new Date($('ae_dl').value).toISOString():null,is_marks_unlocked:$('ae_unlock')?.classList.contains('on')}).eq('assessment_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Saved','success');loadAssessments()}
-async function deleteAssessment(id,name){const{count}=await sb.from('marks').select('*',{count:'exact',head:true}).eq('assessment_id',id);if(count>0){toast('Cannot delete "'+name+'" — '+count+' marks exist.','error');return};confirmAct('Delete "'+name+'"?','Cannot be undone.',async()=>{await sb.from('assessment_classes').delete().eq('assessment_id',id);await sb.from('exam_fees').delete().eq('assessment_id',id);await sb.from('assessments').delete().eq('assessment_id',id);toast('Deleted','success');openSub('assessments','sub-assess-list');loadAssessments()})}
+async function deleteAssessment(id,name){
+  const{count}=await sb.from('marks').select('*',{count:'exact',head:true}).eq('assessment_id',id)
+  if(count>0){toast('Cannot delete "'+name+'" — '+count+' marks exist.','error');return}
+  confirmAct('Delete "'+name+'"?','Cannot be undone.',async()=>{
+    // Clear children first, in FK order, checking each step. A silent failure
+    // here (RLS or a leftover foreign key) is why a delete could report success
+    // while the assessment stayed put — so every step is now checked.
+
+    // exam_fee_payments -> exam_fees (child of the assessment's fee rows)
+    const{data:efRows}=await sb.from('exam_fees').select('exam_fee_id').eq('assessment_id',id)
+    const efIds=(efRows||[]).map(r=>r.exam_fee_id)
+    if(efIds.length){
+      const{error:efpErr}=await sb.from('exam_fee_payments').delete().in('exam_fee_id',efIds)
+      if(efpErr){toast('Delete failed (exam fee payments): '+efpErr.message,'error');return}
+    }
+    // access_requests can reference the assessment
+    const{error:arErr}=await sb.from('access_requests').delete().eq('assessment_id',id)
+    if(arErr){toast('Delete failed (access requests): '+arErr.message,'error');return}
+    // max-marks overrides for this assessment
+    const{error:ovErr}=await sb.from('assessment_mark_overrides').delete().eq('assessment_id',id)
+    if(ovErr){toast('Delete failed (mark overrides): '+ovErr.message,'error');return}
+
+    const{error:acErr}=await sb.from('assessment_classes').delete().eq('assessment_id',id)
+    if(acErr){toast('Delete failed (classes): '+acErr.message,'error');return}
+    const{error:efErr}=await sb.from('exam_fees').delete().eq('assessment_id',id)
+    if(efErr){toast('Delete failed (exam fees): '+efErr.message,'error');return}
+
+    // The assessment itself — capture the deleted rows so we KNOW it went.
+    const{data:del,error:aErr}=await sb.from('assessments').delete().eq('assessment_id',id).select('assessment_id')
+    if(aErr){toast('Delete failed: '+aErr.message,'error');return}
+    if(!del||!del.length){toast('Nothing was deleted — you may not have permission (check RLS).','error');return}
+
+    toast('Deleted','success');openSub('assessments','sub-assess-list');loadAssessments()
+  })
+}
 function addEFRow(assessId){const id='new'+Date.now(),div=document.createElement('div');div.className='form-row';div.id='efr_'+id;div.innerHTML='<div class="fg"><label>Label (optional)</label><input id="efg_'+id+'" placeholder="e.g. Entry Fee"></div><div class="fg"><label>Amount ₹ *</label><input type="number" id="efa_'+id+'"></div><div class="fg" style="flex:0;align-items:flex-end"><div style="display:flex;align-items:center;gap:8px;margin-top:20px"><span style="font-size:11px;color:var(--ink-soft)">Unlock</span><div class="switch" id="efu_'+id+'" onclick="this.classList.toggle(\'on\')"></div></div></div><div style="display:flex;gap:5px;align-items:flex-end;padding-bottom:2px"><button class="btn btn-dark btn-xs" onclick="createEF(\''+assessId+'\',\''+id+'\')">Add</button><button class="btn btn-ghost btn-xs" onclick="document.getElementById(\'efr_'+id+'\').remove()">×</button></div>';$('efRows').appendChild(div)}
 async function createEF(assessId,tid){const label=$('efg_'+tid)?.value?.trim()||'Fee',amt=$('efa_'+tid)?.value,unlocked=$('efu_'+tid)?.classList.contains('on');if(!amt){toast('Amount required','error');return};const grp=label+'-'+Date.now();const{error}=await sb.from('exam_fees').insert({assessment_id:assessId,class_group:grp,amount:parseFloat(amt),is_collection_unlocked:unlocked});if(error){toast('Failed: '+error.message,'error');return};toast('Fee added','success');await refreshExamFees(assessId)}
 async function refreshExamFees(assessId){
