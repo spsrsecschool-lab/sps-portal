@@ -2640,19 +2640,27 @@ function ttSlotLabel(slot,days){
 
 // Notify a teacher that admin changed their timetable. `kind` is 'added' or 'removed'.
 async function notifyTimetableChange(teacherId,kind,className,sectionName,subjectName,slotLabel){
-  if(!teacherId)return
-  const where=esc(className||'?')+(sectionName?('-'+esc(sectionName)):'')+' · '+esc(subjectName||'?')
+  if(!teacherId){console.warn('[TT-notify] no teacherId — skipped');return}
+  const adminId=SPS.admin?.admin_id
+  const where=(className||'?')+(sectionName?('-'+sectionName):'')+' · '+(subjectName||'?')
   const verb=kind==='added'?'added a period to':'removed a period from'
-  const subject='Timetable updated — '+esc(subjectName||'')+' ('+esc(className||'')+')'
+  const subject='Timetable updated — '+(subjectName||'')+' ('+(className||'')+')'
   const body='Admin '+verb+' your timetable.\n\n'
     +'Class & subject: '+where+'\n'
     +(kind==='added'?'New period: ':'Removed period: ')+slotLabel+'\n\n'
-    +'Open “My Timetable” to see your current schedule.'
-  await sb.from('messages').insert({
-    sender_type:'admin',sender_id:SPS.admin?.admin_id,
+    +'Open "My Timetable" to see your current schedule.'
+  const{data,error}=await sb.from('messages').insert({
+    sender_type:'admin',sender_id:adminId,
     recipient_type:'teacher',recipient_id:teacherId,
-    subject:subject,body:body,message_type:'timetable_change',sent_at:new Date().toISOString()
-  })
+    subject:subject,body:body,message_type:'direct',   // 'direct' so it lands in the teacher's normal inbox
+    sent_at:new Date().toISOString()
+  }).select('message_id')
+  if(error){
+    console.error('[TT-notify] insert FAILED:',error.message,error)
+    toast('Timetable saved, but teacher notification failed: '+error.message,'error')
+    return
+  }
+  console.log('[TT-notify] message sent to',teacherId,'->',data)
 }
 
 async function addTimetablePeriod(){
