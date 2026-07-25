@@ -2545,22 +2545,24 @@ async function saveMapping(){
 }
 async function removeMapping(id){
   // Fetch the mapping first so we can clean up the timetable entries that share
-  // its teacher+class+section+subject — otherwise the teacher keeps seeing the
-  // period in their timetable even though the mapping is gone.
-  const{data:m,error:mErr}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id').eq('map_id',id).limit(1)
+  // its teacher+class+section+subject.
+  const{data:m,error:mErr}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id,session_id').eq('map_id',id).limit(1)
   if(mErr){toast('Could not load mapping: '+mErr.message,'error');return}
   const map=(m&&m[0])||null
-  confirmAct('Remove this mapping?','Teacher loses access to this class-subject, and any matching timetable periods are removed.',async()=>{
+  confirmAct('Remove this mapping?','Teacher loses access to this class-subject, and its timetable periods are removed.',async()=>{
     if(map){
-      // remove orphaned timetable periods for this exact teacher/class/section/subject
+      // Delete every timetable row for this teacher + class + subject in the
+      // mapping's session. section_id is included only when present, matched
+      // exactly. .select() returns the deleted rows so we can confirm it worked.
       let q=sb.from('timetable_entries').delete()
-        .eq('session_id',SESS.session_id)
         .eq('teacher_id',map.teacher_id)
         .eq('class_id',map.class_id)
         .eq('subject_id',map.subject_id)
+      if(map.session_id) q=q.eq('session_id',map.session_id)
       if(map.section_id) q=q.eq('section_id',map.section_id)
-      const{error:teErr}=await q
+      const{data:delRows,error:teErr}=await q.select('entry_id')
       if(teErr){toast('Timetable cleanup failed: '+teErr.message,'error');return}
+      console.log('[removeMapping] deleted',(delRows||[]).length,'timetable rows for mapping',map)
     }
     const{error}=await sb.from('teacher_subject_class_map').delete().eq('map_id',id)
     if(error){toast('Remove failed: '+error.message,'error');return}
