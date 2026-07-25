@@ -357,7 +357,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
               <option value="1">January</option><option value="2">February</option><option value="3">March</option>
             </select>
           </div>
-          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" id="att_year" min="2024" max="2030"></div>
+          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="att_year" min="2024" max="2030"></div>
           <button class="btn btn-soft" onclick="loadAttReport()">Generate Report</button>
         </div>
       </div>
@@ -1668,7 +1668,7 @@ async function loadRollNos(){
       +'<td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
-      +'<td><input class="rn-input" type="number" min="1" max="99" data-eid="'+s.enrollment_id+'" placeholder="Roll no." value="'+esc(String(s.roll_no||''))+'"></td>'
+      +'<td><input class="rn-input" type="number" inputmode="numeric" min="1" max="99" data-eid="'+s.enrollment_id+'" placeholder="Roll no." value="'+esc(String(s.roll_no||''))+'"></td>'
       +'</tr>').join('')
     +'</tbody></table></div></div>'
 }
