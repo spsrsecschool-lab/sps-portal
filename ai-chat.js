@@ -103,15 +103,24 @@
     '#aiFab .owl{width:34px;height:34px;color:#fff}',
     '#aiFab::after{content:"";position:absolute;top:12px;right:12px;width:10px;height:10px;border-radius:50%;background:#3ED598;border:2px solid #fff;box-shadow:0 0 0 rgba(62,213,152,.6);animation:aiPulse 2.4s infinite}',
     '@keyframes aiPulse{0%{box-shadow:0 0 0 0 rgba(62,213,152,.5)}70%{box-shadow:0 0 0 7px rgba(62,213,152,0)}100%{box-shadow:0 0 0 0 rgba(62,213,152,0)}}',
+
+    /* ── Outer panel: fixed position only, NOT clipped — this is what lets
+       the perched owl extend above the card without being cut off. ── */
     '#aiPanel{position:fixed;bottom:94px;right:22px;width:398px;max-width:calc(100vw - 32px);height:576px;',
-    'max-height:calc(100vh - 130px);background:#fff;border:1px solid var(--line,#e5e5e5);border-radius:20px;',
-    'box-shadow:0 24px 60px rgba(0,0,0,.24);z-index:801;display:none;flex-direction:column;overflow:hidden}',
+    'max-height:calc(100vh - 130px);z-index:801;display:none;flex-direction:column}',
     '#aiPanel.open{display:flex;animation:aiUp .22s cubic-bezier(.2,.8,.2,1)}',
     '@keyframes aiUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}',
+
+    /* ── Inner card: this is what actually clips (rounded corners, scroll,
+       shadow). The owl lives OUTSIDE this element so it's never clipped. ── */
+    '#aiPanelInner{flex:1;min-height:0;display:flex;flex-direction:column;background:#fff;',
+    'border:1px solid var(--line,#e5e5e5);border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.24);overflow:hidden}',
+
     '#aiHead{padding:14px 16px 14px 96px;display:flex;align-items:center;gap:11px;flex-shrink:0;position:relative;',
     'background:linear-gradient(135deg,var(--indigo,var(--grn,#5B4FE8)),var(--indigo-dark,var(--grn-dark,#4A3FD6)));color:#fff}',
-    // perched owl sits straddling the header's top-left
-    '#aiOwl{position:absolute;left:10px;top:-46px;width:84px;height:100px;z-index:3;cursor:pointer;user-select:none}',
+    // perched owl sits straddling the panel's top-left, positioned relative to
+    // #aiPanel (not #aiPanelInner) so overflow:hidden on the card never clips it
+    '#aiOwl{position:absolute;left:10px;top:-46px;width:84px;height:100px;z-index:5;cursor:pointer;user-select:none}',
     '#aiOwl svg{width:100%;height:100%;overflow:visible;display:block;filter:drop-shadow(0 6px 8px rgba(0,0,0,.18))}',
     '.owl-body-grp{transform-origin:50% 80%;animation:owlBreathe 3.4s ease-in-out infinite}',
     '@keyframes owlBreathe{0%,100%{transform:scaleY(1) translateY(0)}50%{transform:scaleY(1.03) translateY(-1px)}}',
@@ -183,14 +192,18 @@
 
   var panel = document.createElement('div')
   panel.id = 'aiPanel'
+  // #aiOwl is a direct child of #aiPanel (NOT #aiPanelInner) so it can perch
+  // above the card without being clipped by the card's overflow:hidden.
   panel.innerHTML =
-    '<div id="aiHead">' +
-      '<div id="aiOwl" class="sleeping eyes-closed" title="' + BOT_NAME + '">' + perchedOwl() + '</div>' +
-      '<div style="margin-left:8px"><div class="t">' + BOT_NAME + '</div><div class="s">Your school companion</div></div>' +
-      '<button title="Close">&times;</button></div>' +
-    '<div id="aiBody"></div>' +
-    '<div id="aiFoot"><textarea id="aiInput" rows="1" placeholder="Ask ' + BOT_NAME + ' anything…"></textarea>' +
-    '<button id="aiSend"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>'
+    '<div id="aiOwl" class="sleeping eyes-closed" title="' + BOT_NAME + '">' + perchedOwl() + '</div>' +
+    '<div id="aiPanelInner">' +
+      '<div id="aiHead">' +
+        '<div style="margin-left:8px"><div class="t">' + BOT_NAME + '</div><div class="s">Your school companion</div></div>' +
+        '<button title="Close">&times;</button></div>' +
+      '<div id="aiBody"></div>' +
+      '<div id="aiFoot"><textarea id="aiInput" rows="1" placeholder="Ask ' + BOT_NAME + ' anything…"></textarea>' +
+      '<button id="aiSend"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>' +
+    '</div>'
 
   // ── Owl state machine ────────────────────────────────────────────────────
   var OWL_STATES = ['sleeping','awake-idle','tilt','thinking','talking','eyes-open','eyes-closed','look-up','waking']
