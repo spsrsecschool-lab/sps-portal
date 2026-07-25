@@ -484,7 +484,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
               <option value="1">January</option><option value="2">February</option><option value="3">March</option>
             </select>
           </div>
-          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" id="att_year" min="2024" max="2030"></div>
+          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="att_year" min="2024" max="2030"></div>
           <button class="btn btn-soft" onclick="loadAttReport()">Generate Report</button>
         </div>
       </div>
@@ -1699,7 +1699,7 @@ async function loadRollNos(){
       +'<td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
-      +'<td><input class="rn-input" type="number" min="1" max="99" data-eid="'+s.enrollment_id+'" placeholder="Roll no." value="'+esc(String(s.roll_no||''))+'"></td>'
+      +'<td><input class="rn-input" type="number" inputmode="numeric" min="1" max="99" data-eid="'+s.enrollment_id+'" placeholder="Roll no." value="'+esc(String(s.roll_no||''))+'"></td>'
       +'</tr>').join('')
     +'</tbody></table></div></div>'
 }
@@ -2609,35 +2609,58 @@ async function loadAssessMarksEditable(){
     html+='<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
     cols.forEach(sub=>{
       const mk=sMarks[sub.subject_id]
-      const val=mk?.is_absent?'A':(mk?.marks_obtained!=null?mk.marks_obtained:'')
-      html+='<td style="text-align:center"><input class="mk-mark-input" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" value="'+esc(String(val))+'" placeholder="—" oninput="mkMarkChanged(this,'+maxM+','+passM+')"></td>'
+      const isAbs=!!mk?.is_absent
+      const val=isAbs?'':(mk?.marks_obtained!=null?mk.marks_obtained:'')
+      // Numeric keyboard on phones. Tap the ⊘ chip to toggle Absent (so no need
+      // to type "A"). When absent the box is disabled and shows "A".
+      html+='<td style="text-align:center;white-space:nowrap">'
+        +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(isAbs?'A':'—')+'"'+(isAbs?' disabled':'')+' oninput="mkMarkChanged(this,'+maxM+','+passM+')" style="'+(isAbs?'background:var(--warn-soft);':'')+'">'
+        +'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this,'+maxM+','+passM+')" style="margin-left:3px;font-size:10px;font-weight:700;padding:2px 5px;border-radius:5px;cursor:pointer;border:1px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-faint)')+'">A</button>'
+        +'</td>'
     })
     html+='<td class="mk-total" style="text-align:center;font-weight:700">—</td><td class="mk-pct" style="text-align:center;font-weight:700">—</td>'
     html+='</tr>'
   })
-  html+='</tbody></table><p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px">Type marks or "A" for absent. Failing marks are highlighted. Click Save All Marks when done.</p></div>'
+  html+='</tbody></table><p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px">Type marks, or tap the small <b>A</b> to mark absent. Failing marks are highlighted. Click Save All Marks when done.</p></div>'
   el.innerHTML=html
   // Compute initial totals
   document.querySelectorAll('#mkAssessWrap tr[data-eid]').forEach(row=>mkRecomputeRow(row,maxM,passM))
 }
 
+// Toggle a matrix cell's Absent state via its little "A" chip.
+function mkToggleAbsent(btn,maxM,passM){
+  const inp=btn.parentElement.querySelector('.mk-mark-input')
+  if(!inp)return
+  const nowAbs=!inp.classList.contains('is-abs')
+  inp.classList.toggle('is-abs',nowAbs)
+  if(nowAbs){
+    inp.value='';inp.disabled=true;inp.placeholder='A';inp.style.background='var(--warn-soft)';inp.classList.remove('fail')
+    btn.style.border='1px solid var(--warn)';btn.style.background='var(--warn)';btn.style.color='#fff'
+  }else{
+    inp.disabled=false;inp.placeholder='—';inp.style.background=''
+    btn.style.border='1px solid var(--line)';btn.style.background='transparent';btn.style.color='var(--ink-faint)'
+  }
+  mkRecomputeRow(inp.closest('tr'),maxM,passM)
+}
+
 function mkMarkChanged(input,maxM,passM){
-  const v=input.value.trim().toUpperCase()
+  // digits + decimal only
+  input.value=input.value.replace(/[^0-9.]/g,'')
   input.classList.remove('fail')
-  if(v!=='A'&&v!==''){
+  const v=input.value.trim()
+  if(v!==''){
     const n=parseFloat(v)
     if(!isNaN(n)&&n<passM)input.classList.add('fail')
   }
-  const row=input.closest('tr')
-  mkRecomputeRow(row,maxM,passM)
+  mkRecomputeRow(input.closest('tr'),maxM,passM)
 }
 
 function mkRecomputeRow(row,maxM,passM){
-  let total=0,possible=0,hasAbsent=false
+  let total=0,possible=0
   row.querySelectorAll('.mk-mark-input').forEach(inp=>{
-    const v=inp.value.trim().toUpperCase()
-    if(v==='A')hasAbsent=true
-    else if(v!==''){const n=parseFloat(v);if(!isNaN(n)){total+=n;possible+=maxM}}
+    if(inp.classList.contains('is-abs'))return
+    const v=inp.value.trim()
+    if(v!==''){const n=parseFloat(v);if(!isNaN(n)){total+=n;possible+=maxM}}
   })
   const pct=possible>0?Math.round(total/possible*100):null
   const tc=row.querySelector('.mk-total'),pc=row.querySelector('.mk-pct')
@@ -2651,13 +2674,17 @@ async function saveAllMarks(assessId){
   let invalid=false
   const maxM=(MK_ASSESSMENTS.find(a=>a.assessment_id===assessId)?.max_marks)||100
   inputs.forEach(inp=>{
-    const v=inp.value.trim().toUpperCase()
-    if(v==='')return
     const eid=inp.dataset.eid,sid=inp.dataset.sid
-    if(v==='A'){rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:true,marks_obtained:null})}
-    else{const n=parseFloat(v);if(isNaN(n)||n<0||n>maxM){invalid=true;inp.style.borderColor='var(--danger)';return}rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:false,marks_obtained:n})}
+    if(inp.classList.contains('is-abs')){
+      rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:true,marks_obtained:null})
+      return
+    }
+    const v=inp.value.trim()
+    if(v==='')return
+    const n=parseFloat(v);if(isNaN(n)||n<0||n>maxM){invalid=true;inp.style.borderColor='var(--danger)';return}
+    rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:false,marks_obtained:n})
   })
-  if(invalid){toast('Some marks are invalid (must be 0–'+maxM+' or A)','error');return}
+  if(invalid){toast('Some marks are invalid (must be 0–'+maxM+', or tap A for absent)','error');return}
   if(!rows.length){toast('No marks to save','error');return}
   // Upsert each: delete existing for (enrollment,subject,assessment) then insert
   let errors=0
@@ -2694,8 +2721,8 @@ async function openCreateTestModal(){
     '<div class="form-row"><div class="fg"><label>Test Name *</label><input id="ct_name" placeholder="e.g. Unit Test 1"></div></div>'
     +'<div class="form-row"><div class="fg"><label>Subject *</label><select id="ct_subject">'+subOpts+'</select></div>'
     +'<div class="fg"><label>Date *</label><input type="date" id="ct_date" value="'+today()+'"></div></div>'
-    +'<div class="form-row"><div class="fg"><label>Max Marks *</label><input type="number" id="ct_max" value="20" min="1"></div>'
-    +'<div class="fg"><label>Pass Marks</label><input type="number" id="ct_pass" value="7" min="0"></div></div>'
+    +'<div class="form-row"><div class="fg"><label>Max Marks *</label><input type="number" inputmode="decimal" id="ct_max" value="20" min="1"></div>'
+    +'<div class="fg"><label>Pass Marks</label><input type="number" inputmode="decimal" id="ct_pass" value="7" min="0"></div></div>'
     +'<div class="fg"><label>Syllabus (optional)</label><textarea id="ct_syll" style="min-height:60px" placeholder="Topics covered…"></textarea></div>',
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="createMkTest()">Create Test</button>'
   )
@@ -2730,12 +2757,14 @@ async function enterTestMarks(testId){
   const mMap={};(marks||[]).forEach(mk=>mMap[mk.enrollment_id]=mk)
   const maxM=test.max_marks,passM=test.min_pass_marks||Math.round(maxM*0.33)
   let body='<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">'+esc(test.name)+' · '+esc(test.subjects?.name||'')+' · Max '+maxM+'</div>'
-    +'<div style="max-height:400px;overflow-y:auto"><table style="width:100%"><thead><tr><th style="text-align:left;font-size:11px;padding:6px">Roll</th><th style="text-align:left;font-size:11px;padding:6px">Name</th><th style="font-size:11px;padding:6px">Marks</th></tr></thead><tbody>'
+    +'<div style="max-height:400px;overflow-y:auto"><table style="width:100%"><thead><tr><th style="text-align:left;font-size:11px;padding:6px">Roll</th><th style="text-align:left;font-size:11px;padding:6px">Name</th><th style="font-size:11px;padding:6px">Marks</th><th style="font-size:11px;padding:6px">Absent</th></tr></thead><tbody>'
   CLASS_STUDENTS.forEach(s=>{
     const mk=mMap[s.enrollment_id]
-    const val=mk?.is_absent?'A':(mk?.marks_obtained!=null?mk.marks_obtained:'')
+    const isAbs=!!mk?.is_absent
+    const val=isAbs?'':(mk?.marks_obtained!=null?mk.marks_obtained:'')
     body+='<tr><td style="padding:5px;font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td><td style="padding:5px;font-size:12.5px">'+esc(s.students?.full_name||'?')+'</td>'
-      +'<td style="padding:5px;text-align:center"><input class="mk-mark-input tm-input" data-eid="'+s.enrollment_id+'" value="'+esc(String(val))+'" placeholder="—"></td></tr>'
+      +'<td style="padding:5px;text-align:center"><input class="mk-mark-input tm-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(isAbs?'A':'—')+'"'+(isAbs?' disabled':'')+' style="'+(isAbs?'background:var(--warn-soft)':'')+'"></td>'
+      +'<td style="padding:5px;text-align:center"><button type="button" class="tm-abs" onclick="tmToggleAbsent(this)" style="font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:6px;cursor:pointer;border:1px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">'+(isAbs?'Absent ✓':'Absent')+'</button></td></tr>'
   })
   body+='</tbody></table></div>'
   openModal('Enter Test Marks',body,
@@ -2747,12 +2776,13 @@ async function saveTestMarks(testId,maxM,subjectId){
   const inputs=document.querySelectorAll('.tm-input')
   const rows=[];let invalid=false
   inputs.forEach(inp=>{
-    const v=inp.value.trim().toUpperCase();if(v==='')return
     const eid=inp.dataset.eid
-    if(v==='A')rows.push({enrollment_id:eid,test_id:testId,subject_id:subjectId,is_absent:true,marks_obtained:null})
-    else{const n=parseFloat(v);if(isNaN(n)||n<0||n>maxM){invalid=true;return}rows.push({enrollment_id:eid,test_id:testId,subject_id:subjectId,is_absent:false,marks_obtained:n})}
+    if(inp.classList.contains('is-abs')){rows.push({enrollment_id:eid,test_id:testId,subject_id:subjectId,is_absent:true,marks_obtained:null});return}
+    const v=inp.value.trim();if(v==='')return
+    const n=parseFloat(v);if(isNaN(n)||n<0||n>maxM){invalid=true;return}
+    rows.push({enrollment_id:eid,test_id:testId,subject_id:subjectId,is_absent:false,marks_obtained:n})
   })
-  if(invalid){toast('Invalid marks (0–'+maxM+' or A)','error');return}
+  if(invalid){toast('Invalid marks (0–'+maxM+', or tap Absent)','error');return}
   let errors=0
   for(const r of rows){
     await sb.from('marks').delete().eq('enrollment_id',r.enrollment_id).eq('test_id',testId)
@@ -2761,6 +2791,22 @@ async function saveTestMarks(testId,maxM,subjectId){
   }
   if(errors)toast(errors+' failed','error');else toast('Test marks saved ✓','success')
   closeModal()
+}
+
+// Per-row Absent toggle for the class-test entry modal.
+function tmToggleAbsent(btn){
+  const inp=btn.closest('tr').querySelector('.tm-input')
+  if(!inp)return
+  const nowAbs=!inp.classList.contains('is-abs')
+  inp.classList.toggle('is-abs',nowAbs)
+  if(nowAbs){
+    inp.value='';inp.disabled=true;inp.placeholder='A';inp.style.background='var(--warn-soft)'
+    btn.textContent='Absent ✓';btn.style.border='1px solid var(--warn)';btn.style.background='var(--warn)';btn.style.color='#fff'
+  }else{
+    inp.disabled=false;inp.placeholder='—';inp.style.background=''
+    btn.textContent='Absent';btn.style.border='1px solid var(--line)';btn.style.background='transparent';btn.style.color='var(--ink-soft)'
+    inp.focus()
+  }
 }
 
 // ═══════════ PERFORMANCE ANALYSIS (mother teacher) ═══════════
