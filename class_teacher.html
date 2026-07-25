@@ -1739,9 +1739,9 @@ async function loadAssessMarks(){
   ldg(el,'Loading marks matrix…')
 
   const assess=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)
-  // Get subjects for this class
+  // Get subjects for this class, with the teacher who owns each subject.
   const{data:subMaps}=await sb.from('teacher_subject_class_map')
-    .select('subject_id,subjects(name,subject_id)')
+    .select('subject_id,teacher_id,subjects(name,subject_id),teachers(full_name,teacher_id)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id).eq('session_id',SESS?.session_id||'')
   const uniqueSubs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
   if(!uniqueSubs.length){emp(el,'No subjects configured for your class.');return}
@@ -1791,6 +1791,29 @@ async function loadAssessMarks(){
     CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStudent[s.enrollment_id]||0,working:workingDays}})
   }
 
+  // Which subjects have marks entered vs still pending? A subject is "submitted"
+  // if at least one student has a mark row for it in this assessment.
+  const subjectsWithMarks=new Set()
+  ;(marks||[]).forEach(m=>{if(m.subject_id)subjectsWithMarks.add(m.subject_id)})
+  const submitted=uniqueSubs.filter(m=>subjectsWithMarks.has(m.subject_id))
+  const pending=uniqueSubs.filter(m=>!subjectsWithMarks.has(m.subject_id))
+  window._amAssessName=assess?.name||'assessment'
+  window._amClsName=(MY_CLASS.classes?.name||'')+'-'+(MY_CLASS.class_sections?.name||'')
+
+  let panel='<div class="card" style="margin-bottom:14px"><h3 style="margin-top:0">Marks Submission — '+esc(assess?.name||'Assessment')+'</h3>'
+    +'<div style="display:flex;gap:18px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:200px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--grn-dark);margin-bottom:8px">Submitted ('+submitted.length+')</div>'
+    +(submitted.length?submitted.map(m=>'<div style="font-size:12.5px;padding:5px 0;display:flex;align-items:center;gap:6px"><span style="color:var(--grn)">✓</span> '+esc(m.subjects?.name||'?')+' <span style="color:var(--ink-faint)">— '+esc(m.teachers?.full_name||'?')+'</span></div>').join(''):'<div style="font-size:12px;color:var(--ink-faint)">None yet</div>')
+    +'</div>'
+    +'<div style="flex:1;min-width:200px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--warn-dark,#8A5A00);margin-bottom:8px">Pending ('+pending.length+')</div>'
+    +(pending.length?pending.map(m=>{
+        const tId=m.teacher_id||m.teachers?.teacher_id||''
+        const tName=m.teachers?.full_name||'Unknown teacher'
+        const remindBtn=tId?'<button class="btn btn-soft btn-xs" style="margin-left:auto" onclick="remindSubjectTeacher(\''+tId+'\',\''+esc(m.subject_id)+'\',\''+esc(m.subjects?.name||'')+'\')">🔔 Remind</button>':''
+        return '<div style="font-size:12.5px;padding:5px 0;display:flex;align-items:center;gap:6px"><span style="color:var(--warn)">○</span> '+esc(m.subjects?.name||'?')+' <span style="color:var(--ink-faint)">— '+esc(tName)+'</span>'+remindBtn+'</div>'
+      }).join(''):'<div style="font-size:12px;color:var(--grn-dark)">All subjects submitted 🎉</div>')
+    +'</div></div></div>'
+
   // Render table
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table style="min-width:800px"><thead><tr>'
@@ -1835,10 +1858,26 @@ async function loadAssessMarks(){
     html+='</tr>'
   })
   html+='</tbody></table></div>'
-  el.innerHTML=html
+  el.innerHTML=panel+html
 }
 
-// ═══════════ STUDENT DUES ═══════════
+// Class teacher reminds a subject teacher to upload pending marks.
+async function remindSubjectTeacher(teacherId,subjectId,subjectName){
+  if(!teacherId){toast('No teacher linked to this subject','error');return}
+  const clsName=window._amClsName||'your class'
+  const assessName=window._amAssessName||'the current assessment'
+  if(!confirm('Send a reminder to '+(subjectName?subjectName+' teacher':'this teacher')+' to upload marks?'))return
+  const{error}=await sb.from('messages').insert({
+    sender_type:'teacher',sender_id:TEACHER.teacher_id,
+    recipient_type:'teacher',recipient_id:teacherId,
+    subject:'Reminder — upload marks for '+(subjectName||'your subject')+' ('+clsName+')',
+    body:(TEACHER.full_name||'The class teacher')+' is reminding you to upload the marks for '
+      +(subjectName||'your subject')+' in '+clsName+' for "'+assessName+'". Please submit them at your earliest.',
+    message_type:'direct',sent_at:new Date().toISOString()
+  })
+  if(error){toast('Failed to send: '+error.message,'error');return}
+  toast('Reminder sent'+(subjectName?' — '+subjectName:''),'success')
+}
 const FEE_MONTHS=['April','May','June','July','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
 const FEE_HEAD_ANNUAL='Annual'
 const FEE_HEAD_PREV='Prev Balance'
