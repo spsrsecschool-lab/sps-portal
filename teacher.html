@@ -944,7 +944,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
           <div class="form-row">
             <div class="field-grp"><label>Class — Section *</label><select id="ct_class" onchange="ctLoadSubjects()"><option value="">Select class</option></select></div>
             <div class="field-grp"><label>Subject *</label><select id="ct_subject"><option value="">Select class first</option></select></div>
-            <div class="field-grp"><label>Max Marks *</label><input type="number" id="ct_marks" placeholder="20" min="1"></div>
+            <div class="field-grp"><label>Max Marks *</label><input type="number" inputmode="decimal" id="ct_marks" placeholder="20" min="1"></div>
           </div>
           <div class="form-row">
             <div class="field-grp"><label>Test Name *</label><input id="ct_name" placeholder="e.g. Surprise Test — Acids &amp; Bases"></div>
@@ -1776,18 +1776,22 @@ async function loadMarksTable(){
     +'<span>Students: <b style="color:var(--ink)">'+students.length+'</b></span>'
     +'<span style="font-size:11px;color:var(--ink-faint)">Write A for absent</span>'
     +'</div>'
-  html+='<div class="table-wrap"><table><thead><tr><th style="width:50px">Roll</th><th>Name</th><th>Father&#39;s Name</th><th style="width:110px">Marks / '+maxM+'</th><th>Remarks</th></tr></thead><tbody>'
+  html+='<div class="table-wrap"><table><thead><tr><th style="width:50px">Roll</th><th>Name</th><th>Father&#39;s Name</th><th style="width:110px">Marks / '+maxM+'</th><th style="width:90px">Absent</th><th>Remarks</th></tr></thead><tbody>'
   html+=students.map((s,i)=>{
     const ex=marksMap[s.enrollment_id]
-    const val=ex?.is_absent?'A':(ex?.marks_obtained!=null?String(ex.marks_obtained):'')
+    const isAbs=!!ex?.is_absent
+    const val=isAbs?'':(ex?.marks_obtained!=null?String(ex.marks_obtained):'')
     const fail=ex&&!ex.is_absent&&ex.marks_obtained<passM
-    return '<tr style="'+(fail?'background:var(--danger-soft)':'')+'"><td class="mono" style="font-weight:700">'+esc(s.roll_no!=null?String(s.roll_no):'')+'</td>'
+    return '<tr data-row="'+s.enrollment_id+'" style="'+(fail?'background:var(--danger-soft)':'')+'"><td class="mono" style="font-weight:700">'+esc(s.roll_no!=null?String(s.roll_no):'')+'</td>'
       +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
-      +'<td><input data-eid="'+s.enrollment_id+'" class="marks-input" type="text"'
-        +(_marksLocked?' disabled':'')
+      // Numeric marks field: inputmode+pattern makes phones show the number pad.
+      +'<td><input data-eid="'+s.enrollment_id+'" class="marks-input" type="text" inputmode="decimal" pattern="[0-9]*"'
+        +(_marksLocked||isAbs?' disabled':'')
         +' value="'+esc(val)+'" maxlength="4" placeholder="—"'
-        +' style="width:80px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);font-family:var(--mono);font-size:14px;text-align:center;outline:none;background:'+(val==='A'?'var(--warn-soft)':fail?'var(--danger-soft)':'var(--lav-50)')+'"></td>'
+        +' style="width:80px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);font-family:var(--mono);font-size:14px;text-align:center;outline:none;background:'+(isAbs?'var(--lav-100)':fail?'var(--danger-soft)':'var(--lav-50)')+';'+(isAbs?'opacity:.5':'')+'"></td>'
+      // Per-row Absent toggle — no more typing "A" in the marks field.
+      +'<td><button type="button" class="abs-btn'+(isAbs?' on':'')+'" data-abs="'+s.enrollment_id+'"'+(_marksLocked?' disabled':'')+' onclick="toggleAbsent(\''+s.enrollment_id+'\')" style="font-family:var(--font);font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;border:1.5px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'var(--white)')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">'+(isAbs?'Absent ✓':'Mark Absent')+'</button></td>'
       +'<td><input data-rmk=\"'+s.enrollment_id+'\" type=\"text\" style=\"width:130px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--line);font-family:var(--font);font-size:12px;outline:none\"'+(_marksLocked?' disabled':'')+' value=\"'+(ex?.remarks||'')+'\" placeholder=\"Optional…\"></td>'
       +'</tr>'
   }).join('')
@@ -1796,15 +1800,36 @@ async function loadMarksTable(){
   html+='</div>'
   el.innerHTML=html
 
-  // Color on input - A=amber, low=red
+  // Colour marks on input — low score = red. (Absent is handled by the button.)
   document.querySelectorAll('.marks-input').forEach(inp=>{
     inp.addEventListener('input',()=>{
-      const v=inp.value.trim().toUpperCase()
-      if(inp.value.trim().toUpperCase()==='A'){inp.style.background='var(--warn-soft)';inp.style.borderColor='var(--warn)'}
-      else if(v&&!isNaN(parseFloat(v))&&parseFloat(v)<passM){inp.style.background='var(--danger-soft)';inp.style.borderColor='var(--danger)'}
+      // strip anything that isn't a digit or a decimal point
+      inp.value=inp.value.replace(/[^0-9.]/g,'')
+      const v=inp.value.trim()
+      if(v&&!isNaN(parseFloat(v))&&parseFloat(v)<passM){inp.style.background='var(--danger-soft)';inp.style.borderColor='var(--danger)'}
       else{inp.style.background='var(--lav-50)';inp.style.borderColor='var(--line)'}
     })
   })
+}
+
+// Toggle a student's Absent state. When absent, the marks box is cleared and
+// disabled so it can't hold a stray number.
+function toggleAbsent(eid){
+  if(_marksLocked)return
+  const btn=document.querySelector('.abs-btn[data-abs="'+eid+'"]')
+  const inp=document.querySelector('.marks-input[data-eid="'+eid+'"]')
+  if(!btn||!inp)return
+  const nowAbsent=!btn.classList.contains('on')
+  btn.classList.toggle('on',nowAbsent)
+  if(nowAbsent){
+    btn.textContent='Absent ✓'
+    btn.style.border='1.5px solid var(--warn)';btn.style.background='var(--warn)';btn.style.color='#fff'
+    inp.value='';inp.disabled=true;inp.style.opacity='.5';inp.style.background='var(--lav-100)';inp.style.borderColor='var(--line)'
+  }else{
+    btn.textContent='Mark Absent'
+    btn.style.border='1.5px solid var(--line)';btn.style.background='var(--white)';btn.style.color='var(--ink-soft)'
+    inp.disabled=false;inp.style.opacity='1';inp.style.background='var(--lav-50)';inp.focus()
+  }
 }
 
 async function confirmMarks(){
@@ -1824,16 +1849,19 @@ async function confirmMarks(){
 
   inputs.forEach(inp=>{
     const eid=inp.dataset.eid
-    const v=inp.value.trim().toUpperCase()
-    if(v===''||v==='-'||v==='—'){toast('Fill marks for all students (write A for absent)','error');valid=false;inp.style.borderColor='var(--danger)';return}
     const rmk=document.querySelector('[data-rmk="'+eid+'"]')?.value?.trim()||null
-    if(v==='A'){
-      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:null,is_absent:true,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
+    // Absent is now driven by the per-row button, not by typing "A".
+    const absBtn=document.querySelector('.abs-btn[data-abs="'+eid+'"]')
+    const isAbsent=absBtn?.classList.contains('on')
+    if(isAbsent){
+      inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:null,is_absent:true,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString(),remarks:rmk})
       return
     }
+    const v=inp.value.trim()
+    if(v===''||v==='-'||v==='—'){toast('Enter marks for every student, or tap Mark Absent','error');valid=false;inp.style.borderColor='var(--danger)';return}
     const num=parseFloat(v)
-    if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+' or A)','error');valid=false;inp.style.borderColor='var(--danger)';return}
-    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:num,is_absent:false,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
+    if(isNaN(num)||num<0||num>maxM){toast('Invalid marks: '+v+' (must be 0–'+maxM+', or tap Mark Absent)','error');valid=false;inp.style.borderColor='var(--danger)';return}
+    inserts.push({enrollment_id:eid,assessment_id:assessId,subject_id:subId,marks_obtained:num,is_absent:false,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString(),remarks:rmk})
   })
 
   if(!valid)return
