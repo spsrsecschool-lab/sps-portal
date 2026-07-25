@@ -1243,6 +1243,22 @@ function subscribeMarksLock(teacherId){
     }).subscribe()
 }
 
+function subscribeTimetable(teacherId){
+  // When admin adds/edits/removes a period for THIS teacher, refresh the
+  // timetable live if they're on that page — no manual reload needed.
+  if(!teacherId)return
+  sb.channel('timetable_'+teacherId)
+    .on('postgres_changes',{event:'*',schema:'public',table:'timetable_entries',filter:'teacher_id=eq.'+teacherId},payload=>{
+      console.log('[RT] Timetable change:',payload.eventType)
+      // Only reload if the timetable page is currently visible.
+      const pg=document.getElementById('page-timetable')
+      if(pg && pg.classList.contains('active') && typeof loadMyTimetable==='function'){
+        loadMyTimetable()
+        toast('Your timetable was updated','info')
+      }
+    }).subscribe((s)=>console.log('[RT] Timetable channel:',s))
+}
+
 function subscribeMessages(recipientId){
   if(!recipientId)return
   const ch=sb.channel('msgs_'+recipientId)
@@ -1374,6 +1390,7 @@ SPS.ready().then(async()=>{
   subscribeMessages(TEACHER.teacher_id)
   subscribeActivity(TEACHER.teacher_id)
   subscribeMarksLock(TEACHER.teacher_id)
+  subscribeTimetable(TEACHER.teacher_id)
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
 
   // Populate subject dropdowns
