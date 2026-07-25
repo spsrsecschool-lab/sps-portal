@@ -2536,7 +2536,18 @@ async function saveMapping(){
     const rows=periods.map(p=>({roster_id:roster.roster_id,slot_id:p.slotId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,days:p.days,stream_id:streamId}))
     const{error:te}=await sb.from('timetable_entries').insert(rows)
     if(te)toast('Mapping saved but some periods failed: '+te.message,'error')
-    else toast('Mapping added with '+periods.length+' period'+(periods.length>1?'s':'')+' ✓','success')
+    else{
+      toast('Mapping added with '+periods.length+' period'+(periods.length>1?'s':'')+' ✓','success')
+      // Notify the teacher for each period added. Read names from the selected
+      // dropdown options (reliable — no dependency on a lookup cache).
+      const clsName=$('mp_class')?.selectedOptions?.[0]?.textContent?.trim()
+      const secName=$('mp_section')?.selectedOptions?.[0]?.textContent?.trim()
+      const subName=$('mp_subject')?.selectedOptions?.[0]?.textContent?.trim()
+      for(const p of periods){
+        const slot=(window._addMapSlots||[]).find(s=>s.slot_id===p.slotId)
+        await notifyTimetableChange(tchId,'added',clsName,secName,subName,ttSlotLabel(slot,p.days))
+      }
+    }
   }else{
     toast('Mapping added','success')
   }
