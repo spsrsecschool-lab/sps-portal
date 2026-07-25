@@ -2631,6 +2631,30 @@ async function editMapping(mapId){
   setTimeout(()=>{const mc=$('mp_class');if(mc)mc.onchange=mpLoadSections},50)
 }
 
+// Build a human-readable one-line description of a timetable period.
+function ttSlotLabel(slot,days){
+  const t=slot?(esc(slot.name)+' '+((slot.start_time||'').slice(0,5))+'–'+((slot.end_time||'').slice(0,5))):'a time slot'
+  const d=(days&&days.length)?days.join(', '):'—'
+  return t+' on '+d
+}
+
+// Notify a teacher that admin changed their timetable. `kind` is 'added' or 'removed'.
+async function notifyTimetableChange(teacherId,kind,className,sectionName,subjectName,slotLabel){
+  if(!teacherId)return
+  const where=esc(className||'?')+(sectionName?('-'+esc(sectionName)):'')+' · '+esc(subjectName||'?')
+  const verb=kind==='added'?'added a period to':'removed a period from'
+  const subject='Timetable updated — '+esc(subjectName||'')+' ('+esc(className||'')+')'
+  const body='Admin '+verb+' your timetable.\n\n'
+    +'Class & subject: '+where+'\n'
+    +(kind==='added'?'New period: ':'Removed period: ')+slotLabel+'\n\n'
+    +'Open “My Timetable” to see your current schedule.'
+  await sb.from('messages').insert({
+    sender_type:'admin',sender_id:SPS.admin?.admin_id,
+    recipient_type:'teacher',recipient_id:teacherId,
+    subject:subject,body:body,message_type:'timetable_change',sent_at:new Date().toISOString()
+  })
+}
+
 async function addTimetablePeriod(){
   const mapId=$('mp_edit_id')?.value,rosterId=$('mp_roster_id')?.value
   const slotId=$('mp_slot')?.value,days=[...document.querySelectorAll('.mp_day_chk:checked')].map(el=>el.value)
@@ -2644,14 +2668,29 @@ async function addTimetablePeriod(){
     class_id:r?.class_id,section_id:secId,subject_id:subId,teacher_id:tchId,days
   })
   if(error){toast('Failed: '+error.message,'error');return}
+  // Tell the teacher what was added.
+  const slot=(window._addMapSlots||[]).find(s=>s.slot_id===slotId)
+  await notifyTimetableChange(tchId,'added',r?.classes?.name,r?.class_sections?.name,r?.subjects?.name,ttSlotLabel(slot,days))
   toast('Period added ✓','success')
   editMapping(mapId) // reopen modal to refresh list
 }
 
 async function deleteTimetablePeriod(entryId){
   if(!confirm('Remove this period from the timetable?'))return
+  // Read the row first so we can tell the teacher exactly what was removed.
+  const{data:before}=await sb.from('timetable_entries')
+    .select('teacher_id,days,time_slots(name,start_time,end_time),classes(name),class_sections(name),subjects(name)')
+    .eq('entry_id',entryId).limit(1)
+  const row=(before&&before[0])||null
   const{error}=await sb.from('timetable_entries').delete().eq('entry_id',entryId)
   if(error){toast('Failed: '+error.message,'error');return}
+  if(row){
+    await notifyTimetableChange(
+      row.teacher_id,'removed',
+      row.classes?.name,row.class_sections?.name,row.subjects?.name,
+      ttSlotLabel(row.time_slots,row.days)
+    )
+  }
   toast('Period removed','success')
   // Refresh existing periods in current modal
   const mapId=$('mp_edit_id')?.value
