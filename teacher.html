@@ -2779,7 +2779,9 @@ function renderEditForm(t){
   const inp='width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box'
   return ['full_name:Full Name','designation:Designation','phone:Phone'].map(pair=>{
     const[key,label]=pair.split(':')
-    return '<div style="margin-bottom:14px"><label style="'+lbl+'">'+label+'</label><input id="pf_'+key+'" value="'+esc(t[key]||'')+'" style="'+inp+'"></div>'
+    // Phone holds only digits → numeric keyboard on phones.
+    const im=key==='phone'?' inputmode="numeric"':''
+    return '<div style="margin-bottom:14px"><label style="'+lbl+'">'+label+'</label><input id="pf_'+key+'"'+im+' value="'+esc(t[key]||'')+'" style="'+inp+'"></div>'
   }).join('')+'<div style="margin-bottom:14px"><label style="'+lbl+'">Employee Code</label><input value="'+esc(t.employee_code||'—')+'" disabled style="'+inp+';opacity:.6;cursor:not-allowed"></div>'
 }
 
