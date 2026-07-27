@@ -2891,7 +2891,9 @@ async function notifyTimetableChange(teacherId,kind,className,sectionName,subjec
   const adminId=SPS.admin?.admin_id
   const where=(className||'?')+(sectionName?('-'+sectionName):'')+' · '+(subjectName||'?')
   const verb=kind==='added'?'added a period to':'removed a period from'
-  const subject='Timetable updated — '+(subjectName||'')+' ('+(className||'')+')'
+  // Constant subject so ALL timetable-update notices to a teacher collapse into
+  // ONE thread (not one per class/subject). Specifics live in the body.
+  const subject='Timetable updated'
   const body='Admin '+verb+' your timetable.\n\n'
     +'Class & subject: '+where+'\n'
     +(kind==='added'?'New period: ':'Removed period: ')+slotLabel+'\n\n'
