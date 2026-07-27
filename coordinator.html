@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0E7C6B">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Coordinator Portal — Shiv Public School</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>window.PORTAL_KEY="coordinator"</script>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+  <script src="push.js"></script>
+<style>
+:root{
+  --teal:#0E7C6B;--teal-dark:#0A5D50;--teal-100:#E3F4F0;--teal-50:#F1FAF8;
+  --lav-50:#F4F9F8;--lav-100:#E9F3F1;--lav-200:#D3E9E4;--lav-300:#A9D2CA;
+  --ink:#17302B;--ink-soft:#4C6B64;--ink-faint:#8AA9A2;
+  --white:#FFFFFF;--line:#DCEBE7;
+  --success:#2BB673;--success-soft:#E4F7EE;
+  --warn:#E8A23D;--warn-soft:#FCF1E0;
+  --danger:#E5556B;--danger-soft:#FCE7EA;
+  --radius-lg:22px;--radius-md:14px;--radius-sm:10px;
+  --font:'Plus Jakarta Sans',sans-serif;--mono:'DM Mono',monospace;--sbw:250px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-height:100vh}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sbw);background:var(--white);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:200;transition:transform .28s cubic-bezier(.4,0,.2,1)}
+.sb-brand{display:flex;align-items:center;gap:11px;padding:22px 20px 18px;border-bottom:1px solid var(--line)}
+.sb-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--teal),var(--teal-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14.5px;flex-shrink:0}
+.sb-brand-text .name{font-size:13px;font-weight:700}
+.sb-brand-text .sub{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+.sb-scroll{flex:1;overflow-y:auto;padding:14px 12px}
+.sb-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);padding:10px 10px 6px}
+.sb-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:var(--radius-sm);color:var(--ink-soft);font-size:13px;font-weight:500;cursor:pointer;margin-bottom:2px;transition:background .14s,color .14s,transform .1s}
+.sb-item svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
+.sb-item:hover{background:var(--lav-100);color:var(--ink)}
+.sb-item:active{transform:scale(.97)}
+.sb-item.active{background:var(--teal-100);color:var(--teal-dark);font-weight:700}
+.sb-item .bc{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.sb-foot{padding:14px 16px 18px;border-top:1px solid var(--line);flex-shrink:0}
+.sb-logout{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:1px solid var(--line);color:var(--ink-soft);font-family:var(--font);font-size:12px;font-weight:600;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer}
+.sb-logout svg{width:14px;height:14px;stroke:currentColor;fill:none;flex-shrink:0}
+#main{margin-left:var(--sbw);min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:64px;background:rgba(244,249,248,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 26px;position:sticky;top:0;z-index:90}
+.topbar-title{font-size:15px;font-weight:700;flex:1}
+.topbar-title .crumb{font-size:11.5px;color:var(--ink-faint);font-weight:500;display:block;margin-top:1px}
+.user-chip{display:flex;align-items:center;gap:9px;padding:5px 12px 5px 5px;border:1px solid var(--line);background:var(--white);border-radius:999px}
+.avatar-sm{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#2FA894,var(--teal));color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.content{padding:26px;flex:1}
+.page{display:none}.page.active{display:block}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.page-head h2{font-size:21px;font-weight:800;letter-spacing:-.01em}
+.page-head p{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+.card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px}
+.card h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:14px}
+.grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.stat-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:6px}
+.stat-card .lbl{font-size:11px;color:var(--ink-faint);font-weight:600}
+.stat-card .val{font-size:25px;font-weight:800;font-family:var(--mono)}
+.stat-card .sub{font-size:11px;color:var(--ink-faint)}
+.pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-block}
+.pill-success{background:var(--success-soft);color:var(--success)}
+.pill-warn{background:var(--warn-soft);color:var(--warn)}
+.pill-danger{background:var(--danger-soft);color:var(--danger)}
+.pill-neutral{background:var(--lav-100);color:var(--ink-soft)}
+.pill-teal{background:var(--teal-100);color:var(--teal-dark)}
+.table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:11px 14px;text-align:left;white-space:nowrap}
+tbody td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middle}
+tbody tr:hover td{background:var(--lav-50)}
+.cell-fail{background:var(--danger-soft)!important}
+.btn{font-family:var(--font);font-size:12.5px;font-weight:700;border-radius:var(--radius-sm);padding:10px 18px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:transform .1s,box-shadow .15s}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+.btn:active{transform:scale(.96)}
+.btn-primary{background:var(--teal);color:#fff}
+.btn-primary:hover{box-shadow:0 8px 20px -6px rgba(14,124,107,.4)}
+.btn-ghost{background:var(--white);color:var(--ink-soft);border:1px solid var(--line)}
+.btn-soft{background:var(--teal-100);color:var(--teal-dark)}
+.btn-warn{background:var(--warn);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-sm{padding:6px 12px;font-size:11.5px}
+.btn-xs{padding:4px 9px;font-size:11px}
+.fg{display:flex;flex-direction:column;gap:6px;flex:1;min-width:140px}
+.fg label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+.fg input,.fg select,.fg textarea{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px 13px;outline:none}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--teal);background:#fff}
+.form-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end}
+.log-row{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.log-row:last-child{border-bottom:none}
+.log-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);margin-top:6px;flex-shrink:0}
+.log-row .txt{font-size:12.5px}
+.log-row .ts{font-size:10.5px;color:var(--ink-faint);font-family:var(--mono);margin-top:2px}
+.map-tag{background:var(--teal-100);color:var(--teal-dark);font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px}
+#toast{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:360px}
+.toast-item{padding:12px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:slidein .2s ease}
+.toast-success{background:var(--success);color:#fff}.toast-error{background:var(--danger);color:#fff}.toast-info{background:var(--teal);color:#fff}
+@keyframes slidein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+#modal-overlay{position:fixed;inset:0;background:rgba(23,48,43,.45);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+#modal-overlay.open{display:flex}
+#modal-box{background:#fff;border-radius:var(--radius-lg);width:100%;max-width:540px;box-shadow:0 24px 60px rgba(23,48,43,.25);max-height:90vh;display:flex;flex-direction:column}
+#modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line)}
+#modal-head h4{font-size:15px;font-weight:800}
+#modal-close{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:22px;line-height:1}
+#modal-body{padding:20px 22px;overflow-y:auto;flex:1}
+#modal-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.empty{text-align:center;padding:40px 20px;color:var(--ink-faint);font-size:13px}
+.tab-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.tab-btn{font-family:var(--font);font-size:12.5px;font-weight:700;padding:9px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--line);background:var(--white);color:var(--ink-soft);cursor:pointer}
+.tab-btn.active{background:var(--teal);border-color:var(--teal);color:#fff}
+#scrim{position:fixed;inset:0;background:rgba(23,48,43,.35);z-index:150;display:none}
+#scrim.show{display:block}
+/* messages */
+.msg-shell{display:flex;height:600px;overflow:hidden;border:1px solid var(--line);border-radius:var(--radius-lg);background:#fff}
+.msg-thread-list{width:300px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--line)}
+.msg-thread-item{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.msg-thread-item:hover{background:var(--lav-50)}
+.msg-thread-item.active{background:var(--teal-100)}
+.msg-thread-item .t-from{font-size:13px;font-weight:600}
+.msg-thread-item.unread .t-from{font-weight:800}
+.msg-thread-item .t-preview{font-size:12px;color:var(--ink-soft);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-thread-item .t-time{font-size:10.5px;color:var(--ink-faint)}
+.msg-read{flex:1;display:flex;flex-direction:column;min-width:0}
+.msg-bubbles{flex:1;overflow-y:auto;padding:0}
+.msg-email-card{border-bottom:1px solid var(--line);padding:16px 22px}
+.msg-email-sender{font-size:13px;font-weight:700}
+.msg-email-role{font-size:11px;color:var(--ink-faint)}
+.msg-email-body{font-size:13.5px;color:var(--ink);line-height:1.7;margin-top:8px}
+.msg-compose{border-top:1px solid var(--line);padding:14px 18px;background:var(--lav-50)}
+.msg-compose textarea{width:100%;font-family:var(--font);font-size:13px;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;min-height:70px;outline:none;background:#fff}
+.msg-back-btn{display:none;align-items:center;gap:6px;padding:10px 16px;background:var(--lav-100);border:none;border-bottom:1px solid var(--line);font-size:13px;font-weight:700;color:var(--teal);cursor:pointer;width:100%}
+@media(max-width:760px){
+  #sidebar{transform:translateX(-100%)}#sidebar.show{transform:translateX(0)}#main{margin-left:0}.content{padding:16px}
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .msg-shell{height:auto;min-height:70vh}
+  .msg-thread-list{width:100%;border-right:none;border-bottom:1px solid var(--line)}
+  .msg-read{display:none}
+  .msg-shell.reading .msg-thread-list{display:none}
+  .msg-shell.reading .msg-read{display:flex}
+  .msg-back-btn{display:flex}
+  [style*="position:sticky"]{position:relative!important;left:auto!important}
+}
+</style>
+</head>
+<body>
+<div id="scrim" onclick="closeMobileSidebar()"></div>
+<div id="toast"></div>
+
+<!-- MODAL -->
+<div id="modal-overlay"><div id="modal-box">
+  <div id="modal-head"><h4 id="modal-title"></h4><button id="modal-close" onclick="closeModal()">&times;</button></div>
+  <div id="modal-body"></div><div id="modal-foot"></div>
+</div></div>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-mark">SP</div>
+    <div class="sb-brand-text"><div class="name">Shiv Public School</div><div class="sub" id="sbWing">Coordinator</div></div>
+  </div>
+  <div class="sb-scroll">
+    <div class="sb-label">Overview</div>
+    <div class="sb-item active" onclick="goTo('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Today's Gaps</div>
+    <div class="sb-label">Attendance</div>
+    <div class="sb-item" onclick="goTo('attmonitor',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>My Wing Attendance</div>
+    <div class="sb-item" onclick="goTo('allatt',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>All Classes (view)</div>
+    <div class="sb-label">Academics</div>
+    <div class="sb-item" onclick="goTo('marks',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg>Marks Monitor</div>
+    <div class="sb-label">Staff</div>
+    <div class="sb-item" onclick="goTo('staff',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>Staff Absent Today</div>
+    <div class="sb-item" onclick="goTo('timetable',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Timetable Viewer</div>
+    <div class="sb-item" onclick="goTo('substitution',this)"><svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Substitution</div>
+    <div class="sb-label">Students</div>
+    <div class="sb-item" onclick="goTo('students',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Students</div>
+    <div class="sb-label">Communication</div>
+    <div class="sb-item" onclick="goTo('broadcast',this)"><svg viewBox="0 0 24 24"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>Wing Broadcast</div>
+    <div class="sb-item" onclick="goTo('messages',this)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages<span class="bc" id="msgBadge" style="display:none">0</span></div>
+    <div class="sb-item" onclick="goTo('reminders',this)"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Reminders Log</div>
+  </div>
+  <div class="sb-foot">
+    <button class="sb-logout" onclick="logout()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7" style="fill:none"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Log Out</button>
+  </div>
+</aside>
+
+<div id="main">
+  <header class="topbar">
+    <div onclick="toggleSidebar()" style="width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">
+      <svg viewBox="0 0 24 24" style="width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </div>
+    <div class="topbar-title" id="pageTitle">Today's Gaps<span class="crumb">Coordinator Portal</span></div>
+    <div class="user-chip"><div class="avatar-sm" id="topAvatar">?</div><div><div style="font-size:12.5px;font-weight:700" id="topName">Loading…</div><div style="font-size:10px;color:var(--ink-faint)" id="topRole">Coordinator</div></div></div>
+  </header>
+
+  <div class="content">
+    <!-- TODAY'S GAPS -->
+    <div class="page active" id="page-dashboard">
+      <div id="greeting" style="margin-bottom:18px"><div id="greetTxt" style="font-size:22px;font-weight:800"></div><div id="greetSub" style="font-size:12.5px;color:var(--ink-soft);margin-top:3px"></div></div>
+      <div class="grid-4" style="margin-bottom:18px">
+        <div class="stat-card"><span class="lbl">Attendance Pending</span><span class="val" id="stAtt" style="color:var(--warn)">—</span><span class="sub">Classes unmarked today</span></div>
+        <div class="stat-card"><span class="lbl">Staff Absent</span><span class="val" id="stStaff" style="color:var(--danger)">—</span><span class="sub">Needing cover today</span></div>
+        <div class="stat-card"><span class="lbl">Marks Pending</span><span class="val" id="stMarks">—</span><span class="sub">Subjects not submitted</span></div>
+        <div class="stat-card"><span class="lbl">My Classes</span><span class="val" id="stClasses">—</span><span class="sub">In your wing</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><h3>Attendance not marked yet</h3><div id="dashAtt"><div class="empty">Loading…</div></div></div>
+        <div class="card"><h3>Staff absent today</h3><div id="dashStaff"><div class="empty">Loading…</div></div></div>
+      </div>
+    </div>
+
+    <!-- MY WING ATTENDANCE -->
+    <div class="page" id="page-attmonitor">
+      <div class="page-head"><div><h2>My Wing Attendance</h2><p>Attendance status for your classes today — remind class teachers who haven't marked</p></div>
+        <input type="date" id="am_date" onchange="loadAttMonitor()" style="font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:#fff"></div>
+      <div id="attMonitorWrap"><div class="empty">Loading…</div></div>
+    </div>
+
+    <!-- ALL CLASSES (view) -->
+    <div class="page" id="page-allatt">
+      <div class="page-head"><div><h2>All Classes Attendance</h2><p>School-wide attendance status — view only</p></div>
+        <input type="date" id="aa_date" onchange="loadAllAtt()" style="font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:#fff"></div>
+      <div id="allAttWrap"><div class="empty">Loading…</div></div>
+    </div>
+
+    <!-- MARKS MONITOR -->
+    <div class="page" id="page-marks">
+      <div class="page-head"><div><h2>Marks Monitor</h2><p>Which subject teachers haven't submitted marks — remind them</p></div></div>
+      <div class="card" style="margin-bottom:18px"><div class="form-row" style="margin-bottom:0">
+        <div class="fg"><label>Assessment</label><select id="mk_assess" onchange="loadMarksMonitor()"><option value="">Select assessment</option></select></div>
+      </div></div>
+      <div id="marksMonWrap"><div class="empty">Pick an assessment to see submission status.</div></div>
+    </div>
+
+    <!-- STAFF ABSENT -->
+    <div class="page" id="page-staff">
+      <div class="page-head"><div><h2>Staff Absent Today</h2><p>Absent or late staff — the starting point for arranging cover</p></div>
+        <input type="date" id="sf_date" onchange="loadStaffAbsent()" style="font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:#fff"></div>
+      <div id="staffWrap"><div class="empty">Loading…</div></div>
+    </div>
+
+    <!-- TIMETABLE VIEWER -->
+    <div class="page" id="page-timetable">
+      <div class="page-head"><div><h2>Timetable Viewer</h2><p>See any teacher's weekly schedule in the active roster</p></div></div>
+      <div class="card" style="margin-bottom:18px"><div class="form-row" style="margin-bottom:0">
+        <div class="fg"><label>Teacher</label><select id="tt_teacher" onchange="loadTTViewer()"><option value="">Select teacher</option></select></div>
+      </div></div>
+      <div id="ttViewerWrap"><div class="empty">Pick a teacher to view their timetable.</div></div>
+    </div>
+
+    <!-- SUBSTITUTION -->
+    <div class="page" id="page-substitution">
+      <div class="page-head"><div><h2>Substitution</h2><p>Assign a free teacher to cover an absent teacher's periods for a day</p></div></div>
+      <div class="card" style="margin-bottom:18px"><div class="form-row" style="margin-bottom:0">
+        <div class="fg"><label>Absent Teacher</label><select id="sub_teacher"><option value="">Select teacher</option></select></div>
+        <div class="fg" style="max-width:180px"><label>Date</label><input type="date" id="sub_date"></div>
+        <button class="btn btn-soft" onclick="loadSubSheet()">Load Periods</button>
+      </div></div>
+      <div id="subWrap"><div class="empty">Select an absent teacher and date, then load their periods.</div></div>
+    </div>
+
+    <!-- STUDENTS -->
+    <div class="page" id="page-students">
+      <div class="page-head"><div><h2>Students</h2><p id="stuSub">Students in your wing</p></div></div>
+      <div class="card" style="margin-bottom:16px"><div class="form-row" style="margin-bottom:0">
+        <div class="fg"><label>Search</label><input id="stu_search" placeholder="Name, father's name, roll…" oninput="filterStudents()"></div>
+        <div class="fg" style="max-width:180px"><label>Class</label><select id="stu_class" onchange="filterStudents()"><option value="">All my classes</option></select></div>
+      </div></div>
+      <div id="studentsWrap"><div class="empty">Loading…</div></div>
+    </div>
+
+    <!-- WING BROADCAST -->
+    <div class="page" id="page-broadcast">
+      <div class="page-head"><div><h2>Wing Broadcast</h2><p>Send a notice to every teacher in your wing at once</p></div></div>
+      <div class="card" style="max-width:640px">
+        <div class="form-row"><div class="fg"><label>Subject</label><input id="bc_subject" placeholder="e.g. Submit marks by Friday"></div></div>
+        <div class="form-row"><div class="fg"><label>Message</label><textarea id="bc_body" style="min-height:110px" placeholder="Your notice to wing teachers…"></textarea></div></div>
+        <button class="btn btn-primary" onclick="sendBroadcast()">Send to Wing</button>
+        <div id="bcRecipientNote" style="font-size:11.5px;color:var(--ink-faint);margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div class="page" id="page-messages">
+      <div class="page-head"><div><h2>Messages</h2><p>Conversations with teachers and admin</p></div>
+        <button class="btn btn-primary" onclick="openCompose()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Compose</button></div>
+      <div class="msg-shell">
+        <div class="msg-thread-list" id="msgThreadList"><div class="empty">Loading…</div></div>
+        <div class="msg-read">
+          <button class="msg-back-btn" onclick="backToThreads()"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Back to threads</button>
+          <div style="padding:16px 22px;border-bottom:1px solid var(--line);flex-shrink:0"><div id="msgHead" style="font-size:15px;font-weight:800">Select a thread</div><div id="msgMeta" style="font-size:11.5px;color:var(--ink-faint);margin-top:2px"></div></div>
+          <div class="msg-bubbles" id="msgBubbles"><div class="empty">Select a thread to read.</div></div>
+          <div class="msg-compose" id="msgReplyBar" style="display:none"><textarea id="msgReplyText" placeholder="Write a reply…"></textarea><div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn btn-primary btn-sm" onclick="sendReply()">Send Reply</button></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REMINDERS LOG -->
+    <div class="page" id="page-reminders">
+      <div class="page-head"><div><h2>Reminders Log</h2><p>Every nudge you've sent, most recent first</p></div></div>
+      <div id="remLogWrap"><div class="empty">Loading…</div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══ GLOBALS ═══
+let sb, COORD=null, SESS=null
+let MY_CLASS_IDS=[], MY_SECTIONS=[], MY_CLASSES=[], ALL_TEACHERS=[]
+let CLASS_NAME={}, SECTION_INFO={}, CT_BY_SECTION={}
+let _students=[], _threads=[], _msgNames={}, _curThread=null, _openKey=null
+const TITLES={dashboard:"Today's Gaps",attmonitor:'My Wing Attendance',allatt:'All Classes Attendance',marks:'Marks Monitor',staff:'Staff Absent Today',timetable:'Timetable Viewer',substitution:'Substitution',students:'Students',broadcast:'Wing Broadcast',messages:'Messages',reminders:'Reminders Log'}
+
+const $=id=>document.getElementById(id)
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function today(){return new Date().toISOString().slice(0,10)}
+function ini(n){return (n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+function fmtDate(s){if(!s)return '—';const d=new Date(s+(s.length<=10?'T12:00:00':''));return isNaN(d)?'—':d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
+function rel(s){if(!s)return '';const d=new Date(s);if(isNaN(d))return '';const diff=Date.now()-d.getTime();if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';if(diff<604800000)return Math.floor(diff/86400000)+'d ago';return fmtDate(s.slice(0,10))}
+function emp(el,m){if(el)el.innerHTML='<div class="empty">'+esc(m)+'</div>'}
+function ldg(el){if(el)el.innerHTML='<div class="empty">Loading…</div>'}
+function toast(m,t='info'){const e=document.createElement('div');e.className='toast-item toast-'+(t==='error'?'error':t==='success'?'success':'info');e.textContent=m;$('toast').appendChild(e);setTimeout(()=>e.remove(),3500)}
+function openModal(t,b,f){$('modal-title').textContent=t;$('modal-body').innerHTML=b;$('modal-foot').innerHTML=f||'';$('modal-overlay').classList.add('open')}
+function closeModal(){$('modal-overlay').classList.remove('open')}
+function toggleSidebar(){const s=$('sidebar');if(innerWidth<=760){s.classList.toggle('show');$('scrim').classList.toggle('show')}}
+function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
+
+function goTo(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
+  $('page-'+id)?.classList.add('active')
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'))
+  if(el)el.classList.add('active')
+  $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Coordinator Portal</span>'
+  if(innerWidth<=760)closeMobileSidebar()
+  const t=today()
+  if(id==='attmonitor'){if(!$('am_date').value)$('am_date').value=t;loadAttMonitor()}
+  if(id==='allatt'){if(!$('aa_date').value)$('aa_date').value=t;loadAllAtt()}
+  if(id==='marks')loadMarksDropdown()
+  if(id==='staff'){if(!$('sf_date').value)$('sf_date').value=t;loadStaffAbsent()}
+  if(id==='timetable')loadTTTeacherDropdown()
+  if(id==='substitution'){if(!$('sub_date').value)$('sub_date').value=t;loadSubTeacherDropdown()}
+  if(id==='students')loadStudents()
+  if(id==='broadcast')showBroadcastNote()
+  if(id==='messages')loadMessages()
+  if(id==='reminders')loadReminderLog()
+}
+function logout(){SPS.signOut?SPS.signOut():sb.auth.signOut().then(()=>location.href='login.html')}
+
+// ═══ INIT ═══
+SPS.ready().then(async()=>{
+  sb=window.sb
+  const authSess=SPS.session
+  if(!authSess){location.href='login.html';return}
+  // Coordinator record
+  const{data:c}=await sb.from('coordinators').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
+  if(!c){toast('Coordinator account not found','error');setTimeout(()=>SPS.signOut(),1800);return}
+  if(!c.is_active){toast('Your account is inactive','error');setTimeout(()=>SPS.signOut(),1800);return}
+  COORD=c
+  const{data:sess}=await sb.from('sessions').select('*').eq('is_current',true).maybeSingle()
+  SESS=sess
+
+  // Assigned classes
+  const{data:cc}=await sb.from('coordinator_classes').select('class_id').eq('coordinator_id',c.coordinator_id)
+  MY_CLASS_IDS=[...new Set((cc||[]).map(r=>r.class_id))]
+
+  // Class names
+  const{data:classes}=await sb.from('classes').select('class_id,name,sort_order').order('sort_order')
+  ;(classes||[]).forEach(x=>CLASS_NAME[x.class_id]=x.name)
+  MY_CLASSES=(classes||[]).filter(x=>MY_CLASS_IDS.includes(x.class_id))
+
+  // Sections in my classes + their class teachers
+  if(MY_CLASS_IDS.length){
+    const{data:secs}=await sb.from('class_sections').select('section_id,name,class_id').in('class_id',MY_CLASS_IDS).eq('session_id',SESS?.session_id||'').eq('is_active',true)
+    MY_SECTIONS=secs||[]
+    MY_SECTIONS.forEach(s=>SECTION_INFO[s.section_id]={name:s.name,class_id:s.class_id})
+    const{data:cts}=await sb.from('class_teacher_map').select('teacher_id,section_id').in('section_id',MY_SECTIONS.map(s=>s.section_id)).eq('session_id',SESS?.session_id||'')
+    ;(cts||[]).forEach(m=>{(CT_BY_SECTION[m.section_id]=CT_BY_SECTION[m.section_id]||[]).push(m.teacher_id)})
+  }
+  const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name,employee_code,is_active').eq('is_active',true).order('full_name')
+  ALL_TEACHERS=tchs||[]
+
+  // UI
+  $('topAvatar').textContent=ini(c.name);$('topName').textContent=c.name
+  $('sbWing').textContent='Coordinator · '+MY_CLASSES.length+' classes'
+  const g=$('greetTxt'),gs=$('greetSub')
+  const hr=new Date().getHours()
+  if(g)g.textContent=(hr<12?'Good Morning':hr<17?'Good Afternoon':'Good Evening')+', '+(c.name||'').split(' ')[0]+' 👋'
+  if(gs)gs.textContent='Your wing: '+(MY_CLASSES.map(x=>x.name).join(', ')||'no classes assigned')+' · '+new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})
+
+  // Class filter in students
+  const scl=$('stu_class');if(scl)scl.innerHTML='<option value="">All my classes</option>'+MY_CLASSES.map(x=>'<option value="'+x.class_id+'">'+esc(x.name)+'</option>').join('')
+
+  if(typeof initPushNotifications==='function')initPushNotifications(sb,'coordinator',c.coordinator_id)
+  subscribeMessages()
+  loadDashboard()
+  checkUnread()
+})
+
+function tName(id){return (ALL_TEACHERS.find(t=>t.teacher_id===id)||{}).full_name||id}
+
+// ═══ helpers for scope ═══
+async function activeEnrollments(classId){
+  // active, non-relieved enrollments for a class (or all my classes)
+  let q=sb.from('student_enrollments').select('enrollment_id,section_id,class_id,roll_no,s_no,students(full_name,father_name,student_id)').eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  q = classId ? q.eq('class_id',classId) : q.in('class_id',MY_CLASS_IDS.length?MY_CLASS_IDS:['__none__'])
+  const{data}=await q
+  return data||[]
+}
+
+// ═══ DASHBOARD (Today's Gaps) ═══
+async function loadDashboard(){
+  $('stClasses').textContent=MY_CLASSES.length
+  const t=today()
+  const isSun=new Date(t+'T12:00:00').getDay()===0
+  const{data:hol}=await sb.from('holidays').select('label').eq('date',t).eq('session_id',SESS?.session_id||'').maybeSingle()
+
+  // Attendance: which of my sections have NO attendance marked today
+  const enr=await activeEnrollments(null)
+  const bySection={}
+  enr.forEach(e=>{(bySection[e.section_id]=bySection[e.section_id]||[]).push(e.enrollment_id)})
+  const secIds=Object.keys(bySection)
+  let marked=new Set()
+  if(secIds.length && !isSun && !hol){
+    const eids=enr.map(e=>e.enrollment_id)
+    const{data:att}=await sb.from('student_attendance').select('enrollment_id').in('enrollment_id',eids).eq('date',t)
+    const markedEids=new Set((att||[]).map(a=>a.enrollment_id))
+    secIds.forEach(sid=>{ if(bySection[sid].some(id=>markedEids.has(id))) marked.add(sid) })
+  }
+  const unmarked=(isSun||hol)?[]:secIds.filter(sid=>!marked.has(sid))
+  $('stAtt').textContent=(isSun||hol)?'—':unmarked.length
+  const dEl=$('dashAtt')
+  if(isSun||hol){ dEl.innerHTML='<div class="empty">'+(hol?('Holiday: '+esc(hol.label||'')):'Sunday — no attendance needed')+'</div>' }
+  else if(!unmarked.length){ dEl.innerHTML='<div class="empty">All classes marked. ✅</div>' }
+  else dEl.innerHTML=unmarked.map(sid=>{
+    const info=SECTION_INFO[sid]||{};const label=(CLASS_NAME[info.class_id]||'?')+'-'+(info.name||'?')
+    const ctIds=CT_BY_SECTION[sid]||[]
+    return '<div class="log-row"><div class="log-dot" style="background:var(--warn)"></div><div style="flex:1"><div class="txt"><b>'+esc(label)+'</b> not marked</div><div class="ts">'+(ctIds.length?esc(ctIds.map(tName).join(', ')):'no class teacher')+'</div></div>'
+      +(ctIds.length?'<button class="btn btn-soft btn-xs" onclick="remindAttendance(\''+sid+'\')">Remind</button>':'')+'</div>'
+  }).join('')
+
+  // Staff absent today
+  const{data:ta}=await sb.from('teacher_attendance').select('teacher_id,status').eq('date',t)
+  const absent=(ta||[]).filter(r=>r.status==='A'||r.status==='Absent'||r.status==='L'||r.status==='Late')
+  $('stStaff').textContent=absent.length
+  const sEl=$('dashStaff')
+  if(!absent.length)sEl.innerHTML='<div class="empty">No staff marked absent/late today.</div>'
+  else sEl.innerHTML=absent.map(r=>{const late=r.status==='L'||r.status==='Late';return '<div class="log-row"><div class="log-dot" style="background:'+(late?'var(--warn)':'var(--danger)')+'"></div><div style="flex:1"><div class="txt">'+esc(tName(r.teacher_id))+'</div></div><span class="pill '+(late?'pill-warn':'pill-danger')+'">'+(late?'Late':'Absent')+'</span></div>'}).join('')
+
+  // Marks pending (rough count across my classes' assessments)
+  $('stMarks').textContent='—'
+  try{
+    if(MY_CLASS_IDS.length){
+      const{data:ac}=await sb.from('assessment_classes').select('assessment_id,class_id').in('class_id',MY_CLASS_IDS)
+      const assessIds=[...new Set((ac||[]).map(r=>r.assessment_id))]
+      if(assessIds.length){
+        const{data:asmt}=await sb.from('assessments').select('assessment_id').in('assessment_id',assessIds).eq('session_id',SESS?.session_id||'')
+        const validIds=new Set((asmt||[]).map(a=>a.assessment_id))
+        // subjects expected per class
+        const{data:maps}=await sb.from('teacher_subject_class_map').select('subject_id,class_id,section_id').in('class_id',MY_CLASS_IDS).eq('session_id',SESS?.session_id||'')
+        const{data:mk}=await sb.from('marks').select('assessment_id,subject_id').in('assessment_id',[...validIds])
+        const submitted=new Set((mk||[]).map(m=>m.assessment_id+'_'+m.subject_id))
+        let pending=0
+        ;(ac||[]).filter(r=>validIds.has(r.assessment_id)).forEach(r=>{
+          const subs=[...new Set((maps||[]).filter(m=>m.class_id===r.class_id).map(m=>m.subject_id))]
+          subs.forEach(sid=>{ if(!submitted.has(r.assessment_id+'_'+sid)) pending++ })
+        })
+        $('stMarks').textContent=pending
+      } else $('stMarks').textContent=0
+    }
+  }catch(e){$('stMarks').textContent='—'}
+}
+
+async function remindAttendance(sectionId){
+  const info=SECTION_INFO[sectionId]||{};const label=(CLASS_NAME[info.class_id]||'?')+'-'+(info.name||'?')
+  const ctIds=CT_BY_SECTION[sectionId]||[]
+  if(!ctIds.length){toast('No class teacher to remind','error');return}
+  for(const tid of ctIds){
+    await sb.from('messages').insert({sender_type:'coordinator',sender_id:COORD.coordinator_id,recipient_type:'teacher',recipient_id:tid,
+      subject:'Reminder — mark attendance ('+label+')',
+      body:(COORD.name||'Your coordinator')+' is reminding you to mark today\'s attendance for '+label+'.',
+      message_type:'direct',sent_at:new Date().toISOString()})
+    await sb.from('coordinator_reminders').insert({coordinator_id:COORD.coordinator_id,teacher_id:tid,kind:'attendance',detail:label})
+  }
+  toast('Reminder sent — '+label,'success')
+}
+
+// ═══ MY WING ATTENDANCE ═══
+async function loadAttMonitor(){
+  const el=$('attMonitorWrap');ldg(el)
+  const d=$('am_date').value||today()
+  const enr=await activeEnrollments(null)
+  if(!enr.length){emp(el,'No students in your wing.');return}
+  const{data:hol}=await sb.from('holidays').select('label').eq('date',d).eq('session_id',SESS?.session_id||'').maybeSingle()
+  const isSun=new Date(d+'T12:00:00').getDay()===0
+  const eids=enr.map(e=>e.enrollment_id)
+  const{data:att}=await sb.from('student_attendance').select('enrollment_id,status').in('enrollment_id',eids).eq('date',d)
+  const statByEid={};(att||[]).forEach(a=>statByEid[a.enrollment_id]=a.status)
+  const bySection={}
+  enr.forEach(e=>{(bySection[e.section_id]=bySection[e.section_id]||[]).push(e)})
+  const rows=Object.keys(bySection).map(sid=>{
+    const info=SECTION_INFO[sid]||{};const label=(CLASS_NAME[info.class_id]||'?')+'-'+(info.name||'?')
+    const list=bySection[sid]
+    const marks=list.map(e=>statByEid[e.enrollment_id]).filter(Boolean)
+    const isMarked=marks.length>0
+    const p=marks.filter(s=>s==='P').length,a=marks.filter(s=>s==='A').length,l=marks.filter(s=>s==='L').length
+    const ctIds=CT_BY_SECTION[sid]||[]
+    let statusCell=(isSun||hol)?'<span class="pill pill-neutral">'+(hol?'Holiday':'Sunday')+'</span>'
+      :isMarked?'<span class="pill pill-success">Marked</span>':'<span class="pill pill-warn">Not marked</span>'
+    return '<tr><td style="font-weight:700">'+esc(label)+'</td>'
+      +'<td>'+esc(ctIds.map(tName).join(', ')||'—')+'</td>'
+      +'<td>'+statusCell+'</td>'
+      +'<td class="mono">'+(isMarked?('P '+p+' · A '+a+' · L '+l):'—')+'</td>'
+      +'<td>'+((!isMarked&&!isSun&&!hol&&ctIds.length)?'<button class="btn btn-soft btn-xs" onclick="remindAttendance(\''+sid+'\')">Remind</button>':'')+'</td></tr>'
+  }).join('')
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Class</th><th>Class Teacher</th><th>Status</th><th>Summary</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+}
+
+// ═══ ALL CLASSES ATTENDANCE (view-only) ═══
+async function loadAllAtt(){
+  const el=$('allAttWrap');ldg(el)
+  const d=$('aa_date').value||today()
+  const{data:hol}=await sb.from('holidays').select('label').eq('date',d).eq('session_id',SESS?.session_id||'').maybeSingle()
+  const isSun=new Date(d+'T12:00:00').getDay()===0
+  const{data:secs}=await sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS?.session_id||'').eq('is_active',true)
+  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,section_id').eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  const bySection={};(enr||[]).forEach(e=>{(bySection[e.section_id]=bySection[e.section_id]||[]).push(e.enrollment_id)})
+  const allEids=(enr||[]).map(e=>e.enrollment_id)
+  let markedEids=new Set()
+  if(allEids.length && !isSun && !hol){
+    // chunk to avoid overly long IN lists
+    for(let i=0;i<allEids.length;i+=800){
+      const{data:att}=await sb.from('student_attendance').select('enrollment_id').in('enrollment_id',allEids.slice(i,i+800)).eq('date',d)
+      ;(att||[]).forEach(a=>markedEids.add(a.enrollment_id))
+    }
+  }
+  // group by class
+  const byClass={}
+  ;(secs||[]).forEach(s=>{(byClass[s.class_id]=byClass[s.class_id]||[]).push(s)})
+  const classOrder=MY_CLASSES.concat() // start; but show all
+  const{data:classes}=await sb.from('classes').select('class_id,name,sort_order').order('sort_order')
+  let rows=(classes||[]).map(c=>{
+    const cs=byClass[c.class_id]||[]
+    if(!cs.length)return ''
+    const cells=cs.map(s=>{
+      const ids=bySection[s.section_id]||[]
+      const isMarked=ids.some(id=>markedEids.has(id))
+      const mine=MY_CLASS_IDS.includes(c.class_id)
+      const cls=(isSun||hol)?'pill-neutral':isMarked?'pill-success':(ids.length?'pill-warn':'pill-neutral')
+      const txt=(isSun||hol)?(hol?'Hol':'Sun'):isMarked?'Marked':(ids.length?'Pending':'—')
+      return '<span class="pill '+cls+'" style="margin:2px" title="'+esc(s.name)+'">'+esc(s.name)+': '+txt+'</span>'
+    }).join(' ')
+    return '<tr><td style="font-weight:700;white-space:nowrap">'+esc(c.name)+(MY_CLASS_IDS.includes(c.class_id)?' <span class="pill pill-teal" style="font-size:9px">MY WING</span>':'')+'</td><td>'+cells+'</td></tr>'
+  }).join('')
+  el.innerHTML='<div class="card">'+((isSun||hol)?'<div class="empty">'+(hol?('Holiday: '+esc(hol.label||'')):'Sunday')+' — attendance not expected.</div>':'')+'<div class="table-wrap"><table><thead><tr><th>Class</th><th>Sections</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+}
+
+// ═══ MARKS MONITOR ═══
+async function loadMarksDropdown(){
+  const sel=$('mk_assess');if(!sel)return
+  if(!MY_CLASS_IDS.length){sel.innerHTML='<option value="">No classes assigned</option>';return}
+  const{data:ac}=await sb.from('assessment_classes').select('assessment_id').in('class_id',MY_CLASS_IDS)
+  const ids=[...new Set((ac||[]).map(r=>r.assessment_id))]
+  if(!ids.length){sel.innerHTML='<option value="">No assessments for your wing</option>';return}
+  const{data:asmt}=await sb.from('assessments').select('assessment_id,name,commencement_date').in('assessment_id',ids).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+  sel.innerHTML='<option value="">Select assessment</option>'+(asmt||[]).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtDate(a.commencement_date):'')+'</option>').join('')
+}
+
+async function loadMarksMonitor(){
+  const assessId=$('mk_assess')?.value,el=$('marksMonWrap')
+  if(!assessId){emp(el,'Pick an assessment.');return}
+  ldg(el)
+  // classes in my wing linked to this assessment
+  const{data:ac}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',assessId)
+  const clsIds=[...new Set((ac||[]).map(r=>r.class_id))].filter(id=>MY_CLASS_IDS.includes(id))
+  if(!clsIds.length){emp(el,'This assessment has no classes in your wing.');return}
+  // expected subject-teacher per class-section
+  const{data:maps}=await sb.from('teacher_subject_class_map').select('subject_id,teacher_id,class_id,section_id,subjects(name),teachers(full_name)').in('class_id',clsIds).eq('session_id',SESS?.session_id||'')
+  const{data:mk}=await sb.from('marks').select('subject_id,enrollment_id').eq('assessment_id',assessId)
+  const submittedSub=new Set((mk||[]).map(m=>m.subject_id))
+  // group rows by class
+  const byClass={}
+  ;(maps||[]).forEach(m=>{(byClass[m.class_id]=byClass[m.class_id]||[]).push(m)})
+  let html=''
+  clsIds.forEach(cid=>{
+    const rows=[...new Map((byClass[cid]||[]).map(m=>[m.subject_id+'_'+m.teacher_id,m])).values()]
+    if(!rows.length)return
+    html+='<div class="card" style="margin-bottom:14px"><h3>'+esc(CLASS_NAME[cid]||'Class')+'</h3><div class="table-wrap"><table><thead><tr><th>Subject</th><th>Teacher</th><th>Status</th><th></th></tr></thead><tbody>'
+    html+=rows.map(m=>{
+      const done=submittedSub.has(m.subject_id)
+      return '<tr><td style="font-weight:600">'+esc(m.subjects?.name||'?')+'</td><td>'+esc(m.teachers?.full_name||tName(m.teacher_id))+'</td>'
+        +'<td>'+(done?'<span class="pill pill-success">Submitted</span>':'<span class="pill pill-warn">Pending</span>')+'</td>'
+        +'<td>'+(done?'':'<button class="btn btn-soft btn-xs" onclick="remindMarks(\''+m.teacher_id+'\',\''+esc(m.subjects?.name||'')+'\',\''+esc(CLASS_NAME[cid]||'')+'\')">Remind</button>')+'</td></tr>'
+    }).join('')
+    html+='</tbody></table></div></div>'
+  })
+  el.innerHTML=html||'<div class="empty">No subject mappings found.</div>'
+}
+
+async function remindMarks(teacherId,subjectName,className){
+  if(!teacherId){toast('No teacher linked','error');return}
+  const asmtName=$('mk_assess')?.selectedOptions[0]?.textContent||'the assessment'
+  await sb.from('messages').insert({sender_type:'coordinator',sender_id:COORD.coordinator_id,recipient_type:'teacher',recipient_id:teacherId,
+    subject:'Reminder — submit marks ('+(subjectName||'')+', '+(className||'')+')',
+    body:(COORD.name||'Your coordinator')+' is reminding you to submit marks for '+(subjectName||'your subject')+' in '+(className||'')+' for "'+asmtName+'".',
+    message_type:'direct',sent_at:new Date().toISOString()})
+  await sb.from('coordinator_reminders').insert({coordinator_id:COORD.coordinator_id,teacher_id:teacherId,kind:'marks',detail:(subjectName||'')+' · '+(className||'')})
+  toast('Reminder sent'+(subjectName?' — '+subjectName:''),'success')
+}
+
+// ═══ STAFF ABSENT ═══
+async function loadStaffAbsent(){
+  const el=$('staffWrap');ldg(el)
+  const d=$('sf_date').value||today()
+  const{data:ta}=await sb.from('teacher_attendance').select('teacher_id,status,time_in').eq('date',d)
+  const rows=(ta||[]).filter(r=>['A','Absent','L','Late'].includes(r.status))
+  if(!rows.length){emp(el,'No staff marked absent or late on '+fmtDate(d)+'.');return}
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Status</th><th></th></tr></thead><tbody>'
+    +rows.map(r=>{const late=r.status==='L'||r.status==='Late';return '<tr><td style="font-weight:600">'+esc(tName(r.teacher_id))+'</td><td>'+(late?'<span class="pill pill-warn">Late</span>':'<span class="pill pill-danger">Absent</span>')+'</td>'
+      +'<td><button class="btn btn-soft btn-xs" onclick="prefillSub(\''+r.teacher_id+'\',\''+d+'\')">Arrange cover →</button></td></tr>'}).join('')
+    +'</tbody></table></div></div>'
+}
+function prefillSub(teacherId,d){
+  goTo('substitution',document.querySelector('.sb-item[onclick*=substitution]'))
+  setTimeout(()=>{ if($('sub_teacher'))$('sub_teacher').value=teacherId; if($('sub_date'))$('sub_date').value=d; loadSubSheet() },200)
+}
+
+// ═══ REMINDER LOG ═══
+async function loadReminderLog(){
+  const el=$('remLogWrap');ldg(el)
+  const{data}=await sb.from('coordinator_reminders').select('*').eq('coordinator_id',COORD.coordinator_id).order('created_at',{ascending:false}).limit(200)
+  if(!data?.length){emp(el,'No reminders sent yet.');return}
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>When</th><th>Teacher</th><th>Type</th><th>Detail</th></tr></thead><tbody>'
+    +data.map(r=>'<tr><td style="white-space:nowrap">'+rel(r.created_at)+'</td><td>'+esc(tName(r.teacher_id))+'</td><td>'+(r.kind==='marks'?'<span class="pill pill-neutral">Marks</span>':'<span class="pill pill-neutral">Attendance</span>')+'</td><td style="color:var(--ink-soft)">'+esc(r.detail||'—')+'</td></tr>').join('')
+    +'</tbody></table></div></div>'
+}
+
+// ═══ WING BROADCAST ═══
+async function wingTeacherIds(){
+  // all class teachers + subject teachers mapped to my classes
+  const ids=new Set()
+  Object.values(CT_BY_SECTION).forEach(arr=>arr.forEach(id=>ids.add(id)))
+  if(MY_CLASS_IDS.length){
+    const{data:maps}=await sb.from('teacher_subject_class_map').select('teacher_id').in('class_id',MY_CLASS_IDS).eq('session_id',SESS?.session_id||'')
+    ;(maps||[]).forEach(m=>{if(m.teacher_id)ids.add(m.teacher_id)})
+  }
+  return [...ids]
+}
+async function showBroadcastNote(){
+  const ids=await wingTeacherIds()
+  $('bcRecipientNote').textContent=ids.length?('Will be sent to '+ids.length+' teacher(s) in your wing.'):'No teachers found in your wing yet.'
+}
+async function sendBroadcast(){
+  const subj=$('bc_subject').value.trim(),body=$('bc_body').value.trim()
+  if(!subj||!body){toast('Subject and message are required','error');return}
+  const ids=await wingTeacherIds()
+  if(!ids.length){toast('No wing teachers to send to','error');return}
+  const now=new Date().toISOString()
+  const rows=ids.map(tid=>({sender_type:'coordinator',sender_id:COORD.coordinator_id,recipient_type:'teacher',recipient_id:tid,subject:'📢 '+subj,body,message_type:'direct',sent_at:now}))
+  const{error}=await sb.from('messages').insert(rows)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Broadcast sent to '+ids.length+' teachers','success')
+  $('bc_subject').value='';$('bc_body').value=''
+}
+
+// ═══ STUDENTS ═══
+async function loadStudents(){
+  const el=$('studentsWrap');ldg(el)
+  if(!MY_CLASS_IDS.length){emp(el,'No classes assigned to you.');return}
+  const{data}=await sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,s_no,class_id,section_id,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
+    .in('class_id',MY_CLASS_IDS).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
+  _students=data||[]
+  $('stuSub').textContent=MY_CLASSES.map(x=>x.name).join(', ')+' · '+_students.length+' students'
+  filterStudents()
+}
+function filterStudents(){
+  const q=($('stu_search').value||'').toLowerCase(),cf=$('stu_class').value
+  let list=_students
+  if(cf)list=list.filter(s=>s.class_id===cf)
+  if(q)list=list.filter(s=>s.students?.full_name?.toLowerCase().includes(q)||s.students?.father_name?.toLowerCase().includes(q)||String(s.roll_no||'').includes(q)||String(s.s_no||'').includes(q))
+  const el=$('studentsWrap')
+  if(!list.length){emp(el,'No students match.');return}
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Class</th><th>Phone</th><th></th></tr></thead><tbody>'
+    +list.map(s=>'<tr><td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td><td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td><td>'+esc(s.students?.father_name||'—')+'</td>'
+      +'<td>'+esc((CLASS_NAME[s.class_id]||'?')+'-'+(SECTION_INFO[s.section_id]?.name||'?'))+'</td><td class="mono">'+esc(s.students?.phone||'—')+'</td>'
+      +'<td><button class="btn btn-soft btn-xs" data-eid="'+s.enrollment_id+'" onclick="viewStudent(this.dataset.eid)">View</button></td></tr>').join('')
+    +'</tbody></table></div></div>'
+}
+function viewStudent(eid){
+  const enr=_students.find(s=>s.enrollment_id===eid);if(!enr)return
+  const s=enr.students||{}
+  const canEdit=COORD.can_edit_students===true
+  const lbl='font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px'
+  const inp='width:100%;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);box-sizing:border-box'
+  const fields=[['full_name','Full Name'],['father_name','Father\'s Name'],['mother_name','Mother\'s Name'],['phone','Phone'],['alt_phone','Alt Phone'],['aadhar_no','Aadhaar No'],['address','Address']]
+  const body='<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">'
+    +(s.photo_url?'<img src="'+esc(s.photo_url)+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover">':'<div style="width:64px;height:64px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800">'+ini(s.full_name)+'</div>')
+    +'<div><div style="font-size:17px;font-weight:800">'+esc(s.full_name||'?')+'</div><div style="font-size:12px;color:var(--ink-soft)">Roll '+esc(enr.roll_no||'—')+' · S.No '+esc(enr.s_no||'—')+' · '+esc((CLASS_NAME[enr.class_id]||'?')+'-'+(SECTION_INFO[enr.section_id]?.name||'?'))+'</div></div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'
+    +fields.map(([k,l])=>'<div style="margin-bottom:12px'+(k==='address'?';grid-column:1/-1':'')+'"><label style="'+lbl+'">'+l+'</label>'
+      +(k==='address'?'<textarea id="sp_'+k+'" '+(canEdit?'':'disabled')+' style="'+inp+';min-height:56px">'+esc(s[k]||'')+'</textarea>':'<input id="sp_'+k+'" '+(canEdit?'':'disabled')+' value="'+esc(s[k]||'')+'" style="'+inp+'">')+'</div>').join('')
+    +'</div>'
+    +(canEdit?'':'<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;font-size:12.5px;margin-top:6px">View only. Ask admin to grant profile-edit access.</div>')
+  const foot='<button class="btn btn-ghost" onclick="closeModal()">Close</button>'+(canEdit?'<button class="btn btn-primary" onclick="saveStudent(\''+(s.student_id||'')+'\')">Save Changes</button>':'')
+  openModal('Student Profile',body,foot)
+}
+async function saveStudent(sid){
+  if(!COORD.can_edit_students){toast('No edit access','error');return}
+  const u={full_name:$('sp_full_name').value.trim(),father_name:$('sp_father_name').value.trim(),mother_name:$('sp_mother_name').value.trim(),phone:$('sp_phone').value.trim(),alt_phone:$('sp_alt_phone').value.trim(),aadhar_no:$('sp_aadhar_no').value.trim(),address:$('sp_address').value.trim()}
+  if(!u.full_name){toast('Name required','error');return}
+  const{error}=await sb.from('students').update(u).eq('student_id',sid)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Profile saved','success');closeModal();loadStudents()
+}
+
+// ═══ TIMETABLE VIEWER ═══
+async function getActiveRoster(){const{data}=await sb.from('rosters').select('*').eq('session_id',SESS?.session_id||'').eq('is_active',true).maybeSingle();return data}
+function loadTTTeacherDropdown(){const sel=$('tt_teacher');if(sel&&sel.options.length<=1)sel.innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')}
+async function loadTTViewer(){
+  const tid=$('tt_teacher').value,el=$('ttViewerWrap')
+  if(!tid){emp(el,'Pick a teacher.');return}
+  ldg(el)
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster.');return}
+  const{data:entries}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)').eq('roster_id',roster.roster_id).eq('teacher_id',tid)
+  const ws=(entries||[]).filter(e=>e.time_slots)
+  if(!ws.length){emp(el,'No timetable periods for this teacher.');return}
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat']
+  const slotMap=new Map();ws.forEach(e=>{if(!slotMap.has(e.slot_id))slotMap.set(e.slot_id,{...e.time_slots,slot_id:e.slot_id})})
+  const slots=[...slotMap.values()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  const lookup={};ws.forEach(e=>{(e.days||[]).forEach(d=>{const k=e.slot_id+'_'+d;(lookup[k]=lookup[k]||[]).push(e)})})
+  let html='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>'
+  slots.forEach(sl=>{html+='<tr><td style="font-weight:700">'+esc(sl.name||'')+'</td><td class="mono" style="font-size:11px">'+(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5)+'</td>'
+    +days.map(d=>{const es=lookup[sl.slot_id+'_'+d]||[];return '<td>'+(es.length?es.map(e=>'<div style="background:var(--teal-100);border-radius:8px;padding:5px 7px;text-align:center;margin-bottom:3px"><div style="font-size:12px;font-weight:800;color:var(--teal-dark)">'+esc((e.classes?.name||'')+'-'+(e.class_sections?.name||''))+'</div><div style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.subjects?.name||'')+'</div></div>').join(''):'')+'</td>'}).join('')+'</tr>'})
+  el.innerHTML=html+'</tbody></table></div></div>'
+}
+
+// ═══ SUBSTITUTION ═══
+function loadSubTeacherDropdown(){const sel=$('sub_teacher');if(sel&&sel.options.length<=1)sel.innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')}
+async function loadSubSheet(){
+  const tid=$('sub_teacher').value,d=$('sub_date').value,el=$('subWrap')
+  if(!tid||!d){toast('Select teacher and date','error');return}
+  ldg(el)
+  const roster=await getActiveRoster()
+  if(!roster){emp(el,'No active roster.');return}
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()]
+  if(dow==='Sun'){emp(el,'Sunday — no periods.');return}
+  const{data:entries}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)').eq('roster_id',roster.roster_id).eq('teacher_id',tid)
+  // only periods on that weekday AND (optionally) in my wing classes
+  const todays=(entries||[]).filter(e=>e.time_slots&&(e.days||[]).includes(dow))
+  if(!todays.length){emp(el,'No periods for '+esc(tName(tid))+' on '+dow+'.');return}
+  // existing substitutions for that date
+  const{data:existing}=await sb.from('substitutions').select('*').eq('date',d)
+  const exByEntry={};(existing||[]).forEach(s=>{exByEntry[s.entry_id]=s})
+  const teacherOpts='<option value="">— cover teacher —</option>'+ALL_TEACHERS.filter(t=>t.teacher_id!==tid).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  let html='<div class="card"><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:12px">Periods for <b>'+esc(tName(tid))+'</b> on '+fmtDate(d)+' ('+dow+'). Assign a cover teacher to each.</div>'
+    +'<div class="table-wrap"><table><thead><tr><th>Slot</th><th>Class</th><th>Subject</th><th>Cover Teacher</th></tr></thead><tbody>'
+  html+=todays.sort((a,b)=>(a.time_slots.sort_order||0)-(b.time_slots.sort_order||0)).map(e=>{
+    const ex=exByEntry[e.entry_id]
+    const mine=MY_CLASS_IDS.includes(e.class_id)
+    return '<tr><td style="font-weight:700">'+esc(e.time_slots?.name||'')+'</td>'
+      +'<td>'+esc((e.classes?.name||'')+'-'+(e.class_sections?.name||''))+(mine?' <span class="pill pill-teal" style="font-size:9px">WING</span>':'')+'</td>'
+      +'<td>'+esc(e.subjects?.name||'')+'</td>'
+      +'<td><select class="sub-pick" data-entry="'+e.entry_id+'" data-slot="'+e.slot_id+'" data-cls="'+esc((e.classes?.name||'')+'-'+(e.class_sections?.name||''))+'" data-subj="'+esc(e.subjects?.name||'')+'" style="font-family:var(--font);font-size:12.5px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;background:#fff">'+teacherOpts.replace('value="'+(ex?.substitute_teacher_id||'__x__')+'"','value="'+(ex?.substitute_teacher_id||'__x__')+'" selected')+'</select></td></tr>'
+  }).join('')
+  html+='</tbody></table></div><div style="margin-top:14px"><button class="btn btn-primary" onclick="saveSubs(\''+tid+'\',\''+d+'\',\''+roster.roster_id+'\')">Save & Notify Cover Teachers</button></div></div>'
+  el.innerHTML=html
+}
+async function saveSubs(absentId,d,rosterId){
+  const picks=[...document.querySelectorAll('.sub-pick')].filter(s=>s.value)
+  if(!picks.length){toast('Assign at least one cover teacher','error');return}
+  const rows=picks.map(s=>({date:d,absent_teacher_id:absentId,roster_id:rosterId,slot_id:s.dataset.slot,entry_id:s.dataset.entry,substitute_teacher_id:s.value,created_by:COORD.coordinator_id}))
+  const{error}=await sb.from('substitutions').upsert(rows,{onConflict:'date,entry_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  // notify each cover teacher
+  const now=new Date().toISOString()
+  const msgs=picks.map(s=>({sender_type:'coordinator',sender_id:COORD.coordinator_id,recipient_type:'teacher',recipient_id:s.value,subject:'Substitution Duty — '+fmtDate(d),body:'You are assigned as substitute on '+fmtDate(d)+'.\nClass: '+s.dataset.cls+' | Subject: '+s.dataset.subj+'\nCovering for: '+tName(absentId),message_type:'substitution_notice',sent_at:now}))
+  await sb.from('messages').insert(msgs)
+  toast('Saved & '+picks.length+' cover teacher(s) notified','success')
+}
+
+// ═══ MESSAGES ═══
+function subscribeMessages(){
+  try{sb.channel('coord_msgs_'+COORD.coordinator_id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'recipient_id=eq.'+COORD.coordinator_id},()=>{loadMessages();checkUnread()}).subscribe()}catch(e){}
+}
+async function checkUnread(){
+  const{data}=await sb.from('messages').select('message_id').eq('recipient_type','coordinator').eq('recipient_id',COORD.coordinator_id).is('read_at',null)
+  const n=data?.length||0
+  const b=$('msgBadge');if(b){b.textContent=n;b.style.display=n>0?'flex':'none'}
+}
+async function loadMessages(){
+  const el=$('msgThreadList')
+  const[{data:recv},{data:sent}]=await Promise.all([
+    sb.from('messages').select('*').eq('recipient_type','coordinator').eq('recipient_id',COORD.coordinator_id).order('sent_at',{ascending:false}).limit(300),
+    sb.from('messages').select('*').eq('sender_type','coordinator').eq('sender_id',COORD.coordinator_id).order('sent_at',{ascending:false}).limit(300)
+  ])
+  const all=[...(recv||[]),...(sent||[])]
+  // names
+  const tchIds=[...new Set(all.flatMap(m=>[m.sender_type==='teacher'?m.sender_id:null,m.recipient_type==='teacher'?m.recipient_id:null]).filter(Boolean))]
+  if(tchIds.length){const{data:t}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',tchIds);(t||[]).forEach(x=>_msgNames[x.teacher_id]=x.full_name)}
+  const root=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
+  const other=m=>m.sender_type==='coordinator'?(m.recipient_type==='admin'?'admin':m.recipient_id):(m.sender_type==='admin'?'admin':m.sender_id)
+  const map=new Map()
+  all.forEach(m=>{const k=root(m.subject)+'|'+(other(m)||'?');if(!map.has(k))map.set(k,{key:k,subject:root(m.subject),counterpart:other(m),messages:[],unread:0});const th=map.get(k);th.messages.push(m);if(m.sender_type!=='coordinator'&&!m.read_at)th.unread++})
+  _threads=[...map.values()].map(th=>{th.messages.sort((a,b)=>new Date(a.sent_at)-new Date(b.sent_at));th.latest=th.messages[th.messages.length-1];return th}).sort((a,b)=>new Date(b.latest.sent_at)-new Date(a.latest.sent_at))
+  const nm=id=>id==='admin'?'Admin Office':(_msgNames[id]||id)
+  if(!_threads.length){emp(el,'No messages yet.');return}
+  el.innerHTML=_threads.map((th,i)=>'<div class="msg-thread-item'+(th.unread?' unread':'')+'" onclick="openThread('+i+')"><div style="display:flex;justify-content:space-between"><span class="t-from">'+esc(th.subject)+'</span><span class="t-time">'+rel(th.latest.sent_at)+'</span></div><div class="t-preview"><b>'+esc(nm(th.counterpart))+'</b> · '+esc(th.latest.body?.slice(0,48)||'')+'</div>'+(th.unread?'<span class="pill pill-teal" style="font-size:9px;margin-top:3px">'+th.unread+' new</span>':'')+'</div>').join('')
+  if(_openKey){const idx=_threads.findIndex(t=>t.key===_openKey);if(idx>=0)openThread(idx,true)}
+}
+async function openThread(i,noSwitch){
+  _curThread=i;const th=_threads[i];if(!th)return
+  _openKey=th.key
+  if(innerWidth<=760&&!noSwitch)document.querySelector('.msg-shell')?.classList.add('reading')
+  document.querySelectorAll('.msg-thread-item').forEach((e,idx)=>e.classList.toggle('active',idx===i))
+  const nm=id=>id==='admin'?'Admin Office':(_msgNames[id]||id)
+  $('msgHead').textContent=th.subject+' · '+nm(th.counterpart)
+  $('msgMeta').textContent=th.messages.length+' message'+(th.messages.length!==1?'s':'')
+  $('msgBubbles').innerHTML=th.messages.map(m=>{
+    const mine=m.sender_type==='coordinator'
+    const who=mine?'You':(m.sender_type==='admin'?'Admin Office':nm(m.sender_id))
+    return '<div class="msg-email-card"><div style="display:flex;justify-content:space-between"><div><div class="msg-email-sender">'+esc(who)+'</div><div class="msg-email-role">'+(mine?'Coordinator':(m.sender_type==='admin'?'Admin':'Teacher'))+'</div></div><div style="font-size:11.5px;color:var(--ink-faint)">'+(m.sent_at&&!isNaN(new Date(m.sent_at))?new Date(m.sent_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'')+'</div></div><div class="msg-email-body">'+esc(m.body||'')+'</div></div>'
+  }).join('')
+  $('msgBubbles').scrollTop=$('msgBubbles').scrollHeight
+  $('msgReplyBar').style.display='block'
+  const unread=th.messages.filter(m=>m.sender_type!=='coordinator'&&!m.read_at).map(m=>m.message_id)
+  if(unread.length){await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unread);th.unread=0;checkUnread()}
+}
+function backToThreads(){document.querySelector('.msg-shell')?.classList.remove('reading')}
+async function sendReply(){
+  const body=$('msgReplyText').value.trim();if(!body)return
+  const th=_threads[_curThread];if(!th)return
+  const last=th.latest
+  const rt=last.sender_type==='coordinator'?last.recipient_type:last.sender_type
+  const rid=last.sender_type==='coordinator'?last.recipient_id:last.sender_id
+  $('msgReplyText').value=''
+  const{error}=await sb.from('messages').insert({sender_type:'coordinator',sender_id:COORD.coordinator_id,recipient_type:rt,recipient_id:rid,subject:'Re: '+th.subject,body,message_type:'direct',sent_at:new Date().toISOString()})
+  if(error){toast('Failed: '+error.message,'error');return}
+  loadMessages()
+}
+function openCompose(){
+  openModal('Compose Message',
+    '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:6px">To</label>'
+    +'<select id="cmp_type" onchange="cmpToggle()" style="width:100%;font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50)"><option value="admin">Admin Office</option><option value="teacher">A Teacher</option></select></div>'
+    +'<div id="cmp_teacher_fg" style="display:none;margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:6px">Teacher</label>'
+    +'<select id="cmp_teacher" style="width:100%;font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50)">'+ALL_TEACHERS.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')+'</select></div>'
+    +'<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:6px">Subject</label><input id="cmp_subj" style="width:100%;font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50)"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:6px">Message</label><textarea id="cmp_body" style="width:100%;min-height:100px;font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50)"></textarea></div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="sendCompose()">Send</button>')
+}
+function cmpToggle(){$('cmp_teacher_fg').style.display=$('cmp_type').value==='teacher'?'block':'none'}
+async function sendCompose(){
+  const type=$('cmp_type').value,subj=$('cmp_subj').value.trim(),body=$('cmp_body').value.trim()
+  if(!subj||!body){toast('Subject and message required','error');return}
+  const rid=type==='admin'?(await adminId()):$('cmp_teacher').value
+  if(!rid){toast('Pick a recipient','error');return}
+  const{error}=await sb.from('messages').insert({sender_type:'coordinator',sender_id:COORD.coordinator_id,recipient_type:type,recipient_id:rid,subject:subj,body,message_type:'direct',sent_at:new Date().toISOString()})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Message sent','success');closeModal();loadMessages()
+}
+async function adminId(){const{data}=await sb.from('admins').select('admin_id').limit(1);return data?.[0]?.admin_id}
+</script>
+</body>
+</html>
