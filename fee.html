@@ -1190,12 +1190,16 @@ function renderDashboard(){
   const totalDue=active.reduce((s,stu)=>s+getTotalDues(stu).total,0);
   const defCount=active.filter(s=>getTotalDues(s).total>0).length;
   const pendingReadm=active.filter(s=>s.sno==null||s.sno==='').length;
+  const relievedArr=active.filter(s=>s.relieved);
+  const relievedCount=relievedArr.length;
+  const relievedDue=relievedArr.reduce((s,stu)=>s+getTotalDues(stu).total,0);
   $('statsGrid').innerHTML=`
-    <div class="stat-card"><div class="label">Total Students</div><div class="value">${enrolled.length}</div><div class="sub text-muted" style="font-size:11px">With S.No allotted</div></div>
+    <div class="stat-card"><div class="label">Total Students</div><div class="value">${enrolled.length}</div><div class="sub text-muted" style="font-size:11px">With S.No · excl. relieved</div></div>
     <div class="stat-card"><div class="label">Collected Today</div><div class="value green">${fmtINR(todayColl)}</div></div>
     <div class="stat-card"><div class="label">Total Pending</div><div class="value red">${fmtINR(totalDue)}</div></div>
     <div class="stat-card"><div class="label">Defaulters</div><div class="value yellow">${defCount}</div></div>
-    <div class="stat-card" ${pendingReadm>0?'style="border-color:var(--yellow)"':''}><div class="label">Awaiting Re-admission</div><div class="value ${pendingReadm>0?'yellow':'green'}">${pendingReadm}</div></div>`;
+    <div class="stat-card" ${pendingReadm>0?'style="border-color:var(--yellow)"':''}><div class="label">Awaiting Re-admission</div><div class="value ${pendingReadm>0?'yellow':'green'}">${pendingReadm}</div></div>
+    <div class="stat-card" ${relievedCount>0?'style="border-color:var(--yellow)"':''}><div class="label">Relieved Students</div><div class="value ${relievedCount>0?'yellow':'green'}">${relievedCount}</div><div class="sub text-muted" style="font-size:11px">${relievedDue>0?fmtINR(relievedDue)+' dues pending':'no dues'}</div></div>`;
   $('activityLog').innerHTML=activityLog.slice(0,10).map(l=>`
     <div class="log-entry"><div class="dot"></div><div style="flex:1">${esc(l.msg)}</div><div class="ts">${fmtDT(l.ts)}</div></div>`).join('')||'<p class="text-muted">No activity yet.</p>';
   const cls={};
