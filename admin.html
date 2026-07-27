@@ -484,7 +484,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page" id="page-students">
       <div class="page-head"><div><h2>Students</h2><p>All enrolled students — current session</p></div></div>
       <div class="search-bar">
-        <div class="fg" style="max-width:280px"><label>Search</label><input type="text" id="studentSearch" placeholder="Name, Student ID, S.No…" oninput="filterStudents()"></div>
+        <div class="fg" style="max-width:280px"><label>Search</label><input type="text" id="studentSearch" placeholder="Name, Father's Name, Student ID, S.No…" oninput="filterStudents()"></div>
         <div class="fg" style="max-width:160px"><label>Class</label><select id="studentClassFilter" onchange="filterStudents();loadStreamsFor(this.value,'studentStreamFilter');loadStudentSections(this.value)"><option value="">All Classes</option></select></div>
         <div class="fg" id="studentSectionFilter_fg" style="display:none;max-width:140px"><label>Section</label><select id="studentSectionFilter" onchange="filterStudents()"><option value="">All sections</option></select></div>
         <div class="fg" id="studentStreamFilter_fg" style="display:none;max-width:150px"><label>Stream</label><select id="studentStreamFilter" onchange="filterStudents()"><option value="">All streams</option></select></div>
@@ -1917,7 +1917,7 @@ function filterStudents(){
     if(stat==='left'){ if(!e.relieved)return false }
     else if(e.relieved){ return false }
     const matchStat = stat==='left' ? true : (!stat || e.status===stat)
-    return (!s||st?.full_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))
+    return (!s||st?.full_name?.toLowerCase().includes(s)||st?.father_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))
       &&(!cls||e.classes?.class_id===cls)&&matchStat&&(!streamF||e.stream_id===streamF)&&(!secF||e.section_id===secF)
   })
   const body=$('studentBody')
