@@ -211,16 +211,16 @@
 <aside id="sidebar">
   <div class="logo"><h1>Fee Portal</h1><p>Shiv Public School</p></div>
   <nav>
-    <a class="active" data-page="dashboard"><span class="icon">⊞</span> Dashboard</a>
-    <a data-page="counter"><span class="icon">₹</span> Family Wallet</a>
-    <a data-page="students"><span class="icon">◉</span> Students</a>
-    <a data-page="transactions"><span class="icon">▤</span> Transactions</a>
-    <a data-page="matrix"><span class="icon">⊟</span> Fee Matrix</a>
-    <a data-page="backlog"><span class="icon">↺</span> Backlog Entry</a>
-    <a data-page="admission"><span class="icon">+</span> New Admission</a>
-    <a data-page="readmission"><span class="icon">▶</span> Re-admission</a>
-    <a data-page="defaulters"><span class="icon">⚠</span> Defaulters</a>
-    <a data-page="settings"><span class="icon">⚙</span> Settings</a>
+    <a class="active" data-page="dashboard"><span class="icon">⊞</span> <span class="lbl">Dashboard</span></a>
+    <a data-page="counter"><span class="icon">₹</span> <span class="lbl">Family Wallet</span></a>
+    <a data-page="students"><span class="icon">◉</span> <span class="lbl">Students</span></a>
+    <a data-page="transactions"><span class="icon">▤</span> <span class="lbl">Transactions</span></a>
+    <a data-page="matrix"><span class="icon">⊟</span> <span class="lbl">Fee Matrix</span></a>
+    <a data-page="backlog"><span class="icon">↺</span> <span class="lbl">Backlog Entry</span></a>
+    <a data-page="admission"><span class="icon">+</span> <span class="lbl">New Admission</span></a>
+    <a data-page="readmission"><span class="icon">▶</span> <span class="lbl">Re-admission</span></a>
+    <a data-page="defaulters"><span class="icon">⚠</span> <span class="lbl">Defaulters</span></a>
+    <a data-page="settings"><span class="icon">⚙</span> <span class="lbl">Settings</span></a>
   </nav>
   <div class="session-badge" id="sessionBadgeText">Session: —</div>
 </aside>
@@ -829,6 +829,8 @@ async function loadAll(){
       tuitionOverride: e.tuition_override,
       session:       e.session_id,
       status:        e.status,
+      relieved:      e.relieved===true,
+      relievedDate:  e.relieved_date||null,
       isNew:         e.is_new_admission,
       readmissionDate: e.readmission_date,
       rollNo:        e.roll_no,
@@ -1002,6 +1004,36 @@ function getMonthlyTuition(stu){
   return base;
 }
 
+// Which academic-month index (0=Apr … 11=Mar) did a sibling ENTER this session's
+// roster? A mid-session new admission enters on their admission month; a
+// continuing / re-admitted student is treated as present from session start.
+function entryMonthIdx(stu){
+  if(stu.isNew && stu.admDate) return getAdmissionMonthIdx(stu.admDate);
+  return 0;
+}
+
+// Tuition for a SPECIFIC month, honouring WHEN the family reached 3+ siblings.
+// The sibling flat fee applies to the youngest child only from the month the
+// third sibling actually joined — earlier months are billed at the normal rate.
+// (Override, when set, wins for every month.)
+function monthlyTuitionForMonth(stu, monthIdx){
+  if(stu.tuitionOverride!==null&&stu.tuitionOverride!==undefined&&stu.tuitionOverride!=='')
+    return parseFloat(stu.tuitionOverride);
+  const base=feeFor(stu).tuition;
+  if(!stu.familyCode) return base;
+  const sibs=siblingsOf(stu);
+  if(sibs.length<3) return base;
+  const sorted=sortSiblings(sibs);
+  const youngest=sorted[sorted.length-1];
+  if(!youngest || youngest.enrollment_id!==stu.enrollment_id) return base;
+  // Youngest of a 3+ sibling family — but only discount months in which 3+
+  // siblings were already enrolled. Before the 3rd joined, charge normally.
+  const presentBy=sibs.filter(s=>entryMonthIdx(s)<=monthIdx).length;
+  if(presentBy<3) return base;
+  const flat=feeFor(stu).sibDisc;
+  return (flat!==null&&flat!==undefined&&flat>0)?flat:base;
+}
+
 function getAnnualCharge(stu){
   if(stu.annualOverride!==null&&stu.annualOverride!==undefined&&stu.annualOverride!=='')
     return parseFloat(stu.annualOverride);
@@ -1038,9 +1070,10 @@ function getMonthPayments(eid,month){
 
 function getTotalDues(stu){
   const active=activeMonthsFor();
-  const mt=getMonthlyTuition(stu);
   let breakdown=[];
   const tuitionDue=active.reduce((sum,m)=>{
+    const mi=MONTHS.indexOf(m);
+    const mt=monthlyTuitionForMonth(stu,mi);   // rate for THIS month (sibling discount is date-scoped)
     const paid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===m)
       .reduce((s,p)=>s+(p.tuition||0),0);
     const waived=getWaivedAmount(stu,m);
@@ -1152,7 +1185,7 @@ async function saveGlobalPriority(){
 // ══════════════════════════════════════════════
 function renderDashboard(){
   const active=students;
-  const enrolled=active.filter(s=>s.sno!=null&&String(s.sno).trim()!=='');  // only S.No-allotted students are "enrolled" in the fee system
+  const enrolled=active.filter(s=>!s.relieved && s.sno!=null&&String(s.sno).trim()!=='');  // enrolled = S.No allotted and not relieved
   const todayColl=getTodayTotal();
   const totalDue=active.reduce((s,stu)=>s+getTotalDues(stu).total,0);
   const defCount=active.filter(s=>getTotalDues(s).total>0).length;
@@ -1505,7 +1538,7 @@ function runFamilyAutoAllocate(){
     activeMonths.forEach(m=>{
       activeSiblings.forEach(stu=>{
         if(cash<=0)return;
-        const mt=getMonthlyTuition(stu);
+        const mt=monthlyTuitionForMonth(stu,MONTHS.indexOf(m));
         const alreadyPaid=getMonthPayments(stu.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0);
         const waivedAmt=getWaivedAmount(stu,m);
         const due=Math.max(0,mt-waivedAmt-alreadyPaid);
@@ -1552,7 +1585,7 @@ function runFamilyAutoAllocate(){
       if(cash<=0)return;
       activeMonths.forEach(m=>{
         if(cash<=0)return;
-        const mt=getMonthlyTuition(stu);
+        const mt=monthlyTuitionForMonth(stu,MONTHS.indexOf(m));
         const paid=getMonthPayments(stu.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0);
         const wv=getWaivedAmount(stu,m);
         const due=Math.max(0,mt-wv-paid);
@@ -1578,7 +1611,7 @@ function runFamilyAutoAllocate(){
       if(annDue>0){const pay=Math.min(cash,annDue);autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:pay,fullDue:annDue});cash-=pay}
       activeMonths.forEach(m=>{
         if(cash<=0)return;
-        const mt=getMonthlyTuition(stu);
+        const mt=monthlyTuitionForMonth(stu,MONTHS.indexOf(m));
         const paid=getMonthPayments(stu.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0);
         const wv=getWaivedAmount(stu,m);
         const due=Math.max(0,mt-wv-paid);
@@ -1992,23 +2025,39 @@ function renderStudents(){
   if(cf) list=list.filter(s=>s.cls===cf);
   if(rf==='pending') list=list.filter(s=>s.sno==null||s.sno==='');
   if(rf==='done')    list=list.filter(s=>s.sno!=null&&s.sno!=='');
-  list=sortBySno(list);
 
-  $('stuTable').innerHTML=`<table>
-    <thead><tr><th>S.No</th><th>Name</th><th>Father's Name</th><th>Phone</th><th>Class</th><th>Family Code</th><th>Total Due</th><th></th></tr></thead>
-    <tbody>${list.map(s=>{
-      const d=getTotalDues(s); const pill=d.total===0?'pill-green':d.total<1000?'pill-yellow':'pill-red';
-      return `<tr>
-        <td>${snoCell(s)}</td>
-        <td><b>${esc(s.name)}</b></td>
-        <td>${esc(s.father||'—')}</td>
-        <td class="mono">${esc(s.phone||'—')}${s.altPhone?'<br><span style="color:var(--muted);font-size:10px">'+esc(s.altPhone)+'</span>':''}</td>
-        <td><span class="pill pill-blue">${esc(s.cls)}</span>${s.stream?` <span class="pill pill-blue" style="opacity:.7">${esc(s.stream)}</span>`:''}</td>
-        <td class="mono" style="color:var(--muted)">${esc(s.familyCode||'—')}</td>
-        <td class="mono"><span class="pill ${pill}">${fmtINR(d.total)}</span></td>
-        <td><button class="btn btn-ghost btn-sm" onclick="openProfileModal('${s.enrollment_id}','students')">View Profile</button></td>
-      </tr>`;
-    }).join('')||'<tr><td colspan="8" class="text-muted" style="padding:16px;text-align:center">No students match the filters.</td></tr>'}</tbody></table>`;
+  // Split relieved students out — they're kept in the fee portal (dues may still
+  // be pending) but shown in a separate section so staff know their status.
+  const activeList  = sortBySno(list.filter(s=>!s.relieved));
+  const relievedList= sortBySno(list.filter(s=>s.relieved));
+
+  const rowFor=(s,isRel)=>{
+    const d=getTotalDues(s); const pill=d.total===0?'pill-green':d.total<1000?'pill-yellow':'pill-red';
+    return `<tr${isRel?' style="background:rgba(232,162,61,.05)"':''}>
+      <td>${snoCell(s)}</td>
+      <td><b>${esc(s.name)}</b>${isRel?' <span class="pill pill-yellow" style="font-size:9px">RELIEVED</span>':''}</td>
+      <td>${esc(s.father||'—')}</td>
+      <td class="mono">${esc(s.phone||'—')}${s.altPhone?'<br><span style="color:var(--muted);font-size:10px">'+esc(s.altPhone)+'</span>':''}</td>
+      <td><span class="pill pill-blue">${esc(s.cls)}</span>${s.stream?` <span class="pill pill-blue" style="opacity:.7">${esc(s.stream)}</span>`:''}</td>
+      <td class="mono" style="color:var(--muted)">${esc(s.familyCode||'—')}</td>
+      <td class="mono"><span class="pill ${pill}">${fmtINR(d.total)}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="openProfileModal('${s.enrollment_id}','students')">View Profile</button></td>
+    </tr>`;
+  };
+
+  const headRow='<thead><tr><th>S.No</th><th>Name</th><th>Father\'s Name</th><th>Phone</th><th>Class</th><th>Family Code</th><th>Total Due</th><th></th></tr></thead>';
+
+  let html=`<table>${headRow}<tbody>${activeList.map(s=>rowFor(s,false)).join('')||'<tr><td colspan="8" class="text-muted" style="padding:16px;text-align:center">No students match the filters.</td></tr>'}</tbody></table>`;
+
+  if(relievedList.length){
+    const relDue=relievedList.reduce((s,x)=>s+getTotalDues(x).total,0);
+    html+=`<div style="margin:26px 0 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h3 style="font-size:13px;font-weight:700;color:var(--yellow);margin:0">Relieved Students (${relievedList.length})</h3>
+        <span class="text-muted" style="font-size:11.5px">Kept because fees are still pending · Total pending ${fmtINR(relDue)}</span>
+      </div>
+      <table class="rel-table">${headRow}<tbody>${relievedList.map(s=>rowFor(s,true)).join('')}</tbody></table>`;
+  }
+  $('stuTable').innerHTML=html;
 }
 
 function openProfileModal(eid,returnPage){
@@ -2285,12 +2334,12 @@ function renderMatrix(){
   headers+=`<th style="min-width:110px">Annual</th><th style="min-width:100px">Prev.Bal</th><th style="min-width:110px">Total Due</th>`;
 
   const rows=list.map(stu=>{
-    const mt=getMonthlyTuition(stu), dues=getTotalDues(stu);
+    const dues=getTotalDues(stu);
     const cells=MONTHS.map(m=>{
       const pays=getMonthPayments(stu.enrollment_id,m);
       const paid=pays.reduce((s,p)=>s+(p.tuition||0),0);
       const wv=getWaivedAmount(stu,m);
-      const net=Math.max(0,mt-wv);
+      const net=Math.max(0,monthlyTuitionForMonth(stu,MONTHS.indexOf(m))-wv);
       const cls2=paid===0?(net===0?'cell-waived':'cell-unpaid'):paid>=net?'cell-paid':'cell-partial';
       const content=pays.length?pays.map(p=>`<div class="payment-row"><span class="pay-amt">${fmtINR(p.tuition)}</span><span class="pay-date">${fmtDate(p.datetime)}</span></div>`).join(''):'<span style="color:var(--muted)">—</span>';
       return `<td class="matrix-cell ${cls2}">${content}</td>`;
