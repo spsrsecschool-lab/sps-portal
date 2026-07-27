@@ -1574,9 +1574,63 @@ async function loadMyTimetable(){
     .select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)')
     .eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id)
   console.log('[TT] Entries:',entries?.length,'error:',error)
-  if(!entries?.length){emp(el,'No timetable entries found. Ask admin to assign time slots to your class-subject mappings.');return}
 
-  // Check if entries have time_slots linked
+  // Standing adjustments (classes this teacher covers, not their own teaching).
+  let adjustments=[]
+  try{
+    const res=await sb.from('adjustments')
+      .select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name)')
+      .eq('teacher_id',TEACHER.teacher_id)
+    if(!res.error) adjustments=(res.data||[]).filter(a=>a.time_slots)   // need a slot to place in grid
+  }catch(e){}
+
+  const withSlots=(entries||[]).filter(e=>e.time_slots)
+
+  // Nothing to show at all.
+  if(!withSlots.length && !adjustments.length){
+    if(entries&&entries.length){
+      // Entries exist but no time slots — show subject list instead
+      const rows=[...new Map(entries.map(e=>[(e.class_id||'')+'_'+(e.subject_id||''),e])).values()]
+      el.innerHTML='<div class="card"><div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:var(--ink)">⚠️ Your timetable entries exist but have no time slots assigned. Ask admin to edit each mapping and assign a time slot.</div>'
+        +'<h3>Your Assigned Classes</h3>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:8px">'+rows.map(e=>'<span class="map-tag">'+esc(e.subjects?.name||'?')+' · '+esc((e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'))+'</span>').join('')+'</div></div>'
+      return
+    }
+    emp(el,'No timetable entries or adjustments yet.');return
+  }
+
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat']
+  const slotMap=new Map()
+  withSlots.forEach(e=>{if(!slotMap.has(e.slot_id))slotMap.set(e.slot_id,{...e.time_slots,slot_id:e.slot_id})})
+  adjustments.forEach(a=>{if(!slotMap.has(a.slot_id))slotMap.set(a.slot_id,{...a.time_slots,slot_id:a.slot_id})})
+  const slots=[...slotMap.values()].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  const lookup={}
+  withSlots.forEach(e=>{(e.days||[]).forEach(d=>{const k=e.slot_id+'_'+d;if(!lookup[k])lookup[k]=[];lookup[k].push({...e,_adj:false})})})
+  adjustments.forEach(a=>{(a.days||[]).forEach(d=>{const k=a.slot_id+'_'+d;if(!lookup[k])lookup[k]=[];lookup[k].push({...a,_adj:true})})})
+  let html=''
+  if(adjustments.length)html+='<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:var(--ink)">📌 Amber cells are <b>adjustments</b> — classes you go to cover (not your regular teaching).</div>'
+  html+='<div class="card tt-grid"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>'
+  slots.forEach(slot=>{
+    html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name||'')+'</td><td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
+    days.forEach(d=>{
+      const es=lookup[slot.slot_id+'_'+d]||[]
+      if(!es.length){html+='<td style="background:var(--lav-50)"></td>';return}
+      html+='<td style="padding:6px 4px;vertical-align:top;min-width:90px">'+es.map(e=>{
+        if(e._adj){
+          return '<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;padding:6px 8px;text-align:center;margin-bottom:3px"><div style="font-size:12px;font-weight:800;color:var(--warn);white-space:nowrap">'+esc((e.classes?.name||'')+'-'+(e.class_sections?.name||''))+'</div><div style="font-size:10px;color:var(--warn);margin-top:2px;font-weight:700;letter-spacing:.03em">ADJUSTMENT</div></div>'
+        }
+        return '<div style="background:var(--indigo-100);border-radius:8px;padding:6px 8px;text-align:center;margin-bottom:3px"><div style="font-size:12px;font-weight:800;color:var(--indigo-dark);white-space:nowrap">'+esc((e.classes?.name||'')+'-'+(e.class_sections?.name||''))+'</div><div style="font-size:11px;color:var(--ink-soft);margin-top:2px;white-space:nowrap">'+esc(e.subjects?.name||'')+'</div></div>'
+      }).join('')+'</td>'
+    })
+    html+='</tr>'
+  })
+  el.innerHTML=html+'</tbody></table></div></div>'
+  return
+}
+
+// legacy grid path below is unused (kept for reference)
+async function _legacyTimetableTail(entries,error,el,roster){
+  if(!entries?.length){emp(el,'No timetable entries found. Ask admin to assign time slots to your class-subject mappings.');return}
   const withSlots=entries.filter(e=>e.time_slots)
   console.log('[TT] Entries with slots:',withSlots.length,'of',entries.length)
   if(!withSlots.length){
