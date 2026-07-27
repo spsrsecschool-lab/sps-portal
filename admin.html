@@ -280,6 +280,19 @@ tbody tr:hover td{background:var(--lav-50)}
 .msg-compose-box textarea{width:100%;font-family:var(--font);font-size:13px;padding:12px 14px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;outline:none;min-height:80px;background:var(--white);box-sizing:border-box}
 .msg-compose-box textarea:focus{border-color:var(--indigo)}
 
+/* Collapsible thread panel + mobile stacking (mirrors teacher portal) */
+.msg-back-btn{display:none;align-items:center;gap:6px;padding:10px 16px;background:var(--lav-100);border:none;border-bottom:1px solid var(--line);font-family:var(--font);font-size:13px;font-weight:700;color:var(--indigo);cursor:pointer;width:100%}
+.msg-back-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.2}
+@media(max-width:760px){
+  .msg-shell{height:auto!important;min-height:70vh}
+  #msgThreadPanel{width:100%!important;border-right:none!important;border-bottom:1px solid var(--line)}
+  #msgReadPane{display:none!important}
+  .msg-shell.reading #msgThreadPanel{display:none!important}
+  .msg-shell.reading #msgReadPane{display:flex!important}
+  .msg-back-btn{display:flex}
+  .msg-email-wrap{max-height:none!important}
+}
+
 
   .dow-chip{font-family:var(--font);font-size:12px;font-weight:700;padding:8px 14px;border-radius:9px;border:1.5px solid var(--line);background:var(--white);color:var(--ink-soft);cursor:pointer;transition:all .12s}
   .dow-chip:hover{background:var(--lav-50)}
@@ -424,10 +437,18 @@ tbody tr:hover td{background:var(--lav-50)}
           <button class="btn btn-dark" onclick="openComposeModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
         </div>
       </div>
-      <div class="msg-shell" style="display:flex;min-height:520px;overflow:hidden">
-        <div class="msg-thread-list" id="msgThreadList" style="width:310px;flex-shrink:0"></div>
-        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
-          <div style="padding:16px 24px;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--white)">
+      <div class="msg-shell" style="display:flex;height:600px;overflow:hidden">
+        <div id="msgThreadPanel" style="width:310px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--line)">
+          <div style="padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)">Threads</span>
+            <button onclick="toggleThreadPanel()" style="background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:18px;line-height:1;padding:2px 6px" title="Collapse">&#8249;</button>
+          </div>
+          <div class="msg-thread-list" id="msgThreadList" style="flex:1;overflow-y:auto"></div>
+        </div>
+        <div id="msgReadPane" style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;position:relative">
+          <button id="msgReopenBtn" onclick="toggleThreadPanel()" style="display:none;position:absolute;top:14px;left:14px;z-index:5;background:var(--indigo-100);color:var(--indigo);border:none;border-radius:8px;padding:7px 12px;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;align-items:center;gap:6px"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg> Threads</button>
+          <button class="msg-back-btn" onclick="backToThreadList()"><svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Back to threads</button>
+          <div id="msgThreadHeadWrap" style="padding:16px 24px;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--white)">
             <div style="font-size:15px;font-weight:800;color:var(--ink)" id="msgThreadHead">Select a thread</div>
             <div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px" id="msgThreadMeta"></div>
           </div>
@@ -1537,7 +1558,10 @@ async function loadMessages(){
   if(el)el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div>'
   const[{data:received},{data:sent}]=await Promise.all([
     sb.from('messages').select('*').eq('recipient_type','admin').eq('recipient_id',SPS.admin.admin_id).neq('message_type','broadcast').order('sent_at',{ascending:false}).limit(200),
-    sb.from('messages').select('*').eq('sender_type','admin').eq('sender_id',SPS.admin.admin_id).neq('message_type','broadcast').order('sent_at',{ascending:false}).limit(200)
+    // Exclude the auto-notices admin fires to teachers (student moved / added /
+    // relieved etc. use message_type 'system_notification'). Admin's own real
+    // messages and replies use 'direct', so they still show.
+    sb.from('messages').select('*').eq('sender_type','admin').eq('sender_id',SPS.admin.admin_id).neq('message_type','broadcast').neq('message_type','system_notification').order('sent_at',{ascending:false}).limit(200)
   ])
   const allMsgs=[...(received||[]),...(sent||[])]
   window._adminMsgs=allMsgs
@@ -1583,13 +1607,16 @@ async function loadMessages(){
     // Preserve open thread by subject if possible
     const prevSubj=window._adminOpenSubj
     const keepIdx=prevSubj?threads.findIndex(t=>t.subject===prevSubj):0
-    openAdminThread(keepIdx>=0?keepIdx:0)
+    openAdminThread(keepIdx>=0?keepIdx:0,true)   // true = auto-open, don't switch panes on mobile
   }
 }
 
 let _adminCurrThread=null
-async function openAdminThread(idx){
+async function openAdminThread(idx,isAuto){
   _adminCurrThread=idx
+  // On mobile, opening a thread swaps to the read pane — but not on the initial
+  // auto-open, which would trap the user in an empty read pane on page load.
+  if(!isAuto&&window.innerWidth<=760)document.querySelector('.msg-shell')?.classList.add('reading')
   document.querySelectorAll('#msgThreadList .msg-thread-item').forEach(i=>{i.classList.toggle('active',+i.dataset.idx===idx)})
   const thread=window._adminThreads?.[idx];if(!thread)return
   window._openThreadSubject=thread.subject
@@ -1623,6 +1650,27 @@ async function openAdminThread(idx){
     await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unreadIds)
     thread.unread=0
   }
+}
+
+// Collapse/expand the thread list on desktop; on mobile it's handled by the
+// .reading class instead.
+function toggleThreadPanel(){
+  const panel=$('msgThreadPanel'),reopenBtn=$('msgReopenBtn'),head=$('msgThreadHeadWrap')
+  if(!panel)return
+  const hidden=panel.style.display==='none'
+  if(hidden){
+    panel.style.display='flex'
+    if(reopenBtn)reopenBtn.style.display='none'
+    if(head)head.style.paddingLeft='24px'
+  }else{
+    panel.style.display='none'
+    if(reopenBtn)reopenBtn.style.display='flex'
+    if(head)head.style.paddingLeft='120px'
+  }
+}
+// Mobile: return from the read pane to the thread list.
+function backToThreadList(){
+  document.querySelector('.msg-shell')?.classList.remove('reading')
 }
 
 
