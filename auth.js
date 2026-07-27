@@ -38,21 +38,35 @@
     user:     null,
     teacher:  null,
     admin:    null,
+    coordinator: null,
     portals:  [],
     session:  null,
     _ready:   null,
   }
 
   // ── SESSION CACHE ────────────────────────────────────────────
-  function getLocalUser() {
+  // Cache is keyed by userId so a different account logging in on the same
+  // browser NEVER inherits another user's cached portal list. A previous
+  // global (unkeyed) cache caused exactly that: teacher B saw teacher A's
+  // cached portals and got wrongly bounced to login.
+  function clearAllPortalCache() {
     try {
-      // Prefer localStorage (shared across tabs) so a fresh tab doesn't need to
-      // re-run detectPortals() — which can be blocked by browser tracking
-      // prevention (e.g. Edge) and would then wrongly bounce to login.
-      // Fall back to sessionStorage for older sessions.
-      const ls = localStorage.getItem('sps_user_v2')
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('sps_user_v2_')) localStorage.removeItem(k)
+      })
+    } catch (_) {}
+  }
+
+  function getLocalUser(userId) {
+    try {
+      if (!userId) return null
+      const ls = localStorage.getItem('sps_user_v2_' + userId)
       if (ls) return JSON.parse(ls)
-      return JSON.parse(sessionStorage.getItem('sps_user') || 'null')
+      // Back-compat: an old unkeyed cache, only trust it if it says which user
+      // it belongs to and that matches.
+      const legacy = JSON.parse(sessionStorage.getItem('sps_user') || 'null')
+      if (legacy && legacy.userId === userId) return legacy
+      return null
     } catch { return null }
   }
 
@@ -72,7 +86,7 @@
 
   // ── PORTAL DETECTION ─────────────────────────────────────────
   async function detectPortals(userId) {
-    const results = { portals: [], teacher: null, admin: null }
+    const results = { portals: [], teacher: null, admin: null, coordinator: null }
 
     const { data: adminRow } = await sb
       .from('admins')
@@ -83,6 +97,36 @@
     if (adminRow) {
       results.admin = adminRow
       results.portals = ['admin']
+      return results
+    }
+
+    // Coordinator — a standalone account (may optionally be linked to a teacher).
+    // Checked before teacher so a pure coordinator routes to their own portal.
+    let coordRow = null
+    try {
+      const { data } = await sb
+        .from('coordinators')
+        .select('coordinator_id, name, is_active, teacher_id')
+        .eq('auth_user_id', userId)
+        .maybeSingle()
+      coordRow = data
+    } catch (_) { /* table may not exist yet — ignore */ }
+
+    if (coordRow && coordRow.is_active) {
+      results.coordinator = coordRow
+      results.portals.push('coordinator')
+      // If this coordinator is ALSO a teacher, let them switch to teacher views.
+      if (coordRow.teacher_id) {
+        const { data: tRow } = await sb
+          .from('teachers')
+          .select('teacher_id, full_name, designation, is_active')
+          .eq('teacher_id', coordRow.teacher_id)
+          .maybeSingle()
+        if (tRow && tRow.is_active) {
+          results.teacher = tRow
+          results.portals.push('main_teacher')
+        }
+      }
       return results
     }
 
@@ -193,11 +237,12 @@
     SPS.session = session
     SPS.user = session.user
 
-    const cached = getLocalUser()
+    const cached = getLocalUser(session.user.id)
     if (cached && cached.portals) {
       console.log('[boot] 3 using cached portals:', cached.portals)
       SPS.teacher = cached.teacher
       SPS.admin   = cached.admin
+      SPS.coordinator = cached.coordinator
       SPS.portals = cached.portals
     } else {
       console.log('[boot] 3 detecting portals…')
@@ -215,15 +260,19 @@
       console.log('[boot] 3b detected:', detected.portals)
       SPS.teacher = detected.teacher
       SPS.admin   = detected.admin
+      SPS.coordinator = detected.coordinator
       SPS.portals = detected.portals
       const payload = JSON.stringify({
+        userId:  session.user.id,
         teacher: SPS.teacher,
         admin:   SPS.admin,
+        coordinator: SPS.coordinator,
         portals: SPS.portals,
       })
       // Persist to BOTH: localStorage is shared across tabs (so a new tab skips
-      // detectPortals entirely), sessionStorage kept for back-compat.
-      try { localStorage.setItem('sps_user_v2', payload) } catch (_) {}
+      // detectPortals entirely), sessionStorage kept for back-compat. Keyed by
+      // userId so a different account never inherits this cache.
+      try { localStorage.setItem('sps_user_v2_' + session.user.id, payload) } catch (_) {}
       try { sessionStorage.setItem('sps_user', payload) } catch (_) {}
     }
 
@@ -245,11 +294,12 @@
     // was almost certainly a blocked/transient DB call (e.g. Edge tracking
     // prevention) — NOT a real auth problem. Boot from cache instead of
     // bouncing to login (which would just hit the same block).
-    const cachedFallback = getLocalUser()
+    const cachedFallback = getLocalUser(SPS.session?.user?.id)
     if (SPS.session && cachedFallback && cachedFallback.portals) {
       console.warn('[auth] booting from cached portals after detect failure')
       SPS.teacher = cachedFallback.teacher
       SPS.admin   = cachedFallback.admin
+      SPS.coordinator = cachedFallback.coordinator
       SPS.portals = cachedFallback.portals
       const key = window.PORTAL_KEY
       if (key && !SPS.portals.includes(key)) { redirectToLogin('access'); return }
@@ -275,7 +325,7 @@
   SPS.signOut = async function() {
     await sb.auth.signOut()
     sessionStorage.removeItem('sps_user')
-    try { localStorage.removeItem('sps_user_v2') } catch (_) {}
+    clearAllPortalCache()
     redirectToLogin()
   }
 
@@ -310,7 +360,7 @@ SPS.supabaseUrl = 'https://aafigohphcegnvvcojby.supabase.co'
       if (!SPS._booted) { console.log('[auth-event] ignoring pre-boot SIGNED_OUT'); return }
       if (readStoredSession()) { console.log('[auth-event] ignoring SIGNED_OUT — token still in storage'); return }
       sessionStorage.removeItem('sps_user')
-      try { localStorage.removeItem('sps_user_v2') } catch (_) {}
+      clearAllPortalCache()
       redirectToLogin()
     }
   })
