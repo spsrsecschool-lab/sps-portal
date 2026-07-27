@@ -1104,7 +1104,19 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="fg"><label>Section *</label><select id="adj_section"><option value="">Select class first</option></select></div>
           </div>
           <div class="form-row">
-            <div class="fg" style="max-width:220px"><label>Period / Time <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label><input type="text" id="adj_period" placeholder="e.g. 3rd period / daily"></div>
+            <div class="fg"><label>Time Slot / Period *</label><select id="adj_slot"><option value="">Select active roster first</option></select></div>
+            <div class="fg"><label>Days</label>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:6px" id="adj_days">
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" class="adj_day" value="Mon" checked> Mon</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" class="adj_day" value="Tue" checked> Tue</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" class="adj_day" value="Wed" checked> Wed</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" class="adj_day" value="Thu" checked> Thu</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" class="adj_day" value="Fri" checked> Fri</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" class="adj_day" value="Sat" checked> Sat</label>
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
             <div class="fg"><label>Note <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label><input type="text" id="adj_note" placeholder="e.g. Supervise / keep them occupied"></div>
           </div>
           <button class="btn btn-dark" onclick="saveAdjustment()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Assign Adjustment &amp; Notify</button>
@@ -5117,7 +5129,18 @@ async function loadTimetable(){
   // Adjustment tab
   if($('adj_teacher'))$('adj_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
   if($('adj_class'))$('adj_class').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  loadAdjSlots()
   loadAdjustments()
+}
+
+// Load the active roster's time slots into the adjustment slot dropdown.
+async function loadAdjSlots(){
+  const sel=$('adj_slot');if(!sel)return
+  const roster=await getActiveRoster()
+  if(!roster){sel.innerHTML='<option value="">No active roster — create one first</option>';return}
+  window._adjRoster=roster
+  const{data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order')
+  sel.innerHTML='<option value="">Select slot</option>'+(slots||[]).map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+(s.start_time||'').slice(0,5)+'–'+(s.end_time||'').slice(0,5)+')</option>').join('')
 }
 
 // ═══════════ ADJUSTMENTS (send a teacher to cover a class) ═══════════
@@ -5133,26 +5156,30 @@ async function adjLoadSections(){
 async function saveAdjustment(){
   const teacherId=$('adj_teacher')?.value
   const classId=$('adj_class')?.value,sectionId=$('adj_section')?.value
-  const period=$('adj_period')?.value?.trim()||null,note=$('adj_note')?.value?.trim()||null
+  const slotId=$('adj_slot')?.value
+  const days=[...document.querySelectorAll('.adj_day:checked')].map(c=>c.value)
+  const note=$('adj_note')?.value?.trim()||null
   if(!teacherId||!classId||!sectionId){toast('Teacher, class and section are required','error');return}
+  if(!slotId){toast('Select a time slot','error');return}
+  if(!days.length){toast('Select at least one day','error');return}
+  const roster=window._adjRoster||await getActiveRoster()
   const cls=ALL_CLASSES.find(c=>c.class_id===classId)
   let secName=''
   try{const{data:sd}=await sb.from('class_sections').select('name').eq('section_id',sectionId).maybeSingle();secName=sd?.name||''}catch(e){}
   const clsLabel=(cls?.name||'?')+'-'+(secName||'?')
   const{error}=await sb.from('adjustments').insert({
     session_id:SESS?.session_id||null,teacher_id:teacherId,
-    class_id:classId,section_id:sectionId,period,note,created_by:SPS.admin?.admin_id
+    class_id:classId,section_id:sectionId,roster_id:roster?.roster_id||null,
+    slot_id:slotId,days,note,created_by:SPS.admin?.admin_id
   })
   if(error){toast('Failed: '+error.message,'error');return}
-  // Notify the teacher of the standing assignment.
   await sb.from('messages').insert({
     sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:teacherId,
     subject:'Adjustment — Class '+clsLabel,
-    body:'You have a permanent adjustment: Class '+clsLabel+'. You are to go there daily'+(period?' ('+period+')':'')+'.'+(note?'\nNote: '+note:''),
+    body:'You have a permanent adjustment: Class '+clsLabel+'. It now appears in your timetable ('+days.join(', ')+').'+(note?'\nNote: '+note:''),
     message_type:'substitution_notice',sent_at:new Date().toISOString()
   })
   toast('Adjustment assigned & teacher notified','success')
-  if($('adj_period'))$('adj_period').value=''
   if($('adj_note'))$('adj_note').value=''
   loadAdjustments()
 }
@@ -5161,14 +5188,15 @@ async function loadAdjustments(){
   const el=$('adjList');if(!el)return
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   const{data,error}=await sb.from('adjustments')
-    .select('*,teachers(full_name),classes(name),class_sections(name)')
+    .select('*,teachers(full_name),classes(name),class_sections(name),time_slots(name,start_time,end_time)')
     .order('created_at',{ascending:false}).limit(200)
-  if(error){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Adjustments table not found. Run the setup SQL in Supabase, then reload.</p>';return}
+  if(error){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Adjustments table not found or missing columns. Run the setup SQL in Supabase, then reload.</p>';return}
   if(!data?.length){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">No adjustments assigned.</p>';return}
-  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Period</th><th>Note</th><th></th></tr></thead><tbody>'
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Slot</th><th>Days</th><th>Note</th><th></th></tr></thead><tbody>'
     +data.map(a=>'<tr><td style="font-weight:600">'+esc(a.teachers?.full_name||a.teacher_id)+'</td>'
       +'<td>'+esc((a.classes?.name||'?')+'-'+(a.class_sections?.name||'?'))+'</td>'
-      +'<td>'+esc(a.period||'—')+'</td>'
+      +'<td>'+esc(a.time_slots?.name||'—')+(a.time_slots?.start_time?' <span style="color:var(--ink-faint);font-size:11px">'+a.time_slots.start_time.slice(0,5)+'</span>':'')+'</td>'
+      +'<td style="font-size:11.5px">'+esc((a.days||[]).join(', ')||'—')+'</td>'
       +'<td style="color:var(--ink-soft)">'+esc(a.note||'—')+'</td>'
       +'<td><button class="btn btn-ghost btn-xs" style="color:var(--danger);border-color:var(--danger)" data-id="'+a.adjustment_id+'" onclick="deleteAdjustment(this.dataset.id)">Remove</button></td></tr>').join('')
     +'</tbody></table></div>'
