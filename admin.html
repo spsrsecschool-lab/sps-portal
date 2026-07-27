@@ -489,7 +489,7 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="fg"><label>Date of Birth</label><input type="date" id="adm_dob"></div>
           </div>
           <div class="form-row">
-            <div class="fg"><label>Phone *</label><input type="text" inputmode="numeric" id="adm_phone" required placeholder="Primary mobile"></div>
+            <div class="fg"><label>Phone</label><input type="text" inputmode="numeric" id="adm_phone" placeholder="Primary mobile"></div>
             <div class="fg"><label>Alternate Phone</label><input type="text" inputmode="numeric" id="adm_altphone" placeholder="Optional"></div>
           </div>
           <div class="form-row">
@@ -1811,7 +1811,7 @@ async function toggleTeacher(id,active){confirmAct((active?'Deactivate':'Activat
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
   if(!SESS)return; ldg($('studentBody'))
-  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(1000)
+  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(1000)
   if(error){toast('Failed to load students','error');console.error('[loadStudents] error:',error);return}
   _studentsRaw=(data||[]).sort((a,b)=>{
     // Stable ascending sort by student_id (STU-0001, STU-0002 ...). Client-side
@@ -1841,7 +1841,16 @@ async function loadStudents(){
 function filterStudents(){
   const s=$('studentSearch')?.value?.toLowerCase()||'',cls=$('studentClassFilter')?.value||'',stat=$('studentStatusFilter')?.value||''
   const streamF=$('studentStreamFilter')?.value||''
-  const rows=(_studentsRaw||[]).filter(e=>{const st=e.students;return(!s||st?.full_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))&&(!cls||e.classes?.class_id===cls)&&(!stat||e.status===stat)&&(!streamF||e.stream_id===streamF)})
+  const rows=(_studentsRaw||[]).filter(e=>{
+    const st=e.students
+    // Relieved students are hidden by default; only shown when the status
+    // filter is explicitly set to "Left".
+    if(stat==='left'){ if(!e.relieved)return false }
+    else if(e.relieved){ return false }
+    const matchStat = stat==='left' ? true : (!stat || e.status===stat)
+    return (!s||st?.full_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))
+      &&(!cls||e.classes?.class_id===cls)&&matchStat&&(!streamF||e.stream_id===streamF)
+  })
   const body=$('studentBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="9"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/></svg><p>No students found.</p></div></td></tr>';return}
   body.innerHTML=rows.slice(0,1000).map(e=>{const s=e.students;return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
@@ -2134,7 +2143,7 @@ async function submitAdmission(e){
       fc='F'+String(_maxFc+1).padStart(4,'0')
       await sb.from('families').insert({family_code:fc})
     }
-    const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,phone:$('adm_phone').value.trim(),alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc})
+    const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,phone:$('adm_phone').value.trim()||null,alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc})
     if(se)throw se
     // S.No is now MANUAL: use exactly what the admin typed, or leave it blank
     // if they left it empty (some students aren't allotted an S.No yet).
