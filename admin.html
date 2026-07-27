@@ -541,11 +541,14 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="fg"><label>Section *</label><select id="adm_section" required onchange="syncStreamSection('section','adm')"><option value="">Select class first</option></select></div>
           <div class="fg" id="adm_stream_fg" style="display:none"><label>Stream</label><select id="adm_stream" onchange="syncStreamSection('stream','adm')"><option value="">Select stream</option></select></div>
           </div>
-          <div class="form-row">
+          <div class="form-row" style="align-items:center">
             <div class="fg" style="max-width:220px"><label>S.No (leave blank if not yet allotted)</label><input type="text" inputmode="numeric" id="adm_sno" placeholder="next: —"></div>
+            <div class="fg" style="max-width:340px;justify-content:flex-end">
+              <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink)"><input type="checkbox" id="adm_isnew" style="width:16px;height:16px;accent-color:var(--ink)"> New admission? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(waives the annual charge)</span></label>
+            </div>
           </div>
           <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--ink-soft)">
-            Roll no. is auto-assigned as MAX+1 in the selected section. Leave <b>S.No blank</b> if this student hasn't been allotted one yet — the placeholder just shows the next available number. Both can be adjusted after admission.
+            Roll no. is auto-assigned as MAX+1 in the selected section. Leave <b>S.No blank</b> if this student hasn't been allotted one yet — the placeholder just shows the next available number. Tick <b>New admission</b> only for genuinely new students (it waives the annual charge); leave it unticked for re-admitted / promoted students. Both can be adjusted after admission.
           </div>
         </div>
         <button type="submit" class="btn btn-dark" id="admitBtn">Admit Student</button>
@@ -2287,7 +2290,8 @@ async function submitAdmission(e){
     const{data:rolls}=await sb.from('student_enrollments').select('roll_no').eq('session_id',SESS.session_id).eq('section_id',secId).not('roll_no','is',null)
     const maxR=(rolls||[]).reduce((m,r)=>r.roll_no>m?r.roll_no:m,0)
     const streamId=$('adm_stream')?.value||null
-    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:snoToSave,status:'active',is_new_admission:true,readmission_date:null})
+    const isNewAdm=$('adm_isnew')?.checked===true
+    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:snoToSave,status:'active',is_new_admission:isNewAdm,readmission_date:null})
     if(!ee){
       await adminNotifyCTs({
         pairs:[{class_id:classId,section_id:secId}],
