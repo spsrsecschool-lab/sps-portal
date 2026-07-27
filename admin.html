@@ -492,8 +492,8 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
       <div id="studentCount" style="font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:10px"></div>
       <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>ID</th><th>Name</th><th>Class</th><th>Sec</th><th>Roll</th><th>S.No</th><th>Family</th><th>Phone</th><th></th></tr></thead>
-        <tbody id="studentBody"><tr><td colspan="9"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+        <thead><tr><th>ID</th><th>Name</th><th>Father's Name</th><th>Class</th><th>Sec</th><th>Roll</th><th>S.No</th><th>Family</th><th>Phone</th><th></th></tr></thead>
+        <tbody id="studentBody"><tr><td colspan="10"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table></div></div>
     </div>
 
@@ -1993,8 +1993,8 @@ function filterStudents(){
       : 'Total students: '+rows.length
   }
   const body=$('studentBody')
-  if(!rows.length){body.innerHTML='<tr><td colspan="9"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/></svg><p>No students found.</p></div></td></tr>';return}
-  body.innerHTML=rows.slice(0,1000).map(e=>{const s=e.students;return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
+  if(!rows.length){body.innerHTML='<tr><td colspan="10"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/></svg><p>No students found.</p></div></td></tr>';return}
+  body.innerHTML=rows.slice(0,1000).map(e=>{const s=e.students;return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(s?.father_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
 }
 async function openProfile(enrollId){
   _profileEnrollId=enrollId; $('profileModal').classList.add('show')
