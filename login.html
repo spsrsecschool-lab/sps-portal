@@ -484,13 +484,20 @@ const PORTALS = {
     color: '#C9962E',
     icon: `<svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
   },
+  coordinator: {
+    label: 'Coordinator Portal',
+    sub: 'Monitor attendance & marks, reminders, substitutions',
+    href: 'coordinator.html',
+    color: '#0E7C6B',
+    icon: `<svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+  },
 }
 
 // ─── ROLE DETECTION ──────────────────────────────────────────
 // After Supabase auth succeeds, we query the database to find
 // which tables this user appears in, which determines their portals.
 async function detectPortals(userId) {
-  const results = { portals: [], teacher: null, admin: null }
+  const results = { portals: [], teacher: null, admin: null, coordinator: null }
 
   try {
     // 1. Check admins table
@@ -505,6 +512,34 @@ async function detectPortals(userId) {
     if (adminRow) {
       results.admin = adminRow
       results.portals.push('admin')
+      return results
+    }
+
+    // 1b. Check coordinators table (standalone account; may link to a teacher).
+    let coordRow = null
+    try {
+      const { data } = await sb
+        .from('coordinators')
+        .select('coordinator_id, name, is_active, teacher_id')
+        .eq('auth_user_id', userId)
+        .maybeSingle()
+      coordRow = data
+    } catch (_) { /* table may not exist yet */ }
+
+    if (coordRow && coordRow.is_active) {
+      results.coordinator = coordRow
+      results.portals.push('coordinator')
+      if (coordRow.teacher_id) {
+        const { data: tRow } = await sb
+          .from('teachers')
+          .select('teacher_id, full_name, designation, is_active')
+          .eq('teacher_id', coordRow.teacher_id)
+          .maybeSingle()
+        if (tRow && tRow.is_active) {
+          results.teacher = tRow
+          results.portals.push('main_teacher')
+        }
+      }
       return results
     }
 
@@ -603,7 +638,7 @@ function storeSessionData(userData) {
   sessionStorage.setItem('sps_user', JSON.stringify(userData))
 }
 
-function routeToPortal(portals, teacher, admin) {
+function routeToPortal(portals, teacher, admin, coordinator) {
   if (portals.length === 0) {
     showError('Your account has no portal access. Contact your admin.')
     setLoading(false)
@@ -611,7 +646,7 @@ function routeToPortal(portals, teacher, admin) {
   }
 
   // Store user data so portals can read it
-  storeSessionData({ teacher, admin, portals })
+  storeSessionData({ teacher, admin, coordinator, portals })
 
   if (portals.length === 1) {
     // Direct redirect — no selection needed.
@@ -691,10 +726,10 @@ async function handleLogin(e) {
   }
 
   // Auth success — detect which portals this user can access
-  const { portals, teacher, admin } = await detectPortals(data.user.id)
+  const { portals, teacher, admin, coordinator } = await detectPortals(data.user.id)
 
   setLoading(false)
-  routeToPortal(portals, teacher, admin)
+  routeToPortal(portals, teacher, admin, coordinator)
 }
 
 // ─── SIGN OUT ────────────────────────────────────────────────
@@ -747,10 +782,10 @@ async function checkExistingSession() {
     console.log('[login] session resolved:', !!session)
 
     if (session) {
-      const { portals, teacher, admin } = await detectPortals(session.user.id)
+      const { portals, teacher, admin, coordinator } = await detectPortals(session.user.id)
       console.log('[login] detected portals:', portals)
       if (portals && portals.length > 0) {
-        routeToPortal(portals, teacher, admin)
+        routeToPortal(portals, teacher, admin, coordinator)
         return
       }
     }
