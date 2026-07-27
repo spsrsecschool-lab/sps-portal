@@ -514,8 +514,11 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="fg"><label>Section *</label><select id="adm_section" required onchange="syncStreamSection('section','adm')"><option value="">Select class first</option></select></div>
           <div class="fg" id="adm_stream_fg" style="display:none"><label>Stream</label><select id="adm_stream" onchange="syncStreamSection('stream','adm')"><option value="">Select stream</option></select></div>
           </div>
+          <div class="form-row">
+            <div class="fg" style="max-width:220px"><label>S.No (leave blank if not yet allotted)</label><input type="text" inputmode="numeric" id="adm_sno" placeholder="next: —"></div>
+          </div>
           <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--ink-soft)">
-            Roll no. is auto-assigned as MAX+1 in the selected section. S.No is auto-generated sequentially for this session. Both can be adjusted after admission.
+            Roll no. is auto-assigned as MAX+1 in the selected section. Leave <b>S.No blank</b> if this student hasn't been allotted one yet — the placeholder just shows the next available number. Both can be adjusted after admission.
           </div>
         </div>
         <button type="submit" class="btn btn-dark" id="admitBtn">Admit Student</button>
@@ -1345,7 +1348,18 @@ function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
 const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',settings:'Settings',requests:'Access Requests'}
-const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
+const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,admission:refreshAdmSnoPlaceholder,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
+
+// Show the next available S.No as a placeholder ONLY — the field stays blank so
+// the admin fills it manually (some students aren't allotted an S.No yet).
+async function refreshAdmSnoPlaceholder(){
+  const el=$('adm_sno'); if(!el||!SESS)return
+  try{
+    const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).not('s_no','is',null)
+    const maxN=(snos||[]).reduce((m,r)=>{const n=parseInt((r.s_no||'').replace(/\D/g,''))||0;return n>m?n:m},0)
+    el.placeholder='next: '+(maxN+1)
+  }catch(e){el.placeholder='next: —'}
+}
 function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
@@ -1806,8 +1820,22 @@ async function loadStudents(){
     const x=a.students?.student_id||'', y=b.students?.student_id||''
     return x<y?-1:x>y?1:0
   })
+  // Remember the current filter state so a refresh (e.g. after saving a profile
+  // edit) doesn't reset the view back to "All Classes".
+  const _prevSearch=$('studentSearch')?.value||''
+  const _prevCls=$('studentClassFilter')?.value||''
+  const _prevStream=$('studentStreamFilter')?.value||''
+  const _prevStatus=$('studentStatusFilter')?.value||''
   const uniq=[...new Map(_studentsRaw.map(e=>[e.classes?.class_id,e.classes?.name])).entries()]
   $('studentClassFilter').innerHTML='<option value="">All Classes</option>'+uniq.map(([id,n])=>'<option value="'+id+'">'+esc(n||'')+'</option>').join('')
+  // Restore filters. Class first, then reload its streams and restore the stream.
+  if(_prevSearch&&$('studentSearch'))$('studentSearch').value=_prevSearch
+  if(_prevStatus&&$('studentStatusFilter'))$('studentStatusFilter').value=_prevStatus
+  if(_prevCls&&$('studentClassFilter')?.querySelector('option[value="'+_prevCls+'"]')){
+    $('studentClassFilter').value=_prevCls
+    await loadStreamsFor(_prevCls,'studentStreamFilter')
+    if(_prevStream&&$('studentStreamFilter')?.querySelector('option[value="'+_prevStream+'"]'))$('studentStreamFilter').value=_prevStream
+  }
   filterStudents()
 }
 function filterStudents(){
@@ -1875,8 +1903,8 @@ async function openEditDemoModal(){
     '<div class="form-row"><div class="fg"><label>Address</label><input id="ed_address" value="'+esc(s.address||'')+'"></div></div>'+
     '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Enrollment — '+esc(SESS?.session_id||'')+'</div>'+
-    '<div class="form-row"><div class="fg"><label>Class *</label><select id="ed_class" onchange="edLoadSecStream()">'+clsOpts+'</select></div><div class="fg"><label>Section *</label><select id="ed_section"></select></div></div>'+
-    '<div class="form-row"><div class="fg" id="ed_stream_fg" style="display:none"><label>Stream *</label><select id="ed_stream"></select></div><div class="fg"><label>Roll No.</label><input id="ed_roll" inputmode="numeric" value="'+esc(e.roll_no||'')+'"></div><div class="fg"><label>S.No</label><input id="ed_sno" inputmode="numeric" value="'+esc(e.s_no||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Class *</label><select id="ed_class" onchange="edLoadSecStream()">'+clsOpts+'</select></div><div class="fg"><label>Section *</label><select id="ed_section" onchange="syncStreamSection(\'section\',\'ed\')"></select></div></div>'+
+    '<div class="form-row"><div class="fg" id="ed_stream_fg" style="display:none"><label>Stream *</label><select id="ed_stream" onchange="syncStreamSection(\'stream\',\'ed\')"></select></div><div class="fg"><label>Roll No.</label><input id="ed_roll" inputmode="numeric" value="'+esc(e.roll_no||'')+'"></div><div class="fg"><label>S.No</label><input id="ed_sno" inputmode="numeric" value="'+esc(e.s_no||'')+'"></div></div>'+
     '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px 12px;font-size:11.5px;color:var(--ink-soft);line-height:1.5">Classes with streams (11th / 12th) must have one selected — tuition is set per stream, so a blank stream bills &#8377;0.<br>Blank S.No means <b>promoted but not yet re-admitted</b>; the Fee Portal flags them.</div>',
     '<button class="btn btn-dark" onclick="saveEditDemo()">Save Changes</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
   // Remember the enrollment BEFORE editing, to detect a section move on save.
@@ -2108,12 +2136,22 @@ async function submitAdmission(e){
     }
     const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,phone:$('adm_phone').value.trim(),alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc})
     if(se)throw se
-    const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).not('s_no','is',null)
-    const maxN=(snos||[]).reduce((m,r)=>{const n=parseInt((r.s_no||'').replace(/\D/g,''))||0;return n>m?n:m},0)
+    // S.No is now MANUAL: use exactly what the admin typed, or leave it blank
+    // if they left it empty (some students aren't allotted an S.No yet).
+    const snoRaw=($('adm_sno')?.value||'').trim()
+    let snoToSave=null
+    if(snoRaw!==''){
+      if(!/^\d+$/.test(snoRaw))throw new Error('S.No must be a plain number, or left blank')
+      // Reject a duplicate S.No within this session.
+      const{data:clash}=await sb.from('student_enrollments').select('enrollment_id,students(full_name)')
+        .eq('session_id',SESS.session_id).eq('s_no',snoRaw).maybeSingle()
+      if(clash)throw new Error('S.No '+snoRaw+' is already used by '+(clash.students?.full_name||'another student'))
+      snoToSave=snoRaw
+    }
     const{data:rolls}=await sb.from('student_enrollments').select('roll_no').eq('session_id',SESS.session_id).eq('section_id',secId).not('roll_no','is',null)
     const maxR=(rolls||[]).reduce((m,r)=>r.roll_no>m?r.roll_no:m,0)
     const streamId=$('adm_stream')?.value||null
-    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:String(maxN+1),status:'active',is_new_admission:true,readmission_date:null})
+    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:snoToSave,status:'active',is_new_admission:true,readmission_date:null})
     if(!ee){
       await adminNotifyCTs({
         pairs:[{class_id:classId,section_id:secId}],
@@ -2139,7 +2177,7 @@ async function submitAdmission(e){
         }
       }catch(ue){console.warn('File upload error (non-fatal):', ue)}
     }
-    toast('Admitted! ID: '+studentId+(photoFile||docFile?' (files uploaded)':''),'success');e.target.reset();$('adm_section').innerHTML='<option value="">Select class first</option>'
+    toast('Admitted! ID: '+studentId+(photoFile||docFile?' (files uploaded)':''),'success');e.target.reset();$('adm_section').innerHTML='<option value="">Select class first</option>';refreshAdmSnoPlaceholder()
   }catch(err){toast('Admission failed: '+err.message,'error')}
   finally{btn.disabled=false;btn.textContent='Admit Student'}
 }
