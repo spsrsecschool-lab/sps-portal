@@ -1152,12 +1152,13 @@ async function saveGlobalPriority(){
 // ══════════════════════════════════════════════
 function renderDashboard(){
   const active=students;
+  const enrolled=active.filter(s=>s.sno!=null&&String(s.sno).trim()!=='');  // only S.No-allotted students are "enrolled" in the fee system
   const todayColl=getTodayTotal();
   const totalDue=active.reduce((s,stu)=>s+getTotalDues(stu).total,0);
   const defCount=active.filter(s=>getTotalDues(s).total>0).length;
   const pendingReadm=active.filter(s=>s.sno==null||s.sno==='').length;
   $('statsGrid').innerHTML=`
-    <div class="stat-card"><div class="label">Total Students</div><div class="value">${active.length}</div></div>
+    <div class="stat-card"><div class="label">Total Students</div><div class="value">${enrolled.length}</div><div class="sub text-muted" style="font-size:11px">With S.No allotted</div></div>
     <div class="stat-card"><div class="label">Collected Today</div><div class="value green">${fmtINR(todayColl)}</div></div>
     <div class="stat-card"><div class="label">Total Pending</div><div class="value red">${fmtINR(totalDue)}</div></div>
     <div class="stat-card"><div class="label">Defaulters</div><div class="value yellow">${defCount}</div></div>
