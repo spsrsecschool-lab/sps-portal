@@ -489,6 +489,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="fg" id="studentSectionFilter_fg" style="display:none;max-width:140px"><label>Section</label><select id="studentSectionFilter" onchange="filterStudents()"><option value="">All sections</option></select></div>
         <div class="fg" id="studentStreamFilter_fg" style="display:none;max-width:150px"><label>Stream</label><select id="studentStreamFilter" onchange="filterStudents()"><option value="">All streams</option></select></div>
         <div class="fg" style="max-width:160px"><label>Status</label><select id="studentStatusFilter" onchange="filterStudents()"><option value="">All</option><option value="active">Active</option><option value="left">Left</option></select></div>
+        <div class="fg" style="max-width:180px"><label>Re-admission</label><select id="studentSnoFilter" onchange="filterStudents()"><option value="">All</option><option value="has">S.No allotted</option><option value="no">S.No pending</option></select></div>
       </div>
       <div id="studentCount" style="font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:10px"></div>
       <div class="card"><div class="table-wrap"><table>
@@ -1972,12 +1973,16 @@ function filterStudents(){
   const s=$('studentSearch')?.value?.toLowerCase()||'',cls=$('studentClassFilter')?.value||'',stat=$('studentStatusFilter')?.value||''
   const streamF=$('studentStreamFilter')?.value||''
   const secF=$('studentSectionFilter')?.value||''
+  const snoF=$('studentSnoFilter')?.value||''
+  const hasSno=e=>e.s_no!=null&&String(e.s_no).trim()!==''
   const rows=(_studentsRaw||[]).filter(e=>{
     const st=e.students
     // Relieved students are hidden by default; only shown when the status
     // filter is explicitly set to "Left".
     if(stat==='left'){ if(!e.relieved)return false }
     else if(e.relieved){ return false }
+    if(snoF==='has'&&!hasSno(e))return false
+    if(snoF==='no'&&hasSno(e))return false
     const matchStat = stat==='left' ? true : (!stat || e.status===stat)
     return (!s||st?.full_name?.toLowerCase().includes(s)||st?.father_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))
       &&(!cls||e.classes?.class_id===cls)&&matchStat&&(!streamF||e.stream_id===streamF)&&(!secF||e.section_id===secF)
@@ -1985,7 +1990,7 @@ function filterStudents(){
   // Count line: shows filtered total, and the overall total when a filter is on.
   const cnt=$('studentCount')
   if(cnt){
-    const anyFilter=!!(s||cls||stat||streamF||secF)
+    const anyFilter=!!(s||cls||stat||streamF||secF||snoF)
     // Overall active roster (relieved hidden) for context.
     const grandTotal=(_studentsRaw||[]).filter(e=>!e.relieved).length
     cnt.textContent=anyFilter
