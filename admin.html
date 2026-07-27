@@ -5187,18 +5187,24 @@ async function saveAdjustment(){
 async function loadAdjustments(){
   const el=$('adjList');if(!el)return
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const{data,error}=await sb.from('adjustments')
-    .select('*,teachers(full_name),classes(name),class_sections(name),time_slots(name,start_time,end_time)')
-    .order('created_at',{ascending:false}).limit(200)
+  const{data,error}=await sb.from('adjustments').select('*').order('created_at',{ascending:false}).limit(200)
   if(error){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Adjustments table not found or missing columns. Run the setup SQL in Supabase, then reload.</p>';return}
   if(!data?.length){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">No adjustments assigned.</p>';return}
+  // Resolve section + slot names without relying on DB foreign-key embeds.
+  const secIds=[...new Set(data.map(a=>a.section_id).filter(Boolean))]
+  const slotIds=[...new Set(data.map(a=>a.slot_id).filter(Boolean))]
+  const secMap={},slotMap={}
+  if(secIds.length){const{data:secs}=await sb.from('class_sections').select('section_id,name').in('section_id',secIds);(secs||[]).forEach(s=>secMap[s.section_id]=s.name)}
+  if(slotIds.length){const{data:sl}=await sb.from('time_slots').select('slot_id,name,start_time').in('slot_id',slotIds);(sl||[]).forEach(s=>slotMap[s.slot_id]=s)}
+  const tName=id=>(ALL_TEACHERS.find(t=>t.teacher_id===id)||{}).full_name||id
+  const cName=id=>(ALL_CLASSES.find(c=>c.class_id===id)||{}).name||'?'
   el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Slot</th><th>Days</th><th>Note</th><th></th></tr></thead><tbody>'
-    +data.map(a=>'<tr><td style="font-weight:600">'+esc(a.teachers?.full_name||a.teacher_id)+'</td>'
-      +'<td>'+esc((a.classes?.name||'?')+'-'+(a.class_sections?.name||'?'))+'</td>'
-      +'<td>'+esc(a.time_slots?.name||'—')+(a.time_slots?.start_time?' <span style="color:var(--ink-faint);font-size:11px">'+a.time_slots.start_time.slice(0,5)+'</span>':'')+'</td>'
+    +data.map(a=>{const sl=slotMap[a.slot_id]||{};return '<tr><td style="font-weight:600">'+esc(tName(a.teacher_id))+'</td>'
+      +'<td>'+esc(cName(a.class_id)+'-'+(secMap[a.section_id]||'?'))+'</td>'
+      +'<td>'+esc(sl.name||'—')+(sl.start_time?' <span style="color:var(--ink-faint);font-size:11px">'+sl.start_time.slice(0,5)+'</span>':'')+'</td>'
       +'<td style="font-size:11.5px">'+esc((a.days||[]).join(', ')||'—')+'</td>'
       +'<td style="color:var(--ink-soft)">'+esc(a.note||'—')+'</td>'
-      +'<td><button class="btn btn-ghost btn-xs" style="color:var(--danger);border-color:var(--danger)" data-id="'+a.adjustment_id+'" onclick="deleteAdjustment(this.dataset.id)">Remove</button></td></tr>').join('')
+      +'<td><button class="btn btn-ghost btn-xs" style="color:var(--danger);border-color:var(--danger)" data-id="'+a.adjustment_id+'" onclick="deleteAdjustment(this.dataset.id)">Remove</button></td></tr>'}).join('')
     +'</tbody></table></div>'
 }
 
