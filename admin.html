@@ -1031,6 +1031,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="tab-btn" onclick="switchTab('ttTab','student',this)">Student Timetable</button>
         <button class="tab-btn" onclick="switchTab('ttTab','teacher',this)">Teacher Timetable</button>
         <button class="tab-btn" onclick="switchTab('ttTab','sub',this)">Substitution</button>
+        <button class="tab-btn" onclick="switchTab('ttTab','adjust',this)">Adjustment</button>
       </div>
 
       <!-- ROSTER SETTINGS -->
@@ -1089,6 +1090,28 @@ tbody tr:hover td{background:var(--lav-50)}
         <div id="subSheet"></div>
         <div id="subSaveRow" style="display:none;margin-top:16px">
           <button class="btn btn-dark" onclick="saveSubstitutions()"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Save &amp; Send Notifications</button>
+        </div>
+      </div>
+
+      <!-- ADJUSTMENT -->
+      <div id="ttTab-adjust" style="display:none">
+        <div class="card" style="margin-bottom:18px">
+          <h3 style="margin-top:0">Assign a permanent adjustment</h3>
+          <p style="font-size:12px;color:var(--ink-soft);margin-bottom:14px">Permanently assign a teacher to a class they don't normally teach — they go there daily (e.g. to sit / supervise). It shows on the teacher's side as a standing <b>Adjustment</b>, and they get a notification. Remove it anytime to end the assignment.</p>
+          <div class="form-row">
+            <div class="fg"><label>Teacher *</label><select id="adj_teacher"><option value="">Select teacher</option></select></div>
+            <div class="fg"><label>Class *</label><select id="adj_class" onchange="adjLoadSections()"><option value="">Select class</option></select></div>
+            <div class="fg"><label>Section *</label><select id="adj_section"><option value="">Select class first</option></select></div>
+          </div>
+          <div class="form-row">
+            <div class="fg" style="max-width:220px"><label>Period / Time <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label><input type="text" id="adj_period" placeholder="e.g. 3rd period / daily"></div>
+            <div class="fg"><label>Note <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label><input type="text" id="adj_note" placeholder="e.g. Supervise / keep them occupied"></div>
+          </div>
+          <button class="btn btn-dark" onclick="saveAdjustment()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Assign Adjustment &amp; Notify</button>
+        </div>
+        <div class="card">
+          <h3>Current Adjustments</h3>
+          <div id="adjList"><div class="loading-row"><div class="spinner"></div></div></div>
         </div>
       </div>
     </div>
@@ -5091,6 +5114,71 @@ async function loadTimetable(){
   $('sub_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
   $('tt_cls').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   if($('sub_date'))$('sub_date').value=today()
+  // Adjustment tab
+  if($('adj_teacher'))$('adj_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  if($('adj_class'))$('adj_class').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  loadAdjustments()
+}
+
+// ═══════════ ADJUSTMENTS (send a teacher to cover a class) ═══════════
+async function adjLoadSections(){
+  const classId=$('adj_class')?.value,sel=$('adj_section')
+  if(!sel)return
+  sel.innerHTML='<option value="">Select section</option>'
+  if(!classId||!SESS)return
+  const{data}=await sb.from('class_sections').select('section_id,name').eq('class_id',classId).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  sel.innerHTML='<option value="">Select section</option>'+(data||[]).map(x=>'<option value="'+x.section_id+'">'+esc(x.name)+'</option>').join('')
+}
+
+async function saveAdjustment(){
+  const teacherId=$('adj_teacher')?.value
+  const classId=$('adj_class')?.value,sectionId=$('adj_section')?.value
+  const period=$('adj_period')?.value?.trim()||null,note=$('adj_note')?.value?.trim()||null
+  if(!teacherId||!classId||!sectionId){toast('Teacher, class and section are required','error');return}
+  const cls=ALL_CLASSES.find(c=>c.class_id===classId)
+  let secName=''
+  try{const{data:sd}=await sb.from('class_sections').select('name').eq('section_id',sectionId).maybeSingle();secName=sd?.name||''}catch(e){}
+  const clsLabel=(cls?.name||'?')+'-'+(secName||'?')
+  const{error}=await sb.from('adjustments').insert({
+    session_id:SESS?.session_id||null,teacher_id:teacherId,
+    class_id:classId,section_id:sectionId,period,note,created_by:SPS.admin?.admin_id
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  // Notify the teacher of the standing assignment.
+  await sb.from('messages').insert({
+    sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:teacherId,
+    subject:'Adjustment — Class '+clsLabel,
+    body:'You have a permanent adjustment: Class '+clsLabel+'. You are to go there daily'+(period?' ('+period+')':'')+'.'+(note?'\nNote: '+note:''),
+    message_type:'substitution_notice',sent_at:new Date().toISOString()
+  })
+  toast('Adjustment assigned & teacher notified','success')
+  if($('adj_period'))$('adj_period').value=''
+  if($('adj_note'))$('adj_note').value=''
+  loadAdjustments()
+}
+
+async function loadAdjustments(){
+  const el=$('adjList');if(!el)return
+  el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data,error}=await sb.from('adjustments')
+    .select('*,teachers(full_name),classes(name),class_sections(name)')
+    .order('created_at',{ascending:false}).limit(200)
+  if(error){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Adjustments table not found. Run the setup SQL in Supabase, then reload.</p>';return}
+  if(!data?.length){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">No adjustments assigned.</p>';return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Period</th><th>Note</th><th></th></tr></thead><tbody>'
+    +data.map(a=>'<tr><td style="font-weight:600">'+esc(a.teachers?.full_name||a.teacher_id)+'</td>'
+      +'<td>'+esc((a.classes?.name||'?')+'-'+(a.class_sections?.name||'?'))+'</td>'
+      +'<td>'+esc(a.period||'—')+'</td>'
+      +'<td style="color:var(--ink-soft)">'+esc(a.note||'—')+'</td>'
+      +'<td><button class="btn btn-ghost btn-xs" style="color:var(--danger);border-color:var(--danger)" data-id="'+a.adjustment_id+'" onclick="deleteAdjustment(this.dataset.id)">Remove</button></td></tr>').join('')
+    +'</tbody></table></div>'
+}
+
+async function deleteAdjustment(id){
+  if(!confirm('Remove this adjustment?'))return
+  const{error}=await sb.from('adjustments').delete().eq('adjustment_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Adjustment removed','success');loadAdjustments()
 }
 
 // ═══════════ SETTINGS PAGE INIT ═══════════
