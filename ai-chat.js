@@ -177,6 +177,7 @@
     '.ai-dots{display:flex;gap:4px;padding:12px 14px;background:#fff;border:1px solid var(--line,#eee);border-radius:16px;border-bottom-left-radius:5px}',
     '.ai-dots i{width:6px;height:6px;border-radius:50%;background:var(--ink-faint,#bbb);animation:aiBl 1.2s infinite}',
     '.ai-dots i:nth-child(2){animation-delay:.2s}.ai-dots i:nth-child(3){animation-delay:.4s}',
+    '.ai-think-txt{font-family:var(--font,sans-serif);font-size:10.5px;font-style:italic;color:var(--ink-faint,#9a9a9a);margin:4px 0 0 2px}',
     '@keyframes aiBl{0%,60%,100%{opacity:.25}30%{opacity:1}}',
     '.ai-chip{font-family:var(--font,sans-serif);font-size:11.5px;padding:7px 12px;border-radius:999px;border:1px solid var(--line,#ddd);',
     'background:#fff;color:var(--ink-soft,#555);cursor:pointer;margin:0 6px 6px 0;transition:all .12s}',
@@ -435,7 +436,7 @@
     var av = document.createElement('div'); av.className = 'ai-av'; av.innerHTML = owl(20)
     var w = document.createElement('div')
     w.className = 'ai-msg ai-bot'
-    w.textContent = "Hi, I'm " + BOT_NAME + " \uD83E\uDD89 — your school companion. Ask me about attendance, students, fees or staff, or tell me to send a message."
+    w.textContent = "Hi, I'm " + BOT_NAME + " \uD83E\uDD89 — I keep a sharp eye on the school so you don't have to. Ask me about attendance, students, fees or staff, or tell me to send a message."
     row.appendChild(av); row.appendChild(w)
     b.appendChild(row)
     var chips = document.createElement('div')
@@ -445,14 +446,27 @@
     chipsEl = chips
   }
 
+  var OWL_THINKING = [
+    'Ruffling through the records…',
+    'Adjusting my glasses…',
+    'Swooping through the data…',
+    'Blinking twice, thinking hard…',
+    'Consulting the roost…'
+  ]
+
   function thinking () {
     var row = document.createElement('div')
     row.className = 'ai-row'
     var av = document.createElement('div'); av.className = 'ai-av'; av.innerHTML = owl(20)
+    var wrap = document.createElement('div')
     var d = document.createElement('div')
     d.className = 'ai-dots'
     d.innerHTML = '<i></i><i></i><i></i>'
-    row.appendChild(av); row.appendChild(d)
+    var txt = document.createElement('div')
+    txt.className = 'ai-think-txt'
+    txt.textContent = OWL_THINKING[Math.floor(Math.random() * OWL_THINKING.length)]
+    wrap.appendChild(d); wrap.appendChild(txt)
+    row.appendChild(av); row.appendChild(wrap)
     document.getElementById('aiBody').appendChild(row)
     scroll()
     return row
