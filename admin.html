@@ -485,7 +485,8 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="page-head"><div><h2>Students</h2><p>All enrolled students — current session</p></div></div>
       <div class="search-bar">
         <div class="fg" style="max-width:280px"><label>Search</label><input type="text" id="studentSearch" placeholder="Name, Student ID, S.No…" oninput="filterStudents()"></div>
-        <div class="fg" style="max-width:160px"><label>Class</label><select id="studentClassFilter" onchange="filterStudents();loadStreamsFor(this.value,'studentStreamFilter')"><option value="">All Classes</option></select></div>
+        <div class="fg" style="max-width:160px"><label>Class</label><select id="studentClassFilter" onchange="filterStudents();loadStreamsFor(this.value,'studentStreamFilter');loadStudentSections(this.value)"><option value="">All Classes</option></select></div>
+        <div class="fg" id="studentSectionFilter_fg" style="display:none;max-width:140px"><label>Section</label><select id="studentSectionFilter" onchange="filterStudents()"><option value="">All sections</option></select></div>
         <div class="fg" id="studentStreamFilter_fg" style="display:none;max-width:150px"><label>Stream</label><select id="studentStreamFilter" onchange="filterStudents()"><option value="">All streams</option></select></div>
         <div class="fg" style="max-width:160px"><label>Status</label><select id="studentStatusFilter" onchange="filterStudents()"><option value="">All</option><option value="active">Active</option><option value="left">Left</option></select></div>
       </div>
@@ -1320,6 +1321,22 @@ async function loadStreamsFor(classId, targetSelectId){
   }
 }
 
+// Populate the Students-tab Section filter for the chosen class. Hidden when
+// no class is selected or the class has no sections. Resets to "All sections"
+// whenever the class changes.
+async function loadStudentSections(classId){
+  const sel=$('studentSectionFilter'), fg=$('studentSectionFilter_fg')
+  if(!sel)return
+  sel.innerHTML='<option value="">All sections</option>'
+  if(fg)fg.style.display='none'
+  if(!classId||!SESS)return
+  const{data}=await sb.from('class_sections').select('section_id,name').eq('class_id',classId).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  if(data?.length){
+    sel.innerHTML='<option value="">All sections</option>'+data.map(x=>'<option value="'+x.section_id+'">'+esc(x.name)+'</option>').join('')
+    if(fg)fg.style.display=''
+  }
+}
+
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
 const today=()=>new Date().toISOString().slice(0,10)
@@ -1872,15 +1889,18 @@ async function loadStudents(){
   // edit) doesn't reset the view back to "All Classes".
   const _prevSearch=$('studentSearch')?.value||''
   const _prevCls=$('studentClassFilter')?.value||''
+  const _prevSec=$('studentSectionFilter')?.value||''
   const _prevStream=$('studentStreamFilter')?.value||''
   const _prevStatus=$('studentStatusFilter')?.value||''
   const uniq=[...new Map(_studentsRaw.map(e=>[e.classes?.class_id,e.classes?.name])).entries()]
   $('studentClassFilter').innerHTML='<option value="">All Classes</option>'+uniq.map(([id,n])=>'<option value="'+id+'">'+esc(n||'')+'</option>').join('')
-  // Restore filters. Class first, then reload its streams and restore the stream.
+  // Restore filters. Class first, then reload its sections/streams and restore them.
   if(_prevSearch&&$('studentSearch'))$('studentSearch').value=_prevSearch
   if(_prevStatus&&$('studentStatusFilter'))$('studentStatusFilter').value=_prevStatus
   if(_prevCls&&$('studentClassFilter')?.querySelector('option[value="'+_prevCls+'"]')){
     $('studentClassFilter').value=_prevCls
+    await loadStudentSections(_prevCls)
+    if(_prevSec&&$('studentSectionFilter')?.querySelector('option[value="'+_prevSec+'"]'))$('studentSectionFilter').value=_prevSec
     await loadStreamsFor(_prevCls,'studentStreamFilter')
     if(_prevStream&&$('studentStreamFilter')?.querySelector('option[value="'+_prevStream+'"]'))$('studentStreamFilter').value=_prevStream
   }
@@ -1889,6 +1909,7 @@ async function loadStudents(){
 function filterStudents(){
   const s=$('studentSearch')?.value?.toLowerCase()||'',cls=$('studentClassFilter')?.value||'',stat=$('studentStatusFilter')?.value||''
   const streamF=$('studentStreamFilter')?.value||''
+  const secF=$('studentSectionFilter')?.value||''
   const rows=(_studentsRaw||[]).filter(e=>{
     const st=e.students
     // Relieved students are hidden by default; only shown when the status
@@ -1897,7 +1918,7 @@ function filterStudents(){
     else if(e.relieved){ return false }
     const matchStat = stat==='left' ? true : (!stat || e.status===stat)
     return (!s||st?.full_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))
-      &&(!cls||e.classes?.class_id===cls)&&matchStat&&(!streamF||e.stream_id===streamF)
+      &&(!cls||e.classes?.class_id===cls)&&matchStat&&(!streamF||e.stream_id===streamF)&&(!secF||e.section_id===secF)
   })
   const body=$('studentBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="9"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/></svg><p>No students found.</p></div></td></tr>';return}
