@@ -1578,11 +1578,29 @@ async function loadMyTimetable(){
   // Standing adjustments (classes this teacher covers, not their own teaching).
   let adjustments=[]
   try{
-    const res=await sb.from('adjustments')
-      .select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name)')
-      .eq('teacher_id',TEACHER.teacher_id)
-    if(!res.error) adjustments=(res.data||[]).filter(a=>a.time_slots)   // need a slot to place in grid
-  }catch(e){}
+    const res=await sb.from('adjustments').select('*').eq('teacher_id',TEACHER.teacher_id)
+    if(!res.error && res.data?.length){
+      const rows=res.data.filter(a=>a.slot_id)
+      const slotIds=[...new Set(rows.map(a=>a.slot_id))]
+      const clsIds=[...new Set(rows.map(a=>a.class_id).filter(Boolean))]
+      const secIds=[...new Set(rows.map(a=>a.section_id).filter(Boolean))]
+      const[slR,clR,seR]=await Promise.all([
+        slotIds.length?sb.from('time_slots').select('slot_id,name,start_time,end_time,sort_order').in('slot_id',slotIds):Promise.resolve({data:[]}),
+        clsIds.length?sb.from('classes').select('class_id,name').in('class_id',clsIds):Promise.resolve({data:[]}),
+        secIds.length?sb.from('class_sections').select('section_id,name').in('section_id',secIds):Promise.resolve({data:[]})
+      ])
+      const slM={},clM={},seM={}
+      ;(slR.data||[]).forEach(s=>slM[s.slot_id]=s)
+      ;(clR.data||[]).forEach(c=>clM[c.class_id]=c.name)
+      ;(seR.data||[]).forEach(s=>seM[s.section_id]=s.name)
+      adjustments=rows.filter(a=>slM[a.slot_id]).map(a=>({
+        ...a,
+        time_slots:slM[a.slot_id],
+        classes:{name:clM[a.class_id]||'?'},
+        class_sections:{name:seM[a.section_id]||'?'}
+      }))
+    }
+  }catch(e){console.warn('[TT] adjustments load failed',e)}
 
   const withSlots=(entries||[]).filter(e=>e.time_slots)
 
