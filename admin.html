@@ -1260,8 +1260,9 @@ function subscribeAdminMessages(adminId){
 function injectAdminIncoming(m){
   if(!window._adminThreads)window._adminThreads=[]
   const rootSubj=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
-  const key=rootSubj(m.subject)
-  let thread=window._adminThreads.find(th=>th.subject===key)
+  const other=m.sender_type==='admin'?m.recipient_id:m.sender_id
+  const key=rootSubj(m.subject)+'|'+(other||'?')
+  let thread=window._adminThreads.find(th=>th.key===key)
   if(thread){
     if(!thread.messages.some(x=>x.message_id===m.message_id)){
       thread.messages.push(m)
@@ -1270,7 +1271,7 @@ function injectAdminIncoming(m){
       if(!m.read_at)thread.unread++
     }
   }else{
-    thread={subject:key,messages:[m],latest:m,unread:m.read_at?0:1}
+    thread={key,subject:rootSubj(m.subject),counterpartId:other,messages:[m],latest:m,unread:m.read_at?0:1}
     window._adminThreads.unshift(thread)
   }
   if(m.sender_type==='teacher'&&m.sender_id&&!window._adminMsgNames?.[m.sender_id]){
@@ -1289,15 +1290,15 @@ function rerenderAdminMessages(){
   if(el)el.innerHTML=threads.map((th,idx)=>{
     const last=th.latest
     const isMine=last?.sender_type==='admin'
-    const otherName=isMine?(last?.recipient_type==='teacher'?nm(last?.recipient_id):last?.recipient_id||'Unknown'):(last?.sender_type==='teacher'?nm(last?.sender_id):'Unknown')
+    const otherName=th.counterpartId?nm(th.counterpartId):'Unknown'
     return '<div class="msg-thread-item'+(th.unread>0?' unread':'')+'" data-idx="'+idx+'" onclick="openAdminThread(+this.dataset.idx)">'
       +'<div class="t-top"><span class="t-from">'+esc(th.subject)+'</span><span class="t-time">'+rel(last?.sent_at)+'</span></div>'
-      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,55)||'')+'</div>'
+      +'<div class="t-preview"><b>'+esc(otherName)+'</b> · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,50)||'')+'</div>'
       +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
       +'</div>'
   }).join('')
-  if(_adminCurrThread!=null&&window._openThreadSubject){
-    const fi=threads.findIndex(th=>th.subject===window._openThreadSubject)
+  if(_adminCurrThread!=null&&window._adminOpenKey){
+    const fi=threads.findIndex(th=>th.key===window._adminOpenKey)
     if(fi>=0)openAdminThread(fi)
   }
   const unreadTotal=threads.reduce((s,th)=>s+th.unread,0)
@@ -1690,10 +1691,15 @@ async function loadMessages(){
   window._adminMsgNames=nameMap
   const nm=id=>nameMap[id]||id
   const rootSubj=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
+  // The other party in each message (the teacher). Group threads by subject AND
+  // teacher so different teachers replying to the same auto-notice subject
+  // ("Student added to your class") don't collapse into one shared thread.
+  const otherOf=m=>m.sender_type==='admin'?m.recipient_id:m.sender_id
   const threadMap=new Map()
   allMsgs.forEach(m=>{
-    const key=rootSubj(m.subject)
-    if(!threadMap.has(key))threadMap.set(key,{subject:key,messages:[],unread:0})
+    const other=otherOf(m)
+    const key=rootSubj(m.subject)+'|'+(other||'?')
+    if(!threadMap.has(key))threadMap.set(key,{key,subject:rootSubj(m.subject),counterpartId:other,messages:[],unread:0})
     const thread=threadMap.get(key)
     thread.messages.push(m)
     const isMine=m.sender_type==='admin'
@@ -1711,17 +1717,17 @@ async function loadMessages(){
   if(el)el.innerHTML=threads.map((th,idx)=>{
     const last=th.latest
     const isMine=last?.sender_type==='admin'
-    const otherName=isMine?(last?.recipient_type==='teacher'?nm(last?.recipient_id):last?.recipient_id||'Unknown'):(last?.sender_type==='teacher'?nm(last?.sender_id):'Unknown')
+    const otherName=th.counterpartId?(nm(th.counterpartId)):'Unknown'
     return '<div class="msg-thread-item'+(th.unread>0?' unread':'')+'" data-idx="'+idx+'" onclick="openAdminThread(+this.dataset.idx)">'
       +'<div class="t-top"><span class="t-from">'+esc(th.subject)+'</span><span class="t-time">'+rel(last?.sent_at)+'</span></div>'
-      +'<div class="t-preview">'+esc(otherName)+' · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,55)||'')+'</div>'
+      +'<div class="t-preview"><b>'+esc(otherName)+'</b> · '+(isMine?'You: ':'')+esc(last?.body?.slice(0,50)||'')+'</div>'
       +(th.unread>0?'<span style="background:var(--indigo);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px;display:inline-block">'+th.unread+' new</span>':'')
       +'</div>'
   }).join('')
   if(threads.length){
-    // Preserve open thread by subject if possible
-    const prevSubj=window._adminOpenSubj
-    const keepIdx=prevSubj?threads.findIndex(t=>t.subject===prevSubj):0
+    // Preserve open thread by composite key (subject + teacher) if possible
+    const prevKey=window._adminOpenKey
+    const keepIdx=prevKey?threads.findIndex(t=>t.key===prevKey):0
     openAdminThread(keepIdx>=0?keepIdx:0,true)   // true = auto-open, don't switch panes on mobile
   }
 }
@@ -1736,8 +1742,9 @@ async function openAdminThread(idx,isAuto){
   const thread=window._adminThreads?.[idx];if(!thread)return
   window._openThreadSubject=thread.subject
   window._adminOpenSubj=thread.subject
+  window._adminOpenKey=thread.key
   const nm=id=>window._adminMsgNames?.[id]||id
-  $('msgThreadHead').textContent=thread.subject
+  $('msgThreadHead').textContent=thread.subject+(thread.counterpartId?' · '+nm(thread.counterpartId):'')
   $('msgThreadMeta').textContent=thread.messages.length+' message'+(thread.messages.length!==1?'s':'')+' · last activity '+rel(thread.latest?.sent_at)
   const el=$('msgBubbles')
   function ini(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
@@ -1752,7 +1759,7 @@ async function openAdminThread(idx,isAuto){
             +'<div class="msg-email-avatar'+(isMine?' mine':'')+'">'+ini(from)+'</div>'
             +'<div><div class="msg-email-sender">'+esc(from)+'</div><div class="msg-email-role">'+esc(role)+'</div></div>'
           +'</div>'
-          +'<div class="msg-email-date">'+fmtD(m.sent_at)+(m.sent_at?', '+new Date(m.sent_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'')+'</div>'
+          +'<div class="msg-email-date">'+(m.sent_at&&!isNaN(new Date(m.sent_at))?new Date(m.sent_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+', '+new Date(m.sent_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'—')+'</div>'
         +'</div>'
         +'<div class="msg-email-body">'+esc(m.body||'')+'</div>'
         +'</div>'
