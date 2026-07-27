@@ -504,7 +504,12 @@ tbody tr:hover td{background:var(--lav-50)}
           <h3>Student Demographics</h3>
           <div class="form-row">
             <div class="fg"><label>Full Name *</label><input type="text" id="adm_name" required placeholder="Student's full name"></div>
-            <div class="fg"><label>Father's Name *</label><input type="text" id="adm_father" required placeholder="Father's full name"></div>
+            <div class="fg"><label>Father's Name *</label>
+              <div style="position:relative">
+                <input type="text" id="adm_father" required placeholder="Father's full name" autocomplete="off" oninput="admFatherSuggest()" onfocus="admFatherSuggest()" style="width:100%">
+                <div id="adm_father_suggest" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;display:none;margin-top:4px"></div>
+              </div>
+            </div>
           </div>
           <div class="form-row">
             <div class="fg"><label>Mother's Name</label><input type="text" id="adm_mother" placeholder="Mother's full name"></div>
@@ -1386,7 +1391,14 @@ function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
 const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',settings:'Settings',requests:'Access Requests'}
-const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,admission:refreshAdmSnoPlaceholder,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
+const LAZY={messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
+
+// Admission page setup: next-S.No placeholder + build the father-name suggestion
+// list (so admitting a sibling can reuse the family's existing family_code).
+async function initAdmission(){
+  await refreshAdmSnoPlaceholder()
+  await loadAdmFathers()
+}
 
 // Show the next available S.No as a placeholder ONLY — the field stays blank so
 // the admin fills it manually (some students aren't allotted an S.No yet).
@@ -1397,6 +1409,52 @@ async function refreshAdmSnoPlaceholder(){
     const maxN=(snos||[]).reduce((m,r)=>{const n=parseInt((r.s_no||'').replace(/\D/g,''))||0;return n>m?n:m},0)
     el.placeholder='next: '+(maxN+1)
   }catch(e){el.placeholder='next: —'}
+}
+
+// Cache distinct (father_name, family_code) pairs from existing students so the
+// admission form can suggest a father and auto-fill the family code for siblings.
+let _admFathers=[]
+async function loadAdmFathers(){
+  try{
+    const{data}=await sb.from('students').select('father_name,family_code').not('father_name','is',null)
+    const seen=new Set(), out=[]
+    ;(data||[]).forEach(r=>{
+      const fn=(r.father_name||'').trim(); if(!fn)return
+      const key=fn.toLowerCase()+'|'+(r.family_code||'')
+      if(seen.has(key))return; seen.add(key)
+      out.push({father:fn,family:r.family_code||''})
+    })
+    out.sort((a,b)=>a.father.localeCompare(b.father))
+    _admFathers=out
+  }catch(e){_admFathers=[]}
+}
+
+// Suggestion dropdown as the admin types a father's name.
+function admFatherSuggest(){
+  const inp=$('adm_father'), box=$('adm_father_suggest')
+  if(!inp||!box)return
+  const q=inp.value.trim().toLowerCase()
+  if(q.length<2){box.style.display='none';return}
+  const matches=_admFathers.filter(f=>f.father.toLowerCase().includes(q)).slice(0,8)
+  if(!matches.length){box.style.display='none';return}
+  box.innerHTML=matches.map(f=>
+    '<div onmousedown="admPickFather(event,\''+encodeURIComponent(f.father)+'\',\''+encodeURIComponent(f.family)+'\')" '
+    +'style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px" '
+    +'onmouseover="this.style.background=\'var(--lav-100)\'" onmouseout="this.style.background=\'\'">'
+    +'<b>'+esc(f.father)+'</b>'
+    +(f.family?' <span style="color:var(--ink-faint);font-size:11.5px;font-family:var(--mono)">'+esc(f.family)+'</span>':'')
+    +'</div>'
+  ).join('')
+  box.style.display='block'
+}
+
+// Pick a suggested father: fills the name and auto-fills the family code.
+function admPickFather(e,fatherEnc,familyEnc){
+  if(e)e.preventDefault()
+  const father=decodeURIComponent(fatherEnc), family=decodeURIComponent(familyEnc)
+  if($('adm_father'))$('adm_father').value=father
+  if(family&&$('adm_family')){$('adm_family').value=family}
+  const box=$('adm_father_suggest');if(box)box.style.display='none'
 }
 function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
@@ -2255,7 +2313,7 @@ async function submitAdmission(e){
         }
       }catch(ue){console.warn('File upload error (non-fatal):', ue)}
     }
-    toast('Admitted! ID: '+studentId+(photoFile||docFile?' (files uploaded)':''),'success');e.target.reset();$('adm_section').innerHTML='<option value="">Select class first</option>';refreshAdmSnoPlaceholder()
+    toast('Admitted! ID: '+studentId+(photoFile||docFile?' (files uploaded)':''),'success');e.target.reset();$('adm_section').innerHTML='<option value="">Select class first</option>';refreshAdmSnoPlaceholder();loadAdmFathers()
   }catch(err){toast('Admission failed: '+err.message,'error')}
   finally{btn.disabled=false;btn.textContent='Admit Student'}
 }
@@ -5023,6 +5081,12 @@ function loadSettings(){
   loadStreamsList()
   loadClassTeacherControl()
 }
+
+// Close the father-name suggestion dropdown when clicking elsewhere.
+document.addEventListener('mousedown',function(e){
+  const box=$('adm_father_suggest'),inp=$('adm_father')
+  if(box&&box.style.display!=='none'&&!box.contains(e.target)&&e.target!==inp)box.style.display='none'
+},{passive:true})
 
 
 </script>
