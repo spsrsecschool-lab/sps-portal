@@ -1497,7 +1497,7 @@ async function checkUnread(){
 async function renderDashboard(){
   if(!SESS){$('dashStats').innerHTML='<div class="stat-card" style="grid-column:1/-1"><p style="color:var(--ink-faint)">No active session. Go to Settings to create one.</p></div>';return}
   const[studR,tchR,msgR]=await Promise.all([
-    sb.from('student_enrollments').select('*',{count:'exact',head:true}).eq('session_id',SESS.session_id).eq('status','active'),
+    sb.from('student_enrollments').select('*',{count:'exact',head:true}).eq('session_id',SESS.session_id).eq('status','active').eq('relieved',false),
     sb.from('teachers').select('*',{count:'exact',head:true}).eq('is_active',true),
     sb.from('messages').select('message_id,sender_id,sender_type,subject,sent_at,read_at').eq('recipient_id',SPS.admin?.admin_id||'').order('sent_at',{ascending:false}).limit(4)
   ])
