@@ -516,6 +516,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="form-row">
             <div class="fg"><label>Mother's Name</label><input type="text" id="adm_mother" placeholder="Mother's full name"></div>
             <div class="fg"><label>Date of Birth</label><input type="date" id="adm_dob"></div>
+            <div class="fg"><label>Date of Admission</label><input type="date" id="adm_admdate"></div>
           </div>
           <div class="form-row">
             <div class="fg"><label>Phone</label><input type="text" inputmode="numeric" id="adm_phone" placeholder="Primary mobile"></div>
@@ -1437,6 +1438,7 @@ const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,stu
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
 async function initAdmission(){
+  const ad=$('adm_admdate');if(ad&&!ad.value)ad.value=new Date().toISOString().slice(0,10)  // default to today
   await refreshAdmSnoPlaceholder()
   await loadAdmFathers()
 }
@@ -2104,6 +2106,7 @@ async function openEditDemoModal(){
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Enrollment — '+esc(SESS?.session_id||'')+'</div>'+
     '<div class="form-row"><div class="fg"><label>Class *</label><select id="ed_class" onchange="edLoadSecStream()">'+clsOpts+'</select></div><div class="fg"><label>Section *</label><select id="ed_section" onchange="syncStreamSection(\'section\',\'ed\')"></select></div></div>'+
     '<div class="form-row"><div class="fg" id="ed_stream_fg" style="display:none"><label>Stream *</label><select id="ed_stream" onchange="syncStreamSection(\'stream\',\'ed\')"></select></div><div class="fg"><label>Roll No.</label><input id="ed_roll" inputmode="numeric" value="'+esc(e.roll_no||'')+'"></div><div class="fg"><label>S.No</label><input id="ed_sno" inputmode="numeric" value="'+esc(e.s_no||'')+'"></div></div>'+
+    '<div class="form-row" style="align-items:center"><div class="fg"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink)"><input type="checkbox" id="ed_isnew" '+(e.is_new_admission?'checked':'')+' style="width:16px;height:16px;accent-color:var(--ink)"> New admission? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(waives the annual charge)</span></label></div></div>'+
     '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px 12px;font-size:11.5px;color:var(--ink-soft);line-height:1.5">Classes with streams (11th / 12th) must have one selected — tuition is set per stream, so a blank stream bills &#8377;0.<br>Blank S.No means <b>promoted but not yet re-admitted</b>; the Fee Portal flags them.</div>',
     '<button class="btn btn-dark" onclick="saveEditDemo()">Save Changes</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
   // Remember the enrollment BEFORE editing, to detect a section move on save.
@@ -2269,7 +2272,7 @@ async function saveEditDemo(){
 
   const{error:e2}=await sb.from('student_enrollments').update({
     class_id:cid, section_id:secId, stream_id:streamId,
-    roll_no:rollToSet, s_no:sno
+    roll_no:rollToSet, s_no:sno, is_new_admission:$('ed_isnew')?.checked===true
   }).eq('enrollment_id',eid)
   if(e2){toast('Demographics saved, but enrollment update failed: '+e2.message,'error');return}
 
@@ -2333,7 +2336,7 @@ async function submitAdmission(e){
       fc='F'+String(_maxFc+1).padStart(4,'0')
       await sb.from('families').insert({family_code:fc})
     }
-    const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,phone:$('adm_phone').value.trim()||null,alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc})
+    const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,admission_date:$('adm_admdate').value||null,phone:$('adm_phone').value.trim()||null,alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc})
     if(se)throw se
     // S.No is now MANUAL: use exactly what the admin typed, or leave it blank
     // if they left it empty (some students aren't allotted an S.No yet).
