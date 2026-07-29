@@ -2345,11 +2345,11 @@ async function submitAdmission(e){
       if(clash)throw new Error('S.No '+snoRaw+' is already used by '+(clash.students?.full_name||'another student'))
       snoToSave=snoRaw
     }
-    const{data:rolls}=await sb.from('student_enrollments').select('roll_no').eq('session_id',SESS.session_id).eq('section_id',secId).not('roll_no','is',null)
-    const maxR=(rolls||[]).reduce((m,r)=>r.roll_no>m?r.roll_no:m,0)
+    // Roll no. is NOT auto-assigned — the class teacher / admin sets it later
+    // (Roll Numbers page). New admissions come in without a roll number.
     const streamId=$('adm_stream')?.value||null
     const isNewAdm=$('adm_isnew')?.checked===true
-    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:maxR+1,s_no:snoToSave,status:'active',is_new_admission:isNewAdm,readmission_date:null})
+    const{error:ee}=await sb.from('student_enrollments').insert({student_id:studentId,session_id:SESS.session_id,class_id:classId,section_id:secId,stream_id:streamId,roll_no:null,s_no:snoToSave,status:'active',is_new_admission:isNewAdm,readmission_date:null})
     if(!ee){
       await adminNotifyCTs({
         pairs:[{class_id:classId,section_id:secId}],
@@ -4113,14 +4113,17 @@ async function commitStaffAtt(){
 
   toast('Importing '+records.length+' records…','info')
   const teacherIds=[...new Set(records.map(r=>r.teacher_id))]
-  // Upsert on the (teacher_id, date) unique key — cleanly overwrites any
-  // existing row (including old dummy data) for the same teacher+date without a
-  // separate delete pass.
+  // Re-upload must REPLACE any earlier upload for the same teachers over this
+  // period. Clear those rows first, then insert fresh — this overwrites old
+  // data reliably even if the (teacher_id,date) unique index isn't present
+  // (a missing index is why upsert-on-conflict silently failed to overwrite).
   let inserted=0, errs=0, firstErr=null
+  const del=await sb.from('teacher_attendance').delete().in('teacher_id',teacherIds).gte('date',from).lte('date',to)
+  if(del.error){toast('Could not clear old records: '+del.error.message,'error');console.error('[staffatt] delete failed:',del.error);return}
   for(let i=0;i<records.length;i+=500){
     const chunk=records.slice(i,i+500)
-    const{error}=await sb.from('teacher_attendance').upsert(chunk,{onConflict:'teacher_id,date'})
-    if(error){errs++; if(!firstErr)firstErr=error; console.error('[staffatt] upsert batch failed:',error, 'sample row:', chunk[0])}
+    const{error}=await sb.from('teacher_attendance').insert(chunk)
+    if(error){errs++; if(!firstErr)firstErr=error; console.error('[staffatt] insert batch failed:',error, 'sample row:', chunk[0])}
     else inserted+=chunk.length
   }
   if(errs){
