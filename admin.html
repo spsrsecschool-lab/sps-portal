@@ -316,6 +316,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .grid-3,.grid-4,.grid-5,.assess-grid{grid-template-columns:1fr}
   .topbar{padding:0 14px;gap:10px}.user-chip .uname,.user-chip .urole{display:none}.user-chip{padding:5px}
   .session-badge{display:none}.msg-shell{grid-template-columns:1fr}.form-row{flex-direction:column;align-items:stretch}
+  .today-2col{grid-template-columns:1fr!important}
 }
 #scrim{position:fixed;inset:0;background:rgba(34,31,53,.35);z-index:150;display:none}
 #scrim.show{display:block}
@@ -1348,6 +1349,7 @@ function subscribeTodayPanel(){
     .on('postgres_changes',{event:'*',schema:'public',table:'access_requests'},bump)
     .on('postgres_changes',{event:'*',schema:'public',table:'activity_log'},bump)
     .on('postgres_changes',{event:'*',schema:'public',table:'student_enrollments'},bump)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},bump)
     .subscribe((s)=>console.log('[RT] Today panel channel:',s))
 }
 
@@ -1738,7 +1740,7 @@ async function renderTodayPanel(){
     +'</div>'
 
   // Class-wise table
-  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">'
+  html+='<div class="today-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">'
   html+='<div><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Class-wise attendance</div>'
   if(sections.length){
     html+='<div style="max-height:280px;overflow-y:auto"><table style="width:100%;font-size:12.5px"><thead><tr>'
@@ -1766,15 +1768,45 @@ async function renderTodayPanel(){
   }else{html+='<p style="font-size:12px;color:var(--ink-faint)">—</p>'}
   html+='</div></div>'
 
-  // Recent activity feed
-  const{data:acts}=await sb.from('activity_log').select('*').eq('user_type','admin').order('created_at',{ascending:false}).limit(8)
+  // Recent activity feed — a live glance of what's happening across the school:
+  // logged actions (admin/AI/teacher), teacher↔admin messages, and new admissions.
+  const feed=await buildRecentFeed()
   html+='<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Recent activity</div>'
-  if(acts&&acts.length){
-    html+=acts.map(a=>'<div class="log-row"><div class="log-dot" style="background:var(--indigo)"></div><div><div class="txt">'+esc(a.message||a.action_type||'Activity')+'</div><div class="ts">'+rel(a.created_at)+'</div></div></div>').join('')
-  }else{html+='<p style="font-size:12px;color:var(--ink-faint)">No recent activity logged.</p>'}
+  if(feed.length){
+    html+=feed.map(a=>'<div class="log-row"><div class="log-dot" style="background:'+a.color+'"></div><div><div class="txt">'+(a.who?'<b>'+esc(a.who)+'</b> ':'')+esc(a.text)+'</div><div class="ts">'+rel(a.t)+'</div></div></div>').join('')
+  }else{html+='<p style="font-size:12px;color:var(--ink-faint)">No recent activity yet.</p>'}
   html+='</div>'
 
   el.innerHTML=html
+}
+
+// Build a merged, most-recent-first feed from several live sources.
+async function buildRecentFeed(){
+  const items=[]
+  const tName={}
+  const resolveTeachers=async(ids)=>{
+    const need=[...new Set(ids.filter(id=>id&&!tName[id]))]
+    if(!need.length)return
+    const{data}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',need)
+    ;(data||[]).forEach(t=>tName[t.teacher_id]=t.full_name)
+  }
+  const [logR,msgR,admR] = await Promise.all([
+    sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(14),
+    sb.from('messages').select('sender_type,sender_id,recipient_type,subject,sent_at').order('sent_at',{ascending:false}).limit(12),
+    sb.from('student_enrollments').select('readmission_date,students(full_name),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').not('readmission_date','is',null).order('readmission_date',{ascending:false}).limit(6)
+  ])
+  const acts=logR.data||[], msgs=msgR.data||[], adms=admR.data||[]
+  await resolveTeachers([...acts.filter(a=>a.user_type==='teacher').map(a=>a.user_id), ...msgs.filter(m=>m.sender_type==='teacher').map(m=>m.sender_id)])
+  const whoOf=(type,id)=> type==='teacher'?(tName[id]||'Teacher') : type==='admin'?'Admin' : type==='coordinator'?'Coordinator' : type
+  // 1) logged actions
+  acts.forEach(a=>items.push({t:a.created_at, color:'var(--indigo)', who:whoOf(a.user_type,a.user_id), text:a.message||a.action_type||'did something'}))
+  // 2) messages (captures teacher activity even without explicit logging)
+  msgs.forEach(m=>items.push({t:m.sent_at, color:'var(--warn)', who:whoOf(m.sender_type,m.sender_id), text:'sent a message: "'+(m.subject||'(no subject)')+'"'}))
+  // 3) new admissions / re-admissions
+  adms.forEach(e=>items.push({t:e.readmission_date, color:'var(--success)', who:'', text:'New admission: '+(e.students?.full_name||'student')+' — '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')}))
+  // merge, newest first, de-dup obvious repeats, cap
+  items.sort((a,b)=>new Date(b.t)-new Date(a.t))
+  return items.slice(0,14)
 }
 
 // ═══════════ MESSAGES ═══════════
