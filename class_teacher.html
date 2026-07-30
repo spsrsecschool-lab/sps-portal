@@ -499,6 +499,13 @@ const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'At
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
+// Log a teacher action to the school-wide activity feed (admin dashboard).
+async function logActivity(actionType,message){
+  try{ if(!TEACHER?.teacher_id||!message)return
+    await sb.from('activity_log').insert({user_type:'teacher',user_id:TEACHER.teacher_id,action_type:actionType,message:message,created_at:new Date().toISOString()})
+  }catch(e){ console.warn('[activity] log failed',e) }
+}
+function myClassLabel(){ return (MY_CLASS?.classes?.name||'?')+'-'+(MY_CLASS?.class_sections?.name||'?') }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtD(s){if(!s)return '—';try{const d=s.includes('T')||s.includes('Z')?new Date(s):new Date(s+'T12:00:00');if(isNaN(d))return '—';return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return '—'}}
 function rel(s){if(!s)return '—';try{const d=new Date(s);if(isNaN(d.getTime()))return '—';const diff=Date.now()-d.getTime();if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';if(diff<604800000)return Math.floor(diff/86400000)+'d ago';return fmtD(s)}catch{return '—'}}
@@ -1083,6 +1090,7 @@ async function confirmAttSubmit(date){
   const{error}=await sb.from('student_attendance').insert(records)
   if(error){toast('Failed to save: '+error.message,'error');return}
   toast('Attendance saved for '+fmtD(date)+' ✓','success')
+  logActivity('attendance_marked', TEACHER.full_name+' marked attendance for '+myClassLabel()+' ('+records.length+' students) on '+fmtD(date))
   loadDailyAttendance()
   renderDashboard()
 }
@@ -1438,6 +1446,7 @@ async function saveStudentProfile(){
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
   toast('Profile saved','success');closeModal()
+  logActivity('profile_edit', TEACHER.full_name+' edited the profile of '+(updates.full_name||'a student')+' ('+myClassLabel()+')')
 }
 
 async function uploadStudentPhoto(sid,input){
@@ -1503,7 +1512,8 @@ async function confirmDocUpload(){
 
   try{
     const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
-    const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
+    const safeType=String(docType||type||'Document').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
+    const path='student-docs/'+sid+'/'+safeType+'_'+sid+'.'+ext
     const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
     if(upErr){
       if(sp)sp.style.display='none'
@@ -1559,6 +1569,7 @@ async function submitProfileEditReq(){
   // Remember locally that a request was sent so buttons show "waiting"
   try{localStorage.setItem('sps_ct_profilereq_'+TEACHER.teacher_id+'_'+(SESS?.session_id||''),'1')}catch(e){}
   window._profileReqPending=true
+  logActivity('access_request', TEACHER.full_name+' requested student-profile edit access for '+className)
   toast('Request sent to admin ✓','success');closeModal()
   // Refresh open profile so button updates
   const eid=CLASS_STUDENTS.find(s=>s.students?.student_id===window._profileStudentId)?.enrollment_id
@@ -1585,6 +1596,7 @@ async function saveStudentProfile(studentId){
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
   toast('Profile saved ✓','success');closeModal()
+  logActivity('profile_edit', TEACHER.full_name+' edited the profile of '+(updates.full_name||'a student')+' ('+myClassLabel()+')')
 }
 
 async function deleteStudentDoc(sid,fileType,btn){
@@ -2158,6 +2170,10 @@ async function toggleExamFee(enrollmentId, feeId, markPaid){
   },{onConflict:'exam_fee_id,enrollment_id'})
   if(error){toast('Failed: '+error.message,'error');return}
   toast(markPaid?'Marked as paid ✓':'Marked as unpaid','success')
+  if(markPaid){
+    const stu=(CLASS_STUDENTS||[]).find(s=>s.enrollment_id===enrollmentId)
+    logActivity('exam_fee_collected', TEACHER.full_name+' collected exam fee for '+(stu?.students?.full_name||'a student')+' ('+myClassLabel()+')')
+  }
   loadExamFees()
 }
 
