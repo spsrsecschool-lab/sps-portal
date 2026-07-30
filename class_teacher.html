@@ -23,6 +23,7 @@
 <script src="auth.js"></script>
 <script src="ai-chat.js"></script>
 <script src="push.js"></script>
+<script src="media.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root{
@@ -458,7 +459,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     </div>
     <div style="padding:20px 22px">
       <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Document Type *</div>
-      <select id="doc_type_sel" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);margin-bottom:16px">
+      <select id="doc_type_sel" onchange="_ctDocPicked=null;ctRefreshDocPick()" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);margin-bottom:16px">
         <option>Aadhar Card</option>
         <option>Birth Certificate</option>
         <option>Transfer Certificate</option>
@@ -466,8 +467,9 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
         <option>Mark Sheet</option>
         <option>Other</option>
       </select>
-      <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">File (JPG, PNG, PDF) *</div>
-      <input type="file" id="doc_file_inp" accept="image/*,.pdf" style="width:100%;font-family:var(--font);font-size:13px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50)">
+      <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">File *</div>
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:flex-start" onclick="pickCtDoc()"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span id="ctDocLabel">Select / Capture</span></button>
+      <div id="ctDocInfo" style="font-size:12px;color:var(--ink-faint);margin-top:8px"></div>
     </div>
     <div style="padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end">
       <button onclick="closeDocUploadModal()" class="btn btn-ghost">Cancel</button>
@@ -1268,14 +1270,14 @@ async function viewStudentProfile(eid){
   ).join('')
 
   const docsHtml=docs?.length
-    ?docs.map(d=>{const dt=d.uploaded_at?new Date(d.uploaded_at):null;const dtStr=dt&&!isNaN(dt)?dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'';return '<a href="'+esc(d.file_url||'#')+'" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--lav-100);border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;color:var(--ink);text-decoration:none;margin:0 6px 6px 0">'+esc(d.file_type||'Doc')+'<span style="font-size:10px;color:var(--ink-faint)">'+(d.uploaded_by_type?d.uploaded_by_type+' · ':'')+dtStr+'</span></a>'}  ).join('')
+    ?docs.map(d=>{const dt=d.uploaded_at?new Date(d.uploaded_at):null;const dtStr=dt&&!isNaN(dt)?dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'';return '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 8px 6px 12px;background:var(--lav-100);border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;color:var(--ink);margin:0 6px 6px 0"><a href="'+esc(d.file_url||'#')+'" target="_blank" style="display:inline-flex;align-items:center;gap:6px;color:var(--ink);text-decoration:none">'+esc(d.file_type||'Doc')+'<span style="font-size:10px;color:var(--ink-faint)">'+(d.uploaded_by_type?d.uploaded_by_type+' · ':'')+dtStr+'</span></a>'+(canEdit?'<button type="button" title="Delete" onclick="deleteStudentDoc(\''+esc(s.student_id||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:none;background:none;cursor:pointer;color:var(--danger,#E5556B);font-size:15px;line-height:1;padding:0 2px">&times;</button>':'')+'</span>'}  ).join('')
     :'<div style="font-size:12.5px;color:var(--ink-faint)">No documents uploaded.</div>'
 
   let body='<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">'
     +'<div id="sp_avatar_wrap">'+avatarHtml+'</div>'
     +'<div><div style="font-size:18px;font-weight:800">'+esc(s.full_name||'?')+'</div>'
     +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px">Roll: '+esc(String(enr.roll_no||'—'))+' &middot; S.No: '+(enr.s_no?esc(String(enr.s_no)):'—')+'</div>'
-    +(canEdit?'<label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer">Change Photo<input type="file" accept="image/*" style="display:none" onchange="uploadStudentPhoto(_profileStudentId,this)"></label>':'')
+    +(canEdit?'<button type="button" onclick="ctChangePhoto(_profileStudentId)" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;border:none">Change Photo</button>':'')
     +'</div></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
     +'<div style="margin-top:6px;margin-bottom:14px"><label style="'+lbl+'">Class &amp; Section</label>'
@@ -1458,11 +1460,28 @@ async function uploadStudentDoc(sid,input){
 
 function openDocUploadModal(sid){
   window._profileStudentId=sid
+  _ctDocPicked=null
   const ov=$('doc-upload-overlay')
   if(ov){ov.style.display='flex'}
   // Reset
-  const fi=$('doc_file_inp');if(fi)fi.value=''
+  const lb=$('ctDocLabel');if(lb)lb.textContent='Select / Capture'
+  ctRefreshDocPick()
   const sp=$('doc-upload-spinner');if(sp)sp.style.display='none'
+}
+var _ctDocPicked=null
+function ctRefreshDocPick(){
+  const type=$('doc_type_sel')?.value,info=$('ctDocInfo')
+  if(info)info.innerHTML=SPSMedia.needsMultiple(type)
+    ? 'Aadhaar can be <b>one page</b> or front + back &mdash; you\'ll be asked. Two photos combine into one file.'
+    : 'Choose a file, or take a photo on mobile.'
+}
+async function pickCtDoc(){
+  const type=$('doc_type_sel')?.value||'Document'
+  const res=await SPSMedia.acquireDocument(type)
+  if(!res)return
+  _ctDocPicked=res.file
+  const lb=$('ctDocLabel');if(lb)lb.textContent='Change'
+  const nf=$('ctDocInfo');if(nf)nf.innerHTML=res.merged?('✅ '+res.pages+' photos combined into one file — ready.'):('✅ '+esc(res.file.name)+' — ready.')
 }
 
 function closeDocUploadModal(){
@@ -1471,10 +1490,10 @@ function closeDocUploadModal(){
 
 async function confirmDocUpload(){
   const sid=window._profileStudentId
-  const file=document.getElementById('doc_file_inp')?.files?.[0]
+  const file=_ctDocPicked
   const docType=document.getElementById('doc_type_sel')?.value
   if(!sid){toast('No student selected','error');return}
-  if(!file){toast('Please select a file','error');return}
+  if(!file){toast('Select or capture a file first','error');return}
 
   // Show spinner inside the modal
   const sp=$('doc-upload-spinner')
@@ -1483,7 +1502,7 @@ async function confirmDocUpload(){
   if(sm)sm.textContent='Uploading '+docType+'…'
 
   try{
-    const ext=file.name.split('.').pop()
+    const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
     const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
     const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
     if(upErr){
@@ -1497,6 +1516,7 @@ async function confirmDocUpload(){
       uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,
       uploaded_at:new Date().toISOString()
     })
+    _ctDocPicked=null
     if(sp)sp.style.display='none'
     closeDocUploadModal()
     if(error){toast('Save failed: '+error.message,'error');return}
@@ -1567,17 +1587,42 @@ async function saveStudentProfile(studentId){
   toast('Profile saved ✓','success');closeModal()
 }
 
+async function deleteStudentDoc(sid,fileType,btn){
+  if(!sid||!fileType)return
+  if(!confirm('Delete this '+fileType+'? This removes it from the portal and storage.'))return
+  // Look up the row(s) so we can also remove the stored file.
+  const{data:rows}=await sb.from('student_documents').select('file_url').eq('student_id',sid).eq('file_type',fileType)
+  const{error}=await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',fileType)
+  if(error){toast('Delete failed: '+error.message,'error');return}
+  // Best-effort remove the storage object(s).
+  try{
+    const paths=(rows||[]).map(r=>{const m=(r.file_url||'').split('/school-files/')[1];return m?m.split('?')[0]:null}).filter(Boolean)
+    if(paths.length)await sb.storage.from('school-files').remove(paths)
+  }catch(e){}
+  toast(fileType+' deleted','success')
+  const chip=btn&&btn.closest('span');if(chip)chip.remove()
+}
+
 async function uploadStudentPhoto(studentId, input){
   const file=input.files?.[0];if(!file)return
+  await _ctDoPhotoUpload(studentId,file)
+}
+// Photo change via the mobile Take-Photo / Choose-File chooser.
+async function ctChangePhoto(studentId){
+  const f=await SPSMedia.acquirePhoto('Student photo')
+  if(!f)return
+  await _ctDoPhotoUpload(studentId,f)
+}
+async function _ctDoPhotoUpload(studentId,file){
   const wrap=document.getElementById('sp_avatar_wrap')
   if(wrap)wrap.innerHTML='<div style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-faint)">Uploading…</div>'
-  const ext=file.name.split('.').pop(),path='students/'+studentId+'/photo.'+ext
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path='students/'+studentId+'/photo.'+ext
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
   if(upErr){toast('Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
   const{error}=await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',studentId)
   if(error){toast('Photo uploaded but DB update failed','error');return}
-  if(wrap)wrap.innerHTML='<img src="'+publicUrl+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:3px solid var(--grn)">'
+  if(wrap)wrap.innerHTML='<img src="'+publicUrl+'?t='+Date.now()+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:3px solid var(--grn)">'
   toast('Photo updated ✓','success')
 }
 
