@@ -114,20 +114,52 @@ window.SPSMedia = (function () {
     return new File([blob], name, { type: 'image/jpeg' })
   }
 
-  // High-level: acquire a document file for a given type. If the type needs two
-  // sides, collect both and merge into one file. Returns {file, pages} or null.
+  // A small Yes/No sheet (mobile) or confirm() (desktop). Resolves boolean.
+  function askYesNo({ prompt = '', yes = 'Yes', no = 'No' } = {}) {
+    if (!isMobile()) return Promise.resolve(window.confirm(prompt))
+    return new Promise((resolve) => {
+      const ov = document.createElement('div')
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:flex-end;justify-content:center;font-family:inherit'
+      ov.innerHTML =
+        '<div style="background:#fff;width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:18px 16px;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));animation:spsSheetUp .2s ease">' +
+        '<div style="font-size:14.5px;font-weight:700;text-align:center;margin-bottom:15px;color:#1a1a1a;line-height:1.45">' + esc(prompt) + '</div>' +
+        '<button data-a="yes" style="width:100%;padding:15px;border:none;border-radius:12px;background:#4F46E5;color:#fff;font-size:15px;font-weight:700;margin-bottom:10px;font-family:inherit;cursor:pointer">' + esc(yes) + '</button>' +
+        '<button data-a="no" style="width:100%;padding:15px;border:1.5px solid #e0e0e0;border-radius:12px;background:#fff;color:#333;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer">' + esc(no) + '</button>' +
+        '</div>'
+      const cleanup = () => ov.remove()
+      ov.addEventListener('click', (e) => {
+        const btn = e.target.closest && e.target.closest('[data-a]')
+        const a = btn && btn.getAttribute('data-a')
+        if (!a) { if (e.target === ov) { cleanup(); resolve(false) } return }
+        cleanup(); resolve(a === 'yes')
+      })
+      document.body.appendChild(ov)
+    })
+  }
+
+  // High-level: acquire a document file for a given type. For types that CAN
+  // have two sides (e.g. Aadhaar), the second side is OPTIONAL — a single page
+  // showing both sides is fine. If two are captured they're merged into one file.
   async function acquireDocument(type) {
     const pages = MULTI[type]
     if (pages) {
-      const collected = []
-      for (const label of pages) {
-        const f = await chooseOne({ accept: 'image/*', prompt: (type || 'Document') + ' — ' + label })
-        if (!f) return null // cancelled
-        if (!/^image\//.test(f.type)) { alert('For ' + type + ', please provide images for front and back so they can be combined into one file.'); return null }
-        collected.push(f)
+      const first = await chooseOne({ accept: 'image/*', prompt: (type || 'Document') + ' — photo' })
+      if (!first) return null // cancelled
+      if (!/^image\//.test(first.type)) {
+        // A PDF/non-image for an Aadhaar-type: just use it as-is (can't merge).
+        return { file: first, pages: 1, merged: false }
       }
-      const merged = await mergeImages(collected, { name: String(type).replace(/\s+/g, '_') + '.jpg' })
-      return { file: merged, pages: collected.length, merged: true }
+      const addBack = await askYesNo({
+        prompt: 'Does the ' + (type || 'card') + ' have a separate back side to add?\n\nIf both sides are on one page, choose "Just this page".',
+        yes: '+ Add back side',
+        no: 'Just this page',
+      })
+      if (!addBack) return { file: first, pages: 1, merged: false }
+      const back = await chooseOne({ accept: 'image/*', prompt: (type || 'Document') + ' — back side' })
+      if (!back) return { file: first, pages: 1, merged: false } // they skipped the back
+      if (!/^image\//.test(back.type)) { alert('The back side must be an image so it can be combined. Keeping the first page only.'); return { file: first, pages: 1, merged: false } }
+      const merged = await mergeImages([first, back], { name: String(type).replace(/\s+/g, '_') + '.jpg' })
+      return { file: merged, pages: 2, merged: true }
     }
     const f = await chooseOne({ accept: 'image/*', allowPdf: true, prompt: type || 'Upload document' })
     if (!f) return null
