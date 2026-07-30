@@ -1084,6 +1084,11 @@ const TITLES={
 // UTILS
 // ═══════════════════════════════════════════════════════════════
 const $=id=>document.getElementById(id)
+async function logActivity(actionType,message){
+  try{ if(!TEACHER?.teacher_id||!message)return
+    await sb.from('activity_log').insert({user_type:'teacher',user_id:TEACHER.teacher_id,action_type:actionType,message:message,created_at:new Date().toISOString()})
+  }catch(e){ console.warn('[activity] log failed',e) }
+}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtD(s){if(!s)return '—';try{const d=s.includes('T')||s.includes('Z')?new Date(s):new Date(s+'T12:00:00');if(isNaN(d))return '—';return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return '—'}}
 function rel(s){if(!s)return '—';try{const d=new Date(s);if(isNaN(d.getTime()))return fmtD(s)||'—';const diff=Date.now()-d.getTime();if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';if(diff<604800000)return Math.floor(diff/86400000)+'d ago';return fmtD(s)}catch{return '—'}}
@@ -1990,6 +1995,7 @@ async function confirmMarks(){
   }catch(e){console.warn('[marks-notify] class teacher notice failed',e)}
 
   toast('Marks saved ✓','success')
+  logActivity('marks_entered', (TEACHER.full_name||'Teacher')+' entered marks'+(typeof clsName!=='undefined'&&clsName?' for '+clsName:'')+(typeof assessName!=='undefined'&&assessName?' — '+assessName:''))
   loadMarksTable()
 }
 
@@ -2445,6 +2451,7 @@ async function createTest(){
   })
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Test created ✓','success')
+  logActivity('test_created', (TEACHER.full_name||'Teacher')+' created a test "'+name+'"')
   $('ct_name').value='';$('ct_date').value='';$('ct_marks').value='';$('ct_syllabus').value=''
   loadMyTests()
 }
@@ -2866,6 +2873,7 @@ async function saveProfileEdit(){
   const{data:req}=await sb.from('access_requests').select('request_id').eq('teacher_id',TEACHER.teacher_id).eq('request_type','profile_edit').eq('status','approved').maybeSingle()
   if(req)await sb.from('access_requests').update({status:'completed'}).eq('request_id',req.request_id)
   toast('Profile updated ✓','success');loadProfile()
+  logActivity('own_profile_edit', (TEACHER.full_name||'A teacher')+' updated their own profile')
 }
 
 function requestProfileEdit(){
