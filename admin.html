@@ -23,6 +23,7 @@
 <script src="auth.js"></script>
 <script src="ai-chat.js"></script>
 <script src="push.js"></script>
+<script src="media.js"></script>
 <style>
 :root{
   --lav-50:#F7F6FD;--lav-100:#F1EFFC;--lav-200:#E4E0FA;--lav-300:#CFC9F5;
@@ -1182,7 +1183,7 @@ tbody tr:hover td{background:var(--lav-50)}
 
 <script>
 // ═══════════ GLOBALS ═══════════
-let SESS=null,ALL_CLASSES=[],ALL_SUBJECTS=[],ALL_TEACHERS=[],_staffRaw=[],_studentsRaw=[],_promoStudents=[],_selectedClassId=null,_profileEnrollId=null,_confirmCb=null,_openMsgId=null,_calYear=null,_calMonth=null,_subData=[],_subRoster=null,_selectedRosterId=null,_selectedRosterName=''
+let SESS=null,ALL_CLASSES=[],ALL_SUBJECTS=[],ALL_TEACHERS=[],_staffRaw=[],_studentsRaw=[],_promoStudents=[],_selectedClassId=null,_profileEnrollId=null,_confirmCb=null,_openMsgId=null,_calYear=null,_calMonth=null,_subData=[],_subRoster=null,_selectedRosterId=null,_selectedRosterName='',_photoPicked=null,_docPicked=null
 window._msgStore={}, window._assessMap={}
 
 // ═══════════ INIT ═══════════
@@ -2062,22 +2063,33 @@ async function openProfile(enrollId){
 }
 function closeProfile(){$('profileModal').classList.remove('show');_profileEnrollId=null}
 function openUploadPhotoModal(){
+  _photoPicked=null
   openModal('Change Profile Photo',
-    '<div style="margin-bottom:14px;text-align:center"><div id="photoPreview" style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);margin:0 auto 10px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--indigo-dark)">'+($('pm_av')?.textContent||'?')+'</div></div><div class="form-row"><div class="fg"><label>Photo (JPG or PNG)</label><input type="file" id="pp_file" accept="image/jpeg,image/png,image/webp" onchange="previewPhoto(this)"></div></div><div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px;font-size:11.5px;color:var(--ink-soft)">Requires <b>school-files</b> bucket in Supabase Storage → set to Public.</div>',
+    '<div style="margin-bottom:14px;text-align:center"><div id="photoPreview" style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);margin:0 auto 10px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--indigo-dark)">'+($('pm_av')?.textContent||'?')+'</div></div><div class="form-row"><div class="fg"><label>Photo</label><button type="button" class="btn btn-ghost" style="justify-content:flex-start" onclick="pickProfilePhoto()"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span id="ppPickLabel">Select / Capture Photo</span></button></div></div><div id="ppPickInfo" style="font-size:12px;color:var(--ink-faint);margin-top:-6px;margin-bottom:8px">Choose a photo, or take one on mobile.</div><div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px;font-size:11.5px;color:var(--ink-soft)">Requires <b>school-files</b> bucket in Supabase Storage → set to Public.</div>',
     '<button class="btn btn-dark" onclick="uploadProfilePhoto()">Upload Photo</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function pickProfilePhoto(){
+  const f=await SPSMedia.acquirePhoto('Profile photo')
+  if(!f)return
+  _photoPicked=f
+  const url=SPSMedia.previewURL(f)
+  const pv=$('photoPreview');if(pv)pv.innerHTML='<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">'
+  const lb=$('ppPickLabel');if(lb)lb.textContent='Change'
+  const nf=$('ppPickInfo');if(nf)nf.textContent='✅ Ready to upload.'
 }
 function previewPhoto(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{$('photoPreview').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">'};reader.readAsDataURL(file)}
 async function uploadProfilePhoto(){
-  const file=$('pp_file')?.files[0];if(!file){toast('Select a photo','error');return}
+  const file=_photoPicked;if(!file){toast('Select or capture a photo first','error');return}
   showUploadOverlay('Uploading photo…')
   const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
-  const sid=e?.student_id;if(!sid){toast('Student not found','error');return}
-  const path='student-photos/'+sid+'.'+file.name.split('.').pop()
+  const sid=e?.student_id;if(!sid){hideUploadOverlay();toast('Student not found','error');return}
+  const path='student-photos/'+sid+'.'+((file.name.split('.').pop()||'jpg').toLowerCase())
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
-  if(upErr){toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create "school-files" bucket in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
+  if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create "school-files" bucket in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
   const{error:dbErr}=await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',sid)
   if(dbErr){hideUploadOverlay();toast('Photo uploaded but DB update failed: '+dbErr.message,'error');return}
+  _photoPicked=null
   hideUploadOverlay();toast('Photo updated','success');closeModal();openProfile(_profileEnrollId)
 }
 
@@ -2298,22 +2310,46 @@ async function saveEditDemo(){
 }
 
 function openUploadDocModal(){
+  _docPicked=null
   openModal('Upload Document',
-    '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:11px;font-size:12px;margin-bottom:14px">Requires a storage bucket named <b>school-files</b> in Supabase → Storage → New bucket → Public → Save.</div><div class="form-row"><div class="fg"><label>Document Type</label><select id="doc_type"><option>Aadhar Card</option><option>Birth Certificate</option><option>Transfer Certificate</option><option>Other</option></select></div></div><div class="form-row"><div class="fg"><label>File (JPG, PNG, PDF)</label><input type="file" id="doc_file" accept="image/*,.pdf"></div></div>',
+    '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:11px;font-size:12px;margin-bottom:14px">Requires a storage bucket named <b>school-files</b> in Supabase → Storage → New bucket → Public → Save.</div>'
+    +'<div class="form-row"><div class="fg"><label>Document Type</label><select id="doc_type" onchange="_docPicked=null;refreshDocPick()"><option>Aadhar Card</option><option>Birth Certificate</option><option>Transfer Certificate</option><option>Other</option></select></div></div>'
+    +'<div class="form-row"><div class="fg"><label>File</label><button type="button" class="btn btn-ghost" style="justify-content:flex-start" onclick="pickDocFile()"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span id="docPickLabel">Select / Capture</span></button></div></div>'
+    +'<div id="docPickInfo" style="font-size:12px;color:var(--ink-faint);margin-top:-6px"></div>',
     '<button class="btn btn-dark" onclick="uploadDoc()">Upload</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+  refreshDocPick()
+}
+function refreshDocPick(){
+  const type=$('doc_type')?.value
+  const info=$('docPickInfo')
+  if(info)info.innerHTML = SPSMedia.needsMultiple(type)
+    ? 'Aadhaar needs <b>two photos</b> (front &amp; back) — they\'ll be combined into one file.'
+    : 'Choose a file, or take a photo on mobile.'
+}
+async function pickDocFile(){
+  const type=$('doc_type')?.value||'Document'
+  const res=await SPSMedia.acquireDocument(type)
+  if(!res){return}
+  _docPicked=res.file
+  $('docPickLabel').textContent='Change'
+  $('docPickInfo').innerHTML=res.merged
+    ? '✅ '+res.pages+' photos combined into one file — ready to upload.'
+    : '✅ '+esc(res.file.name)+' — ready to upload.'
 }
 async function uploadDoc(){
-  const file=$('doc_file')?.files[0],type=$('doc_type')?.value
-  if(!file){toast('Select a file','error');return}
+  const file=_docPicked,type=$('doc_type')?.value
+  if(!file){toast('Select or capture a file first','error');return}
   showUploadOverlay('Uploading document…')
   const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
-  const sid=e?.student_id;if(!sid){toast('Student not found','error');return}
-  const path='student-docs/'+sid+'/'+Date.now()+'.'+file.name.split('.').pop()
+  const sid=e?.student_id;if(!sid){hideUploadOverlay();toast('Student not found','error');return}
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
+  const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file)
   if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create a bucket called "school-files" in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
   await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',type)
   await sb.from('student_documents').insert({student_id:sid,file_url:publicUrl,file_type:type,uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id,uploaded_at:new Date().toISOString()})
+  _docPicked=null
   hideUploadOverlay();toast('Document uploaded','success');closeModal();openProfile(_profileEnrollId)
 }
 
