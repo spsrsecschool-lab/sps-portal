@@ -4747,6 +4747,7 @@ function renderTTGrid(el,entries,mode){
     if(!entriesArr?.length)return '<td style="background:var(--lav-50)"></td>'
     const cells=entriesArr.map(e=>{
       const streamBadge=e.streams?.name?'<div style="font-size:9px;margin-top:2px;background:var(--indigo-100);color:var(--indigo-dark);padding:1px 6px;border-radius:10px;display:inline-block">'+esc(e.streams.name)+'</div>':''
+      if(e._adj)return '<div style="padding:4px 5px;margin:1px 0;background:var(--warn-soft);border:1px solid var(--warn);border-radius:6px">'+'<b style="font-size:12px;color:var(--warn)">'+esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||''))+'</b><br>'+'<span style="font-size:9.5px;color:var(--warn);font-weight:700;letter-spacing:.03em">ADJUSTMENT</span></div>'
       if(mode==='student')return '<div style="padding:3px 0;'+(entriesArr.length>1?'border-bottom:1px solid var(--line)':'')+'">'+'<b style="font-size:12px">'+esc(e.subjects?.name||'—')+'</b><br>'+'<span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.teachers?.full_name||'—')+'</span>'+streamBadge+'</div>'
       return '<div style="padding:3px 0;'+(entriesArr.length>1?'border-bottom:1px solid var(--line)':'')+'">'+'<b style="font-size:12px">'+esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||''))+'</b><br>'+'<span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.subjects?.name||'—')+'</span>'+streamBadge+'</div>'
     }).join('')
@@ -4846,7 +4847,32 @@ async function loadTeacherTimetable(){
     .select('entry_id,days,slot_id,time_slots(name,start_time,end_time,sort_order),subjects(name),classes(name),class_sections(name)')
     .eq('roster_id',roster.roster_id).eq('teacher_id',teacherId)
   if(error){emp(el,'Error: '+error.message);return}
-  renderTTGrid(el,data||[],'teacher')
+  const entries=data||[]
+  // Merge standing adjustments (this teacher sent to cover a class they don't teach).
+  try{
+    const{data:adj}=await sb.from('adjustments').select('*').eq('teacher_id',teacherId)
+    const rows=(adj||[]).filter(a=>a.slot_id)
+    if(rows.length){
+      const slotIds=[...new Set(rows.map(a=>a.slot_id))]
+      const clsIds=[...new Set(rows.map(a=>a.class_id).filter(Boolean))]
+      const secIds=[...new Set(rows.map(a=>a.section_id).filter(Boolean))]
+      const[slR,clR,seR]=await Promise.all([
+        slotIds.length?sb.from('time_slots').select('slot_id,name,start_time,end_time,sort_order').in('slot_id',slotIds):Promise.resolve({data:[]}),
+        clsIds.length?sb.from('classes').select('class_id,name').in('class_id',clsIds):Promise.resolve({data:[]}),
+        secIds.length?sb.from('class_sections').select('section_id,name').in('section_id',secIds):Promise.resolve({data:[]})
+      ])
+      const slM={},clM={},seM={}
+      ;(slR.data||[]).forEach(s=>slM[s.slot_id]=s)
+      ;(clR.data||[]).forEach(c=>clM[c.class_id]=c.name)
+      ;(seR.data||[]).forEach(s=>seM[s.section_id]=s.name)
+      rows.forEach(a=>{ if(slM[a.slot_id]) entries.push({
+        entry_id:'adj_'+a.adjustment_id, slot_id:a.slot_id, days:a.days||[],
+        time_slots:slM[a.slot_id], classes:{name:clM[a.class_id]||'?'}, class_sections:{name:seM[a.section_id]||'?'},
+        subjects:{name:'Adjustment'}, _adj:true
+      }) })
+    }
+  }catch(e){ console.warn('[tt] adjustments merge failed',e) }
+  renderTTGrid(el,entries,'teacher')
 }
 
 async function loadSubstitutionSheet(){
