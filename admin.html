@@ -1790,23 +1790,19 @@ async function buildRecentFeed(){
     const{data}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',need)
     ;(data||[]).forEach(t=>tName[t.teacher_id]=t.full_name)
   }
-  const [logR,msgR,admR] = await Promise.all([
-    sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(14),
-    sb.from('messages').select('sender_type,sender_id,recipient_type,subject,sent_at').order('sent_at',{ascending:false}).limit(12),
-    sb.from('student_enrollments').select('readmission_date,students(full_name),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').not('readmission_date','is',null).order('readmission_date',{ascending:false}).limit(6)
+  const [logR,admR] = await Promise.all([
+    sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(20),
+    sb.from('student_enrollments').select('readmission_date,students(full_name),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').not('readmission_date','is',null).order('readmission_date',{ascending:false}).limit(5)
   ])
-  const acts=logR.data||[], msgs=msgR.data||[], adms=admR.data||[]
-  await resolveTeachers([...acts.filter(a=>a.user_type==='teacher').map(a=>a.user_id), ...msgs.filter(m=>m.sender_type==='teacher').map(m=>m.sender_id)])
+  const acts=logR.data||[], adms=admR.data||[]
+  await resolveTeachers(acts.filter(a=>a.user_type==='teacher').map(a=>a.user_id))
   const whoOf=(type,id)=> type==='teacher'?(tName[id]||'Teacher') : type==='admin'?'Admin' : type==='coordinator'?'Coordinator' : type
-  // 1) logged actions
+  // 1) logged actions (attendance, marks, exam fees, tests, profile edits, access requests…)
   acts.forEach(a=>items.push({t:a.created_at, color:'var(--indigo)', who:whoOf(a.user_type,a.user_id), text:a.message||a.action_type||'did something'}))
-  // 2) messages (captures teacher activity even without explicit logging)
-  msgs.forEach(m=>items.push({t:m.sent_at, color:'var(--warn)', who:whoOf(m.sender_type,m.sender_id), text:'sent a message: "'+(m.subject||'(no subject)')+'"'}))
-  // 3) new admissions / re-admissions
+  // 2) new admissions / re-admissions
   adms.forEach(e=>items.push({t:e.readmission_date, color:'var(--success)', who:'', text:'New admission: '+(e.students?.full_name||'student')+' — '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')}))
-  // merge, newest first, de-dup obvious repeats, cap
   items.sort((a,b)=>new Date(b.t)-new Date(a.t))
-  return items.slice(0,14)
+  return items.slice(0,16)
 }
 
 // ═══════════ MESSAGES ═══════════
@@ -2494,8 +2490,9 @@ async function uploadDoc(){
   const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
   const sid=e?.student_id;if(!sid){hideUploadOverlay();toast('Student not found','error');return}
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
-  const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
-  const{error:upErr}=await sb.storage.from('school-files').upload(path,file)
+  const safeType=String(docType||type||'Document').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
+    const path='student-docs/'+sid+'/'+safeType+'_'+sid+'.'+ext
+  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
   if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create a bucket called "school-files" in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
   await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',type)
@@ -4323,10 +4320,28 @@ async function commitStaffAtt(){
     console.error('[staffatt] first error detail:', firstErr)
   }
   else{toast('✓ Imported '+inserted+' records for '+teacherIds.length+' teachers','success')}
+  // Notify staff so they can verify their attendance, and log the action.
+  if(inserted>0){ notifyStaffAttUpload(from,to,teacherIds) }
   $('sa_file').value=''
   $('saPreview').innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:15px;font-weight:700;color:var(--success,#2BB673)">✓ Import complete</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">'+inserted+' records saved. Teachers can now see this in their My Attendance tab.</div></div>'
 }
 
+async function notifyStaffAttUpload(from,to,teacherIds){
+  try{
+    const range = (from&&to&&from!==to) ? (fmtD(from)+' to '+fmtD(to)) : fmtD(from||to)
+    const{data:tchs}=await sb.from('teachers').select('teacher_id').eq('is_active',true)
+    const ids=(tchs||[]).map(t=>t.teacher_id)
+    if(ids.length){
+      const now=new Date().toISOString()
+      const rows=ids.map(tid=>({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:tid,
+        subject:'Staff attendance uploaded — '+range,
+        body:'Admin has uploaded staff attendance for '+range+'. Please review your attendance in the "My Attendance" tab and let the office know if anything looks incorrect.',
+        message_type:'direct',sent_at:now}))
+      for(let i=0;i<rows.length;i+=200){ await sb.from('messages').insert(rows.slice(i,i+200)) }
+    }
+    logActivity('admin', SPS.admin?.admin_id, 'staff_attendance_upload', 'Uploaded staff attendance for '+range+' ('+(teacherIds?.length||0)+' staff)')
+  }catch(e){ console.error('[staffatt] notify failed', e) }
+}
 function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3).map(h=>h.replace(/^d_/,'').trim());const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};// Normalise date: handle DD/MM/YYYY (Excel Indian locale) → YYYY-MM-DD
 let normDate=date
 const ddmm=date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
