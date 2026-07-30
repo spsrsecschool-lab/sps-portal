@@ -1746,18 +1746,34 @@ async function saveAllRollNos(){
   if(!valid)return
   if(!updates.length){toast('Enter at least one roll number to save','info');return}
 
-  // Duplicates among the values being entered
-  const rolls=updates.map(u=>u.roll)
-  if(new Set(rolls).size!==rolls.length){toast('Duplicate roll numbers entered — each must be unique','error');return}
+  const nameByEid=eid=>(CLASS_STUDENTS.find(s=>s.enrollment_id===eid)?.students?.full_name)||'a student'
+  const inpByEid=eid=>document.querySelector('.rn-input[data-eid="'+eid+'"]')
 
-  // Duplicates against students who ALREADY have a roll but aren't being edited
+  // 1) Duplicates AMONG the values being entered — report which roll & who.
+  const byRoll=new Map()   // roll -> [eid, eid, …]
+  updates.forEach(u=>{ if(!byRoll.has(u.roll))byRoll.set(u.roll,[]); byRoll.get(u.roll).push(u.eid) })
+  const dupGroups=[...byRoll.entries()].filter(([roll,eids])=>eids.length>1)
+  if(dupGroups.length){
+    dupGroups.forEach(([roll,eids])=>eids.forEach(eid=>{const i=inpByEid(eid);if(i)i.style.borderColor='var(--danger)'}))
+    const detail=dupGroups.map(([roll,eids])=>'Roll '+roll+' → '+eids.map(nameByEid).join(' & ')).join('; ')
+    toast('Duplicate roll numbers: '+detail,'error')
+    return
+  }
+
+  // 2) Clash with students who ALREADY have that roll and aren't being edited —
+  //    report every clash, with the roll and both students' names.
   const editedEids=new Set(updates.map(u=>u.eid))
   const takenByOthers=new Map()  // roll -> name
   CLASS_STUDENTS.forEach(s=>{
     if(s.roll_no!=null && !editedEids.has(s.enrollment_id)) takenByOthers.set(s.roll_no, s.students?.full_name||'another student')
   })
-  const clash=updates.find(u=>takenByOthers.has(u.roll))
-  if(clash){toast('Roll '+clash.roll+' is already used by '+takenByOthers.get(clash.roll),'error');return}
+  const clashes=updates.filter(u=>takenByOthers.has(u.roll))
+  if(clashes.length){
+    clashes.forEach(u=>{const i=inpByEid(u.eid);if(i)i.style.borderColor='var(--danger)'})
+    const detail=clashes.map(u=>'Roll '+u.roll+' ('+nameByEid(u.eid)+') already used by '+takenByOthers.get(u.roll)).join('; ')
+    toast(detail,'error')
+    return
+  }
 
   // Batch update
   let errors=0
