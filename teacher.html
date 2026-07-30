@@ -1470,6 +1470,15 @@ async function dismissBroadcast(mid){
 }
 
 async function renderDashboard(){
+  // Time-based greeting — always shown (before any early return / pending check)
+  {
+    const hr=new Date().getHours()
+    const greet=hr<12?'Good Morning':hr<17?'Good Afternoon':'Good Evening'
+    const firstName=(TEACHER.full_name||'').split(' ')[0]
+    const gtEl=$('greetingText'),gsEl=$('greetingSub')
+    if(gtEl)gtEl.textContent=greet+', '+firstName+' 👋'
+    if(gsEl)gsEl.textContent=new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+  }
   // Assignments card
   const el=$('dashAssignments')
   if(!MY_MAPPINGS.length){emp(el,'No class assignments for this session.');return}
@@ -1492,14 +1501,6 @@ async function renderDashboard(){
   })
   $('statPending').textContent=pending
   if(pending>0){
-    // Time-based greeting — always shown
-    const hr=new Date().getHours()
-    const greet=hr<12?'Good Morning':hr<17?'Good Afternoon':'Good Evening'
-    const firstName=(TEACHER.full_name||'').split(' ')[0]
-    const gtEl=$('greetingText'),gsEl=$('greetingSub')
-    if(gtEl)gtEl.textContent=greet+', '+firstName+' 👋'
-    if(gsEl)gsEl.textContent=new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
-
     const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
     const dayIdx=new Date().getDate()%allClearMsgs.length
 
