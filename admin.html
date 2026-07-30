@@ -103,6 +103,23 @@ html[data-theme="dark"] .fg input:focus,
 html[data-theme="dark"] .fg select:focus,
 html[data-theme="dark"] .fg textarea:focus{background:var(--lav-100)}
 html[data-theme="dark"] select option{background:var(--white);color:var(--ink)}
+/* .btn-dark uses var(--ink) which INVERTS to light in dark mode → make it a
+   proper accent button instead of a near-white one. */
+html[data-theme="dark"] .btn-dark{background:var(--indigo);color:#fff}
+html[data-theme="dark"] .btn-dark:hover:not(:disabled){background:var(--indigo-dark)}
+/* Avatar / logo gradients that lean on var(--ink) invert too */
+html[data-theme="dark"] .sb-mark,
+html[data-theme="dark"] .av-sm{background:linear-gradient(135deg,var(--indigo),var(--indigo-dark))!important}
+/* Remaining hardcoded light inline backgrounds (not inside the theme preview) */
+html[data-theme="dark"] [style*="background:#F7F6FD"],
+html[data-theme="dark"] [style*="background:#F3F1FE"],
+html[data-theme="dark"] [style*="background:#E5E1F5"]{background:var(--lav-100)!important}
+/* Light translucent topbar → dark translucent */
+html[data-theme="dark"] .topbar{background:rgba(18,17,28,.85)}
+/* Default (info) toast uses var(--ink) which inverts → give it a dark chip */
+html[data-theme="dark"] .toast-item{background:var(--lav-300);color:var(--ink)}
+html[data-theme="dark"] .toast-item.success{background:var(--success);color:#08160E}
+html[data-theme="dark"] .toast-item.error{background:var(--danger);color:#230A0E}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-height:100vh;overflow-x:hidden}
@@ -464,7 +481,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="grid-5" style="margin-bottom:18px" id="dashStats"><div class="loading-row" style="grid-column:1/-1"><div class="spinner"></div></div></div>
 
       <!-- TODAY AT SCHOOL -->
-      <div style="margin-bottom:18px;border-radius:var(--radius-lg);padding:20px 22px;position:relative;overflow:hidden;background:linear-gradient(135deg,var(--indigo-100) 0%,#F3F1FE 55%,var(--white) 100%);border:1px solid var(--indigo-100);box-shadow:0 6px 22px -12px rgba(91,79,232,.35)">
+      <div style="margin-bottom:18px;border-radius:var(--radius-lg);padding:20px 22px;position:relative;overflow:hidden;background:linear-gradient(135deg,var(--indigo-100) 0%,var(--lav-100) 55%,var(--white) 100%);border:1px solid var(--indigo-100);box-shadow:0 6px 22px -12px rgba(91,79,232,.35)">
         <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--indigo),var(--indigo-dark))"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:2px">
           <div style="display:flex;align-items:center;gap:10px">
