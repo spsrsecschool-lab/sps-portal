@@ -1535,7 +1535,8 @@ async function confirmDocUpload(){
 
   try{
     const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
-    const path='student-docs/'+sid+'/'+Date.now()+'.'+ext
+    const safeType=String(docType||type||'Document').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
+    const path='student-docs/'+sid+'/'+safeType+'_'+sid+'.'+ext
     const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
     if(upErr){
       if(sp)sp.style.display='none'
