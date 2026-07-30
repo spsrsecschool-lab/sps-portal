@@ -1270,7 +1270,7 @@ async function viewStudentProfile(eid){
   ).join('')
 
   const docsHtml=docs?.length
-    ?docs.map(d=>{const dt=d.uploaded_at?new Date(d.uploaded_at):null;const dtStr=dt&&!isNaN(dt)?dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'';return '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 8px 6px 12px;background:var(--lav-100);border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;color:var(--ink);margin:0 6px 6px 0"><a href="'+esc(d.file_url||'#')+'" target="_blank" style="display:inline-flex;align-items:center;gap:6px;color:var(--ink);text-decoration:none">'+esc(d.file_type||'Doc')+'<span style="font-size:10px;color:var(--ink-faint)">'+(d.uploaded_by_type?d.uploaded_by_type+' · ':'')+dtStr+'</span></a>'+(canEdit?'<button type="button" title="Delete" onclick="deleteStudentDoc(\''+esc(s.student_id||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:none;background:none;cursor:pointer;color:var(--danger,#E5556B);font-size:15px;line-height:1;padding:0 2px">&times;</button>':'')+'</span>'}  ).join('')
+    ?docs.map(d=>{const dt=d.uploaded_at?new Date(d.uploaded_at):null;const dtStr=dt&&!isNaN(dt)?dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'';return '<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a href="'+esc(d.file_url||'#')+'" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--lav-100);border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600;color:var(--ink);text-decoration:none">'+esc(d.file_type||'Doc')+'<span style="font-size:10px;color:var(--ink-faint)">'+(d.uploaded_by_type?d.uploaded_by_type+' · ':'')+dtStr+'</span></a>'+(canEdit?'<button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s.student_id||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button>':'')+'</span>'}  ).join('')
     :'<div style="font-size:12.5px;color:var(--ink-faint)">No documents uploaded.</div>'
 
   let body='<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">'
@@ -1589,7 +1589,7 @@ async function saveStudentProfile(studentId){
 
 async function deleteStudentDoc(sid,fileType,btn){
   if(!sid||!fileType)return
-  if(!confirm('Delete this '+fileType+'? This removes it from the portal and storage.'))return
+  if(!confirm('Delete the '+fileType+' permanently?\n\nThis removes it from the portal and from storage, and cannot be undone.'))return
   // Look up the row(s) so we can also remove the stored file.
   const{data:rows}=await sb.from('student_documents').select('file_url').eq('student_id',sid).eq('file_type',fileType)
   const{error}=await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',fileType)
