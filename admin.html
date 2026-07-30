@@ -2059,7 +2059,21 @@ async function openProfile(enrollId){
   $('pm_tags').innerHTML='<span class="pill pill-neutral">'+esc(s?.student_id||'')+'</span><span class="pill pill-neutral">S.No '+esc(e.s_no||'—')+'</span><span class="pill '+(e.status==='active'?'pill-success':'pill-warn')+'">'+esc(e.status||'')+'</span>'
   $('pm_fields').innerHTML='<div class="field-row"><span class="fk">Father\'s Name</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
-  if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span class="map-tag"><a href="'+esc(d.file_url)+'" target="_blank" style="color:inherit">'+esc(d.file_type||'Doc')+'</a></span>').join('')+'</div>'
+  if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span class="map-tag" style="display:inline-flex;align-items:center;gap:6px"><a href="'+esc(d.file_url)+'" target="_blank" style="color:inherit">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:none;background:none;cursor:pointer;color:var(--danger,#E5556B);font-size:15px;line-height:1;padding:0">&times;</button></span>').join('')+'</div>'
+  else $('pm_docs').innerHTML=''
+}
+async function deleteStudentDoc(sid,fileType,btn){
+  if(!sid||!fileType)return
+  if(!confirm('Delete this '+fileType+'? This removes it from the portal and storage.'))return
+  const{data:rows}=await sb.from('student_documents').select('file_url').eq('student_id',sid).eq('file_type',fileType)
+  const{error}=await sb.from('student_documents').delete().eq('student_id',sid).eq('file_type',fileType)
+  if(error){toast('Delete failed: '+error.message,'error');return}
+  try{
+    const paths=(rows||[]).map(r=>{const m=(r.file_url||'').split('/school-files/')[1];return m?m.split('?')[0]:null}).filter(Boolean)
+    if(paths.length)await sb.storage.from('school-files').remove(paths)
+  }catch(e){}
+  toast(fileType+' deleted','success')
+  const chip=btn&&btn.closest('span');if(chip)chip.remove()
 }
 function closeProfile(){$('profileModal').classList.remove('show');_profileEnrollId=null}
 function openUploadPhotoModal(){
@@ -2323,7 +2337,7 @@ function refreshDocPick(){
   const type=$('doc_type')?.value
   const info=$('docPickInfo')
   if(info)info.innerHTML = SPSMedia.needsMultiple(type)
-    ? 'Aadhaar needs <b>two photos</b> (front &amp; back) — they\'ll be combined into one file.'
+    ? 'Aadhaar can be <b>one page</b> or front + back &mdash; you\'ll be asked. Two photos combine into one file.'
     : 'Choose a file, or take a photo on mobile.'
 }
 async function pickDocFile(){
