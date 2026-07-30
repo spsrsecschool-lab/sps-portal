@@ -18,6 +18,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script>window.PORTAL_KEY = 'admin'</script>
+<script>
+// Apply saved theme before first paint (no flash). 'system' follows the OS.
+(function(){try{
+  var t=localStorage.getItem('sps_admin_theme')||'light'
+  var dark = t==='dark' || (t==='system' && window.matchMedia && matchMedia('(prefers-color-scheme:dark)').matches)
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light')
+}catch(e){}})()
+</script>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
@@ -37,6 +45,25 @@
   --font:'Plus Jakarta Sans',sans-serif;--mono:'DM Mono',monospace;
   --sbw:252px;
 }
+/* ── Dark theme: remap the same variables the whole portal already uses ── */
+html[data-theme="dark"]{
+  --lav-50:#141320;--lav-100:#1E1C2C;--lav-200:#2B2840;--lav-300:#3B3658;
+  --ink:#ECEAF6;--ink-soft:#ABA6C8;--ink-faint:#726D91;
+  --indigo:#8B80FF;--indigo-dark:#7A6FF0;--indigo-100:#272341;
+  --white:#1B1A28;--line:#2C2942;
+  --success:#3BD088;--success-soft:#12301F;
+  --warn:#F0B85C;--warn-soft:#332711;
+  --danger:#F16A7E;--danger-soft:#33192022;
+}
+html[data-theme="dark"] body{background:var(--lav-50)}
+/* Inputs must keep readable text on dark surfaces */
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{color:var(--ink)}
+html[data-theme="dark"] input::placeholder,html[data-theme="dark"] textarea::placeholder{color:var(--ink-faint)}
+/* Soften pure-white images/overlays a touch */
+html[data-theme="dark"] img{filter:brightness(.94)}
+.theme-opt{background:var(--white);border:2px solid var(--line);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font);text-align:center;color:var(--ink);transition:border-color .15s,transform .1s}
+.theme-opt:active{transform:scale(.97)}
+.theme-opt.selected{border-color:var(--indigo)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-height:100vh;overflow-x:hidden}
@@ -908,6 +935,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="tab-btn" onclick="switchTab('settingsTab','streams',this)">Streams</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','danger',this)">Danger Zone</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','ctcontrol',this)">Class Teacher Control</button>
+        <button class="tab-btn" onclick="switchTab('settingsTab','appearance',this)">Appearance</button>
       </div>
 
       <div id="settingsTab-session">
@@ -1008,6 +1036,27 @@ tbody tr:hover td{background:var(--lav-50)}
           <h3>Danger Zone</h3>
           <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">These actions permanently alter school data and cannot be undone.</p>
           <button class="btn btn-danger btn-sm" onclick="confirmAct('Purge session attendance?','All attendance records for the current session will be deleted.',purgeAttendance)">Purge Session Attendance</button>
+        </div>
+      </div>
+
+      <div id="settingsTab-appearance" style="display:none">
+        <div class="card" style="max-width:560px">
+          <h3 style="margin-bottom:6px">Theme</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:16px">Choose how the admin portal looks. "System" follows your device's light/dark setting. Saved on this device.</p>
+          <div id="themeChoices" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <button class="theme-opt" data-theme-val="light" onclick="setTheme('light')">
+              <div style="height:54px;border-radius:10px;background:#F7F6FD;border:1px solid #E7E3F8;display:flex;align-items:center;justify-content:center;margin-bottom:8px"><div style="width:60%;height:10px;border-radius:4px;background:#5B4FE8"></div></div>
+              <span style="font-size:13px;font-weight:700">Light</span>
+            </button>
+            <button class="theme-opt" data-theme-val="dark" onclick="setTheme('dark')">
+              <div style="height:54px;border-radius:10px;background:#141320;border:1px solid #2C2942;display:flex;align-items:center;justify-content:center;margin-bottom:8px"><div style="width:60%;height:10px;border-radius:4px;background:#8B80FF"></div></div>
+              <span style="font-size:13px;font-weight:700">Dark</span>
+            </button>
+            <button class="theme-opt" data-theme-val="system" onclick="setTheme('system')">
+              <div style="height:54px;border-radius:10px;background:linear-gradient(90deg,#F7F6FD 50%,#141320 50%);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin-bottom:8px"><div style="width:60%;height:10px;border-radius:4px;background:linear-gradient(90deg,#5B4FE8 50%,#8B80FF 50%)"></div></div>
+              <span style="font-size:13px;font-weight:700">System</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -5289,7 +5338,27 @@ function loadSettings(){
   loadSubjectsList()
   loadStreamsList()
   loadClassTeacherControl()
+  reflectThemeChoice()
 }
+
+// ═══════════ THEME ═══════════
+function applyTheme(t){
+  const dark = t==='dark' || (t==='system' && window.matchMedia && matchMedia('(prefers-color-scheme:dark)').matches)
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light')
+}
+function currentThemePref(){ try{return localStorage.getItem('sps_admin_theme')||'light'}catch(e){return 'light'} }
+function reflectThemeChoice(){
+  const cur=currentThemePref()
+  document.querySelectorAll('.theme-opt').forEach(b=>b.classList.toggle('selected', b.getAttribute('data-theme-val')===cur))
+}
+function setTheme(t){
+  try{localStorage.setItem('sps_admin_theme',t)}catch(e){}
+  applyTheme(t)
+  reflectThemeChoice()
+  toast('Theme set to '+t,'success')
+}
+// Keep 'system' choice live if the OS theme flips while the app is open.
+try{ if(window.matchMedia){ matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{ if(currentThemePref()==='system') applyTheme('system') }) } }catch(e){}
 
 // Close the father-name suggestion dropdown when clicking elsewhere.
 document.addEventListener('mousedown',function(e){
