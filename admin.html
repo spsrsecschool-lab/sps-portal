@@ -64,6 +64,45 @@ html[data-theme="dark"] img{filter:brightness(.94)}
 .theme-opt{background:var(--white);border:2px solid var(--line);border-radius:var(--radius-md);padding:12px;cursor:pointer;font-family:var(--font);text-align:center;color:var(--ink);transition:border-color .15s,transform .1s}
 .theme-opt:active{transform:scale(.97)}
 .theme-opt.selected{border-color:var(--indigo)}
+
+/* ── Universal dark-mode safety net ──────────────────────────────────────
+   Some components hardcode light colours (literal #fff, white, light hexes)
+   instead of the theme variables. These rules force those to follow the theme
+   so dark mode is consistent across every card, modal, dialog and panel.     */
+html[data-theme="dark"] .modal-sheet,
+html[data-theme="dark"] .profile-sheet,
+html[data-theme="dark"] .msg-shell,
+html[data-theme="dark"] .msg-list{background:var(--white)}
+html[data-theme="dark"] .tab-btn.active{background:var(--indigo-100);color:var(--ink)}
+/* Any element that hardcodes a white/near-white background inline */
+html[data-theme="dark"] [style*="background:#fff"],
+html[data-theme="dark"] [style*="background: #fff"],
+html[data-theme="dark"] [style*="background:#ffffff"],
+html[data-theme="dark"] [style*="background:#FFFFFF"],
+html[data-theme="dark"] [style*="background:#FFF"],
+html[data-theme="dark"] [style*="background:#F7F6FD"],
+html[data-theme="dark"] [style*="background-color:#fff"],
+html[data-theme="dark"] [style*="background:white"],
+html[data-theme="dark"] [style*="background: white"]{background-color:var(--white)!important}
+/* Hardcoded dark accent text → readable light accents in dark mode */
+html[data-theme="dark"] [style*="color:#B5122B"]{color:var(--danger)!important}
+html[data-theme="dark"] [style*="color:#8A5A00"],
+html[data-theme="dark"] [style*="color:#B77A1E"]{color:var(--warn)!important}
+html[data-theme="dark"] [style*="color:#1B7F52"]{color:var(--success)!important}
+/* Hardcoded near-black text that would vanish on dark surfaces */
+html[data-theme="dark"] [style*="color:#221F35"],
+html[data-theme="dark"] [style*="color:#222"],
+html[data-theme="dark"] [style*="color:#000"],
+html[data-theme="dark"] [style*="color:black"]{color:var(--ink)!important}
+/* Backdrops a touch deeper in dark mode */
+html[data-theme="dark"] #profileModal .backdrop,
+html[data-theme="dark"] #modalOverlay .backdrop,
+html[data-theme="dark"] .backdrop{background:rgba(0,0,0,.6)!important}
+/* Input focus must not flash white in dark mode */
+html[data-theme="dark"] .fg input:focus,
+html[data-theme="dark"] .fg select:focus,
+html[data-theme="dark"] .fg textarea:focus{background:var(--lav-100)}
+html[data-theme="dark"] select option{background:var(--white);color:var(--ink)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-height:100vh;overflow-x:hidden}
