@@ -4334,9 +4334,9 @@ async function notifyStaffAttUpload(from,to,teacherIds){
     if(ids.length){
       const now=new Date().toISOString()
       const rows=ids.map(tid=>({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:tid,
-        subject:'Staff attendance uploaded — '+range,
+        subject:'📢 Staff attendance uploaded — '+range,
         body:'Admin has uploaded staff attendance for '+range+'. Please review your attendance in the "My Attendance" tab and let the office know if anything looks incorrect.',
-        message_type:'direct',sent_at:now}))
+        message_type:'broadcast',sent_at:now}))
       for(let i=0;i<rows.length;i+=200){ await sb.from('messages').insert(rows.slice(i,i+200)) }
     }
     logActivity('admin', SPS.admin?.admin_id, 'staff_attendance_upload', 'Uploaded staff attendance for '+range+' ('+(teacherIds?.length||0)+' staff)')
