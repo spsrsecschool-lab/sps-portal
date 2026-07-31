@@ -4158,22 +4158,22 @@ function buildStaffPreview(grid){
   if(periodFrom)$('sa_from').value=periodFrom
   if(periodTo)$('sa_to').value=periodTo
 
-  // Find the EMP Code header row; employee data starts below it.
-  let empHeaderIdx=-1
-  for(let i=0;i<grid.length;i++){ if(grid[i].some(c=>/emp\s*code/i.test(c))){empHeaderIdx=i;break} }
-
-  // The DATE header row sits ABOVE the EMP Code row. Pick the row with the most
-  // DD/MM/YYYY cells (a single-day export has just one, a range export has many).
-  const searchEnd=empHeaderIdx>=0?empHeaderIdx:Math.min(grid.length,15)
-  let dateCols=null, best=0
+  // The DATE header row holds the DD/MM/YYYY columns. It sits near the top of
+  // the file. Some exports have an "EMP Code" label row, others don't (and one
+  // format even repeats "EMP Code" in a FOOTER — which must NOT be mistaken for
+  // the data header). So we locate the date header directly and start employee
+  // parsing right below it; non-employee rows (In/Out header, blanks, footers)
+  // are skipped by the numeric-code test in the loop below.
+  let dateCols=null, best=0, dateHeaderIdx=-1
+  const searchEnd=Math.min(grid.length,25)
   for(let i=0;i<searchEnd;i++){
     const hits=[]
     grid[i].forEach((c,idx)=>{ if(/^\s*\d{1,2}\/\d{1,2}\/\d{4}\s*$/.test(c)) hits.push({col:idx,date:parseLooseDate(c.trim())}) })
-    if(hits.length>best){ best=hits.length; dateCols=hits }
+    if(hits.length>best){ best=hits.length; dateCols=hits; dateHeaderIdx=i }
   }
   if(!dateCols||!dateCols.length){toast('Could not find the date header row in the file','error');return}
 
-  const startRow=(empHeaderIdx>=0?empHeaderIdx:0)+1
+  const startRow=dateHeaderIdx+1
 
   // Block boundaries: each date owns columns [col, nextDateCol)
   const blocks=dateCols.map((d,k)=>({date:d.date, from:d.col, to:(k+1<dateCols.length?dateCols[k+1].col:1e9)}))
