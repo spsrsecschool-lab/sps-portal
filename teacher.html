@@ -796,7 +796,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <button title="Dark" onclick="toggleDarkMode(true)"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
     </div>
 
-    <div class="icon-btn" onclick="goTo('messages',null)" style="cursor:pointer"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="dot" id="msgDot" style="display:none"></span></div>
+    <div class="icon-btn" onclick="window._forceInbox=true;goTo('messages',null)" style="cursor:pointer"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="dot" id="msgDot" style="display:none"></span></div>
 
     <div class="user-chip" onclick="goTo('profile',document.querySelector('.sb-item[onclick*=profile]'))" style="cursor:pointer">
       <div class="avatar-sm" id="topAvatar">?</div>
@@ -812,7 +812,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
       <div id="broadcastBanners"></div>
-      <div id="unreadPill" class="unread-pill" onclick="goTo('messages')"><span class="up-dot"></span><span id="unreadPillText">You have unread messages</span></div>
+      <div id="unreadPill" class="unread-pill" onclick="window._forceInbox=true;goTo('messages')"><span class="up-dot"></span><span id="unreadPillText">You have unread messages</span></div>
       <!-- Greeting -->
       <div id="dashGreeting" style="margin-bottom:20px">
         <div id="greetingText" style="font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-.01em"></div>
@@ -999,14 +999,43 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
     <!-- MESSAGES -->
     <div class="page" id="page-messages">
       <div class="page-head"><div><h2>Messages</h2><p>Internal school communication</p></div>
-        <button class="btn btn-primary" onclick="openComposeModal()"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Compose</button>
+        <button class="btn btn-ghost" id="msgViewToggle" onclick="toggleMsgView()"><svg viewBox="0 0 24 24" stroke-width="2" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span id="msgViewToggleLabel">Inbox</span></button>
       </div>
+
+      <!-- COMPOSE VIEW (default) -->
+      <div id="msgComposeView">
+        <div class="card" style="max-width:680px">
+          <h3 style="margin-top:0">New message</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-4px;margin-bottom:16px">Start a fresh conversation. To continue an existing conversation, open your <b>Inbox</b> and reply there.</p>
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">To</div>
+            <select id="mc_to_type" onchange="mcLoadRecipients()" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box;cursor:pointer"><option value="admin">Admin Office</option><option value="teacher">A Teacher</option></select>
+          </div>
+          <div id="mc_to_teacher_fg" style="display:none;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Select Teacher</div>
+            <select id="mc_to_id" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box;cursor:pointer"><option value="">Loading…</option></select>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Subject *</div>
+            <input id="mc_subject" placeholder="e.g. Query about timetable" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box">
+          </div>
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Message *</div>
+            <textarea id="mc_body" placeholder="Type your message…" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box;min-height:130px;resize:vertical"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="sendMessageInline()"><svg viewBox="0 0 24 24" stroke-width="2" style="width:15px;height:15px;stroke:currentColor;fill:none"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Send Message</button>
+        </div>
+      </div>
+
+      <!-- INBOX VIEW -->
+      <div id="msgInboxView" style="display:none">
       <div class="msg-shell" style="display:flex;height:600px;overflow:hidden">
         <div id="msgThreadPanel" style="width:310px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--line)">
           <div style="padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
             <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)">Threads</span>
             <button onclick="toggleThreadPanel()" style="background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:18px;line-height:1;padding:2px 6px" title="Collapse">&#8249;</button>
           </div>
+          <button onclick="showMsgView('compose')" style="margin:10px 12px;padding:10px;border:1.5px dashed var(--indigo);background:var(--indigo-100);color:var(--indigo-dark);border-radius:var(--radius-sm);font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><path d="M12 5v14M5 12h14"/></svg>New message — new topic</button>
           <div class="msg-thread-list" id="msgThreadList" style="flex:1;overflow-y:auto"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
         </div>
         <div id="msgReadPane" style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;position:relative">
@@ -1018,13 +1047,15 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
           </div>
           <div class="msg-email-wrap" id="msgBubbles"><div style="text-align:center;padding:60px;color:var(--ink-faint)">Select a thread to read messages.</div></div>
           <div class="msg-compose-box" id="msgReplyBar" style="display:none">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px">Reply</div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px">Reply <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-faint)">— keep this about the current topic</span></div>
             <textarea id="msgReplyText" placeholder="Write your reply…"></textarea>
-            <div style="display:flex;justify-content:flex-end;margin-top:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:10px;flex-wrap:wrap">
+              <button onclick="showMsgView('compose')" style="background:none;border:none;cursor:pointer;color:var(--indigo);font-family:var(--font);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;padding:0"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><path d="M12 5v14M5 12h14"/></svg>Different topic? Start a new message</button>
               <button class="btn btn-primary btn-sm" onclick="sendThreadReply()">Send Reply</button>
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -1130,7 +1161,7 @@ function goTo(id,el){
   if(id!=='marks')['sub-menu','sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'})
   if(id==='marks'){['sub-entry','sub-perf','sub-test','sub-obs'].forEach(sid=>{const el=$(sid);if(el)el.style.display='none'});const sm=$('sub-menu');if(sm)sm.style.display='block';meInitAssessments()}
   if(id==='timetable'){window._timetableStale=false;loadMyTimetable()}
-  if(id==='messages')loadMessages()
+  if(id==='messages'){ showMsgView(window._forceInbox?'inbox':'compose'); window._forceInbox=false }
   if(id==='profile')loadProfile()
   if(id==='critical')loadCriticalStudents()
   if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t}
@@ -2770,6 +2801,44 @@ async function checkUnreadMessages(){
     if(count>0){pill.style.display='flex';if(ptxt)ptxt.textContent='You have '+count+' unread message'+(count>1?'s':'')}
     else{pill.style.display='none'}
   }
+}
+
+// ── Compose-first messages view ─────────────────────────────────────────
+function showMsgView(view){
+  const compose=$('msgComposeView'), inbox=$('msgInboxView')
+  const lbl=$('msgViewToggleLabel')
+  if(view==='inbox'){
+    if(compose)compose.style.display='none'
+    if(inbox)inbox.style.display='block'
+    if(lbl)lbl.textContent='Compose new message'
+    loadMessages()
+  }else{
+    if(inbox)inbox.style.display='none'
+    if(compose)compose.style.display='block'
+    if(lbl)lbl.textContent='Inbox'
+    mcLoadRecipients()
+  }
+  window._msgView=view
+}
+function toggleMsgView(){ showMsgView(window._msgView==='inbox'?'compose':'inbox') }
+async function mcLoadRecipients(){
+  const type=$('mc_to_type')?.value,fg=$('mc_to_teacher_fg')
+  if(fg)fg.style.display=type==='teacher'?'block':'none'
+  if(type==='teacher'){
+    const{data}=await sb.from('teachers').select('teacher_id,full_name').eq('is_active',true).neq('teacher_id',TEACHER.teacher_id).order('full_name')
+    const sel=$('mc_to_id');if(sel)sel.innerHTML='<option value="">Select teacher</option>'+(data||[]).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  }
+}
+async function sendMessageInline(){
+  const toType=$('mc_to_type')?.value,subject=$('mc_subject')?.value?.trim(),body=$('mc_body')?.value?.trim()
+  if(!subject||!body){toast('Subject and message are required','error');return}
+  const recipientId=toType==='admin'?'ADMIN-001':$('mc_to_id')?.value
+  if(!recipientId){toast('Select a recipient','error');return}
+  const{error}=await sb.from('messages').insert({sender_type:'teacher',sender_id:TEACHER.teacher_id,recipient_type:toType,recipient_id:recipientId,subject,body,message_type:'direct',sent_at:new Date().toISOString()})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Message sent ✓','success')
+  if($('mc_subject'))$('mc_subject').value='';if($('mc_body'))$('mc_body').value=''
+  showMsgView('inbox')   // after sending, show the conversation in the inbox
 }
 
 function openComposeModal(){
