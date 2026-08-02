@@ -441,6 +441,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-label">Student Lifecycle</div>
     <div class="sb-item" onclick="goTo('promotion',this)"><svg viewBox="0 0 24 24"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 21 3 17 7 13"/><line x1="3" y1="17" x2="15" y2="17"/></svg>Promotion</div>
     <div class="sb-item" onclick="goTo('relieving',this)"><svg viewBox="0 0 24 24"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M12 19a7 7 0 1 1 0-14"/></svg>Student Relieving</div>
+    <div class="sb-item" onclick="goTo('readmission',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Re-admission</div>
     <div class="sb-label">Academics</div>
     <div class="sb-item" onclick="goTo('mapping',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Class &amp; Subject Mapping</div>
     <div class="sb-item" onclick="goTo('assessments',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Assessments &amp; Exam Fees</div>
@@ -612,8 +613,9 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="fg"><label>Address</label><input type="text" id="adm_address" placeholder="Full address"></div>
           </div>
           <div class="form-row">
-            <div class="fg"><label>Family Code (leave blank to auto-create)</label><input type="text" id="adm_family" placeholder="e.g. F001 — links siblings"></div>
+            <div class="fg"><label>Family Code (leave blank to auto-create)</label><input type="text" id="adm_family" placeholder="e.g. F001 — links siblings" oninput="showAdmFamilyStudents($('adm_family').value)"></div>
           </div>
+          <div id="adm_family_students" style="display:none;background:var(--indigo-100);border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:14px;font-size:12.5px"></div>
           <div class="form-row">
             <div class="fg"><label>Profile Photo (optional)</label><input type="file" id="adm_photo" accept="image/*"></div>
             <div class="fg"><label>Aadhar / Document (optional)</label><input type="file" id="adm_doc" accept="image/*,.pdf"></div>
@@ -774,6 +776,26 @@ tbody tr:hover td{background:var(--lav-50)}
 
       <div id="reltab-relieved" style="display:none">
         <div id="rl_relievedWrap"><div style="padding:20px;color:var(--ink-soft);font-size:13px">Loading relieved students…</div></div>
+      </div>
+    </div>
+
+    <div class="page" id="page-readmission">
+      <div class="page-head"><div><h2>Re-admission</h2><p>Students promoted into the current session arrive <b>without an S.No</b>. Tick the students who have returned, assign each an S.No, and confirm. This only sets the S.No and re-admission date — no fees are charged.</p></div></div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="form-row" style="margin-bottom:0;flex-wrap:wrap">
+          <div class="fg" style="max-width:200px"><label>Class</label><select id="readm_class" onchange="renderReadmission()"><option value="">All Classes</option></select></div>
+          <div class="fg" style="min-width:220px"><label>Search (Name / Father / Family)</label><input id="readm_search" placeholder="Filter students…" oninput="renderReadmission()"></div>
+          <div class="fg" style="max-width:190px"><label>Show</label><select id="readm_filter" onchange="renderReadmission()"><option value="pending">Pending Re-admission</option><option value="done">Already Re-admitted</option><option value="all">All Students</option></select></div>
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <button class="btn btn-ghost btn-sm" onclick="setAllReadmChecks(true)">☑ All</button>
+            <button class="btn btn-ghost btn-sm" onclick="setAllReadmChecks(false)">☐ None</button>
+            <button class="btn btn-soft btn-sm" onclick="autoFillReadmSnos()">⇣ Auto-fill S.No</button>
+          </div>
+        </div>
+      </div>
+      <div id="readmissionList"><div class="empty">Loading…</div></div>
+      <div id="readmissionAction" style="display:none;margin-top:16px">
+        <button class="btn btn-dark" onclick="executeReadmission()">✓ Re-admit Selected Students</button>
       </div>
     </div>
 
@@ -1540,8 +1562,8 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',settings:'Settings',requests:'Access Requests'}
-const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',settings:'Settings',requests:'Access Requests'}
+const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
 
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
@@ -1564,7 +1586,7 @@ async function refreshAdmSnoPlaceholder(){
 
 // Cache distinct (father_name, family_code) pairs from existing students so the
 // admission form can suggest a father and auto-fill the family code for siblings.
-let _admFathers=[]
+let _admFathers=[], _admFamilyStudents={}
 async function loadAdmFathers(){
   try{
     const{data}=await sb.from('students').select('father_name,family_code').not('father_name','is',null)
@@ -1577,7 +1599,32 @@ async function loadAdmFathers(){
     })
     out.sort((a,b)=>a.father.localeCompare(b.father))
     _admFathers=out
-  }catch(e){_admFathers=[]}
+    // Existing students per family_code (current session), with class-section.
+    _admFamilyStudents={}
+    const{data:enr}=await sb.from('student_enrollments')
+      .select('students!inner(full_name,family_code),classes(name),class_sections(name)')
+      .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+    ;(enr||[]).forEach(e=>{
+      const fc=e.students?.family_code; if(!fc)return
+      ;(_admFamilyStudents[fc]=_admFamilyStudents[fc]||[]).push({
+        name:e.students?.full_name||'?',
+        cls:(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')
+      })
+    })
+  }catch(e){_admFathers=[];_admFamilyStudents={}}
+}
+
+// Render the existing children in a family code (siblings) into the panel.
+function showAdmFamilyStudents(familyCode){
+  const box=$('adm_family_students'); if(!box)return
+  const fc=(familyCode||'').trim()
+  const kids=fc?_admFamilyStudents[fc]:null
+  if(!fc||!kids||!kids.length){box.style.display='none';box.innerHTML='';return}
+  box.innerHTML='<div style="font-weight:700;color:var(--indigo-dark);margin-bottom:6px">Existing children in '+esc(fc)+' ('+kids.length+')</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+    +kids.map(k=>'<span class="pill pill-indigo" style="background:var(--white)">'+esc(k.name)+' · '+esc(k.cls)+'</span>').join('')
+    +'</div><div style="font-size:11px;color:var(--ink-soft);margin-top:7px">The new student will be added as a sibling in this family.</div>'
+  box.style.display='block'
 }
 
 // Suggestion dropdown as the admin types a father's name.
@@ -1588,14 +1635,19 @@ function admFatherSuggest(){
   if(q.length<2){box.style.display='none';return}
   const matches=_admFathers.filter(f=>f.father.toLowerCase().includes(q)).slice(0,8)
   if(!matches.length){box.style.display='none';return}
-  box.innerHTML=matches.map(f=>
-    '<div onmousedown="admPickFather(event,\''+encodeURIComponent(f.father)+'\',\''+encodeURIComponent(f.family)+'\')" '
+  box.innerHTML=matches.map(f=>{
+    const kids=(f.family&&_admFamilyStudents[f.family])||[]
+    const kidLine=kids.length
+      ? '<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(kids.slice(0,4).map(k=>k.name+' ('+k.cls+')').join(', '))+(kids.length>4?' +'+(kids.length-4)+' more':'')+'</div>'
+      : ''
+    return '<div onmousedown="admPickFather(event,\''+encodeURIComponent(f.father)+'\',\''+encodeURIComponent(f.family)+'\')" '
     +'style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px" '
     +'onmouseover="this.style.background=\'var(--lav-100)\'" onmouseout="this.style.background=\'\'">'
     +'<b>'+esc(f.father)+'</b>'
-    +(f.family?' <span style="color:var(--ink-faint);font-size:11.5px;font-family:var(--mono)">'+esc(f.family)+'</span>':'')
+    +(f.family?' <span style="color:var(--ink-faint);font-size:11.5px;font-family:var(--mono)">'+esc(f.family)+(kids.length?' · '+kids.length+' child'+(kids.length>1?'ren':''):'')+'</span>':'')
+    +kidLine
     +'</div>'
-  ).join('')
+  }).join('')
   box.style.display='block'
 }
 
@@ -1606,6 +1658,7 @@ function admPickFather(e,fatherEnc,familyEnc){
   if($('adm_father'))$('adm_father').value=father
   if(family&&$('adm_family')){$('adm_family').value=family}
   const box=$('adm_father_suggest');if(box)box.style.display='none'
+  showAdmFamilyStudents(family)   // show the siblings for this family
 }
 function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
@@ -3403,6 +3456,91 @@ function loadRelievingShell(){
   $('rl_class').innerHTML='<option value="">Select class</option>'+
     (ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   loadRelievedList()
+}
+
+// ═══════════ RE-ADMISSION (assign S.No + readmission date; no fees) ═══════════
+let _readmStudents=[]
+async function loadReadmission(){
+  $('readm_class').innerHTML='<option value="">All Classes</option>'+
+    (ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  const el=$('readmissionList');ldg(el)
+  const{data,error}=await sb.from('student_enrollments')
+    .select('enrollment_id,class_id,s_no,readmission_date,students!inner(full_name,father_name,family_code),classes(name),class_sections(name)')
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  if(error){emp(el,'Error: '+error.message);return}
+  _readmStudents=(data||[]).map(e=>({
+    enrollment_id:e.enrollment_id, class_id:e.class_id,
+    name:e.students?.full_name||'?', father:e.students?.father_name||'',
+    familyCode:e.students?.family_code||'', sno:e.s_no,
+    readmissionDate:e.readmission_date,
+    cls:(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'),
+    clsName:e.classes?.name||''
+  }))
+  renderReadmission()
+}
+
+function readmissionFiltered(){
+  const cls=$('readm_class')?.value, q=($('readm_search')?.value||'').trim().toLowerCase()
+  const filt=$('readm_filter')?.value||'pending'
+  let list=[..._readmStudents]
+  if(cls)list=list.filter(s=>s.class_id===cls)
+  if(filt==='pending')list=list.filter(s=>s.sno==null||s.sno==='')
+  if(filt==='done')list=list.filter(s=>s.sno!=null&&s.sno!=='')
+  if(q)list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.father||'').toLowerCase().includes(q)||(s.familyCode||'').toLowerCase().includes(q)||String(s.sno||'').includes(q))
+  return list.sort((a,b)=>clsIdx(a.clsName)-clsIdx(b.clsName)||String(a.name).localeCompare(String(b.name)))
+}
+function clsIdx(name){const i=(ALL_CLASSES||[]).findIndex(c=>c.name===name);return i<0?999:i}
+
+function renderReadmission(){
+  const container=$('readmissionList'),action=$('readmissionAction')
+  const list=readmissionFiltered(), filt=$('readm_filter')?.value||'pending'
+  if(!list.length){container.innerHTML='<div class="card"><div class="empty">'+(filt==='pending'?'🎉 No students are awaiting re-admission.':'No students match these filters.')+'</div></div>';action.style.display='none';return}
+  const pendingCount=_readmStudents.filter(s=>s.sno==null||s.sno==='').length
+  container.innerHTML='<div class="card"><h3>'+list.length+' student'+(list.length!==1?'s':'')+' shown · '+pendingCount+' awaiting re-admission</h3>'
+    +'<div class="table-wrap"><table><thead><tr><th style="width:36px">✓</th><th>Status</th><th>Name</th><th>Father\'s Name</th><th>Class</th><th>Family</th><th>New S.No *</th></tr></thead><tbody id="readmTbody">'
+    +list.map(s=>{const done=s.sno!=null&&s.sno!=='';return '<tr data-eid="'+s.enrollment_id+'">'
+      +'<td><input type="checkbox" class="readm-check" data-eid="'+s.enrollment_id+'" style="width:16px;height:16px"></td>'
+      +'<td>'+(done?'<span class="pill pill-success">Re-admitted</span>':'<span class="pill pill-warn">Pending</span>')+'</td>'
+      +'<td><b>'+esc(s.name)+'</b></td><td>'+esc(s.father||'—')+'</td>'
+      +'<td><span class="pill pill-indigo">'+esc(s.cls)+'</span></td>'
+      +'<td class="mono" style="color:var(--ink-faint)">'+esc(s.familyCode||'—')+'</td>'
+      +'<td><input type="text" inputmode="numeric" class="readm-sno-input" data-eid="'+s.enrollment_id+'" value="'+esc(s.sno||'')+'" placeholder="—" style="width:90px;font-family:var(--font);font-size:13px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50)"></td></tr>'
+    }).join('')+'</tbody></table></div></div>'
+  action.style.display='block'
+}
+function setAllReadmChecks(v){document.querySelectorAll('#readmTbody .readm-check').forEach(c=>c.checked=v)}
+function autoFillReadmSnos(){
+  const checked=[...document.querySelectorAll('#readmTbody .readm-check:checked')]
+  if(!checked.length){toast('Tick some students first','error');return}
+  let next=Math.max(0,..._readmStudents.filter(s=>s.sno!=null&&s.sno!=='').map(s=>parseInt(s.sno)||0))
+  document.querySelectorAll('#readmTbody .readm-sno-input').forEach(inp=>{const n=parseInt(inp.value);if(!isNaN(n)&&n>next)next=n})
+  let filled=0
+  checked.forEach(c=>{const inp=document.querySelector('#readmTbody .readm-sno-input[data-eid="'+c.dataset.eid+'"]');if(inp&&!inp.value.trim()){next++;inp.value=String(next);filled++}})
+  toast(filled?('Auto-filled '+filled+' S.No'+(filled!==1?'s':'')):'All ticked students already have an S.No','success')
+}
+async function executeReadmission(){
+  const checked=[...document.querySelectorAll('#readmTbody .readm-check:checked')]
+  if(!checked.length){toast('No students selected — tick at least one','error');return}
+  const picks=checked.map(c=>{const eid=c.dataset.eid;const inp=document.querySelector('#readmTbody .readm-sno-input[data-eid="'+eid+'"]');const stu=_readmStudents.find(s=>s.enrollment_id===eid);return{eid,stu,sno:(inp?.value||'').trim()}})
+  const blanks=picks.filter(p=>!p.sno)
+  if(blanks.length){toast(blanks.length+' ticked student(s) have no S.No — fill them or use Auto-fill','error');return}
+  const snos=picks.map(p=>p.sno)
+  const dupes=[...new Set(snos.filter((s,i)=>snos.indexOf(s)!==i))]
+  if(dupes.length){toast('Duplicate S.No in your selection: '+dupes.join(', '),'error');return}
+  const pickedEids=picks.map(p=>p.eid)
+  const clashes=picks.filter(p=>_readmStudents.some(s=>String(s.sno)===String(p.sno)&&!pickedEids.includes(s.enrollment_id)))
+  if(clashes.length){toast('S.No already taken: '+clashes.map(c=>c.sno).join(', '),'error');return}
+  if(!confirm('Assign S.No and re-admission date to '+picks.length+' student(s)?\n\nThis only sets the S.No — no fees are charged.'))return
+  const d=today();let done=0
+  try{
+    for(const p of picks){
+      const{error}=await sb.from('student_enrollments').update({s_no:p.sno,readmission_date:p.stu.readmissionDate||d}).eq('enrollment_id',p.eid)
+      if(error)throw error;done++
+    }
+    logActivity('admin',SPS.admin?.admin_id,'readmission','Re-admitted '+done+' student(s) (assigned S.No)')
+    toast('✓ '+done+' student(s) re-admitted','success')
+    loadReadmission()
+  }catch(e){ toast('Re-admission failed after '+done+' student(s): '+(e.message||e),'error'); loadReadmission() }
 }
 
 async function rlLoadSections(){
