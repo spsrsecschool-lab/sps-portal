@@ -1631,7 +1631,16 @@ function showAdmFamilyStudents(familyCode){
 function admFatherSuggest(){
   const inp=$('adm_father'), box=$('adm_father_suggest')
   if(!inp||!box)return
-  const q=inp.value.trim().toLowerCase()
+  const raw=inp.value.trim()
+  // If the father was picked from a suggestion (which auto-filled the family
+  // code) and the name is now cleared or edited away from that pick, drop the
+  // stale family code + sibling panel so it can't link to the wrong family.
+  if(window._admPickedFather && raw.toLowerCase()!==window._admPickedFather.toLowerCase()){
+    window._admPickedFather=null
+    if($('adm_family')){$('adm_family').value=''}
+    showAdmFamilyStudents('')
+  }
+  const q=raw.toLowerCase()
   if(q.length<2){box.style.display='none';return}
   const matches=_admFathers.filter(f=>f.father.toLowerCase().includes(q)).slice(0,8)
   if(!matches.length){box.style.display='none';return}
@@ -1656,6 +1665,7 @@ function admPickFather(e,fatherEnc,familyEnc){
   if(e)e.preventDefault()
   const father=decodeURIComponent(fatherEnc), family=decodeURIComponent(familyEnc)
   if($('adm_father'))$('adm_father').value=father
+  window._admPickedFather=father   // remember the pick so clearing/editing drops the family code
   if(family&&$('adm_family')){$('adm_family').value=family}
   const box=$('adm_father_suggest');if(box)box.style.display='none'
   showAdmFamilyStudents(family)   // show the siblings for this family
