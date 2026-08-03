@@ -1586,16 +1586,25 @@ async function refreshAdmSnoPlaceholder(){
 
 // Cache distinct (father_name, family_code) pairs from existing students so the
 // admission form can suggest a father and auto-fill the family code for siblings.
-let _admFathers=[], _admFamilyStudents={}
+let _admFathers=[], _admFamilyStudents={}, _admFamilyInfo={}
 async function loadAdmFathers(){
   try{
-    const{data}=await sb.from('students').select('father_name,family_code').not('father_name','is',null)
+    const{data}=await sb.from('students').select('father_name,mother_name,phone,alt_phone,address,family_code').not('father_name','is',null)
     const seen=new Set(), out=[]
+    _admFamilyInfo={}
     ;(data||[]).forEach(r=>{
       const fn=(r.father_name||'').trim(); if(!fn)return
       const key=fn.toLowerCase()+'|'+(r.family_code||'')
-      if(seen.has(key))return; seen.add(key)
-      out.push({father:fn,family:r.family_code||''})
+      if(!seen.has(key)){ seen.add(key); out.push({father:fn,family:r.family_code||''}) }
+      // Aggregate family-level details (first non-empty across siblings).
+      const fc=r.family_code; if(fc){
+        const info=_admFamilyInfo[fc]=_admFamilyInfo[fc]||{father:'',mother:'',phone:'',altPhone:'',address:''}
+        if(!info.father&&fn)info.father=fn
+        if(!info.mother&&r.mother_name)info.mother=r.mother_name
+        if(!info.phone&&r.phone)info.phone=r.phone
+        if(!info.altPhone&&r.alt_phone)info.altPhone=r.alt_phone
+        if(!info.address&&r.address)info.address=r.address
+      }
     })
     out.sort((a,b)=>a.father.localeCompare(b.father))
     _admFathers=out
@@ -1611,7 +1620,7 @@ async function loadAdmFathers(){
         cls:(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')
       })
     })
-  }catch(e){_admFathers=[];_admFamilyStudents={}}
+  }catch(e){_admFathers=[];_admFamilyStudents={};_admFamilyInfo={}}
 }
 
 // Render the existing children in a family code (siblings) into the panel.
@@ -1667,6 +1676,16 @@ function admPickFather(e,fatherEnc,familyEnc){
   if($('adm_father'))$('adm_father').value=father
   window._admPickedFather=father   // remember the pick so clearing/editing drops the family code
   if(family&&$('adm_family')){$('adm_family').value=family}
+  // Auto-fill the family-level fields (shared by siblings). Student-specific
+  // fields — name, DOB, Aadhaar, admission date — are intentionally left blank.
+  const info=family&&_admFamilyInfo[family]
+  if(info){
+    const setIf=(id,val)=>{const el=$(id);if(el&&val)el.value=val}
+    setIf('adm_mother',info.mother)
+    setIf('adm_phone',info.phone)
+    setIf('adm_altphone',info.altPhone)
+    setIf('adm_address',info.address)
+  }
   const box=$('adm_father_suggest');if(box)box.style.display='none'
   showAdmFamilyStudents(family)   // show the siblings for this family
 }
