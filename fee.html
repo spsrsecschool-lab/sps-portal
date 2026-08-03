@@ -928,15 +928,24 @@ async function refreshAll(){
 async function setPrevBalance(eid, amount){
   const stu=students.find(s=>s.enrollment_id===eid);
   const amt=Math.round((amount||0)*100)/100;
-  if(stu&&stu._pbId){
-    await sb.from('previous_balances').update({amount:amt}).eq('prev_balance_id',stu._pbId);
+  // Resolve an existing row id even if it wasn't cached, so we never try to
+  // INSERT a duplicate (which would fail on a unique constraint).
+  let pbId = stu && stu._pbId;
+  if(!pbId){
+    const {data:existing}=await sb.from('previous_balances').select('prev_balance_id').eq('enrollment_id',eid).limit(1);
+    if(existing&&existing.length) pbId=existing[0].prev_balance_id;
+  }
+  if(pbId){
+    const {error}=await sb.from('previous_balances').update({amount:amt}).eq('prev_balance_id',pbId);
+    if(error) throw new Error('Could not update previous balance: '+error.message);
+    if(stu){stu._pbId=pbId; stu.prevBalance=amt;}
   }else{
     const {data,error}=await sb.from('previous_balances')
       .insert({enrollment_id:eid, amount:amt, from_session_id:viewSession})
       .select('prev_balance_id').maybeSingle();
-    if(!error&&stu&&data) stu._pbId=data.prev_balance_id;
+    if(error) throw new Error('Could not save previous balance: '+error.message);
+    if(stu){ if(data)stu._pbId=data.prev_balance_id; stu.prevBalance=amt; }
   }
-  if(stu) stu.prevBalance=amt;
 }
 
 async function addLedgerEntry(eid, entryDate, source, amt, paymentId){
