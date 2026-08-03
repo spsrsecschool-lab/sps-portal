@@ -750,16 +750,17 @@ async function ensureFamily(code,phone){
 // Fetch rows matching a large list of ids WITHOUT overflowing the request URL.
 // PostgREST puts .in(...) values in the query string; a few hundred UUIDs blow
 // past the server's URL length limit and return HTTP 400. Chunking avoids that.
-async function selectInChunks(table, cols, col, ids, {order=null, chunkSize=80}={}){
-  const out=[]; let firstErr=null;
-  for(let i=0;i<ids.length;i+=chunkSize){
-    const chunk=ids.slice(i,i+chunkSize);
+async function selectInChunks(table, cols, col, ids, {order=null, chunkSize=120}={}){
+  // Fire all chunks in parallel (not one-at-a-time) so a large id list resolves
+  // in roughly one round-trip instead of many stacked sequentially.
+  const chunks=[]; for(let i=0;i<ids.length;i+=chunkSize) chunks.push(ids.slice(i,i+chunkSize));
+  const results=await Promise.all(chunks.map(chunk=>{
     let q=sb.from(table).select(cols).in(col,chunk);
     if(order)q=q.order(order);
-    const {data,error}=await q;
-    if(error){ firstErr=firstErr||error; console.error('[selectInChunks] '+table+' chunk '+(i/chunkSize)+' failed:',error.message); }
-    if(data&&data.length) out.push(...data);
-  }
+    return q;
+  }));
+  const out=[]; let firstErr=null;
+  results.forEach(r=>{ if(r.error){firstErr=firstErr||r.error;console.error('[selectInChunks] '+table+' chunk failed:',r.error.message);} if(r.data&&r.data.length)out.push(...r.data); });
   return {data:out, error:firstErr};
 }
 
@@ -780,21 +781,18 @@ async function loadAll(){
     currentSession=(sess||[]).find(s=>s.is_current)?.session_id || availableSessions[availableSessions.length-1] || null;
     if(!viewSession||!availableSessions.includes(viewSession)) viewSession=currentSession;
 
-    // Classes
-    const {data:cls}=await sb.from('classes').select('*').eq('is_active',true).order('sort_order');
+    // Classes, sections, streams, fee master — independent, so fetch together.
+    const [clsR,secR,strR,fmR] = await Promise.all([
+      sb.from('classes').select('*').eq('is_active',true).order('sort_order'),
+      sb.from('class_sections').select('*').eq('session_id',viewSession||'').eq('is_active',true),
+      sb.from('streams').select('*').eq('session_id',viewSession||'').eq('is_active',true),
+      sb.from('fee_master').select('*').eq('session_id',viewSession||'')
+    ]);
+    const cls=clsR.data, secs=secR.data, strs=strR.data, fm=fmR.data;
     CLASSES=(cls||[]).map(c=>c.name); CLASS_ID={}; CLASS_NAME={};
     (cls||[]).forEach(c=>{CLASS_ID[c.name]=c.class_id; CLASS_NAME[c.class_id]=c.name});
-
-    // Sections for the viewed session
-    const {data:secs}=await sb.from('class_sections').select('*').eq('session_id',viewSession||'').eq('is_active',true);
     SECTIONS=secs||[];
-
-    // Streams (11th/12th carry Science/Commerce/Arts)
-    const {data:strs}=await sb.from('streams').select('*').eq('session_id',viewSession||'').eq('is_active',true);
     STREAMS=strs||[];
-
-    // Fee master — one row per (class, stream). stream_id NULL = class-wide.
-    const {data:fm}=await sb.from('fee_master').select('*').eq('session_id',viewSession||'');
     FEEM={};
     (fm||[]).forEach(r=>{
       if(!FEEM[r.class_id]) FEEM[r.class_id]={};
@@ -810,29 +808,31 @@ async function loadAll(){
     const rows=(enr||[]).filter(e=>e.students);
     const eids=rows.map(e=>e.enrollment_id);
 
-    // Previous balances — fetch in ID chunks. With hundreds of students a single
-    // .in(...) puts ~600 UUIDs in the URL and PostgREST rejects it (HTTP 400),
-    // which silently wiped the reload and made saved balances appear as 0.
-    const pbRes = eids.length ? await selectInChunks('previous_balances','*','enrollment_id',eids) : {data:[]};
+    // Previous balances, waivers, ledger, payments — all depend only on the
+    // enrollment/payment ids, so fetch them concurrently (each chunked internally).
+    const paysP = sb.from('payments').select('*').eq('session_id',viewSession||'');
+    const [pbRes,wvRes,lgRes,paysR] = await Promise.all([
+      eids.length ? selectInChunks('previous_balances','*','enrollment_id',eids) : Promise.resolve({data:[]}),
+      eids.length ? selectInChunks('fee_waivers','*','enrollment_id',eids) : Promise.resolve({data:[]}),
+      eids.length ? selectInChunks('prev_balance_ledger','*','enrollment_id',eids,{order:'created_at'}) : Promise.resolve({data:[]}),
+      paysP
+    ]);
     const pbMap={}, pbIdMap={};
     (pbRes.data||[]).forEach(r=>{pbMap[r.enrollment_id]=+r.amount||0; pbIdMap[r.enrollment_id]=r.prev_balance_id});
     if(pbRes.error){toast('PREVBAL load error: '+pbRes.error.message,'error');console.error('[PREVBAL] SELECT-on-load error',pbRes.error);}
 
-    // Waivers
-    const wvRes = eids.length ? await selectInChunks('fee_waivers','*','enrollment_id',eids) : {data:[]};
     const wvMap={};
     (wvRes.data||[]).forEach(r=>{
       if(!wvMap[r.enrollment_id])wvMap[r.enrollment_id]={};
       wvMap[r.enrollment_id][r.head]={amt:+r.amount||0, remark:r.remark||'', id:r.waiver_id};
     });
 
-    // Prev balance ledger
-    const lgRes = eids.length ? await selectInChunks('prev_balance_ledger','*','enrollment_id',eids,{order:'created_at'}) : {data:[]};
     const lgMap={};
     (lgRes.data||[]).forEach(r=>{
       if(!lgMap[r.enrollment_id])lgMap[r.enrollment_id]=[];
       lgMap[r.enrollment_id].push({date:r.entry_date, source:r.source, amt:+r.amount||0, bundleID:r.payment_id||'—'});
     });
+    const pays=paysR.data;
 
     // Hydrate students[] into the shape the business logic expects
     students=rows.map(e=>({
@@ -868,7 +868,6 @@ async function loadAll(){
     }));
 
     // Payments (bundles) + allocations, flattened to the old row shape
-    const {data:pays}=await sb.from('payments').select('*').eq('session_id',viewSession||'');
     bundles={}; (pays||[]).forEach(p=>bundles[p.payment_id]=p);
     const pids=(pays||[]).map(p=>p.payment_id);
     const alRes = pids.length ? await selectInChunks('payment_allocations','*','payment_id',pids) : {data:[]};
