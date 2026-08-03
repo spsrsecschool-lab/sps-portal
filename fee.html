@@ -747,6 +747,30 @@ async function ensureFamily(code,phone){
 // ══════════════════════════════════════════════
 //  LOAD ALL  (relational → hydrated in-memory shape)
 // ══════════════════════════════════════════════
+// Fetch rows matching a large list of ids WITHOUT overflowing the request URL.
+// PostgREST puts .in(...) values in the query string; a few hundred UUIDs blow
+// past the server's URL length limit and return HTTP 400. Chunking avoids that.
+async function selectInChunks(table, cols, col, ids, {order=null, chunkSize=80}={}){
+  const out=[]; let firstErr=null;
+  for(let i=0;i<ids.length;i+=chunkSize){
+    const chunk=ids.slice(i,i+chunkSize);
+    let q=sb.from(table).select(cols).in(col,chunk);
+    if(order)q=q.order(order);
+    const {data,error}=await q;
+    if(error){ firstErr=firstErr||error; console.error('[selectInChunks] '+table+' chunk '+(i/chunkSize)+' failed:',error.message); }
+    if(data&&data.length) out.push(...data);
+  }
+  return {data:out, error:firstErr};
+}
+
+async function deleteInChunks(table, col, ids, chunkSize=80){
+  for(let i=0;i<ids.length;i+=chunkSize){
+    const chunk=ids.slice(i,i+chunkSize);
+    const {error}=await sb.from(table).delete().in(col,chunk);
+    if(error)console.error('[deleteInChunks] '+table+' chunk failed:',error.message);
+  }
+}
+
 async function loadAll(){
   updateStatus('loading');
   try{
@@ -786,15 +810,16 @@ async function loadAll(){
     const rows=(enr||[]).filter(e=>e.students);
     const eids=rows.map(e=>e.enrollment_id);
 
-    // Previous balances
-    const pbRes = eids.length ? await sb.from('previous_balances').select('*').in('enrollment_id',eids) : {data:[]};
+    // Previous balances — fetch in ID chunks. With hundreds of students a single
+    // .in(...) puts ~600 UUIDs in the URL and PostgREST rejects it (HTTP 400),
+    // which silently wiped the reload and made saved balances appear as 0.
+    const pbRes = eids.length ? await selectInChunks('previous_balances','*','enrollment_id',eids) : {data:[]};
     const pbMap={}, pbIdMap={};
     (pbRes.data||[]).forEach(r=>{pbMap[r.enrollment_id]=+r.amount||0; pbIdMap[r.enrollment_id]=r.prev_balance_id});
-    console.log('%c[PREVBAL] loadAll fetched previous_balances rows:','color:#7B6EF6;font-weight:bold',{count:(pbRes.data||[]).length,error:pbRes.error,rows:pbRes.data,pbMap});
     if(pbRes.error){toast('PREVBAL load error: '+pbRes.error.message,'error');console.error('[PREVBAL] SELECT-on-load error',pbRes.error);}
 
     // Waivers
-    const wvRes = eids.length ? await sb.from('fee_waivers').select('*').in('enrollment_id',eids) : {data:[]};
+    const wvRes = eids.length ? await selectInChunks('fee_waivers','*','enrollment_id',eids) : {data:[]};
     const wvMap={};
     (wvRes.data||[]).forEach(r=>{
       if(!wvMap[r.enrollment_id])wvMap[r.enrollment_id]={};
@@ -802,7 +827,7 @@ async function loadAll(){
     });
 
     // Prev balance ledger
-    const lgRes = eids.length ? await sb.from('prev_balance_ledger').select('*').in('enrollment_id',eids).order('created_at') : {data:[]};
+    const lgRes = eids.length ? await selectInChunks('prev_balance_ledger','*','enrollment_id',eids,{order:'created_at'}) : {data:[]};
     const lgMap={};
     (lgRes.data||[]).forEach(r=>{
       if(!lgMap[r.enrollment_id])lgMap[r.enrollment_id]=[];
@@ -846,7 +871,7 @@ async function loadAll(){
     const {data:pays}=await sb.from('payments').select('*').eq('session_id',viewSession||'');
     bundles={}; (pays||[]).forEach(p=>bundles[p.payment_id]=p);
     const pids=(pays||[]).map(p=>p.payment_id);
-    const alRes = pids.length ? await sb.from('payment_allocations').select('*').in('payment_id',pids) : {data:[]};
+    const alRes = pids.length ? await selectInChunks('payment_allocations','*','payment_id',pids) : {data:[]};
     const enrById={}; students.forEach(s=>enrById[s.enrollment_id]=s);
     payments=(alRes.data||[]).map(a=>{
       const b=bundles[a.payment_id]||{};
@@ -930,40 +955,28 @@ async function refreshAll(){
 async function setPrevBalance(eid, amount){
   const stu=students.find(s=>s.enrollment_id===eid);
   const amt=Math.round((amount||0)*100)/100;
-  console.log('%c[PREVBAL] setPrevBalance called','color:#7B6EF6;font-weight:bold',{eid,amount:amt,cachedPbId:stu&&stu._pbId,viewSession});
-  // Resolve an existing row id even if it wasn't cached, so we never try to
-  // INSERT a duplicate (which would fail on a unique constraint).
   let pbId = stu && stu._pbId;
   if(!pbId){
     const {data:existing,error:selErr}=await sb.from('previous_balances').select('prev_balance_id').eq('enrollment_id',eid).limit(1);
-    console.log('[PREVBAL] lookup existing row →',{existing,selErr});
-    if(selErr){toast('PREVBAL lookup error: '+selErr.message,'error');console.error('[PREVBAL] SELECT error',selErr);}
+    if(selErr){toast('Prev balance lookup error: '+selErr.message,'error');console.error('[PREVBAL] SELECT error',selErr);}
     if(existing&&existing.length) pbId=existing[0].prev_balance_id;
   }
   if(pbId){
     const {data,error}=await sb.from('previous_balances').update({amount:amt}).eq('prev_balance_id',pbId).select();
-    console.log('[PREVBAL] UPDATE result →',{pbId,amt,data,error});
-    if(error){toast('PREVBAL UPDATE failed: '+error.message,'error');console.error('[PREVBAL] UPDATE error',error);throw new Error('Could not update previous balance: '+error.message);}
-    if(!data||!data.length){toast('PREVBAL UPDATE affected 0 rows (RLS or wrong id?)','error');console.warn('[PREVBAL] UPDATE returned no rows — likely RLS blocking or id mismatch',{pbId});}
+    if(error){toast('Prev balance UPDATE failed: '+error.message,'error');console.error('[PREVBAL] UPDATE error',error);throw new Error('Could not update previous balance: '+error.message);}
+    if(!data||!data.length){toast('Prev balance not updated (permissions?)','error');console.warn('[PREVBAL] UPDATE affected 0 rows',{pbId});}
     if(stu){stu._pbId=pbId; stu.prevBalance=amt;}
   }else{
-    // Insert a new balance row. Try with from_session_id, then fall back without.
     let ins = await sb.from('previous_balances')
       .insert({enrollment_id:eid, amount:amt, from_session_id:viewSession})
       .select('prev_balance_id');
-    console.log('[PREVBAL] INSERT (with from_session_id) →',{data:ins.data,error:ins.error});
     if(ins.error){
-      console.warn('[PREVBAL] first insert failed, retrying WITHOUT from_session_id',ins.error);
-      ins = await sb.from('previous_balances')
-        .insert({enrollment_id:eid, amount:amt})
-        .select('prev_balance_id');
-      console.log('[PREVBAL] INSERT (fallback, no from_session_id) →',{data:ins.data,error:ins.error});
+      console.warn('[PREVBAL] insert with from_session_id failed, retrying without it',ins.error.message);
+      ins = await sb.from('previous_balances').insert({enrollment_id:eid, amount:amt}).select('prev_balance_id');
     }
-    if(ins.error){toast('PREVBAL INSERT failed: '+ins.error.message,'error');console.error('[PREVBAL] INSERT error (both attempts)',ins.error);throw new Error('Could not save previous balance: '+ins.error.message);}
-    if(!ins.data||!ins.data.length){toast('PREVBAL INSERT returned no row (RLS blocking insert?)','error');console.warn('[PREVBAL] INSERT returned no rows — RLS may block insert',ins);}
+    if(ins.error){toast('Prev balance INSERT failed: '+ins.error.message,'error');console.error('[PREVBAL] INSERT error',ins.error);throw new Error('Could not save previous balance: '+ins.error.message);}
     if(stu){ if(ins.data&&ins.data[0])stu._pbId=ins.data[0].prev_balance_id; stu.prevBalance=amt; }
   }
-  console.log('%c[PREVBAL] done. stu.prevBalance now =','color:#2BB673',stu&&stu.prevBalance,' _pbId=',stu&&stu._pbId);
 }
 
 async function addLedgerEntry(eid, entryDate, source, amt, paymentId){
@@ -3130,12 +3143,12 @@ async function purgeSessionFeeData(){
     const eids=students.map(s=>s.enrollment_id);
     const {data:pays}=await sb.from('payments').select('payment_id').eq('session_id',viewSession);
     const pids=(pays||[]).map(p=>p.payment_id);
-    if(pids.length) await sb.from('payment_allocations').delete().in('payment_id',pids);
+    if(pids.length) await deleteInChunks('payment_allocations','payment_id',pids);
     await sb.from('payments').delete().eq('session_id',viewSession);
     if(eids.length){
-      await sb.from('fee_waivers').delete().in('enrollment_id',eids);
-      await sb.from('prev_balance_ledger').delete().in('enrollment_id',eids);
-      await sb.from('previous_balances').delete().in('enrollment_id',eids);
+      await deleteInChunks('fee_waivers','enrollment_id',eids);
+      await deleteInChunks('prev_balance_ledger','enrollment_id',eids);
+      await deleteInChunks('previous_balances','enrollment_id',eids);
     }
     await log(`Fee data purged for session ${viewSession}`,'red');
     toast(`Fee data for ${viewSession} purged`,'success');
