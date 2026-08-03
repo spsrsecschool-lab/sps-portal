@@ -790,6 +790,8 @@ async function loadAll(){
     const pbRes = eids.length ? await sb.from('previous_balances').select('*').in('enrollment_id',eids) : {data:[]};
     const pbMap={}, pbIdMap={};
     (pbRes.data||[]).forEach(r=>{pbMap[r.enrollment_id]=+r.amount||0; pbIdMap[r.enrollment_id]=r.prev_balance_id});
+    console.log('%c[PREVBAL] loadAll fetched previous_balances rows:','color:#7B6EF6;font-weight:bold',{count:(pbRes.data||[]).length,error:pbRes.error,rows:pbRes.data,pbMap});
+    if(pbRes.error){toast('PREVBAL load error: '+pbRes.error.message,'error');console.error('[PREVBAL] SELECT-on-load error',pbRes.error);}
 
     // Waivers
     const wvRes = eids.length ? await sb.from('fee_waivers').select('*').in('enrollment_id',eids) : {data:[]};
@@ -928,32 +930,40 @@ async function refreshAll(){
 async function setPrevBalance(eid, amount){
   const stu=students.find(s=>s.enrollment_id===eid);
   const amt=Math.round((amount||0)*100)/100;
+  console.log('%c[PREVBAL] setPrevBalance called','color:#7B6EF6;font-weight:bold',{eid,amount:amt,cachedPbId:stu&&stu._pbId,viewSession});
   // Resolve an existing row id even if it wasn't cached, so we never try to
   // INSERT a duplicate (which would fail on a unique constraint).
   let pbId = stu && stu._pbId;
   if(!pbId){
-    const {data:existing}=await sb.from('previous_balances').select('prev_balance_id').eq('enrollment_id',eid).limit(1);
+    const {data:existing,error:selErr}=await sb.from('previous_balances').select('prev_balance_id').eq('enrollment_id',eid).limit(1);
+    console.log('[PREVBAL] lookup existing row →',{existing,selErr});
+    if(selErr){toast('PREVBAL lookup error: '+selErr.message,'error');console.error('[PREVBAL] SELECT error',selErr);}
     if(existing&&existing.length) pbId=existing[0].prev_balance_id;
   }
   if(pbId){
-    const {error}=await sb.from('previous_balances').update({amount:amt}).eq('prev_balance_id',pbId);
-    if(error) throw new Error('Could not update previous balance: '+error.message);
+    const {data,error}=await sb.from('previous_balances').update({amount:amt}).eq('prev_balance_id',pbId).select();
+    console.log('[PREVBAL] UPDATE result →',{pbId,amt,data,error});
+    if(error){toast('PREVBAL UPDATE failed: '+error.message,'error');console.error('[PREVBAL] UPDATE error',error);throw new Error('Could not update previous balance: '+error.message);}
+    if(!data||!data.length){toast('PREVBAL UPDATE affected 0 rows (RLS or wrong id?)','error');console.warn('[PREVBAL] UPDATE returned no rows — likely RLS blocking or id mismatch',{pbId});}
     if(stu){stu._pbId=pbId; stu.prevBalance=amt;}
   }else{
-    // Insert a new balance row. Some databases have the previous_balances table
-    // WITHOUT a from_session_id column (or with a constraint that rejects it),
-    // which silently broke saving before. Try with it, then fall back without.
+    // Insert a new balance row. Try with from_session_id, then fall back without.
     let ins = await sb.from('previous_balances')
       .insert({enrollment_id:eid, amount:amt, from_session_id:viewSession})
-      .select('prev_balance_id').maybeSingle();
+      .select('prev_balance_id');
+    console.log('[PREVBAL] INSERT (with from_session_id) →',{data:ins.data,error:ins.error});
     if(ins.error){
+      console.warn('[PREVBAL] first insert failed, retrying WITHOUT from_session_id',ins.error);
       ins = await sb.from('previous_balances')
         .insert({enrollment_id:eid, amount:amt})
-        .select('prev_balance_id').maybeSingle();
+        .select('prev_balance_id');
+      console.log('[PREVBAL] INSERT (fallback, no from_session_id) →',{data:ins.data,error:ins.error});
     }
-    if(ins.error) throw new Error('Could not save previous balance: '+ins.error.message);
-    if(stu){ if(ins.data)stu._pbId=ins.data.prev_balance_id; stu.prevBalance=amt; }
+    if(ins.error){toast('PREVBAL INSERT failed: '+ins.error.message,'error');console.error('[PREVBAL] INSERT error (both attempts)',ins.error);throw new Error('Could not save previous balance: '+ins.error.message);}
+    if(!ins.data||!ins.data.length){toast('PREVBAL INSERT returned no row (RLS blocking insert?)','error');console.warn('[PREVBAL] INSERT returned no rows — RLS may block insert',ins);}
+    if(stu){ if(ins.data&&ins.data[0])stu._pbId=ins.data[0].prev_balance_id; stu.prevBalance=amt; }
   }
+  console.log('%c[PREVBAL] done. stu.prevBalance now =','color:#2BB673',stu&&stu.prevBalance,' _pbId=',stu&&stu._pbId);
 }
 
 async function addLedgerEntry(eid, entryDate, source, amt, paymentId){
