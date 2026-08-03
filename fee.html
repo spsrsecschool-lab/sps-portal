@@ -940,11 +940,19 @@ async function setPrevBalance(eid, amount){
     if(error) throw new Error('Could not update previous balance: '+error.message);
     if(stu){stu._pbId=pbId; stu.prevBalance=amt;}
   }else{
-    const {data,error}=await sb.from('previous_balances')
+    // Insert a new balance row. Some databases have the previous_balances table
+    // WITHOUT a from_session_id column (or with a constraint that rejects it),
+    // which silently broke saving before. Try with it, then fall back without.
+    let ins = await sb.from('previous_balances')
       .insert({enrollment_id:eid, amount:amt, from_session_id:viewSession})
       .select('prev_balance_id').maybeSingle();
-    if(error) throw new Error('Could not save previous balance: '+error.message);
-    if(stu){ if(data)stu._pbId=data.prev_balance_id; stu.prevBalance=amt; }
+    if(ins.error){
+      ins = await sb.from('previous_balances')
+        .insert({enrollment_id:eid, amount:amt})
+        .select('prev_balance_id').maybeSingle();
+    }
+    if(ins.error) throw new Error('Could not save previous balance: '+ins.error.message);
+    if(stu){ if(ins.data)stu._pbId=ins.data.prev_balance_id; stu.prevBalance=amt; }
   }
 }
 
