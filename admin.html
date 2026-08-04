@@ -3740,7 +3740,31 @@ function openAddTemplateModal(){openModal('New Report Card Template','<div class
 async function saveTemplate(){const name=$('rt_name')?.value?.trim(),group=$('rt_group')?.value?.trim();if(!name||!group){toast('Name and class group required','error');return};const asmtsTxt=$('rt_asmts')?.value?.trim();const layout_config={sections:['header','student_info','marks_table','attendance_summary','grade_scale','remarks','signatures','footer'],show_rank:$('rt_rank')?.classList.contains('on'),include_cocurricular:$('rt_cocurr')?.classList.contains('on')};const{error}=await sb.from('report_card_templates').insert({name,class_group:group,applicable_assessment_names:asmtsTxt?asmtsTxt.split(',').map(s=>s.trim()).filter(Boolean):null,layout_config,created_by:SPS.admin?.admin_id});if(error){toast('Failed: '+error.message,'error');return};toast('Template created','success');closeModal();loadTemplates()}
 
 // ═══════════ HOLIDAY CALENDAR ═══════════
-function populateCalMonths(){const sel=$('calMonth'),now=new Date();sel.innerHTML='';for(let i=0;i<12;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1);const val=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');const opt=document.createElement('option');opt.value=val;opt.textContent=d.toLocaleDateString('en-IN',{month:'long',year:'numeric'});sel.appendChild(opt)};_calYear=now.getFullYear();_calMonth=now.getMonth()+1}
+function populateCalMonths(){
+  const sel=$('calMonth'),now=new Date();sel.innerHTML=''
+  // Span the whole session (start → end), so past backlog months are selectable.
+  // Fall back to a 12-month window around today if session dates are missing.
+  let start, end
+  if(SESS?.start_date) start=new Date(SESS.start_date+'T12:00:00'); else start=new Date(now.getFullYear(),now.getMonth()-6,1)
+  if(SESS?.end_date) end=new Date(SESS.end_date+'T12:00:00'); else end=new Date(now.getFullYear(),now.getMonth()+6,1)
+  // Always include up to the current month even if the session end is earlier.
+  if(end<now) end=now
+  const cur=new Date(start.getFullYear(),start.getMonth(),1)
+  const last=new Date(end.getFullYear(),end.getMonth(),1)
+  const thisVal=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')
+  while(cur<=last){
+    const val=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')
+    const opt=document.createElement('option')
+    opt.value=val
+    opt.textContent=cur.toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+    if(val===thisVal)opt.selected=true
+    sel.appendChild(opt)
+    cur.setMonth(cur.getMonth()+1)
+  }
+  // Default the view to the current month (or the last available if session ended).
+  _calYear=now.getFullYear();_calMonth=now.getMonth()+1
+  if(!sel.value){const opts=sel.options;if(opts.length){sel.value=opts[opts.length-1].value;const[yy,mm]=sel.value.split('-').map(Number);_calYear=yy;_calMonth=mm}}
+}
 async function renderCalendar(){
   const[y,m]=($('calMonth')?.value||_calYear+'-'+String(_calMonth).padStart(2,'0')).split('-').map(Number)
   _calYear=y;_calMonth=m
