@@ -396,10 +396,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
     <div class="page" id="page-rollnos">
       <div class="page-head"><div><h2>Roll Numbers</h2><p>Assign or change roll numbers for your students</p></div>
-        <button class="btn btn-primary" onclick="saveAllRollNos()">Save All Changes</button>
+        <button class="btn btn-ghost" onclick="saveAllRollNos()">Save All</button>
       </div>
       <div class="card" style="margin-bottom:14px;background:var(--grn-100);border-color:var(--grn)">
-        <div style="font-size:12.5px;color:var(--grn-dark)">📝 Edit roll numbers below and click <b>Save All Changes</b>. Roll numbers are used across marks entry, performance analysis and attendance.</div>
+        <div style="font-size:12.5px;color:var(--grn-dark)">📝 Type a roll number and tap the green <b>✓</b> in that row to save just that student (or press Enter). Use <b>Save All</b> to save every filled row at once. Duplicates are flagged with the student they clash with.</div>
       </div>
       <div id="rollNoWrap"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
     </div>
@@ -1724,14 +1724,47 @@ async function loadRollNos(){
   const el=$('rollNoWrap')
   if(!CLASS_STUDENTS.length){emp(el,'No students enrolled.');return}
   el.innerHTML='<div class="card"><div style="overflow-x:auto"><table><thead><tr>'
-    +'<th>Current Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="min-width:120px">New Roll No.</th></tr></thead><tbody>'
+    +'<th>Current Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="min-width:120px">New Roll No.</th><th style="width:60px">Save</th></tr></thead><tbody>'
     +CLASS_STUDENTS.map(s=>'<tr>'
       +'<td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
-      +'<td><input class="rn-input" type="number" inputmode="numeric" min="1" max="99" data-eid="'+s.enrollment_id+'" placeholder="Roll no." value="'+esc(String(s.roll_no||''))+'"></td>'
+      +'<td><input class="rn-input" type="number" inputmode="numeric" min="1" max="99" data-eid="'+s.enrollment_id+'" placeholder="Roll no." value="'+esc(String(s.roll_no||''))+'" onkeydown="if(event.key===\'Enter\')saveOneRollNo(\''+s.enrollment_id+'\')"></td>'
+      +'<td><button class="btn btn-success btn-xs" title="Save this student\'s roll number" onclick="saveOneRollNo(\''+s.enrollment_id+'\')"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>'
       +'</tr>').join('')
     +'</tbody></table></div></div>'
+}
+
+// Save ONE student's roll number, with a precise duplicate check.
+async function saveOneRollNo(eid){
+  const inp=document.querySelector('.rn-input[data-eid="'+eid+'"]')
+  if(!inp)return
+  inp.style.borderColor=''
+  const nameByEid=id=>(CLASS_STUDENTS.find(s=>s.enrollment_id===id)?.students?.full_name)||'a student'
+  const raw=(inp.value||'').trim()
+  if(raw===''){toast('Enter a roll number first','error');inp.style.borderColor='var(--danger)';return}
+  const v=parseInt(raw)
+  if(isNaN(v)||v<1){toast('Roll number must be a positive whole number','error');inp.style.borderColor='var(--danger)';return}
+  // Clash with another student who ALREADY has this roll saved.
+  const clashStu=CLASS_STUDENTS.find(s=>s.enrollment_id!==eid && s.roll_no!=null && String(s.roll_no)===String(v))
+  if(clashStu){
+    inp.style.borderColor='var(--danger)'
+    const other=document.querySelector('.rn-input[data-eid="'+clashStu.enrollment_id+'"]');if(other)other.style.borderColor='var(--danger)'
+    toast('Roll '+v+' is already used by '+(clashStu.students?.full_name||'another student'),'error');return
+  }
+  // Clash with another row whose input currently shows the same roll (unsaved).
+  const otherInputs=[...document.querySelectorAll('.rn-input')].filter(i=>i.dataset.eid!==eid && (i.value||'').trim()===String(v))
+  if(otherInputs.length){
+    inp.style.borderColor='var(--danger)';otherInputs.forEach(i=>i.style.borderColor='var(--danger)')
+    toast('Roll '+v+' is also entered for '+otherInputs.map(i=>nameByEid(i.dataset.eid)).join(', ')+' — change one before saving','error');return
+  }
+  const{data,error}=await sb.from('student_enrollments').update({roll_no:v}).eq('enrollment_id',eid).select()
+  if(error){toast('Failed: '+error.message,'error');return}
+  if(!data||!data.length){toast('Save did not persist — the database blocked this update (permissions).','error');return}
+  const stu=CLASS_STUDENTS.find(s=>s.enrollment_id===eid);if(stu)stu.roll_no=v
+  const row=inp.closest('tr');if(row){const c=row.querySelector('td:first-child');if(c){c.textContent=v;c.style.color='var(--grn-dark)'}}
+  inp.style.borderColor='var(--grn)'
+  toast(nameByEid(eid)+' → Roll '+v+' saved ✓','success')
 }
 
 async function saveAllRollNos(){
