@@ -1905,10 +1905,21 @@ async function loadMessages(){
   const tchIds=[...new Set(allMsgs.flatMap(m=>[m.sender_type==='teacher'?m.sender_id:null,m.recipient_type==='teacher'?m.recipient_id:null]).filter(Boolean))]
   const nameMap={}
   if(tchIds.length){
-    const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',tchIds)
-    ;(tchs||[]).forEach(x=>nameMap[x.teacher_id]=x.full_name)
+    const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name,designation').in('teacher_id',tchIds)
+    ;(tchs||[]).forEach(x=>{nameMap[x.teacher_id]=x.full_name; (window._adminMsgDesig=window._adminMsgDesig||{})[x.teacher_id]=x.designation||''})
   }
   window._adminMsgNames=nameMap
+  // Map each teacher → the class-section(s) they are CLASS TEACHER of, so the
+  // message thread can show "Class Teacher · 3rd-A" instead of just "Teacher".
+  const ctMap={}
+  try{
+    const{data:ctData}=await sb.from('class_teacher_map').select('teacher_id,classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'')
+    ;(ctData||[]).forEach(r=>{
+      const label=(r.classes?.name||'?')+'-'+(r.class_sections?.name||'?')
+      ctMap[r.teacher_id]=ctMap[r.teacher_id]?ctMap[r.teacher_id]+', '+label:label
+    })
+  }catch(e){}
+  window._adminMsgCTMap=ctMap
   const nm=id=>nameMap[id]||id
   const rootSubj=s=>(s||'(no subject)').replace(/^(Re:\s*)+/i,'').trim()||'(no subject)'
   // The other party in each message (the teacher). Group threads by subject AND
@@ -1972,7 +1983,9 @@ async function openAdminThread(idx,isAuto){
     el.innerHTML=thread.messages.map(m=>{
       const isMine=m.sender_type==='admin'
       const from=isMine?'Admin Office':(m.sender_type==='teacher'?nm(m.sender_id):'Unknown')
-      const role=isMine?'Admin Office':(m.sender_type==='teacher'?'Teacher':'Unknown')
+      const ctClass=!isMine&&m.sender_type==='teacher'?(window._adminMsgCTMap?.[m.sender_id]||''):''
+      const desig=!isMine&&m.sender_type==='teacher'?(window._adminMsgDesig?.[m.sender_id]||''):''
+      const role=isMine?'Admin Office':(m.sender_type==='teacher'?(ctClass?('Class Teacher · '+ctClass):(desig||'Teacher')):'Unknown')
       return '<div class="msg-email-card">'
         +'<div class="msg-email-header">'
           +'<div class="msg-email-from">'
