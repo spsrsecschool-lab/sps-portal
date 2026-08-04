@@ -166,9 +166,101 @@ window.SPSMedia = (function () {
     return { file: f, pages: 1, merged: false }
   }
 
-  // High-level: acquire a single profile photo (with the mobile chooser).
+  // ── Circular photo cropper ────────────────────────────────────────────────
+  // Shows a framing screen: drag to pan, pinch / slider / wheel to zoom, with a
+  // circular guide. Exports a square JPEG of the framed area (displayed circular
+  // by the round avatar containers). Resolves the cropped File, or null if
+  // cancelled. Falls back to the original file if the image can't be loaded.
+  function cropCircle(file, { outputSize = 512, title = 'Frame the photo' } = {}) {
+    return new Promise(async (resolve) => {
+      let img
+      try { img = await loadImage(file) } catch (e) { resolve(file); return }
+      const V = Math.min(320, Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.78))
+      const ov = document.createElement('div')
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:100000;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:inherit;padding:20px;box-sizing:border-box'
+      ov.innerHTML =
+        '<div style="color:#fff;font-size:15px;font-weight:700;margin-bottom:5px">' + esc(title) + '</div>' +
+        '<div style="color:#aaa;font-size:12px;margin-bottom:16px;text-align:center">Drag to move · pinch or use the slider to zoom</div>' +
+        '<div id="spsCropArea" style="position:relative;width:' + V + 'px;height:' + V + 'px;touch-action:none;cursor:grab">' +
+          '<canvas id="spsCropCanvas" width="' + V + '" height="' + V + '" style="width:' + V + 'px;height:' + V + 'px;display:block;border-radius:8px;background:#000"></canvas>' +
+          '<div style="position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 9999px rgba(0,0,0,.55);pointer-events:none;border:2px solid rgba(255,255,255,.9)"></div>' +
+        '</div>' +
+        '<input id="spsCropZoom" type="range" min="1" max="4" step="0.01" value="1" style="width:' + V + 'px;max-width:80vw;margin:20px 0 6px;accent-color:#4F46E5">' +
+        '<div style="display:flex;gap:12px;margin-top:10px">' +
+          '<button id="spsCropCancel" style="padding:12px 22px;border:1.5px solid #555;border-radius:12px;background:transparent;color:#eee;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">Cancel</button>' +
+          '<button id="spsCropOk" style="padding:12px 26px;border:none;border-radius:12px;background:#4F46E5;color:#fff;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer">Use Photo</button>' +
+        '</div>'
+      document.body.appendChild(ov)
+
+      const canvas = ov.querySelector('#spsCropCanvas')
+      const ctx = canvas.getContext('2d')
+      const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height
+      const baseScale = V / Math.min(iw, ih)  // "cover" the viewport
+      let zoom = 1
+      let ox = (V - iw * baseScale) / 2
+      let oy = (V - ih * baseScale) / 2
+
+      function clamp() {
+        const s = baseScale * zoom, dw = iw * s, dh = ih * s
+        ox = Math.min(0, Math.max(V - dw, ox))
+        oy = Math.min(0, Math.max(V - dh, oy))
+      }
+      function draw() {
+        const s = baseScale * zoom
+        ctx.clearRect(0, 0, V, V)
+        ctx.drawImage(img, ox, oy, iw * s, ih * s)
+      }
+      clamp(); draw()
+
+      const zoomSlider = ov.querySelector('#spsCropZoom')
+      function setZoom(nz) {
+        nz = Math.max(1, Math.min(4, nz))
+        const s0 = baseScale * zoom, s1 = baseScale * nz
+        const cx = (V / 2 - ox) / s0, cy = (V / 2 - oy) / s0   // keep centre anchored
+        ox = V / 2 - cx * s1; oy = V / 2 - cy * s1
+        zoom = nz; clamp(); draw()
+      }
+      zoomSlider.addEventListener('input', () => setZoom(parseFloat(zoomSlider.value)))
+
+      const area = ov.querySelector('#spsCropArea')
+      let dragging = false, lastX = 0, lastY = 0
+      const pointers = new Map()
+      let pinchStartDist = 0, pinchStartZoom = 1
+      area.addEventListener('pointerdown', (e) => {
+        area.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        if (pointers.size === 1) { dragging = true; lastX = e.clientX; lastY = e.clientY; area.style.cursor = 'grabbing' }
+        else if (pointers.size === 2) { dragging = false; const p = [...pointers.values()]; pinchStartDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y); pinchStartZoom = zoom }
+      })
+      area.addEventListener('pointermove', (e) => {
+        if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        if (pointers.size === 2) { const p = [...pointers.values()]; const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y); if (pinchStartDist > 0) { setZoom(pinchStartZoom * d / pinchStartDist); zoomSlider.value = zoom } return }
+        if (!dragging) return
+        ox += e.clientX - lastX; oy += e.clientY - lastY; lastX = e.clientX; lastY = e.clientY; clamp(); draw()
+      })
+      const endP = (e) => { pointers.delete(e.pointerId); if (pointers.size < 2) pinchStartDist = 0; if (pointers.size === 0) { dragging = false; area.style.cursor = 'grab' } }
+      area.addEventListener('pointerup', endP); area.addEventListener('pointercancel', endP)
+      area.addEventListener('wheel', (e) => { e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.08 : 0.92)); zoomSlider.value = zoom }, { passive: false })
+
+      const cleanup = () => ov.remove()
+      ov.querySelector('#spsCropCancel').onclick = () => { cleanup(); resolve(null) }
+      ov.querySelector('#spsCropOk').onclick = () => {
+        const out = document.createElement('canvas'); out.width = outputSize; out.height = outputSize
+        const octx = out.getContext('2d')
+        octx.fillStyle = '#fff'; octx.fillRect(0, 0, outputSize, outputSize)
+        const r = outputSize / V, s = baseScale * zoom
+        octx.drawImage(img, ox * r, oy * r, iw * s * r, ih * s * r)
+        out.toBlob((blob) => { cleanup(); resolve(new File([blob], (file.name || 'photo').replace(/\.[^.]+$/, '') + '_cropped.jpg', { type: 'image/jpeg' })) }, 'image/jpeg', 0.92)
+      }
+    })
+  }
+
+  // High-level: acquire a single profile photo, then frame it in the cropper.
   async function acquirePhoto(prompt = 'Profile photo') {
-    return await chooseOne({ accept: 'image/*', prompt })
+    const f = await chooseOne({ accept: 'image/*', prompt })
+    if (!f) return null
+    if (!/^image\//.test(f.type)) return f            // safety: non-image, skip crop
+    const cropped = await cropCircle(f, { title: 'Frame the photo' })
+    return cropped || null                             // null = cancelled the crop
   }
 
   // Small helper to make a preview object URL (caller should revoke when done).
@@ -176,5 +268,5 @@ window.SPSMedia = (function () {
 
   function needsMultiple(type) { return !!MULTI[type] }
 
-  return { isMobile, chooseOne, mergeImages, acquireDocument, acquirePhoto, previewURL, needsMultiple, MULTI }
+  return { isMobile, chooseOne, mergeImages, acquireDocument, acquirePhoto, cropCircle, previewURL, needsMultiple, MULTI }
 })()
