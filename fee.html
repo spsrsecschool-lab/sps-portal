@@ -433,6 +433,7 @@
         <div class="form-group" style="max-width:160px"><label>Family Code</label><input type="text" id="a_familyCode" class="mono" placeholder="Auto or manual"></div>
       </div>
       <div id="familyResults" style="margin-bottom:12px"></div>
+      <div id="familySiblings" style="display:none;background:var(--indigo-100,#eef);border-radius:8px;padding:11px 14px;margin-bottom:12px;font-size:12.5px"></div>
       <div id="backdatedDues" style="margin-bottom:12px"></div>
       <button class="btn btn-primary" onclick="submitAdmission()">Admit Student &amp; Generate Dues</button>
     </div>
@@ -2858,6 +2859,10 @@ function populateAdmissionForm(){
   $('a_sno').value=nextSno();
   $('a_section').innerHTML='<option value="">Select class first</option>';
   $('backdatedDues').innerHTML='';
+  // Reset the family search + siblings preview so no stale family lingers.
+  if($('a_familySearch'))$('a_familySearch').value='';
+  if($('familyResults'))$('familyResults').innerHTML='';
+  if($('familySiblings')){$('familySiblings').style.display='none';$('familySiblings').innerHTML='';}
 }
 
 function loadAdmSections(){
@@ -2882,9 +2887,28 @@ function loadAdmSections(){
   } else { wrap.style.display='none'; ssel.innerHTML=''; }
 }
 
+function familyDataFor(code){
+  // Gather this family's children + shared family-level details from memory.
+  const kids=[], info={father:'',mother:'',phone:'',altPhone:''};
+  students.forEach(s=>{
+    if(s.familyCode!==code) return;
+    if(!s.relieved) kids.push({name:s.name,cls:s.cls});
+    if(!info.father&&s.father)info.father=s.father;
+    if(!info.mother&&s.mother)info.mother=s.mother;
+    if(!info.phone&&s.phone)info.phone=s.phone;
+    if(!info.altPhone&&s.altPhone)info.altPhone=s.altPhone;
+  });
+  return {kids,info};
+}
 function searchFamily(q){
   const el=$('familyResults');
-  if(!q.trim()){el.innerHTML='';return}
+  if(!q.trim()){
+    el.innerHTML='';
+    // Emptying the search unlinks the auto-filled family (parity with admin).
+    if($('a_familyCode'))$('a_familyCode').value='';
+    if($('familySiblings')){$('familySiblings').style.display='none';$('familySiblings').innerHTML='';}
+    return;
+  }
   const ql=q.toLowerCase();
   const seen={};
   students.forEach(s=>{
@@ -2893,18 +2917,36 @@ function searchFamily(q){
       seen[s.familyCode]={code:s.familyCode,father:s.father,phone:s.phone};
     }
   });
-  const matches=Object.values(seen).slice(0,5);
-  el.innerHTML=matches.length?matches.map(m=>
-    `<div style="cursor:pointer;padding:6px 10px;background:var(--surface2);border-radius:6px;margin-top:4px;font-size:13px" onclick="selectFamilyOnboarding('${esc(m.code)}','${esc(m.father||'')}','${esc(m.phone||'')}')">${esc(m.father||'—')} <span class="text-muted">(${esc(m.code)})</span></div>`
-  ).join(''):'<p class="text-muted" style="margin-top:4px">No match.</p>';
+  const matches=Object.values(seen).slice(0,6);
+  el.innerHTML=matches.length?matches.map(m=>{
+    const {kids}=familyDataFor(m.code);
+    const kidLine=kids.length?`<div class="text-muted" style="font-size:11px;margin-top:2px">${esc(kids.slice(0,4).map(k=>k.name+' ('+k.cls+')').join(', '))}${kids.length>4?' +'+(kids.length-4)+' more':''}</div>`:'';
+    return `<div style="cursor:pointer;padding:8px 10px;background:var(--surface2);border-radius:6px;margin-top:4px;font-size:13px" onclick="selectFamilyOnboarding('${esc(m.code)}')"><b>${esc(m.father||'—')}</b> <span class="text-muted">(${esc(m.code)}${kids.length?' · '+kids.length+' child'+(kids.length>1?'ren':''):''})</span>${kidLine}</div>`;
+  }).join(''):'<p class="text-muted" style="margin-top:4px">No match.</p>';
 }
 
-function selectFamilyOnboarding(code,father,phone){
+function showFamilySiblings(code){
+  const box=$('familySiblings'); if(!box)return;
+  const {kids}=familyDataFor(code);
+  if(!code||!kids.length){box.style.display='none';box.innerHTML='';return}
+  box.innerHTML=`<div style="font-weight:700;color:var(--indigo,#5B4FE8);margin-bottom:6px">Existing children in ${esc(code)} (${kids.length})</div>`
+    +`<div style="display:flex;flex-wrap:wrap;gap:6px">`
+    +kids.map(k=>`<span style="background:var(--surface,#fff);border:1px solid var(--line,#ddd);border-radius:999px;padding:3px 10px;font-size:11.5px">${esc(k.name)} · ${esc(k.cls)}</span>`).join('')
+    +`</div><div class="text-muted" style="font-size:11px;margin-top:7px">The new student will be added as a sibling in this family.</div>`;
+  box.style.display='block';
+}
+
+function selectFamilyOnboarding(code){
+  const {info}=familyDataFor(code);
   $('a_familyCode').value=code;
-  $('a_familySearch').value=father;
-  $('a_father').value=father;
-  if(phone&&!$('a_phone').value) $('a_phone').value=phone;
+  $('a_familySearch').value=info.father||'';
+  $('a_father').value=info.father||'';
+  // Auto-fill the family-level fields (shared by siblings).
+  if(info.mother&&$('a_mother')) $('a_mother').value=info.mother;
+  if(info.phone&&$('a_phone')) $('a_phone').value=info.phone;
+  if(info.altPhone&&$('a_altPhone')) $('a_altPhone').value=info.altPhone;
   $('familyResults').innerHTML='';
+  showFamilySiblings(code);
 }
 
 async function submitAdmission(){
