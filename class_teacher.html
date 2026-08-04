@@ -1577,6 +1577,8 @@ async function submitProfileEditReq(){
 }
 
 async function saveStudentProfile(studentId){
+  const sid = studentId || window._profileStudentId;   // button passes no arg → use the open profile's id
+  if(!sid){toast('No student selected','error');console.error('[profile] no student id');return}
   const updates={
     full_name:document.getElementById('sp_full_name')?.value?.trim(),
     father_name:document.getElementById('sp_father_name')?.value?.trim(),
@@ -1587,8 +1589,10 @@ async function saveStudentProfile(studentId){
     address:document.getElementById('sp_address')?.value?.trim(),
   }
   if(!updates.full_name){toast("Student name can't be empty",'error');return}
-  const{error}=await sb.from('students').update(updates).eq('student_id',studentId)
+  const{data:updated,error}=await sb.from('students').update(updates).eq('student_id',sid).select()
+  console.log('[profile] update result →',{sid,updates,rows:updated?.length,error})
   if(error){toast('Failed to save: '+error.message,'error');return}
+  if(!updated||!updated.length){toast('Save did not persist — the database blocked this update (permissions).','error');console.warn('[profile] UPDATE affected 0 rows — likely RLS on students table',{sid});return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
     .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
