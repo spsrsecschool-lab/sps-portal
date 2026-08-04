@@ -234,6 +234,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Attendance Report
     </div>
+    <div class="sb-item" onclick="goTo('prevatt',this)">
+      <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+      Previous Attendance
+    </div>
     <div class="sb-label">My Class</div>
     <div class="sb-item" onclick="goTo('myclass',this)">
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -363,6 +367,32 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
         </div>
       </div>
       <div id="attReportWrap"></div>
+    </div>
+
+    <!-- PREVIOUS (BACKLOG) ATTENDANCE -->
+    <div class="page" id="page-prevatt">
+      <div class="page-head"><div><h2>Previous Attendance</h2><p>Backfill attendance as monthly totals for periods before day-wise marking began</p></div></div>
+      <div class="card" style="margin-bottom:14px;background:var(--grn-100);border-color:var(--grn)">
+        <div style="font-size:12.5px;color:var(--grn-dark)">📅 Pick a month (or a custom From–To period). The system shows the <b>working days</b> for that period (all days except Sundays &amp; holidays). Enter each student's <b>Present</b> count — Absent fills in automatically so Present + Absent = Working Days. Tap the green <b>✓</b> to save that student. Use this only for periods you haven't marked day-by-day, to avoid double counting.</div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="form-row" style="margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
+          <div class="fg" style="max-width:180px"><label>Month</label>
+            <select id="pa_month" onchange="paMonthChanged()">
+              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="pa_year" min="2024" max="2035"></div>
+          <div class="fg" style="max-width:170px"><label>From (optional)</label><input type="date" id="pa_from" onchange="paComputeWorking()"></div>
+          <div class="fg" style="max-width:170px"><label>To (optional)</label><input type="date" id="pa_to" onchange="paComputeWorking()"></div>
+          <button class="btn btn-soft" onclick="loadPrevAtt()">Load Students</button>
+        </div>
+        <div id="pa_working" style="font-size:13px;font-weight:700;color:var(--indigo-dark)"></div>
+      </div>
+      <div id="prevAttWrap"></div>
     </div>
 
     <!-- MANAGE MY CLASS -->
@@ -495,7 +525,7 @@ let _duesDebounce=null  // debounce for live dues repaint
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _currentTab='dashboard'   // which tab is open, so class-switch can refresh it
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
+const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -530,6 +560,7 @@ function goTo(id,el){
   if(window.innerWidth<=760)closeMobileSidebar()
   if(id==='daily'&&!$('att_date').value){$('att_date').value=today()}
   if(id==='attreport'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
+  if(id==='prevatt'){const now=new Date();if($('pa_month'))$('pa_month').value=(SESS?.start_date?new Date(SESS.start_date+'T12:00:00').getMonth()+1:now.getMonth()+1);if($('pa_year'))$('pa_year').value=(SESS?.start_date?new Date(SESS.start_date+'T12:00:00').getFullYear():now.getFullYear());paComputeWorking()}
   if(id==='myclass')loadMyClass()
   if(id==='readmit')loadReadmit()
   if(id==='rollnos')loadRollNos()
@@ -639,6 +670,7 @@ async function refreshCurrentTab(){
   switch(_currentTab){
     case 'daily':       await loadDailyAttendance(); break
     case 'attreport':   await loadAttReport();       break
+    case 'prevatt':     await loadPrevAtt();          break
     case 'myclass':     await loadMyClass();         break
     case 'readmit':     await loadReadmit();         break
     case 'rollnos':     await loadRollNos();         break
@@ -1096,6 +1128,98 @@ async function confirmAttSubmit(date){
 }
 
 // ═══════════ ATTENDANCE REPORT ═══════════
+// ═══════════ PREVIOUS (BACKLOG) ATTENDANCE ═══════════
+let _paWorking=0
+function paRange(){
+  const cf=$('pa_from')?.value, ct=$('pa_to')?.value
+  if(cf&&ct) return {from:cf,to:ct,custom:true}
+  const m=parseInt($('pa_month')?.value)||1, y=parseInt($('pa_year')?.value)||new Date().getFullYear()
+  const from=y+'-'+String(m).padStart(2,'0')+'-01'
+  const to=y+'-'+String(m).padStart(2,'0')+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0')
+  return {from,to,custom:false}
+}
+function countWorkingDays(from,to,holSet){
+  let n=0
+  const e=new Date(to+'T12:00:00')
+  for(let d=new Date(from+'T12:00:00'); d<=e; d.setDate(d.getDate()+1)){
+    const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+    if(d.getDay()===0)continue                          // Sunday off
+    if(holSet.has(ds))continue                          // holiday
+    if(SESS?.start_date&&ds<SESS.start_date)continue    // before session
+    if(SESS?.end_date&&ds>SESS.end_date)continue        // after session
+    n++
+  }
+  return n
+}
+async function paComputeWorking(){
+  const {from,to}=paRange(), el=$('pa_working')
+  if(!from||!to||new Date(to+'T12:00:00')<new Date(from+'T12:00:00')){if(el)el.textContent='Pick a valid period.';_paWorking=0;return 0}
+  const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to)
+  const holSet=new Set((hols||[]).map(h=>h.date))
+  const wd=countWorkingDays(from,to,holSet)
+  _paWorking=wd
+  if(el)el.textContent='Working days in this period: '+wd+'  ·  '+fmtD(from)+' → '+fmtD(to)+'  (excludes Sundays & '+(holSet.size)+' holiday'+(holSet.size!==1?'s':'')+')'
+  return wd
+}
+function paMonthChanged(){ if($('pa_from'))$('pa_from').value=''; if($('pa_to'))$('pa_to').value=''; paComputeWorking() }
+function paSyncAbsent(inp){
+  const wd=_paWorking||0
+  const span=document.querySelector('.pa-absent[data-eid="'+inp.dataset.eid+'"]')
+  if(!span)return
+  if(inp.value===''){span.textContent='—';span.style.color='var(--ink-soft)';return}
+  const v=parseInt(inp.value)
+  if(isNaN(v)){span.textContent='—';return}
+  const ab=wd-v
+  span.textContent=ab<0?('⚠ '+ab):String(ab)
+  span.style.color=(ab<0||v>wd)?'var(--danger)':'var(--ink)'
+}
+async function loadPrevAtt(){
+  const wd=await paComputeWorking()
+  const {from,to}=paRange(), el=$('prevAttWrap')
+  if(!from||!to){emp(el,'Select a month or a valid date range.');return}
+  if(!CLASS_STUDENTS.length){emp(el,'No students in your class.');return}
+  ldg(el)
+  const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  const{data:existing}=await sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to)
+  const exMap={}; (existing||[]).forEach(r=>exMap[r.enrollment_id]=r)
+  el.innerHTML='<div class="card"><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Enter <b>Present</b> days for each student — Absent updates automatically. Present + Absent must equal <b>'+wd+'</b> working days.</div><div style="overflow-x:auto"><table><thead><tr>'
+    +'<th>Roll</th><th>Student</th><th style="width:120px">Present</th><th style="width:90px">Absent</th><th style="width:60px">Save</th></tr></thead><tbody>'
+    +CLASS_STUDENTS.map(s=>{const ex=exMap[s.enrollment_id];const p=ex?ex.present_count:'';return '<tr data-eid="'+s.enrollment_id+'">'
+      +'<td class="mono">'+esc(s.roll_no||'—')+'</td>'
+      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td><input class="pa-present" type="number" min="0" max="'+wd+'" inputmode="numeric" data-eid="'+s.enrollment_id+'" value="'+p+'" oninput="paSyncAbsent(this)" onkeydown="if(event.key===\'Enter\')savePrevAttOne(\''+s.enrollment_id+'\')" style="width:100px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50);text-align:center;font-family:var(--mono)"></td>'
+      +'<td><span class="pa-absent" data-eid="'+s.enrollment_id+'" style="font-family:var(--mono);font-weight:700;color:'+(ex?'var(--ink)':'var(--ink-soft)')+'">'+(ex?ex.absent_count:'—')+'</span></td>'
+      +'<td><button class="btn btn-success btn-xs" title="Save this student" onclick="savePrevAttOne(\''+s.enrollment_id+'\')"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>'
+      +'</tr>'}).join('')
+    +'</tbody></table></div></div>'
+}
+async function savePrevAttOne(eid){
+  const wd=_paWorking||0
+  const {from,to}=paRange()
+  if(!from||!to){toast('Select a period first','error');return}
+  if(wd<=0){toast('This period has no working days to record','error');return}
+  const inp=document.querySelector('.pa-present[data-eid="'+eid+'"]')
+  if(!inp)return
+  inp.style.borderColor=''
+  const raw=(inp.value||'').trim()
+  if(raw===''){toast('Enter the present count first','error');inp.style.borderColor='var(--danger)';return}
+  const present=parseInt(raw)
+  if(isNaN(present)||present<0){toast('Present must be 0 or more','error');inp.style.borderColor='var(--danger)';return}
+  if(present>wd){toast('Present ('+present+') cannot exceed the '+wd+' working days','error');inp.style.borderColor='var(--danger)';return}
+  const absent=wd-present
+  const name=(CLASS_STUDENTS.find(s=>s.enrollment_id===eid)?.students?.full_name)||'Student'
+  const{data,error}=await sb.from('attendance_monthly').upsert({
+    enrollment_id:eid,session_id:SESS?.session_id||null,from_date:from,to_date:to,
+    working_days:wd,present_count:present,absent_count:absent,
+    entered_by:TEACHER.teacher_id,updated_at:new Date().toISOString()
+  },{onConflict:'enrollment_id,from_date,to_date'}).select()
+  if(error){toast('Failed: '+error.message,'error');return}
+  if(!data||!data.length){toast('Save did not persist — check the attendance_monthly table exists (run the SQL).','error');return}
+  inp.style.borderColor='var(--grn)'
+  const span=document.querySelector('.pa-absent[data-eid="'+eid+'"]');if(span){span.textContent=absent;span.style.color='var(--ink)'}
+  toast(name+': '+present+' present · '+absent+' absent saved ✓','success')
+}
+
 async function loadAttReport(){
   const month=parseInt($('att_month')?.value),year=parseInt($('att_year')?.value),el=$('attReportWrap')
   if(!month||!year){toast('Select month and year','error');return}
@@ -1898,6 +2022,13 @@ async function loadAssessMarks(){
     const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
     const byStudent={}
     ;(attData||[]).forEach(a=>{if(!byStudent[a.enrollment_id])byStudent[a.enrollment_id]=0;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]++})
+    // Fold in BACKLOG monthly attendance (present totals for periods filled as
+    // monthly counts rather than day-by-day). The working-days count above already
+    // includes those days, so we only need to add the present counts.
+    try{
+      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
+      ;(monthly||[]).forEach(mr=>{byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
+    }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
     CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStudent[s.enrollment_id]||0,working:workingDays}})
   }
 
