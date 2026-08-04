@@ -839,7 +839,10 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page" id="page-calendar">
       <div class="page-head">
         <div><h2>Holiday Calendar</h2><p>Tap any date to mark or unmark as holiday</p></div>
-        <select id="calMonth" onchange="renderCalendar()" style="font-family:var(--font);font-size:13px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);outline:none"></select>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span id="calWorkingDays" style="font-size:12px;font-weight:700;color:var(--indigo-dark);background:var(--indigo-100);padding:6px 12px;border-radius:999px;white-space:nowrap"></span>
+          <select id="calMonth" onchange="renderCalendar()" style="font-family:var(--font);font-size:13px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);outline:none"></select>
+        </div>
       </div>
       <div class="card">
         <div id="calGrid"></div>
@@ -3748,6 +3751,19 @@ async function renderCalendar(){
   let html='<div class="cal-grid">';['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d=>{html+='<div class="cal-dow">'+d+'</div>'});for(let i=0;i<first;i++)html+='<div class="cal-day empty"></div>'
   for(let d=1;d<=days;d++){const ds=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');const dow=new Date(y,m-1,d).getDay(),isSun=dow===0,isH=hdates.has(ds);html+='<div class="cal-day '+(isSun?'sun':'')+' '+(isH?'holiday':'')+'" '+(isSun?'':'onclick="toggleHoliday(\''+ds+'\','+isH+')"')+'>'+d+'</div>'}
   html+='</div>';$('calGrid').innerHTML=html
+  // Working days this month = days that aren't Sundays and aren't holidays,
+  // bounded by the session start/end if this month straddles them.
+  let workingDays=0
+  for(let d=1;d<=days;d++){
+    const ds=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')
+    const dow=new Date(y,m-1,d).getDay()
+    if(dow===0)continue                     // Sunday off
+    if(hdates.has(ds))continue              // holiday
+    if(SESS?.start_date&&ds<SESS.start_date)continue
+    if(SESS?.end_date&&ds>SESS.end_date)continue
+    workingDays++
+  }
+  const wd=$('calWorkingDays'); if(wd)wd.textContent=workingDays+' working day'+(workingDays!==1?'s':'')+' this month'
   $('holidayList').innerHTML=(data||[]).length?'<div class="map-tags">'+(data||[]).map(h=>'<span class="map-tag" style="background:var(--danger-soft);color:var(--danger)">'+fmtD(h.date)+(h.label?' — '+esc(h.label):'')+' <button onclick="removeHoliday(\''+h.holiday_id+'\')" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:4px;font-size:14px;line-height:1">×</button></span>').join('')+'</div>':''
 }
 async function toggleHoliday(date,isHol){if(isHol){const h=(await sb.from('holidays').select('*').eq('date',date).eq('session_id',SESS?.session_id||'').maybeSingle()).data;if(h)await removeHoliday(h.holiday_id);return};const lbl=prompt('Mark '+fmtD(date)+' as holiday. Label (optional):');if(lbl===null)return;const{error}=await sb.from('holidays').insert({date,label:lbl.trim()||null,session_id:SESS?.session_id||''});if(error){toast('Failed: '+error.message,'error');return};toast('Holiday added','success');renderCalendar()}
@@ -4599,8 +4615,25 @@ async function loadSessionList(){
   const{data,error}=await sb.from('sessions').select('*').order('session_id',{ascending:false})
   if(error||!data?.length){emp(el,'No sessions yet');return}
   el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead><tbody>'+
-    data.map(s=>'<tr><td class="mono">'+esc(s.session_id)+'</td><td>'+fmtD(s.start_date)+'</td><td>'+fmtD(s.end_date)+'</td><td>'+(s.is_current?'<span class="pill pill-success">Current</span>':'<span class="pill pill-neutral">Past</span>')+'</td><td>'+(!s.is_current?'<button class="btn btn-dark btn-xs" onclick="setCurrentSession(\''+s.session_id+'\')">Set Current</button>':'')+'</td></tr>').join('')+
+    data.map(s=>'<tr><td class="mono">'+esc(s.session_id)+'</td><td>'+fmtD(s.start_date)+'</td><td>'+fmtD(s.end_date)+'</td><td>'+(s.is_current?'<span class="pill pill-success">Current</span>':'<span class="pill pill-neutral">Past</span>')+'</td><td style="display:flex;gap:6px"><button class="btn btn-ghost btn-xs" onclick="editSessionDates(\''+esc(s.session_id)+'\',\''+esc(s.start_date||'')+'\',\''+esc(s.end_date||'')+'\')">Edit Dates</button>'+(!s.is_current?'<button class="btn btn-dark btn-xs" onclick="setCurrentSession(\''+s.session_id+'\')">Set Current</button>':'')+'</td></tr>').join('')+
     '</tbody></table></div>'
+}
+function editSessionDates(id,start,end){
+  openModal('Edit Session Dates — '+id,
+    '<p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Change the start or end date of this session. Working-day counts (attendance, calendar) update automatically.</p>'
+    +'<div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="es_start" value="'+esc(start||'')+'"></div>'
+    +'<div class="fg"><label>End Date</label><input type="date" id="es_end" value="'+esc(end||'')+'"></div></div>',
+    '<button class="btn btn-dark" onclick="saveSessionDates(\''+esc(id)+'\')">Save Dates</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveSessionDates(id){
+  const start=$('es_start')?.value||null, end=$('es_end')?.value||null
+  if(start&&end&&new Date(end)<new Date(start)){toast('End date cannot be before start date','error');return}
+  const{error}=await sb.from('sessions').update({start_date:start,end_date:end}).eq('session_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  // Keep the in-memory current session fresh if we just edited it.
+  if(SESS&&SESS.session_id===id){SESS.start_date=start;SESS.end_date=end}
+  toast('Session dates updated ✓','success');closeModal();loadSessionList()
+  logActivity('admin',SPS.admin?.admin_id,'session_dates','Updated '+id+' dates to '+(start||'?')+' → '+(end||'?'))
 }
 async function createSession(){
   const id=$('newSessId')?.value?.trim()
