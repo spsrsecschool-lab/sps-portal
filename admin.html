@@ -2942,12 +2942,11 @@ function downloadSampleCsv(type){
 let _mappingRaw=[]
 function populateMapFilter(){const sel=$('mapClassFilter');if(sel.options.length>1)return;sel.innerHTML='<option value="">All Classes</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')}
 // Remove timetable periods with no matching class-subject mapping (left behind
-// by edits/deletes before the timetable synced). Scoped to the active roster.
+// by edits/deletes before the timetable synced). Checks ALL rosters so stray
+// rows created under an older roster are caught too.
 async function cleanOrphanTimetable(){
-  const roster=await getActiveRoster()
-  if(!roster){toast('No active roster','error');return}
-  const{data:entries}=await sb.from('timetable_entries').select('entry_id,teacher_id,class_id,section_id,subject_id').eq('roster_id',roster.roster_id)
-  const{data:maps}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id').eq('session_id',SESS?.session_id||'')
+  const{data:entries}=await sb.from('timetable_entries').select('entry_id,teacher_id,class_id,section_id,subject_id,roster_id')
+  const{data:maps}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id')
   const key=r=>[r.teacher_id,r.class_id,r.section_id||'',r.subject_id].join('|')
   const mapSet=new Set((maps||[]).map(key))
   const orphans=(entries||[]).filter(e=>!mapSet.has(key(e)))
