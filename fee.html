@@ -1499,6 +1499,27 @@ async function undoExtraFee(kind, feeId, enrollmentId){
   buildExtraFeesPanel();
 }
 
+function isMonthFullyPaid(stu,month){
+  const mi=MONTHS.indexOf(month)
+  const mt=monthlyTuitionForMonth(stu,mi)
+  const net=Math.max(0,mt-getWaivedAmount(stu,month))
+  if(net<=0)return false
+  const paid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===month).reduce((s,p)=>s+(p.tuition||0),0)
+  return paid>=net
+}
+function monthOptionsFor(stu){
+  // Show months that are NOT fully paid. Partially-paid months stay (labelled),
+  // fully-paid months are hidden. Deleting a payment restores the month here,
+  // since this recomputes from the live payments list each time the grid builds.
+  const opts=MONTHS.filter(m=>!isMonthFullyPaid(stu,m)).map(m=>{
+    const mi=MONTHS.indexOf(m)
+    const net=Math.max(0,monthlyTuitionForMonth(stu,mi)-getWaivedAmount(stu,m))
+    const paid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===m).reduce((s,p)=>s+(p.tuition||0),0)
+    const partial = net>0 && paid>0 && paid<net
+    return `<option value="${m}">${m}${partial?` — partial, ${fmtINR(net-paid)} left`:''}</option>`
+  }).join('')
+  return opts || `<option value="">— all months paid —</option>`
+}
 function buildManualGrid(){
   const COL='grid-template-columns:minmax(180px,2fr) 140px 140px';
   let html=`<div style="display:grid;${COL};gap:12px;font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;padding:4px 10px;margin-bottom:4px;border-bottom:1px solid var(--border);">
@@ -1509,7 +1530,7 @@ function buildManualGrid(){
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><b>${esc(stu.name)}</b><span class="pill pill-blue">${esc(stu.cls)}</span></div>
         <div style="font-size:10px;color:var(--accent);font-family:var(--mono);margin-top:2px">${fmtINR(getMonthlyTuition(stu))}/month</div>
         <select class="m-month" style="margin-top:6px;padding:5px 8px;font-size:12px;width:100%;-webkit-appearance:auto;" onchange="updateFamilyLock()">
-          ${MONTHS.map(m=>`<option value="${m}">${m}</option>`).join('')}
+          ${monthOptionsFor(stu)}
         </select>
       </div>
       <div style="display:flex;align-items:center;"><input type="number" inputmode="decimal" class="m-tuit" placeholder="0" min="0" style="text-align:right;" oninput="updateFamilyLock()"></div>
@@ -1780,11 +1801,14 @@ async function submitFamilyPayment(){
         partials.forEach(p=>{
           const shortfall=p.fullDue-p.amt;
           const entry=txnEntries.find(e=>e.enrollment_id===p.eid&&e.month===p.month&&e._type===p.type);
-          if(entry){ entry.total=p.fullDue; entry._shortfallNote=` [shortfall ${fmtINR(shortfall)} moved to Prev Balance]` }
+          if(entry){ entry.total=p.fullDue; entry._shortfallNote=` [${p.month}: ${fmtINR(shortfall)} moved to Prev Balance]` }
           shortfallOps.push({eid:p.eid,amt:shortfall,source:`Partial ${p.type}: ${p.month} (paid ${fmtINR(p.amt)}, shortfall ${fmtINR(shortfall)})`});
         });
-        // recompute total: bundle now records the full due for those heads
-        totalProcessed=txnEntries.reduce((s,e)=>s+e.total,0);
+        // NOTE: allocation heads are recorded at their FULL due so the month
+        // shows as settled and the shortfall lives ONLY in Prev Balance (no
+        // double-counting in dues). But the BUNDLE TOTAL must stay the actual
+        // CASH received — NOT the inflated allocation sum — so the receipt reads
+        // ₹2500, not ₹3000. So we deliberately DON'T recompute totalProcessed.
       }
     }
     await _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy,shortfallOps);
@@ -1869,6 +1893,13 @@ function renderFamilyTxns(){
     if(!grouped[bid])grouped[bid]={id:bid,datetime:p.datetime,rows:[],total:0};
     grouped[bid].rows.push(p); grouped[bid].total+=p.total;
   });
+  // Total shown = actual CASH received. For bundles where a partial shortfall
+  // was moved to Prev Balance, allocation heads are stored at FULL due but real
+  // cash was less — prefer the stored bundle amount and note the difference.
+  Object.keys(grouped).forEach(bid=>{
+    const g=grouped[bid], rowsSum=g.rows.reduce((s,r)=>s+(r.total||0),0)
+    if(bundles[bid]&&bundles[bid].amount!=null){ g.total=+bundles[bid].amount; g.toPrev=Math.round((rowsSum-g.total)*100)/100 }
+  });
 
   let html=`<table><thead><tr>
     <th>Bundle Txn ID</th><th>Date</th><th>Students</th><th>Total</th><th>Action</th><th style="width:36px"></th>
@@ -1880,7 +1911,7 @@ function renderFamilyTxns(){
       <td class="mono" style="font-size:11px">${esc(b.id)}</td>
       <td class="mono">${fmtDate(b.datetime)}</td>
       <td style="font-size:12px">${esc(stuNames)}</td>
-      <td class="mono" style="color:var(--green);font-weight:600">${fmtINR(b.total)}</td>
+      <td class="mono" style="color:var(--green);font-weight:600">${fmtINR(b.total)}${b.toPrev>0?`<div style="font-size:9.5px;color:var(--warn);font-weight:600">+${fmtINR(b.toPrev)} to prev bal</div>`:''}</td>
       <td onclick="event.stopPropagation()"><button class="btn btn-danger btn-sm" onclick="deleteBundle('${esc(b.id)}',true)">🗑 Bundle</button></td>
       <td onclick="event.stopPropagation();toggleBundleRows('fb${bi}')"><span class="bundle-toggle-btn" id="toggle_fb${bi}">▶</span></td>
     </tr>`;
