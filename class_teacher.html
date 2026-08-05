@@ -149,7 +149,13 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 .rn-input:focus{border-color:var(--grn)}
 #scrim{position:fixed;inset:0;background:rgba(26,46,32,.35);z-index:150;display:none}
 #scrim.show{display:block}
-@media(max-width:760px){#sidebar{transform:translateX(-100%)}#sidebar.show{transform:translateX(0)}#main{margin-left:0}.content{padding:16px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+@media(max-width:760px){#sidebar{transform:translateX(-100%)}#sidebar.show{transform:translateX(0)}#main{margin-left:0}.content{padding:16px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .topbar{gap:8px;padding:0 12px}
+  .topbar-title .crumb{display:none}
+  .topbar-title{font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .user-chip{padding:4px}.user-chip .chip-text{display:none}
+  #ctSwitchWrap #ctSwitchBtn{padding:7px 9px;font-size:12px}
+}
 
 /* Mobile: disable sticky columns — they block content on small screens */
 @media(max-width:760px){
@@ -293,7 +299,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     </div>
     <div class="user-chip" onclick="window.location.replace('teacher.html')" title="Switch to Main Teacher view">
       <div class="avatar-sm" id="topAvatar">?</div>
-      <div><div style="font-size:12.5px;font-weight:700" id="topName">Loading…</div><div style="font-size:10px;color:var(--ink-faint)" id="topRole"></div></div>
+      <div class="chip-text"><div style="font-size:12.5px;font-weight:700" id="topName">Loading…</div><div style="font-size:10px;color:var(--ink-faint)" id="topRole"></div></div>
     </div>
   </header>
 
