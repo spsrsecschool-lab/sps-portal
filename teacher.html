@@ -456,6 +456,8 @@
     .topbar{padding:0 14px;gap:10px}
     .user-chip .uname,.user-chip .urole{display:none}
     .user-chip{padding:5px}
+    .topbar-title .crumb{display:none}
+    .topbar-title{font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .theme-pill{display:none}
     .banner{flex-direction:column;align-items:flex-start}
     .msg-shell{grid-template-columns:1fr}
@@ -1919,7 +1921,7 @@ async function loadMarksTable(){
     +'<span>Max Marks: <b style="color:var(--ink)">'+maxM+'</b></span>'
     +'<span>Pass Marks: <b style="color:var(--ink)">'+passM+'</b></span>'
     +'<span>Students: <b style="color:var(--ink)">'+students.length+'</b></span>'
-    +'<span style="font-size:11px;color:var(--ink-faint)">Mark Absent if the student was absent on exam day</span>'
+    +'<span style="font-size:11px;color:var(--ink-faint)">Write A for absent</span>'
     +'</div>'
   html+='<div class="table-wrap"><table><thead><tr><th style="width:50px">Roll</th><th>Name</th><th>Father&#39;s Name</th><th style="width:110px">Marks / '+maxM+'</th><th style="width:90px">Absent</th><th>Remarks</th></tr></thead><tbody>'
   html+=students.map((s,i)=>{
