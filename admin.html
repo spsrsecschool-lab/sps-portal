@@ -688,7 +688,10 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page" id="page-mapping">
       <div class="page-head">
         <div><h2>Class &amp; Subject Mapping</h2><p>Assign teachers to classes, sections and subjects</p></div>
-        <button class="btn btn-dark" onclick="openAddMappingModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add Mapping</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="cleanOrphanTimetable()" title="Remove timetable periods left behind by old edits/deletes">Clean stray periods</button>
+          <button class="btn btn-dark" onclick="openAddMappingModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add Mapping</button>
+        </div>
       </div>
       <div class="search-bar">
         <div class="fg" style="max-width:200px"><label>Filter by Class</label><select id="mapClassFilter" onchange="loadMapping()"><option value="">All Classes</option></select></div>
@@ -2938,6 +2941,24 @@ function downloadSampleCsv(type){
 // ═══════════ MAPPING ═══════════
 let _mappingRaw=[]
 function populateMapFilter(){const sel=$('mapClassFilter');if(sel.options.length>1)return;sel.innerHTML='<option value="">All Classes</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')}
+// Remove timetable periods with no matching class-subject mapping (left behind
+// by edits/deletes before the timetable synced). Scoped to the active roster.
+async function cleanOrphanTimetable(){
+  const roster=await getActiveRoster()
+  if(!roster){toast('No active roster','error');return}
+  const{data:entries}=await sb.from('timetable_entries').select('entry_id,teacher_id,class_id,section_id,subject_id').eq('roster_id',roster.roster_id)
+  const{data:maps}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id').eq('session_id',SESS?.session_id||'')
+  const key=r=>[r.teacher_id,r.class_id,r.section_id||'',r.subject_id].join('|')
+  const mapSet=new Set((maps||[]).map(key))
+  const orphans=(entries||[]).filter(e=>!mapSet.has(key(e)))
+  if(!orphans.length){toast('No stray periods found — timetable is clean ✓','success');return}
+  confirmAct('Remove '+orphans.length+' stray period'+(orphans.length>1?'s':'')+'?','These timetable periods no longer match any class-subject mapping (left over from earlier edits/deletes). This won\'t affect current mappings.',async()=>{
+    const ids=orphans.map(o=>o.entry_id)
+    for(let i=0;i<ids.length;i+=100){ await sb.from('timetable_entries').delete().in('entry_id',ids.slice(i,i+100)) }
+    console.log('[cleanOrphanTimetable] removed',ids.length,'orphaned timetable rows')
+    toast('Removed '+ids.length+' stray period'+(ids.length>1?'s':'')+' ✓','success')
+  })
+}
 async function loadMapping(){
   ldg($('mappingBody'))
   const{data,error}=await sb.from('teacher_subject_class_map').select('map_id,class_id,section_id,stream_id,subject_id,teacher_id,classes(name),class_sections(name),subjects(name,subject_id),teachers(full_name,teacher_id),streams(name)').eq('session_id',SESS?.session_id||'')
@@ -3247,10 +3268,26 @@ async function updateMapping(){
   const subId=$('mp_subject')?.value,tchId=$('mp_teacher')?.value
   const streamId=$('mp_stream')?.value||null
   if(!classId||!secId||!subId||!tchId){toast('Class, section, subject and teacher are required','error');return}
+  // Read the OLD mapping first so we can migrate its timetable periods to the
+  // new values — otherwise the student/teacher timetable keeps showing the old
+  // subject/teacher, and a later delete-by-subject can't find those rows.
+  const{data:oldRows}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id,session_id').eq('map_id',mapId).limit(1)
+  const old=oldRows&&oldRows[0]
   const{error}=await sb.from('teacher_subject_class_map').update({
     class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,stream_id:streamId
   }).eq('map_id',mapId)
   if(error){toast('Failed to update mapping: '+error.message,'error');return}
+  // Migrate the linked timetable entries to the corrected values.
+  if(old){
+    let q=sb.from('timetable_entries')
+      .update({class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,stream_id:streamId})
+      .eq('teacher_id',old.teacher_id).eq('class_id',old.class_id).eq('subject_id',old.subject_id)
+    if(old.session_id) q=q.eq('session_id',old.session_id)
+    if(old.section_id) q=q.eq('section_id',old.section_id)
+    const{data:upd,error:te}=await q.select('entry_id')
+    if(te)console.warn('[updateMapping] timetable update failed:',te.message)
+    else console.log('[updateMapping] updated',(upd||[]).length,'timetable period(s) to the new subject/teacher')
+  }
   toast('Mapping updated ✓','success');closeModal();loadMapping()
 }
 
@@ -4984,7 +5021,7 @@ function renderTTGrid(el,entries,mode){
     if(!entriesArr?.length)return '<td style="background:var(--lav-50)"></td>'
     const cells=entriesArr.map(e=>{
       const streamBadge=e.streams?.name?'<div style="font-size:9px;margin-top:2px;background:var(--indigo-100);color:var(--indigo-dark);padding:1px 6px;border-radius:10px;display:inline-block">'+esc(e.streams.name)+'</div>':''
-      if(e._adj)return '<div style="padding:4px 5px;margin:1px 0;background:var(--warn-soft);border:1px solid var(--warn);border-radius:6px">'+'<b style="font-size:12px;color:var(--warn)">'+esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||''))+'</b><br>'+'<span style="font-size:9.5px;color:var(--warn);font-weight:700;letter-spacing:.03em">ADJUSTMENT</span></div>'
+      if(e._adj){const lbl=mode==='student'?esc(e.teachers?.full_name||'Teacher'):esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||''));return '<div style="padding:4px 5px;margin:1px 0;background:var(--warn-soft);border:1px solid var(--warn);border-radius:6px">'+'<b style="font-size:12px;color:var(--warn)">'+lbl+'</b><br>'+'<span style="font-size:9.5px;color:var(--warn);font-weight:700;letter-spacing:.03em">ADJUSTMENT</span></div>'}
       if(mode==='student')return '<div style="padding:3px 0;'+(entriesArr.length>1?'border-bottom:1px solid var(--line)':'')+'">'+'<b style="font-size:12px">'+esc(e.subjects?.name||'—')+'</b><br>'+'<span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.teachers?.full_name||'—')+'</span>'+streamBadge+'</div>'
       return '<div style="padding:3px 0;'+(entriesArr.length>1?'border-bottom:1px solid var(--line)':'')+'">'+'<b style="font-size:12px">'+esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||''))+'</b><br>'+'<span style="font-size:10.5px;color:var(--ink-soft)">'+esc(e.subjects?.name||'—')+'</span>'+streamBadge+'</div>'
     }).join('')
@@ -5071,6 +5108,30 @@ async function loadStudentTimetable(){
   if(secId)entries=entries.filter(e=>!e.section_id||e.section_id===secId)
   // If stream selected: show common (stream_id null) + this stream only
   if(streamId)entries=entries.filter(e=>!e.stream_id||e.stream_id===streamId)
+  // Merge standing ADJUSTMENTS for this class (a teacher sent to cover a period).
+  try{
+    const{data:adj}=await sb.from('adjustments').select('*').eq('class_id',classId)
+    let rows=(adj||[]).filter(a=>a.slot_id && (!secId || !a.section_id || a.section_id===secId))
+    if(rows.length){
+      const slotIds=[...new Set(rows.map(a=>a.slot_id))]
+      const tchIds=[...new Set(rows.map(a=>a.teacher_id).filter(Boolean))]
+      const secIds=[...new Set(rows.map(a=>a.section_id).filter(Boolean))]
+      const[slR,tR,seR]=await Promise.all([
+        slotIds.length?sb.from('time_slots').select('slot_id,name,start_time,end_time,sort_order').in('slot_id',slotIds):Promise.resolve({data:[]}),
+        tchIds.length?sb.from('teachers').select('teacher_id,full_name').in('teacher_id',tchIds):Promise.resolve({data:[]}),
+        secIds.length?sb.from('class_sections').select('section_id,name').in('section_id',secIds):Promise.resolve({data:[]})
+      ])
+      const slM={},tM={},seM={}
+      ;(slR.data||[]).forEach(s=>slM[s.slot_id]=s)
+      ;(tR.data||[]).forEach(t=>tM[t.teacher_id]=t.full_name)
+      ;(seR.data||[]).forEach(s=>seM[s.section_id]=s.name)
+      rows.forEach(a=>{ if(slM[a.slot_id]) entries.push({
+        entry_id:'adj_'+a.adjustment_id, slot_id:a.slot_id, days:a.days||[],
+        time_slots:slM[a.slot_id], class_sections:{name:seM[a.section_id]||''},
+        teachers:{full_name:tM[a.teacher_id]||'Teacher'}, subjects:{name:'Adjustment'}, _adj:true
+      }) })
+    }
+  }catch(e){console.warn('[studentTT] adjustments merge failed',e)}
   renderTTGrid(el,entries,'student')
 }
 
