@@ -1620,28 +1620,39 @@ async function loadAdmFathers(){
     // Existing students per family_code (current session), with class-section.
     _admFamilyStudents={}
     const{data:enr}=await sb.from('student_enrollments')
-      .select('students!inner(full_name,family_code),classes(name),class_sections(name)')
+      .select('students!inner(full_name,father_name,family_code),classes(name),class_sections(name)')
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
     ;(enr||[]).forEach(e=>{
       const fc=e.students?.family_code; if(!fc)return
       ;(_admFamilyStudents[fc]=_admFamilyStudents[fc]||[]).push({
         name:e.students?.full_name||'?',
+        father:e.students?.father_name||'',
         cls:(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')
       })
     })
   }catch(e){_admFathers=[];_admFamilyStudents={};_admFamilyInfo={}}
 }
 
+// Normalise a father name for comparison (trim + lowercase + collapse spaces).
+function _normFather(s){return String(s||'').trim().toLowerCase().replace(/\s+/g,' ')}
+
 // Render the existing children in a family code (siblings) into the panel.
-function showAdmFamilyStudents(familyCode){
+// Only shows children whose FATHER matches the one being added, so a mis-shared
+// family code can't pull in another parent's kids. Warns if the code is mixed.
+function showAdmFamilyStudents(familyCode, fatherName){
   const box=$('adm_family_students'); if(!box)return
   const fc=(familyCode||'').trim()
-  const kids=fc?_admFamilyStudents[fc]:null
-  if(!fc||!kids||!kids.length){box.style.display='none';box.innerHTML='';return}
+  const all=fc?(_admFamilyStudents[fc]||[]):[]
+  const father=_normFather(fatherName||window._admPickedFather||$('adm_father')?.value)
+  // If we know the father, restrict to that father's children within the code.
+  const kids = father ? all.filter(k=>_normFather(k.father)===father) : all
+  const otherFathers = father ? [...new Set(all.filter(k=>_normFather(k.father)!==father).map(k=>k.father).filter(Boolean))] : []
+  if(!fc||!kids.length){box.style.display='none';box.innerHTML='';return}
   box.innerHTML='<div style="font-weight:700;color:var(--indigo-dark);margin-bottom:6px">Existing children in '+esc(fc)+' ('+kids.length+')</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
     +kids.map(k=>'<span class="pill pill-indigo" style="background:var(--white)">'+esc(k.name)+' · '+esc(k.cls)+'</span>').join('')
     +'</div><div style="font-size:11px;color:var(--ink-soft);margin-top:7px">The new student will be added as a sibling in this family.</div>'
+    +(otherFathers.length?'<div style="font-size:11px;color:var(--danger);margin-top:6px;font-weight:600">⚠ This family code also has children under a different father ('+esc(otherFathers.join(', '))+'). That looks like a data error — those students may have the wrong family code.</div>':'')
   box.style.display='block'
 }
 
@@ -1663,7 +1674,8 @@ function admFatherSuggest(){
   const matches=_admFathers.filter(f=>f.father.toLowerCase().includes(q)).slice(0,8)
   if(!matches.length){box.style.display='none';return}
   box.innerHTML=matches.map(f=>{
-    const kids=(f.family&&_admFamilyStudents[f.family])||[]
+    const allKids=(f.family&&_admFamilyStudents[f.family])||[]
+    const kids=allKids.filter(k=>_normFather(k.father)===_normFather(f.father))
     const kidLine=kids.length
       ? '<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(kids.slice(0,4).map(k=>k.name+' ('+k.cls+')').join(', '))+(kids.length>4?' +'+(kids.length-4)+' more':'')+'</div>'
       : ''
@@ -1696,7 +1708,7 @@ function admPickFather(e,fatherEnc,familyEnc){
     setIf('adm_address',info.address)
   }
   const box=$('adm_father_suggest');if(box)box.style.display='none'
-  showAdmFamilyStudents(family)   // show the siblings for this family
+  showAdmFamilyStudents(family, father)   // show this father's siblings in the family
 }
 function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
@@ -2363,7 +2375,7 @@ async function openEditDemoModal(){
     '<div class="form-row"><div class="fg"><label>Father Name *</label><input id="ed_father" value="'+esc(s.father_name||'')+'"></div><div class="fg"><label>Mother Name</label><input id="ed_mother" value="'+esc(s.mother_name||'')+'"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Date of Birth</label><input type="date" id="ed_dob" value="'+esc(s.dob||'')+'"></div><div class="fg"><label>Admission Date</label><input type="date" id="ed_admdate" value="'+esc(s.admission_date||'')+'"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Phone</label><input id="ed_phone" inputmode="numeric" value="'+esc(s.phone||'')+'"></div><div class="fg"><label>Alternate Phone</label><input id="ed_altphone" inputmode="numeric" value="'+esc(s.alt_phone||'')+'"></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Aadhar No.</label><input id="ed_aadhar" inputmode="numeric" value="'+esc(s.aadhar_no||'')+'"></div><div class="fg"><label>Family Code</label><input id="ed_family" value="'+esc(s.family_code||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Aadhar No.</label><input id="ed_aadhar" inputmode="numeric" value="'+esc(s.aadhar_no||'')+'"></div><div class="fg"><label>Family Code</label><div style="display:flex;gap:6px"><input id="ed_family" value="'+esc(s.family_code||'')+'" style="flex:1"><button type="button" class="btn btn-ghost btn-sm" title="Generate a new, unused family code" onclick="edGenerateFamilyCode()">New</button></div></div></div>'+
     '<div class="form-row"><div class="fg"><label>Address</label><input id="ed_address" value="'+esc(s.address||'')+'"></div></div>'+
     '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Enrollment — '+esc(SESS?.session_id||'')+'</div>'+
@@ -2511,6 +2523,14 @@ async function saveEditDemo(){
       .eq('session_id',SESS.session_id).eq('s_no',sno).neq('enrollment_id',eid).maybeSingle()
     if(clash){toast('S.No '+sno+' is already used by '+(clash.students?.full_name||'another student'),'error');return}
   }
+  // Ensure the family code exists in `families` first — otherwise the students
+  // foreign key rejects a brand-new code (the FK constraint error). Creating the
+  // row here lets you move a student to a new family without touching SQL.
+  const edFamily=$('ed_family')?.value?.trim()||null
+  if(edFamily){
+    const{error:fe}=await sb.from('families').upsert({family_code:edFamily},{onConflict:'family_code',ignoreDuplicates:true})
+    if(fe){toast('Could not create family '+edFamily+': '+fe.message,'error');return}
+  }
   const{error:e1}=await sb.from('students').update({
     full_name:name, father_name:father,
     mother_name:$('ed_mother')?.value?.trim()||null,
@@ -2520,7 +2540,7 @@ async function saveEditDemo(){
     alt_phone:$('ed_altphone')?.value?.trim()||null,
     aadhar_no:$('ed_aadhar')?.value?.trim()||null,
     address:$('ed_address')?.value?.trim()||null,
-    family_code:$('ed_family')?.value?.trim()||null
+    family_code:edFamily
   }).eq('student_id',sid)
   if(e1){toast('Failed: '+e1.message,'error');return}
   // Did the section (or class) change? If so, give the student the next roll in
@@ -3544,6 +3564,15 @@ function loadRelievingShell(){
 
 // ═══════════ RE-ADMISSION (assign S.No + readmission date; no fees) ═══════════
 let _readmStudents=[]
+async function edGenerateFamilyCode(){
+  // Next unused family code (e.g. F0239), same scheme as New Admission.
+  const{data:fcs}=await sb.from('families').select('family_code')
+  const max=(fcs||[]).reduce((m,r)=>{const n=parseInt(String(r.family_code).replace(/\D/g,''))||0;return n>m?n:m},0)
+  const next='F'+String(max+1).padStart(4,'0')
+  if($('ed_family')){$('ed_family').value=next}
+  toast('New family code '+next+' — it will be created when you save','success')
+}
+
 async function loadReadmission(){
   $('readm_class').innerHTML='<option value="">All Classes</option>'+
     (ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
