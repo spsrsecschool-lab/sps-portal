@@ -140,7 +140,40 @@ window.SPSMedia = (function () {
   // High-level: acquire a document file for a given type. For types that CAN
   // have two sides (e.g. Aadhaar), the second side is OPTIONAL — a single page
   // showing both sides is fine. If two are captured they're merged into one file.
+  // Compress an image file to at most ~maxKB by downscaling + re-encoding as
+  // JPEG. Non-images (e.g. PDFs) are returned unchanged. Used before every
+  // upload so photos and document scans stay small.
+  async function compressImage(file, { maxKB = 100, maxDim = 1600 } = {}) {
+    if (!file || !/^image\//.test(file.type)) return file
+    let img
+    try { img = await loadImage(file) } catch (_) { return file }
+    let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height
+    if (!w || !h) return file
+    if (Math.max(w, h) > maxDim) { const r = maxDim / Math.max(w, h); w = Math.round(w * r); h = Math.round(h * r) }
+    const canvas = document.createElement('canvas')
+    const draw = (cw, ch) => {
+      canvas.width = cw; canvas.height = ch
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch)
+      ctx.drawImage(img, 0, 0, cw, ch)
+    }
+    const toBlob = q => new Promise(res => canvas.toBlob(res, 'image/jpeg', q))
+    const target = maxKB * 1024
+    const mkFile = blob => new File([blob], (file.name || 'image').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+    let cw = w, ch = h
+    for (let attempt = 0; attempt < 6; attempt++) {
+      draw(cw, ch)
+      let q = 0.9, blob = await toBlob(q)
+      while (blob && blob.size > target && q > 0.4) { q -= 0.1; blob = await toBlob(q) }
+      if (blob && blob.size <= target) return mkFile(blob)
+      cw = Math.round(cw * 0.82); ch = Math.round(ch * 0.82)   // still too big → shrink and retry
+      if (cw < 240 || ch < 240) { draw(cw, ch); const b = await toBlob(0.5); return b ? mkFile(b) : file }
+    }
+    draw(cw, ch); const b = await toBlob(0.5); return b ? mkFile(b) : file
+  }
+
   async function acquireDocument(type) {
+    const _wrap = async (r) => { if (r && r.file) r.file = await compressImage(r.file, { maxKB: 100 }); return r }
     const pages = MULTI[type]
     if (pages) {
       const first = await chooseOne({ accept: 'image/*', prompt: (type || 'Document') + ' — photo' })
@@ -154,16 +187,16 @@ window.SPSMedia = (function () {
         yes: '+ Add back side',
         no: 'Just this page',
       })
-      if (!addBack) return { file: first, pages: 1, merged: false }
+      if (!addBack) return await _wrap({ file: first, pages: 1, merged: false })
       const back = await chooseOne({ accept: 'image/*', prompt: (type || 'Document') + ' — back side' })
-      if (!back) return { file: first, pages: 1, merged: false } // they skipped the back
-      if (!/^image\//.test(back.type)) { alert('The back side must be an image so it can be combined. Keeping the first page only.'); return { file: first, pages: 1, merged: false } }
+      if (!back) return await _wrap({ file: first, pages: 1, merged: false }) // they skipped the back
+      if (!/^image\//.test(back.type)) { alert('The back side must be an image so it can be combined. Keeping the first page only.'); return await _wrap({ file: first, pages: 1, merged: false }) }
       const merged = await mergeImages([first, back], { name: String(type).replace(/\s+/g, '_') + '.jpg' })
-      return { file: merged, pages: 2, merged: true }
+      return await _wrap({ file: merged, pages: 2, merged: true })
     }
     const f = await chooseOne({ accept: 'image/*', allowPdf: true, prompt: type || 'Upload document' })
     if (!f) return null
-    return { file: f, pages: 1, merged: false }
+    return await _wrap({ file: f, pages: 1, merged: false })
   }
 
   // ── Circular photo cropper ────────────────────────────────────────────────
@@ -260,7 +293,8 @@ window.SPSMedia = (function () {
     if (!f) return null
     if (!/^image\//.test(f.type)) return f            // safety: non-image, skip crop
     const cropped = await cropCircle(f, { title: 'Frame the photo' })
-    return cropped || null                             // null = cancelled the crop
+    if (!cropped) return null                          // null = cancelled the crop
+    return await compressImage(cropped, { maxKB: 100 })
   }
 
   // Small helper to make a preview object URL (caller should revoke when done).
@@ -268,5 +302,5 @@ window.SPSMedia = (function () {
 
   function needsMultiple(type) { return !!MULTI[type] }
 
-  return { isMobile, chooseOne, mergeImages, acquireDocument, acquirePhoto, cropCircle, previewURL, needsMultiple, MULTI }
+  return { isMobile, chooseOne, mergeImages, compressImage, acquireDocument, acquirePhoto, cropCircle, previewURL, needsMultiple, MULTI }
 })()
