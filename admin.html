@@ -3048,18 +3048,62 @@ async function scLoad(){
 }
 function scRenderTemplate(tmap){
   const subs=ALL_SUBJECTS.filter(s=>s.is_active)
+  const mand=subs.filter(s=>tmap[s.subject_id]&&!tmap[s.subject_id].is_elective)
+  const elec=subs.filter(s=>tmap[s.subject_id]&&tmap[s.subject_id].is_elective)
+  const defId=(Object.values(tmap).find(t=>t.is_elective&&t.is_default)||{}).subject_id||''
+  const nm=id=>{const s=subs.find(x=>x.subject_id===id);return s?s.name:'?'}
+  const tag=(id,kind)=>'<span class="sc-tag" data-sub="'+id+'" data-kind="'+kind+'" style="display:inline-flex;align-items:center;gap:6px;background:var(--indigo-100);color:var(--indigo-dark);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600">'+esc(nm(id))+'<span onclick="scRemoveTag(\''+id+'\',\''+kind+'\')" style="cursor:pointer;font-weight:800;opacity:.6" title="Remove">×</span></span>'
+  const opts=exclude=>'<option value="">+ add subject…</option>'+subs.filter(s=>!exclude.includes(s.subject_id)).map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
+  const inTemplate=[...mand,...elec].map(s=>s.subject_id)
   return '<div class="card" style="margin-bottom:16px"><h3 style="margin-top:0">Default Combination</h3>'
-    +'<p style="font-size:12px;color:var(--ink-soft);margin-top:-4px">Tick the subjects in this stream. Mark which are <b>elective</b>, and which elective is the <b>default</b> pick when applying to all.</p>'
-    +'<div class="table-wrap"><table><thead><tr><th>Subject</th><th style="text-align:center">In combination</th><th style="text-align:center">Elective</th><th style="text-align:center">Default elective</th></tr></thead><tbody>'
-    +subs.map(s=>{const t=tmap[s.subject_id];return '<tr>'
-      +'<td style="font-weight:600">'+esc(s.name)+'</td>'
-      +'<td style="text-align:center"><input type="checkbox" class="sc-in" data-sub="'+s.subject_id+'" '+(t?'checked':'')+'></td>'
-      +'<td style="text-align:center"><input type="checkbox" class="sc-elec" data-sub="'+s.subject_id+'" '+(t?.is_elective?'checked':'')+'></td>'
-      +'<td style="text-align:center"><input type="checkbox" class="sc-def" data-sub="'+s.subject_id+'" '+(t?.is_default?'checked':'')+'></td>'
-      +'</tr>'}).join('')
-    +'</tbody></table></div>'
-    +'<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn btn-dark" onclick="scSaveTemplate()">Save Combination</button>'
+    +'<p style="font-size:12px;color:var(--ink-soft);margin-top:-4px">Add the subjects everyone takes to <b>Mandatory</b>, and the choose-one subjects to <b>Electives</b>. Set which elective is applied by default.</p>'
+    +'<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:7px">Mandatory (all students)</div>'
+      +'<div id="sc_mand_tags" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px">'+(mand.length?mand.map(s=>tag(s.subject_id,'mand')).join(''):'<span style="font-size:12px;color:var(--ink-faint)">None yet</span>')+'</div>'
+      +'<select id="sc_mand_add" onchange="scAddTag(this,\'mand\')" style="max-width:240px;font-family:var(--font);font-size:13px;padding:8px 11px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50)">'+opts(inTemplate)+'</select></div>'
+    +'<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:7px">Electives (choose one)</div>'
+      +'<div id="sc_elec_tags" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px">'+(elec.length?elec.map(s=>tag(s.subject_id,'elec')).join(''):'<span style="font-size:12px;color:var(--ink-faint)">None yet</span>')+'</div>'
+      +'<select id="sc_elec_add" onchange="scAddTag(this,\'elec\')" style="max-width:240px;font-family:var(--font);font-size:13px;padding:8px 11px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50)">'+opts(inTemplate)+'</select></div>'
+    +'<div style="margin-bottom:6px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:7px">Default elective</div>'
+      +'<select id="sc_default" style="max-width:240px;font-family:var(--font);font-size:13px;padding:8px 11px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50)">'+scDefaultOptions(elec.map(s=>s.subject_id),defId)+'</select></div>'
+    +'<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn btn-dark" onclick="scSaveTemplate()">Save Combination</button>'
     +'<button class="btn btn-soft" onclick="scApplyToAll()">Apply to all students</button></div></div>'
+}
+function scDefaultOptions(elecIds,sel){
+  const nm=id=>{const s=ALL_SUBJECTS.find(x=>x.subject_id===id);return s?s.name:'?'}
+  return '<option value="">— none —</option>'+elecIds.map(id=>'<option value="'+id+'"'+(id===sel?' selected':'')+'>'+esc(nm(id))+'</option>').join('')
+}
+// Read the current template tags straight off the DOM (source of truth while editing).
+function scCurrentTemplate(){
+  const mand=[...document.querySelectorAll('#sc_mand_tags .sc-tag')].map(t=>t.dataset.sub)
+  const elec=[...document.querySelectorAll('#sc_elec_tags .sc-tag')].map(t=>t.dataset.sub)
+  return {mand,elec}
+}
+function scRefreshAddDropdowns(){
+  const {mand,elec}=scCurrentTemplate(), inT=[...mand,...elec]
+  const subs=ALL_SUBJECTS.filter(s=>s.is_active)
+  const opts='<option value="">+ add subject…</option>'+subs.filter(s=>!inT.includes(s.subject_id)).map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
+  if($('sc_mand_add'))$('sc_mand_add').innerHTML=opts
+  if($('sc_elec_add'))$('sc_elec_add').innerHTML=opts
+  if($('sc_default'))$('sc_default').innerHTML=scDefaultOptions(elec,$('sc_default').value)
+}
+function scAddTag(sel,kind){
+  const id=sel.value; if(!id)return
+  const box=$(kind==='mand'?'sc_mand_tags':'sc_elec_tags')
+  const placeholder=box.querySelector('span:not(.sc-tag)'); if(placeholder)placeholder.remove()
+  const nm=(ALL_SUBJECTS.find(x=>x.subject_id===id)||{}).name||'?'
+  const span=document.createElement('span')
+  span.className='sc-tag'; span.dataset.sub=id; span.dataset.kind=kind
+  span.style.cssText='display:inline-flex;align-items:center;gap:6px;background:var(--indigo-100);color:var(--indigo-dark);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:600'
+  span.innerHTML=esc(nm)+'<span onclick="scRemoveTag(\''+id+'\',\''+kind+'\')" style="cursor:pointer;font-weight:800;opacity:.6" title="Remove">×</span>'
+  box.appendChild(span)
+  sel.value=''
+  scRefreshAddDropdowns()
+}
+function scRemoveTag(id,kind){
+  const box=$(kind==='mand'?'sc_mand_tags':'sc_elec_tags')
+  const tag=box.querySelector('.sc-tag[data-sub="'+id+'"]'); if(tag)tag.remove()
+  if(!box.querySelector('.sc-tag'))box.innerHTML='<span style="font-size:12px;color:var(--ink-faint)">None yet</span>'
+  scRefreshAddDropdowns()
 }
 function scRenderStudents(students,ssMap){
   if(!students.length)return '<div class="card"><p style="color:var(--ink-faint)">No active students in this class/stream.</p></div>'
@@ -3079,14 +3123,12 @@ function scRenderStudents(students,ssMap){
 }
 async function scSaveTemplate(){
   if(!_scCtx)return
-  const {cid,sid}=_scCtx, rows=[]
-  document.querySelectorAll('.sc-in').forEach(cb=>{
-    if(!cb.checked)return
-    const sub=cb.dataset.sub
-    rows.push({session_id:SESS?.session_id||null,class_id:cid,stream_id:sid,subject_id:sub,
-      is_elective:document.querySelector('.sc-elec[data-sub="'+sub+'"]')?.checked||false,
-      is_default:document.querySelector('.sc-def[data-sub="'+sub+'"]')?.checked||false})
-  })
+  const {cid,sid}=_scCtx
+  const {mand,elec}=scCurrentTemplate()
+  const defId=$('sc_default')?.value||''
+  const rows=[]
+  mand.forEach(sub=>rows.push({session_id:SESS?.session_id||null,class_id:cid,stream_id:sid,subject_id:sub,is_elective:false,is_default:false}))
+  elec.forEach(sub=>rows.push({session_id:SESS?.session_id||null,class_id:cid,stream_id:sid,subject_id:sub,is_elective:true,is_default:sub===defId}))
   await sb.from('stream_subject_template').delete().eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('stream_id',sid)
   if(rows.length){const{error}=await sb.from('stream_subject_template').insert(rows);if(error){toast('Failed to save: '+error.message,'error');return}}
   toast('Combination saved ✓','success');scLoad()
