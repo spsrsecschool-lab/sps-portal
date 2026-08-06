@@ -698,6 +698,8 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
       <div class="search-bar">
         <div class="fg" style="max-width:200px"><label>Filter by Class</label><select id="mapClassFilter" onchange="loadMapping()"><option value="">All Classes</option></select></div>
+        <div class="fg" style="max-width:200px"><label>Filter by Section</label><select id="mapSectionFilter" onchange="loadMapping()"><option value="">All Sections</option></select></div>
+        <div class="fg" style="max-width:220px"><label>Filter by Teacher</label><select id="mapTeacherFilter" onchange="loadMapping()"><option value="">All Teachers</option></select></div>
       </div>
       <div class="card"><div class="table-wrap"><table>
         <thead><tr><th>Class</th><th>Section</th><th>Subject</th><th>Teacher</th><th>Class Teacher?</th><th></th></tr></thead>
@@ -3180,6 +3182,13 @@ function _scStyleChip(btn,on){
   btn.style.fontWeight=on?'700':'500'
 }
 
+// Populate a mapping filter <select>, preserving the current selection if still valid.
+function _fillMapFilter(id, items, allLabel){
+  const sel=$(id); if(!sel)return
+  const cur=sel.value
+  sel.innerHTML='<option value="">'+allLabel+'</option>'+items.map(it=>'<option value="'+esc(it.v)+'">'+esc(it.t)+'</option>').join('')
+  if([...sel.options].some(o=>o.value===cur))sel.value=cur; else sel.value=''
+}
 async function loadMapping(){
   ldg($('mappingBody'))
   const{data,error}=await sb.from('teacher_subject_class_map').select('map_id,class_id,section_id,stream_id,subject_id,teacher_id,classes(name),class_sections(name),subjects(name,subject_id),teachers(full_name,teacher_id),streams(name)').eq('session_id',SESS?.session_id||'')
@@ -3192,7 +3201,25 @@ async function loadMapping(){
   const{data:ct}=await sb.from('class_teacher_map').select('section_id,teachers(full_name)').eq('session_id',SESS?.session_id||'')
   const ctF={}; ct?.forEach(r=>{ctF[r.section_id]=r.teachers?.full_name||''})
   const fcls=$('mapClassFilter')?.value||''
-  const rows=fcls?_mappingRaw.filter(r=>r.class_id===fcls):_mappingRaw
+  const fsec=$('mapSectionFilter')?.value||''
+  const ftch=$('mapTeacherFilter')?.value||''
+  // Populate the Section filter (scoped to the chosen class if any) and the
+  // Teacher filter, preserving the current selection.
+  const secItems=[], secSeen=new Set()
+  ;(fcls?_mappingRaw.filter(r=>r.class_id===fcls):_mappingRaw).forEach(r=>{
+    if(r.section_id&&!secSeen.has(r.section_id)){secSeen.add(r.section_id);secItems.push({v:r.section_id,t:(r.classes?.name||'?')+'-'+(r.class_sections?.name||'?')})}
+  })
+  secItems.sort((a,b)=>a.t.localeCompare(b.t))
+  const tchItems=[], tchSeen=new Set()
+  _mappingRaw.forEach(r=>{ if(r.teacher_id&&!tchSeen.has(r.teacher_id)){tchSeen.add(r.teacher_id);tchItems.push({v:r.teacher_id,t:r.teachers?.full_name||'?'})} })
+  tchItems.sort((a,b)=>a.t.localeCompare(b.t))
+  _fillMapFilter('mapSectionFilter',secItems,'All Sections')
+  _fillMapFilter('mapTeacherFilter',tchItems,'All Teachers')
+  const fsec2=$('mapSectionFilter')?.value||''   // may have reset if class changed
+  let rows=_mappingRaw
+  if(fcls)rows=rows.filter(r=>r.class_id===fcls)
+  if(fsec2)rows=rows.filter(r=>r.section_id===fsec2)
+  if(ftch)rows=rows.filter(r=>r.teacher_id===ftch)
   const body=$('mappingBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="7"><div class="empty-state"><p>No mappings yet.</p></div></td></tr>';return}
   body.innerHTML=rows.map(r=>{
