@@ -446,6 +446,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item" onclick="goTo('readmission',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Re-admission</div>
     <div class="sb-label">Academics</div>
     <div class="sb-item" onclick="goTo('mapping',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Class &amp; Subject Mapping</div>
+    <div class="sb-item" onclick="goTo('subjcombos',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Subject Combinations</div>
     <div class="sb-item" onclick="goTo('assessments',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Assessments &amp; Exam Fees</div>
     <div class="sb-item" onclick="goTo('marksoverview',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg>Marks Overview</div>
     <div class="sb-item" onclick="goTo('reportcards',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Report Card Templates</div>
@@ -702,6 +703,23 @@ tbody tr:hover td{background:var(--lav-50)}
         <thead><tr><th>Class</th><th>Section</th><th>Subject</th><th>Teacher</th><th>Class Teacher?</th><th></th></tr></thead>
         <tbody id="mappingBody"><tr><td colspan="6"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table></div></div>
+    </div>
+
+    <!-- SUBJECT COMBINATIONS (11th & 12th) -->
+    <div class="page" id="page-subjcombos">
+      <div class="page-head">
+        <div><h2>Subject Combinations</h2><p>Set the subjects each 11th/12th student studies — a default combination per stream, then per-student choices</p></div>
+      </div>
+      <div class="card" style="margin-bottom:14px;background:var(--lav-100)">
+        <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6">Pick a <b>class</b> and <b>stream</b>. Build the <b>default combination</b> (mark subjects mandatory or elective, and set a default elective), then <b>Apply to all students</b>. Afterwards you can open any student and change their electives. A subject teacher will only see students who take their subject once Stage 2 is enabled.</div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="form-row" style="align-items:flex-end;flex-wrap:wrap">
+          <div class="fg" style="max-width:220px"><label>Class (11th / 12th)</label><select id="sc_class" onchange="scClassChanged()"><option value="">Select class</option></select></div>
+          <div class="fg" style="max-width:220px"><label>Stream</label><select id="sc_stream" onchange="scLoad()"><option value="">Select stream</option></select></div>
+        </div>
+      </div>
+      <div id="scBody"><div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select a class and stream to begin.</div></div>
     </div>
 
     <!-- ASSESSMENTS & EXAM FEES -->
@@ -1571,8 +1589,8 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',settings:'Settings',requests:'Access Requests'}
-const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',settings:'Settings',requests:'Access Requests'}
+const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
 
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
@@ -1601,7 +1619,6 @@ async function loadAdmFathers(){
     const{data}=await sb.from('students').select('student_id,full_name,father_name,mother_name,phone,alt_phone,address,family_code').not('father_name','is',null)
     const seen=new Set(), out=[]
     _admFamilyInfo={}
-    _admFamilyStudents={}
     ;(data||[]).forEach(r=>{
       const fn=(r.father_name||'').trim(); if(!fn)return
       const key=fn.toLowerCase()+'|'+(r.family_code||'')
@@ -1614,24 +1631,36 @@ async function loadAdmFathers(){
         if(!info.phone&&r.phone)info.phone=r.phone
         if(!info.altPhone&&r.alt_phone)info.altPhone=r.alt_phone
         if(!info.address&&r.address)info.address=r.address
-        // Children list is built from the STUDENTS table (same source as the
-        // father suggestions) so a child shows even if they aren't in the
-        // current session's active enrollments yet. Class is filled in below.
-        ;(_admFamilyStudents[fc]=_admFamilyStudents[fc]||[]).push({
-          sid:r.student_id, name:r.full_name||'?', father:fn, cls:''
-        })
       }
     })
     out.sort((a,b)=>a.father.localeCompare(b.father))
     _admFathers=out
-    // Enrich each child with its class-section from the current session's
-    // enrollments (when one exists); children without one still show (no class).
+    // Children WITH class from the current session's active enrollments (this is
+    // the query that reliably returns the class-section).
+    _admFamilyStudents={}
     const{data:enr}=await sb.from('student_enrollments')
-      .select('student_id,classes(name),class_sections(name)')
+      .select('students!inner(student_id,full_name,father_name,family_code),classes(name),class_sections(name)')
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
-    const clsMap={}
-    ;(enr||[]).forEach(e=>{ if(e.student_id) clsMap[e.student_id]=(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?') })
-    Object.values(_admFamilyStudents).forEach(list=>list.forEach(k=>{ if(k.sid&&clsMap[k.sid])k.cls=clsMap[k.sid] }))
+    ;(enr||[]).forEach(e=>{
+      const fc=e.students?.family_code; if(!fc)return
+      ;(_admFamilyStudents[fc]=_admFamilyStudents[fc]||[]).push({
+        sid:e.students?.student_id,
+        name:e.students?.full_name||'?',
+        father:e.students?.father_name||'',
+        cls:(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')
+      })
+    })
+    // Supplement with any student who has a family code but NO active current
+    // enrollment (e.g. F0424's child) — they show without a class rather than
+    // being dropped entirely.
+    const enrolledSids=new Set()
+    Object.values(_admFamilyStudents).forEach(list=>list.forEach(k=>{if(k.sid)enrolledSids.add(k.sid)}))
+    ;(data||[]).forEach(r=>{
+      const fc=r.family_code; if(!fc||!r.student_id||enrolledSids.has(r.student_id))return
+      ;(_admFamilyStudents[fc]=_admFamilyStudents[fc]||[]).push({
+        sid:r.student_id, name:r.full_name||'?', father:(r.father_name||'').trim(), cls:''
+      })
+    })
   }catch(e){_admFathers=[];_admFamilyStudents={};_admFamilyInfo={}}
 }
 
@@ -2983,6 +3012,125 @@ async function cleanOrphanTimetable(){
     toast('Removed '+ids.length+' stray period'+(ids.length>1?'s':'')+' ✓','success')
   })
 }
+// ═══════════ SUBJECT COMBINATIONS (11th & 12th) ═══════════
+let _scCtx=null
+async function loadSubjCombos(){
+  // Only classes that have streams (11th / 12th).
+  const{data:strs}=await sb.from('streams').select('class_id').eq('session_id',SESS?.session_id||'').eq('is_active',true)
+  const streamClassIds=new Set((strs||[]).map(s=>s.class_id))
+  const sel=$('sc_class')
+  sel.innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>streamClassIds.has(c.class_id)).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  $('sc_stream').innerHTML='<option value="">Select stream</option>'
+  $('scBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select a class and stream to begin.</div>'
+}
+async function scClassChanged(){
+  const cid=$('sc_class').value, sel=$('sc_stream')
+  sel.innerHTML='<option value="">Select stream</option>'
+  $('scBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select a stream.</div>'
+  if(!cid)return
+  const{data:strs}=await sb.from('streams').select('stream_id,name').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  sel.innerHTML='<option value="">Select stream</option>'+(strs||[]).map(s=>'<option value="'+s.stream_id+'">'+esc(s.name)+'</option>').join('')
+}
+async function scLoad(){
+  const cid=$('sc_class').value, sid=$('sc_stream').value, el=$('scBody')
+  if(!cid||!sid){el.innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select a class and stream.</div>';return}
+  ldg(el)
+  const{data:tmpl}=await sb.from('stream_subject_template').select('*').eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('stream_id',sid)
+  const tmap={}; (tmpl||[]).forEach(t=>tmap[t.subject_id]=t)
+  const{data:studs}=await sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,students!inner(full_name)')
+    .eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('stream_id',sid).eq('status','active').eq('relieved',false).order('roll_no')
+  const eids=(studs||[]).map(s=>s.enrollment_id)
+  const{data:ssubs}= eids.length ? await sb.from('student_subjects').select('enrollment_id,subject_id').in('enrollment_id',eids) : {data:[]}
+  const ssMap={}; (ssubs||[]).forEach(r=>{(ssMap[r.enrollment_id]=ssMap[r.enrollment_id]||new Set()).add(r.subject_id)})
+  _scCtx={cid,sid,students:studs||[],ssMap,tmap}
+  el.innerHTML=scRenderTemplate(tmap)+scRenderStudents(studs||[],ssMap)
+}
+function scRenderTemplate(tmap){
+  const subs=ALL_SUBJECTS.filter(s=>s.is_active)
+  return '<div class="card" style="margin-bottom:16px"><h3 style="margin-top:0">Default Combination</h3>'
+    +'<p style="font-size:12px;color:var(--ink-soft);margin-top:-4px">Tick the subjects in this stream. Mark which are <b>elective</b>, and which elective is the <b>default</b> pick when applying to all.</p>'
+    +'<div class="table-wrap"><table><thead><tr><th>Subject</th><th style="text-align:center">In combination</th><th style="text-align:center">Elective</th><th style="text-align:center">Default elective</th></tr></thead><tbody>'
+    +subs.map(s=>{const t=tmap[s.subject_id];return '<tr>'
+      +'<td style="font-weight:600">'+esc(s.name)+'</td>'
+      +'<td style="text-align:center"><input type="checkbox" class="sc-in" data-sub="'+s.subject_id+'" '+(t?'checked':'')+'></td>'
+      +'<td style="text-align:center"><input type="checkbox" class="sc-elec" data-sub="'+s.subject_id+'" '+(t?.is_elective?'checked':'')+'></td>'
+      +'<td style="text-align:center"><input type="checkbox" class="sc-def" data-sub="'+s.subject_id+'" '+(t?.is_default?'checked':'')+'></td>'
+      +'</tr>'}).join('')
+    +'</tbody></table></div>'
+    +'<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn btn-dark" onclick="scSaveTemplate()">Save Combination</button>'
+    +'<button class="btn btn-soft" onclick="scApplyToAll()">Apply to all students</button></div></div>'
+}
+function scRenderStudents(students,ssMap){
+  if(!students.length)return '<div class="card"><p style="color:var(--ink-faint)">No active students in this class/stream.</p></div>'
+  const subs=ALL_SUBJECTS.filter(s=>s.is_active)
+  return '<div class="card"><h3 style="margin-top:0">Students ('+students.length+')</h3>'
+    +'<p style="font-size:12px;color:var(--ink-soft);margin-top:-4px">Tap a subject to add or remove it for that student.</p>'
+    +students.map(s=>{const has=ssMap[s.enrollment_id]||new Set()
+      return '<div style="padding:11px 0;border-bottom:1px solid var(--line)">'
+        +'<div style="font-weight:700;font-size:13px;margin-bottom:7px">'+esc(s.roll_no||'—')+' · '+esc(s.students?.full_name||'?')+' <span class="sc-count" data-eid="'+s.enrollment_id+'" style="font-weight:400;color:var(--ink-faint)">('+has.size+' subjects)</span></div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+        +subs.map(sub=>{const on=has.has(sub.subject_id)
+          return '<button onclick="scToggleStudentSubject(\''+s.enrollment_id+'\',\''+sub.subject_id+'\',this)" class="sc-chip" style="padding:5px 11px;border-radius:999px;font-size:11.5px;font-family:var(--font);cursor:pointer;border:1.5px solid '+(on?'var(--indigo)':'var(--line)')+';background:'+(on?'var(--indigo-100)':'var(--white)')+';color:'+(on?'var(--indigo-dark)':'var(--ink-soft)')+';font-weight:'+(on?'700':'500')+'">'+esc(sub.name)+'</button>'
+        }).join('')
+        +'</div></div>'
+    }).join('')
+    +'</div>'
+}
+async function scSaveTemplate(){
+  if(!_scCtx)return
+  const {cid,sid}=_scCtx, rows=[]
+  document.querySelectorAll('.sc-in').forEach(cb=>{
+    if(!cb.checked)return
+    const sub=cb.dataset.sub
+    rows.push({session_id:SESS?.session_id||null,class_id:cid,stream_id:sid,subject_id:sub,
+      is_elective:document.querySelector('.sc-elec[data-sub="'+sub+'"]')?.checked||false,
+      is_default:document.querySelector('.sc-def[data-sub="'+sub+'"]')?.checked||false})
+  })
+  await sb.from('stream_subject_template').delete().eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('stream_id',sid)
+  if(rows.length){const{error}=await sb.from('stream_subject_template').insert(rows);if(error){toast('Failed to save: '+error.message,'error');return}}
+  toast('Combination saved ✓','success');scLoad()
+}
+async function scApplyToAll(){
+  if(!_scCtx)return
+  const {students,ssMap,tmap}=_scCtx
+  const tmpl=Object.values(tmap)
+  if(!tmpl.length){toast('Save a combination first','error');return}
+  const mandatory=tmpl.filter(t=>!t.is_elective), defElec=tmpl.filter(t=>t.is_elective&&t.is_default)
+  confirmAct('Apply default combination to all students?','Students who already have subjects set are skipped (their choices are kept). Students with none get the mandatory subjects + the default elective(s).',async()=>{
+    const rows=[]; let done=0
+    students.forEach(s=>{
+      const has=ssMap[s.enrollment_id]
+      if(has&&has.size)return
+      mandatory.forEach(t=>rows.push({enrollment_id:s.enrollment_id,subject_id:t.subject_id,is_elective:false}))
+      defElec.forEach(t=>rows.push({enrollment_id:s.enrollment_id,subject_id:t.subject_id,is_elective:true}))
+      done++
+    })
+    if(rows.length){const{error}=await sb.from('student_subjects').upsert(rows,{onConflict:'enrollment_id,subject_id',ignoreDuplicates:true});if(error){toast('Failed: '+error.message,'error');return}}
+    toast('Applied to '+done+' student'+(done!==1?'s':'')+' ✓ ('+(students.length-done)+' already set)','success');scLoad()
+  })
+}
+async function scToggleStudentSubject(eid,subId,btn){
+  if(!_scCtx)return
+  const has=_scCtx.ssMap[eid]||(_scCtx.ssMap[eid]=new Set())
+  if(has.has(subId)){
+    const{error}=await sb.from('student_subjects').delete().eq('enrollment_id',eid).eq('subject_id',subId)
+    if(error){toast('Failed: '+error.message,'error');return}
+    has.delete(subId); _scStyleChip(btn,false)
+  }else{
+    const{error}=await sb.from('student_subjects').upsert({enrollment_id:eid,subject_id:subId,is_elective:false},{onConflict:'enrollment_id,subject_id',ignoreDuplicates:true})
+    if(error){toast('Failed: '+error.message,'error');return}
+    has.add(subId); _scStyleChip(btn,true)
+  }
+  const cnt=document.querySelector('.sc-count[data-eid="'+eid+'"]');if(cnt)cnt.textContent='('+has.size+' subjects)'
+}
+function _scStyleChip(btn,on){
+  btn.style.border='1.5px solid '+(on?'var(--indigo)':'var(--line)')
+  btn.style.background=on?'var(--indigo-100)':'var(--white)'
+  btn.style.color=on?'var(--indigo-dark)':'var(--ink-soft)'
+  btn.style.fontWeight=on?'700':'500'
+}
+
 async function loadMapping(){
   ldg($('mappingBody'))
   const{data,error}=await sb.from('teacher_subject_class_map').select('map_id,class_id,section_id,stream_id,subject_id,teacher_id,classes(name),class_sections(name),subjects(name,subject_id),teachers(full_name,teacher_id),streams(name)').eq('session_id',SESS?.session_id||'')
