@@ -1583,10 +1583,26 @@ async function renderDashboard(){
   const{data:submitted}=await sb.from('marks').select('assessment_id,subject_id,enrollment_id').eq('entered_by',TEACHER.teacher_id)
   const submittedKeys=new Set((submitted||[]).map(m=>m.assessment_id+'_'+m.subject_id))
 
+  // Which assessments apply to which of the teacher's classes. Admin assessments
+  // link via assessment_classes (no class_id column), so we must resolve them
+  // that way — matching a.class_id alone silently missed every admin assessment.
+  const{data:acRows}= classIds.length ? await sb.from('assessment_classes').select('assessment_id,class_id').in('class_id',classIds) : {data:[]}
+  const classToAssess={}
+  ;(acRows||[]).forEach(r=>{(classToAssess[r.class_id]=classToAssess[r.class_id]||new Set()).add(r.assessment_id)})
+  const assessById={}; ALL_ASSESSMENTS.forEach(a=>assessById[a.assessment_id]=a)
+  // Assessments a teacher must enter marks for, for a given class:
+  //  • admin assessments linked to that class AND with marks entry UNLOCKED
+  //  • the teacher's own class tests for that class (always enterable)
+  function dueAssessmentsFor(classId){
+    const out=[]
+    ;(classToAssess[classId]||new Set()).forEach(aid=>{const a=assessById[aid]; if(a&&a.is_marks_unlocked)out.push(a)})
+    ALL_ASSESSMENTS.forEach(a=>{if(a.created_by_teacher_id===TEACHER.teacher_id&&a.class_id===classId)out.push(a)})
+    return out
+  }
+
   let pending=0
   MY_MAPPINGS.forEach(map=>{
-    const classAssessments=ALL_ASSESSMENTS.filter(a=>a.class_id===map.class_id)
-    classAssessments.forEach(a=>{if(!submittedKeys.has(a.assessment_id+'_'+map.subject_id))pending++})
+    dueAssessmentsFor(map.class_id).forEach(a=>{if(!submittedKeys.has(a.assessment_id+'_'+map.subject_id))pending++})
   })
   $('statPending').textContent=pending
   if(pending>0){
@@ -1614,7 +1630,7 @@ async function renderDashboard(){
 
   // Assignments list
   const rows=MY_MAPPINGS.map(m=>{
-    const clsAssess=ALL_ASSESSMENTS.filter(a=>a.class_id===m.class_id)
+    const clsAssess=dueAssessmentsFor(m.class_id)
     const hasPending=clsAssess.some(a=>!submittedKeys.has(a.assessment_id+'_'+m.subject_id))
     return '<div class="sched-row"><span class="cls">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</span><span class="subj">'+esc(m.subjects?.name||'?')+'</span>'+(hasPending?'<span class="pill pill-warn">Marks Due</span>':'<span class="pill pill-success">Up to Date</span>')+'</div>'
   }).join('')
