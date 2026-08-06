@@ -1793,9 +1793,16 @@ async function meInitAssessments(){
   sel.innerHTML='<option value="">Loading…</option>'
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id).filter(Boolean))]
   if(!classIds.length){sel.innerHTML='<option value="">No class assignments</option>';return}
-  // Admin assessments via assessment_classes
-  const{data:ac}=await sb.from('assessment_classes').select('assessment_id').in('class_id',classIds)
+  // Admin assessments via assessment_classes (also grab class_id to show which
+  // of the teacher's classes each assessment covers).
+  const{data:ac}=await sb.from('assessment_classes').select('assessment_id,class_id').in('class_id',classIds)
   const adminIds=[...new Set((ac||[]).map(r=>r.assessment_id))]
+  // Class-id → name, for the teacher's own classes.
+  const clsName={}; MY_MAPPINGS.forEach(m=>{if(m.class_id)clsName[m.class_id]=m.classes?.name||''})
+  // Assessment → the teacher's classes involved in it.
+  const aClasses={}
+  ;(ac||[]).forEach(r=>{ const nm=clsName[r.class_id]; if(nm){(aClasses[r.assessment_id]=aClasses[r.assessment_id]||new Set()).add(nm)} })
+  const clsLabel=id=>{const s=aClasses[id];return s&&s.size?' — '+[...s].join(', '):''}
   let adminList=[]
   if(adminIds.length){
     const{data}=await sb.from('assessments').select('*').in('assessment_id',adminIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
@@ -1805,8 +1812,8 @@ async function meInitAssessments(){
   const{data:myTests}=await sb.from('assessments').select('*').in('class_id',classIds).eq('session_id',SESS?.session_id||'').eq('created_by_teacher_id',TEACHER.teacher_id).order('commencement_date',{nullsFirst:false})
   ALL_ASSESSMENTS=[...adminList,...(myTests||[])]
   sel.innerHTML='<option value="">Select assessment</option>'
-    +adminList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.max_marks?' / Max '+a.max_marks:'')+'</option>').join('')
-    +((myTests?.length)?'<optgroup label="── My Class Tests ──">'+myTests.map(a=>'<option value="'+a.assessment_id+'">🧪 '+esc(a.name)+(a.commencement_date?' ('+fmtD(a.commencement_date)+')':'')+'</option>').join('')+'</optgroup>':'')
+    +adminList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+esc(clsLabel(a.assessment_id))+'</option>').join('')
+    +((myTests?.length)?'<optgroup label="── My Class Tests ──">'+myTests.map(a=>'<option value="'+a.assessment_id+'">🧪 '+esc(a.name)+(a.classes?.name?' — '+esc(a.classes.name):(clsName[a.class_id]?' — '+esc(clsName[a.class_id]):''))+'</option>').join('')+'</optgroup>':'')
 }
 
 async function meLoadClassesForAssessment(){
@@ -2041,8 +2048,15 @@ async function confirmMarks(){
   const{error:de}=await sb.from('marks').delete()
     .eq('assessment_id',assessId).eq('subject_id',subId).in('enrollment_id',eids)
   if(de)console.warn('[SAVE] Delete warning:',de.message)
-  // Insert fresh
-  const{error}=await sb.from('marks').insert(inserts)
+  // Insert fresh. `remarks` may not exist in every deployment's marks table, so
+  // if the insert fails because of that column, strip remarks and retry — marks
+  // must always save; remarks are optional.
+  let{error}=await sb.from('marks').insert(inserts)
+  if(error && /remarks/i.test(error.message||'')){
+    console.warn('[SAVE] marks.remarks column missing — retrying without remarks')
+    const stripped=inserts.map(({remarks,...rest})=>rest)
+    ;({error}=await sb.from('marks').insert(stripped))
+  }
   if(error){toast('Failed to save: '+error.message,'error');console.error('[SAVE] Error:',error);return}
 
   // Lock only admin assessments
