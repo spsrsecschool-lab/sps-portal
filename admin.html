@@ -1218,7 +1218,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="card" style="margin-bottom:18px">
           <div class="form-row" style="margin-bottom:0">
             <div class="fg"><label>Class</label><select id="tt_cls" onchange="ttLoadSections()"><option value="">Select class</option></select></div>
-            <div class="fg"><label>Section</label><select id="tt_sec" onchange="ttLoadStreams();syncStreamSection('section','tt')"><option value="">Select class first</option></select></div>
+            <div class="fg"><label>Section</label><select id="tt_sec" onchange="ttLoadStreams()"><option value="">Select class first</option></select></div>
             <div class="fg" id="tt_stream_fg" style="display:none"><label>Stream</label><select id="tt_stream" onchange="syncStreamSection('stream','tt')"><option value="">All streams</option></select></div>
             <button class="btn btn-soft" style="align-self:flex-end" onclick="loadStudentTimetable()">View Timetable</button>
           </div>
@@ -2379,6 +2379,13 @@ async function uploadProfilePhoto(){
   showUploadOverlay('Uploading photo…')
   const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
   const sid=e?.student_id;if(!sid){hideUploadOverlay();toast('Student not found','error');return}
+  // Remove any previously uploaded photo for this student (any extension) so we
+  // don't leave orphaned files in the bucket when the extension changes.
+  try{
+    const{data:old}=await sb.storage.from('school-files').list('student-photos',{search:sid})
+    const del=(old||[]).filter(f=>f.name.startsWith(sid+'.')).map(f=>'student-photos/'+f.name)
+    if(del.length)await sb.storage.from('school-files').remove(del)
+  }catch(_){}
   const path='student-photos/'+sid+'.'+((file.name.split('.').pop()||'jpg').toLowerCase())
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
   if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create "school-files" bucket in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
@@ -3246,7 +3253,7 @@ async function openAddMappingModal(){
   window._addMapRoster=roster
   let slotOpts='<option value="">No active roster</option>'
   if(roster){const{data:slots}=await sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order');window._addMapSlots=slots||[];slotOpts='<option value="">Select time slot</option>'+(slots||[]).map(s=>'<option value="'+s.slot_id+'">'+esc(s.name)+' ('+(s.start_time||'').slice(0,5)+'–'+(s.end_time||'').slice(0,5)+')</option>').join('')}
-  const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk" style="accent-color:var(--indigo)"> '+d+'</label>').join('')
+  const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk" checked style="accent-color:var(--indigo)"> '+d+'</label>').join('')
   openModal('Add Class-Subject Mapping',
     '<div class="form-row"><div class="fg"><label>Class *</label><select id="mp_class" onchange="mpLoadSections()">'+cls+'</select></div><div class="fg"><label>Section *</label><select id="mp_section" onchange="syncStreamSection(\'section\',\'mp\')"><option value="">Select class first</option></select></div><div class="fg" id="mp_stream_fg" style="display:none"><label>Stream</label><select id="mp_stream" onchange="syncStreamSection(\'stream\',\'mp\')"><option value="">All students (no stream)</option></select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Subject *</label><select id="mp_subject">'+sub+'</select></div><div class="fg"><label>Teacher *</label><select id="mp_teacher">'+tch+'</select></div></div>'+
@@ -3271,9 +3278,9 @@ function addPendingPeriod(){
   if(window._pendingPeriods.some(p=>p.slotId===slotId)){toast('That slot is already added','error');return}
   const slot=(window._addMapSlots||[]).find(s=>s.slot_id===slotId)
   window._pendingPeriods.push({slotId,days,slotName:slot?.name||'Slot',startTime:slot?.start_time,endTime:slot?.end_time})
-  // Reset inputs
+  // Reset inputs — re-check all days (default) rather than clearing.
   if($('mp_slot'))$('mp_slot').value=''
-  document.querySelectorAll('.mp_day_chk:checked').forEach(c=>c.checked=false)
+  document.querySelectorAll('.mp_day_chk').forEach(c=>c.checked=true)
   renderPendingPeriods()
 }
 
@@ -3401,7 +3408,7 @@ async function editMapping(mapId){
     ?existingEntries.map(e=>'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--lav-50);border-radius:8px;margin-bottom:6px;font-size:12.5px"><div style="flex:1"><b>'+esc(e.time_slots?.name||'?')+'</b> <span style="color:var(--ink-soft)">'+e.time_slots?.start_time?.slice(0,5)+'–'+e.time_slots?.end_time?.slice(0,5)+'</span> · <span style="color:var(--indigo)">'+esc((e.days||[]).join(', '))+'</span></div><button class="btn btn-ghost btn-xs" style="color:var(--danger);border-color:var(--danger)" data-eid="'+e.entry_id+'" onclick="deleteTimetablePeriod(this.dataset.eid)">Remove</button></div>').join('')
     :'<div style="font-size:12.5px;color:var(--ink-faint);padding:8px 0">No periods assigned yet.</div>'
 
-  const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk" style="accent-color:var(--indigo)"> '+d+'</label>').join('')
+  const dayChks=['Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" value="'+d+'" class="mp_day_chk" checked style="accent-color:var(--indigo)"> '+d+'</label>').join('')
 
   openModal('Edit Class-Subject Mapping',
     '<input type="hidden" id="mp_edit_id" value="'+mapId+'">'+
@@ -3411,8 +3418,8 @@ async function editMapping(mapId){
     '<input type="hidden" id="mp_teacher_id_h" value="'+r.teacher_id+'">'+
     '<div class="form-row">'+
       '<div class="fg"><label>Class *</label><select id="mp_class">'+cls+'</select></div>'+
-      '<div class="fg"><label>Section *</label><select id="mp_section">'+secOpts+'</select></div>'+
-      '<div class="fg" id="mp_stream_fg"'+(hasStreams?'':' style="display:none"')+'><label>Stream</label><select id="mp_stream">'+strOpts+'</select></div>'+
+      '<div class="fg"><label>Section *</label><select id="mp_section" onchange="syncStreamSection(\'section\',\'mp\')">'+secOpts+'</select></div>'+
+      '<div class="fg" id="mp_stream_fg"'+(hasStreams?'':' style="display:none"')+'><label>Stream</label><select id="mp_stream" onchange="syncStreamSection(\'stream\',\'mp\')">'+strOpts+'</select></div>'+
     '</div>'+
     '<div class="form-row">'+
       '<div class="fg"><label>Subject *</label><select id="mp_subject">'+sub+'</select></div>'+
@@ -5365,6 +5372,10 @@ async function ttLoadStreams(){
   if(!cid||!SESS)return
   const{data}=await sb.from('streams').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
   if(data?.length)str.innerHTML='<option value="">All streams</option>'+(data||[]).map(s=>'<option value="'+s.stream_id+'">'+esc(s.name)+'</option>').join('')
+  // Auto-select the stream linked to the currently chosen section (ids are
+  // tt_sec / tt_stream, which the generic syncStreamSection('tt') can't match).
+  const secId=$('tt_sec')?.value, linked=secId?_sectionToStream[secId]:''
+  if(linked&&str.querySelector('option[value="'+linked+'"]'))str.value=linked
 }
 
 
