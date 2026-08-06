@@ -1812,6 +1812,12 @@ async function _mtDoPhotoUpload(studentId,file){
   const wrap=document.getElementById('sp_avatar_wrap')
   if(wrap)wrap.innerHTML='<div style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-faint)">Uploading…</div>'
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path='students/'+studentId+'/photo.'+ext
+  // Remove any previous photo(s) for this student so old-extension files don't orphan.
+  try{
+    const{data:old}=await sb.storage.from('school-files').list('students/'+studentId,{search:'photo'})
+    const del=(old||[]).filter(o=>o.name.startsWith('photo.')).map(o=>'students/'+studentId+'/'+o.name)
+    if(del.length)await sb.storage.from('school-files').remove(del)
+  }catch(_){}
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
   if(upErr){toast('Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
