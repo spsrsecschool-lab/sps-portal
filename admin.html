@@ -3570,7 +3570,7 @@ async function openMarkOverrides(){
   window._markOverrides=ovs||[]
 
   const clsOpts=classes.map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
-  const subOpts=subjects.map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
+  const subOpts='<option value="__ALL__">★ All subjects (this class)</option>'+subjects.map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
   const clsName=id=>(ALL_CLASSES.find(c=>c.class_id===id)?.name)||'?'
   const subName=id=>(ALL_SUBJECTS.find(s=>s.subject_id===id)?.name)||'?'
 
@@ -3596,9 +3596,25 @@ async function saveMarkOverride(){
   const a=_currentAssess; if(!a)return
   const classId=$('ov_class')?.value, subjectId=$('ov_subject')?.value
   const max=parseInt($('ov_max')?.value), pass=parseInt($('ov_pass')?.value)
-  if(!classId||!subjectId){toast('Pick a class and subject','error');return}
+  if(!classId){toast('Pick a class','error');return}
+  if(!subjectId){toast('Pick a subject','error');return}
   if(!(max>0)){toast('Max marks must be a positive number','error');return}
   if(!(pass>=0)||pass>max){toast('Pass marks must be between 0 and max','error');return}
+
+  // "All subjects of this class" → apply the same max/pass to every subject
+  // taught in that class (falls back to all active subjects if none mapped).
+  if(subjectId==='__ALL__'){
+    const{data:maps}=await sb.from('teacher_subject_class_map').select('subject_id').eq('class_id',classId).eq('session_id',SESS?.session_id||'')
+    let subIds=[...new Set((maps||[]).map(m=>m.subject_id).filter(Boolean))]
+    if(!subIds.length) subIds=(ALL_SUBJECTS||[]).filter(s=>s.is_active).map(s=>s.subject_id)
+    if(!subIds.length){toast('No subjects found for this class','error');return}
+    const rows=subIds.map(sid=>({assessment_id:a.assessment_id,class_id:classId,subject_id:sid,max_marks:max,pass_marks:pass}))
+    const{error}=await sb.from('assessment_mark_overrides').upsert(rows,{onConflict:'assessment_id,class_id,subject_id'})
+    if(error){toast('Failed: '+error.message,'error');return}
+    toast('Override applied to '+rows.length+' subject'+(rows.length!==1?'s':'')+' ✓','success')
+    openMarkOverrides();return
+  }
+
   const{error}=await sb.from('assessment_mark_overrides').upsert({
     assessment_id:a.assessment_id, class_id:classId, subject_id:subjectId,
     max_marks:max, pass_marks:pass
