@@ -1622,7 +1622,11 @@ async function renderDashboard(){
     $('bannerEyebrow').textContent=(SESS?.session_id||'')+' · Pending Submissions'
     $('bannerTitle').textContent=pending+' assessment'+(pending>1?'s':'')+' awaiting marks'
     const fmtDL=dl=>{ if(!dl)return 'no deadline set'; const d=new Date(dl); const over=d<new Date(); return (over?'⚠ was due ':'due ')+d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+', '+d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'}) }
-    $('bannerSub').innerHTML=dueItems.map(it=>'<div style="margin-top:3px"><b>'+esc(it.name)+'</b> · '+esc(it.cls+' '+it.subj)+' — '+esc(fmtDL(it.deadline))+'</div>').join('')
+    // Group by assessment so each name shows once with its deadline (not one line
+    // per class-subject).
+    const byAssess=[]; const seen=new Set()
+    dueItems.forEach(it=>{ if(!seen.has(it.name)){seen.add(it.name);byAssess.push(it)} })
+    $('bannerSub').innerHTML=byAssess.map(a=>'<div style="margin-top:3px"><b>'+esc(a.name)+'</b> — '+esc(fmtDL(a.deadline))+'</div>').join('')
   }else{
     const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
     const dayIdx=new Date().getDate()%allClearMsgs.length
@@ -1642,7 +1646,7 @@ async function renderDashboard(){
   // Assignments list
   const rows=MY_MAPPINGS.map(m=>{
     const clsAssess=dueAssessmentsFor(m.class_id)
-    const hasPending=clsAssess.some(a=>!submittedKeys.has(a.assessment_id+'_'+m.subject_id))
+    const hasPending=clsAssess.some(a=>!submittedKeys.has(subKey(a.assessment_id,m.subject_id,m.section_id)))
     return '<div class="sched-row"><span class="cls">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</span><span class="subj">'+esc(m.subjects?.name||'?')+'</span>'+(hasPending?'<span class="pill pill-warn">Marks Due</span>':'<span class="pill pill-success">Up to Date</span>')+'</div>'
   }).join('')
   el.innerHTML=rows||'<p style="font-size:12.5px;color:var(--ink-faint)">No assignments.</p>'
