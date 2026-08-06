@@ -362,7 +362,7 @@ tbody tr:hover td{background:var(--lav-50)}
 .msg-email-sender{font-size:13px;font-weight:700;color:var(--ink)}
 .msg-email-role{font-size:11px;color:var(--ink-faint);margin-top:1px}
 .msg-email-date{font-size:11.5px;color:var(--ink-faint)}
-.msg-email-body{font-size:13.5px;color:var(--ink);line-height:1.7;padding-left:44px}
+.msg-email-body{font-size:13.5px;color:var(--ink);line-height:1.7;padding-left:44px;white-space:pre-wrap;word-break:break-word}
 .msg-compose-box{border-top:1px solid var(--line);padding:16px 20px;background:var(--lav-50);flex-shrink:0}
 .msg-compose-box textarea{width:100%;font-family:var(--font);font-size:13px;padding:12px 14px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:none;outline:none;min-height:80px;background:var(--white);box-sizing:border-box}
 .msg-compose-box textarea:focus{border-color:var(--indigo)}
@@ -1598,9 +1598,10 @@ async function refreshAdmSnoPlaceholder(){
 let _admFathers=[], _admFamilyStudents={}, _admFamilyInfo={}
 async function loadAdmFathers(){
   try{
-    const{data}=await sb.from('students').select('father_name,mother_name,phone,alt_phone,address,family_code').not('father_name','is',null)
+    const{data}=await sb.from('students').select('student_id,full_name,father_name,mother_name,phone,alt_phone,address,family_code').not('father_name','is',null)
     const seen=new Set(), out=[]
     _admFamilyInfo={}
+    _admFamilyStudents={}
     ;(data||[]).forEach(r=>{
       const fn=(r.father_name||'').trim(); if(!fn)return
       const key=fn.toLowerCase()+'|'+(r.family_code||'')
@@ -1613,23 +1614,24 @@ async function loadAdmFathers(){
         if(!info.phone&&r.phone)info.phone=r.phone
         if(!info.altPhone&&r.alt_phone)info.altPhone=r.alt_phone
         if(!info.address&&r.address)info.address=r.address
+        // Children list is built from the STUDENTS table (same source as the
+        // father suggestions) so a child shows even if they aren't in the
+        // current session's active enrollments yet. Class is filled in below.
+        ;(_admFamilyStudents[fc]=_admFamilyStudents[fc]||[]).push({
+          sid:r.student_id, name:r.full_name||'?', father:fn, cls:''
+        })
       }
     })
     out.sort((a,b)=>a.father.localeCompare(b.father))
     _admFathers=out
-    // Existing students per family_code (current session), with class-section.
-    _admFamilyStudents={}
+    // Enrich each child with its class-section from the current session's
+    // enrollments (when one exists); children without one still show (no class).
     const{data:enr}=await sb.from('student_enrollments')
-      .select('students!inner(full_name,father_name,family_code),classes(name),class_sections(name)')
+      .select('student_id,classes(name),class_sections(name)')
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
-    ;(enr||[]).forEach(e=>{
-      const fc=e.students?.family_code; if(!fc)return
-      ;(_admFamilyStudents[fc]=_admFamilyStudents[fc]||[]).push({
-        name:e.students?.full_name||'?',
-        father:e.students?.father_name||'',
-        cls:(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')
-      })
-    })
+    const clsMap={}
+    ;(enr||[]).forEach(e=>{ if(e.student_id) clsMap[e.student_id]=(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?') })
+    Object.values(_admFamilyStudents).forEach(list=>list.forEach(k=>{ if(k.sid&&clsMap[k.sid])k.cls=clsMap[k.sid] }))
   }catch(e){_admFathers=[];_admFamilyStudents={};_admFamilyInfo={}}
 }
 
@@ -1650,7 +1652,7 @@ function showAdmFamilyStudents(familyCode, fatherName){
   if(!fc||!kids.length){box.style.display='none';box.innerHTML='';return}
   box.innerHTML='<div style="font-weight:700;color:var(--indigo-dark);margin-bottom:6px">Existing children in '+esc(fc)+' ('+kids.length+')</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
-    +kids.map(k=>'<span class="pill pill-indigo" style="background:var(--white)">'+esc(k.name)+' · '+esc(k.cls)+'</span>').join('')
+    +kids.map(k=>'<span class="pill pill-indigo" style="background:var(--white)">'+esc(k.name)+(k.cls?' · '+esc(k.cls):'')+'</span>').join('')
     +'</div><div style="font-size:11px;color:var(--ink-soft);margin-top:7px">The new student will be added as a sibling in this family.</div>'
     +(otherFathers.length?'<div style="font-size:11px;color:var(--danger);margin-top:6px;font-weight:600">⚠ This family code also has children under a different father ('+esc(otherFathers.join(', '))+'). That looks like a data error — those students may have the wrong family code.</div>':'')
   box.style.display='block'
@@ -1677,7 +1679,7 @@ function admFatherSuggest(){
     const allKids=(f.family&&_admFamilyStudents[f.family])||[]
     const kids=allKids.filter(k=>_normFather(k.father)===_normFather(f.father))
     const kidLine=kids.length
-      ? '<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(kids.slice(0,4).map(k=>k.name+' ('+k.cls+')').join(', '))+(kids.length>4?' +'+(kids.length-4)+' more':'')+'</div>'
+      ? '<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(kids.slice(0,4).map(k=>k.name+(k.cls?' ('+k.cls+')':'')).join(', '))+(kids.length>4?' +'+(kids.length-4)+' more':'')+'</div>'
       : ''
     return '<div onmousedown="admPickFather(event,\''+encodeURIComponent(f.father)+'\',\''+encodeURIComponent(f.family)+'\')" '
     +'style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px" '
