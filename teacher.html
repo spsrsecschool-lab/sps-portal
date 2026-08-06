@@ -1579,9 +1579,14 @@ async function renderDashboard(){
   const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'')
   ALL_ASSESSMENTS=assessments||[]
 
-  // Check which assessments have marks entered by this teacher
+  // Check which assignments have marks entered. Key by assessment+subject+SECTION
+  // so entering one section's marks doesn't wrongly clear another section of the
+  // same subject. Marks store enrollment_id, so map that back to a section.
   const{data:submitted}=await sb.from('marks').select('assessment_id,subject_id,enrollment_id').eq('entered_by',TEACHER.teacher_id)
-  const submittedKeys=new Set((submitted||[]).map(m=>m.assessment_id+'_'+m.subject_id))
+  const{data:enrRows}= classIds.length ? await sb.from('student_enrollments').select('enrollment_id,section_id').eq('session_id',SESS?.session_id||'').in('class_id',classIds) : {data:[]}
+  const enrSec={}; (enrRows||[]).forEach(r=>{enrSec[r.enrollment_id]=r.section_id})
+  const submittedKeys=new Set((submitted||[]).map(m=>m.assessment_id+'_'+m.subject_id+'_'+(enrSec[m.enrollment_id]||'')))
+  const subKey=(assessId,subId,secId)=>assessId+'_'+subId+'_'+(secId||'')
 
   // Which assessments apply to which of the teacher's classes. Admin assessments
   // link via assessment_classes (no class_id column), so we must resolve them
@@ -1601,12 +1606,12 @@ async function renderDashboard(){
   }
 
   let pending=0
-  const dueMap={}   // assessment_id -> {name, deadline}
+  const dueItems=[]   // one per pending assignment × assessment
   MY_MAPPINGS.forEach(map=>{
     dueAssessmentsFor(map.class_id).forEach(a=>{
-      if(!submittedKeys.has(a.assessment_id+'_'+map.subject_id)){
+      if(!submittedKeys.has(subKey(a.assessment_id,map.subject_id,map.section_id))){
         pending++
-        dueMap[a.assessment_id]={name:a.name,deadline:a.submission_deadline}
+        dueItems.push({name:a.name,deadline:a.submission_deadline,cls:(map.classes?.name||'?')+'-'+(map.class_sections?.name||'?'),subj:map.subjects?.name||'?'})
       }
     })
   })
@@ -1615,11 +1620,9 @@ async function renderDashboard(){
     if($('dashAllClear'))$('dashAllClear').style.display='none'
     $('dashBanner').style.display='block'
     $('bannerEyebrow').textContent=(SESS?.session_id||'')+' · Pending Submissions'
-    const dueList=Object.values(dueMap)
-    $('bannerTitle').textContent=dueList.length+' assessment'+(dueList.length>1?'s':'')+' awaiting marks'
-    // List each due assessment with its deadline.
+    $('bannerTitle').textContent=pending+' assessment'+(pending>1?'s':'')+' awaiting marks'
     const fmtDL=dl=>{ if(!dl)return 'no deadline set'; const d=new Date(dl); const over=d<new Date(); return (over?'⚠ was due ':'due ')+d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+', '+d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'}) }
-    $('bannerSub').innerHTML=dueList.map(a=>'<div style="margin-top:3px"><b>'+esc(a.name)+'</b> — '+esc(fmtDL(a.deadline))+'</div>').join('')
+    $('bannerSub').innerHTML=dueItems.map(it=>'<div style="margin-top:3px"><b>'+esc(it.name)+'</b> · '+esc(it.cls+' '+it.subj)+' — '+esc(fmtDL(it.deadline))+'</div>').join('')
   }else{
     const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
     const dayIdx=new Date().getDate()%allClearMsgs.length
