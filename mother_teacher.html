@@ -450,6 +450,12 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
           <button onclick="goTo('daily',document.querySelector('.sb-item[onclick*=daily]'))" style="background:#fff;color:#DE3163;border:none;padding:10px 20px;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">Mark Attendance →</button>
         </div>
       </div>
+      <div id="dashMarksDue" style="display:none;background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:20px;cursor:pointer" onclick="goTo('assessmarks',document.querySelector('.sb-item[onclick*=assessmarks]'))">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:34px;height:34px;border-radius:9px;background:var(--warn);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" style="width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
+          <div><div style="font-size:14px;font-weight:800;color:var(--warn)" id="dashMarksDueTitle"></div><div style="font-size:12px;color:var(--ink-soft);margin-top:2px" id="dashMarksDueSub">Tap to enter assessment marks.</div></div>
+        </div>
+      </div>
       <div class="grid-4" style="margin-bottom:18px">
         <div class="stat-card"><span class="lbl">Total Students</span><span class="val" id="statTotal">—</span><span class="sub">Enrolled this session</span></div>
         <div class="stat-card"><span class="lbl">Present Today</span><span class="val" id="statPresent" style="color:var(--success)">—</span><span class="sub" id="subPresent"></span></div>
@@ -1047,6 +1053,40 @@ async function renderDashboard(){
     const presRecs=(monthAtt||[]).filter(a=>a.status==='P'||a.status==='L').length
     $('statAvgAtt').textContent=totalRecs?Math.round(presRecs/totalRecs*100)+'%':'—'
   }
+
+  // ── Marks Due: unlocked assessments linked to this class where at least one
+  // subject still has no marks entered. Mother teachers enter the whole matrix.
+  try{
+    const mdEl=$('dashMarksDue')
+    const{data:ac}=await sb.from('assessment_classes').select('assessment_id').eq('class_id',MY_CLASS.class_id)
+    const aIds=[...new Set((ac||[]).map(r=>r.assessment_id))]
+    let dueNames=[]
+    if(aIds.length){
+      const{data:asmts}=await sb.from('assessments').select('assessment_id,name,is_marks_unlocked,submission_deadline').in('assessment_id',aIds).eq('session_id',SESS?.session_id||'')
+      const unlocked=(asmts||[]).filter(a=>a.is_marks_unlocked)
+      if(unlocked.length){
+        // Subjects expected for this class.
+        const{data:subMaps}=await sb.from('teacher_subject_class_map').select('subject_id').eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id).eq('session_id',SESS?.session_id||'')
+        const subIds=[...new Set((subMaps||[]).map(m=>m.subject_id).filter(Boolean))]
+        const addDue=a=>dueNames.push({name:a.name,deadline:a.submission_deadline})
+        if(subIds.length && eids.length){
+          const{data:marks}=await sb.from('marks').select('assessment_id,subject_id').in('enrollment_id',eids).in('assessment_id',unlocked.map(a=>a.assessment_id))
+          const bySubj={}; (marks||[]).forEach(m=>{(bySubj[m.assessment_id]=bySubj[m.assessment_id]||new Set()).add(m.subject_id)})
+          unlocked.forEach(a=>{ const done=bySubj[a.assessment_id]||new Set(); if(!subIds.every(s=>done.has(s)))addDue(a) })
+        } else if(subIds.length){
+          unlocked.forEach(addDue)  // no students yet, still flag
+        }
+      }
+    }
+    if(mdEl){
+      if(dueNames.length){
+        const fmtDL=dl=>{ if(!dl)return 'no deadline set'; const d=new Date(dl); const over=d<new Date(); return (over?'⚠ was due ':'due ')+d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+', '+d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'}) }
+        mdEl.style.display='block'
+        $('dashMarksDueTitle').textContent=dueNames.length+' assessment'+(dueNames.length>1?'s':'')+' awaiting marks'
+        $('dashMarksDueSub').innerHTML=dueNames.map(a=>'<div style="margin-top:2px"><b>'+esc(a.name)+'</b> — '+esc(fmtDL(a.deadline))+'</div>').join('')
+      }else{ mdEl.style.display='none' }
+    }
+  }catch(e){console.warn('[dash] marks-due check skipped',e)}
 
   // Recent activity — student_attendance logs, marks updates
   const actEl=$('dashActivity')
