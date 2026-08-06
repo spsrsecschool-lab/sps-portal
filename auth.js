@@ -347,34 +347,69 @@
   }
 
   // ── "REFRESH ALL" SIGNAL ─────────────────────────────────────
-  // Listens for an admin-triggered refresh. When the `refresh_all` row is bumped
-  // to a newer time than when this page loaded, the portal reloads. A reload
-  // re-reads the persisted session, so nobody is logged out.
+  // Reloads the portal when admin bumps the `refresh_all` row. Handles three cases:
+  //   • open + connected  → realtime event fires, reload
+  //   • backgrounded tab  → realtime missed; re-check when tab becomes visible
+  //   • closed/reopened   → catch-up check on boot vs a persisted "last seen" value
+  // A reload re-reads the saved session, so nobody is logged out.
+  const REFRESH_SEEN_KEY = 'sps_refresh_seen'
+  const getRefreshSeen = () => { try { return parseInt(localStorage.getItem(REFRESH_SEEN_KEY) || '0') || 0 } catch (_) { return 0 } }
+  const setRefreshSeen = (v) => { try { localStorage.setItem(REFRESH_SEEN_KEY, String(v)) } catch (_) {} }
+
+  async function fetchRefreshTs() {
+    try {
+      const { data } = await sb.from('app_signals').select('bumped_at').eq('key', 'refresh_all').maybeSingle()
+      return data?.bumped_at ? new Date(data.bumped_at).getTime() : 0
+    } catch (_) { return 0 }
+  }
+
   async function setupRefreshSignal() {
     try {
-      let baseline = 0
-      try {
-        const { data } = await sb.from('app_signals').select('bumped_at').eq('key', 'refresh_all').maybeSingle()
-        baseline = data?.bumped_at ? new Date(data.bumped_at).getTime() : 0
-      } catch (_) {}
+      const baseline = await fetchRefreshTs()
       window.__refreshBaseline = baseline
+      const seen = getRefreshSeen()
+      // Catch-up: a refresh was requested while this device was closed/backgrounded.
+      // (First run ever, seen===0, just records the baseline — no reload.)
+      if (baseline > 0 && seen > 0 && baseline > seen) {
+        setRefreshSeen(baseline)
+        try { location.reload() } catch (_) {}
+        return
+      }
+      setRefreshSeen(baseline)
+
+      // Live listener for portals that are open and connected.
       sb.channel('app_signals_refresh')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'app_signals', filter: 'key=eq.refresh_all' }, (payload) => {
           const nv = payload.new?.bumped_at ? new Date(payload.new.bumped_at).getTime() : 0
           if (nv && nv > (window.__refreshBaseline || 0)) {
-            window.__refreshBaseline = nv
+            window.__refreshBaseline = nv; setRefreshSeen(nv)
             try { location.reload() } catch (_) {}
           }
         })
         .subscribe()
+
+      // Backgrounded → foregrounded: the realtime event is often missed while the
+      // tab is suspended (esp. on mobile), so re-check on becoming visible.
+      if (!window.__refreshVisBound) {
+        window.__refreshVisBound = true
+        document.addEventListener('visibilitychange', async () => {
+          if (document.visibilityState !== 'visible') return
+          const nv = await fetchRefreshTs()
+          if (nv && nv > (window.__refreshBaseline || 0)) {
+            window.__refreshBaseline = nv; setRefreshSeen(nv)
+            try { location.reload() } catch (_) {}
+          }
+        })
+      }
     } catch (_) {}
   }
 
   // Admin calls this to push a reload to every open portal. Sets our own baseline
-  // first so the admin page itself doesn't reload out from under the click.
+  // + seen first so the admin page itself doesn't reload out from under the click.
   SPS.refreshAllPortals = async function(note) {
     const nowIso = new Date().toISOString()
-    window.__refreshBaseline = new Date(nowIso).getTime()
+    const ts = new Date(nowIso).getTime()
+    window.__refreshBaseline = ts; setRefreshSeen(ts)
     const { error } = await sb.from('app_signals').upsert(
       { key: 'refresh_all', bumped_at: nowIso, note: note || null },
       { onConflict: 'key' }
