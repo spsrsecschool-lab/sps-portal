@@ -3037,9 +3037,16 @@ async function scLoad(){
   ldg(el)
   const{data:tmpl}=await sb.from('stream_subject_template').select('*').eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('stream_id',sid)
   const tmap={}; (tmpl||[]).forEach(t=>tmap[t.subject_id]=t)
-  const{data:studs}=await sb.from('student_enrollments')
+  // Resolve the stream's section — students are matched by SECTION (each stream
+  // maps 1:1 to a section), so students whose enrollment has a missing or
+  // mismatched stream_id are still included as long as they're in the section.
+  const{data:strRow}=await sb.from('streams').select('section_id').eq('stream_id',sid).maybeSingle()
+  const secId=strRow?.section_id
+  let sq=sb.from('student_enrollments')
     .select('enrollment_id,roll_no,students!inner(full_name)')
-    .eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('stream_id',sid).eq('status','active').eq('relieved',false).order('roll_no')
+    .eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('status','active').eq('relieved',false)
+  sq = secId ? sq.eq('section_id',secId) : sq.eq('stream_id',sid)
+  const{data:studs}=await sq.order('roll_no')
   const eids=(studs||[]).map(s=>s.enrollment_id)
   const{data:ssubs}= eids.length ? await sb.from('student_subjects').select('enrollment_id,subject_id').in('enrollment_id',eids) : {data:[]}
   const ssMap={}; (ssubs||[]).forEach(r=>{(ssMap[r.enrollment_id]=ssMap[r.enrollment_id]||new Set()).add(r.subject_id)})
