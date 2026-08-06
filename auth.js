@@ -17,12 +17,36 @@
   // visits (expired token being auto-refreshed, or a zombie tab holding the
   // lock) getSession() waits on that lock forever → page stuck on "Loading…".
   // Bypassing the lock removes the deadlock. Safe for this app.
+  // FIX: A no-op lock removed the cross-tab coordination that supabase-js uses
+  // to serialize token refreshes. Without it, two refreshes (e.g. autoRefresh +
+  // a query, or two tabs) can run at once; with refresh-token rotation the
+  // second uses an already-rotated token, the refresh fails, and the session is
+  // cleared → the user is silently logged out. This bounded lock restores that
+  // serialization but never blocks forever: if the lock can't be acquired
+  // quickly it just runs unlocked (which is what avoided the original deadlock).
   window.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,
-      lock: async (_name, _acquireTimeout, fn) => await fn()
+      lock: async (name, acquireTimeout, fn) => {
+        try {
+          if (navigator.locks && navigator.locks.request) {
+            const ctrl = new AbortController()
+            const ms = acquireTimeout && acquireTimeout > 0 ? acquireTimeout : 5000
+            const timer = setTimeout(() => { try { ctrl.abort() } catch (_) {} }, ms)
+            try {
+              return await navigator.locks.request(name, { signal: ctrl.signal }, async () => {
+                clearTimeout(timer); return await fn()
+              })
+            } catch (_) {
+              clearTimeout(timer)
+              return await fn()   // timed out / aborted → run unlocked, no deadlock
+            }
+          }
+        } catch (_) {}
+        return await fn()
+      }
     }
   })
   // Bind a LOCAL reference to the client. Portal pages (teacher.html etc.)
@@ -288,6 +312,7 @@
     SPS._booted = true
     SPS._resolveReady()
     console.log('[boot] 6 ready resolved ✓')
+    setupRefreshSignal()
    } catch (e) {
     console.error('[auth] checkAccess failed:', e)
     // If we still have a valid session AND a cached portal list, the failure
@@ -319,6 +344,42 @@
       ? `login.html?reason=${reason}`
       : 'login.html'
     window.location.replace(url)
+  }
+
+  // ── "REFRESH ALL" SIGNAL ─────────────────────────────────────
+  // Listens for an admin-triggered refresh. When the `refresh_all` row is bumped
+  // to a newer time than when this page loaded, the portal reloads. A reload
+  // re-reads the persisted session, so nobody is logged out.
+  async function setupRefreshSignal() {
+    try {
+      let baseline = 0
+      try {
+        const { data } = await sb.from('app_signals').select('bumped_at').eq('key', 'refresh_all').maybeSingle()
+        baseline = data?.bumped_at ? new Date(data.bumped_at).getTime() : 0
+      } catch (_) {}
+      window.__refreshBaseline = baseline
+      sb.channel('app_signals_refresh')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_signals', filter: 'key=eq.refresh_all' }, (payload) => {
+          const nv = payload.new?.bumped_at ? new Date(payload.new.bumped_at).getTime() : 0
+          if (nv && nv > (window.__refreshBaseline || 0)) {
+            window.__refreshBaseline = nv
+            try { location.reload() } catch (_) {}
+          }
+        })
+        .subscribe()
+    } catch (_) {}
+  }
+
+  // Admin calls this to push a reload to every open portal. Sets our own baseline
+  // first so the admin page itself doesn't reload out from under the click.
+  SPS.refreshAllPortals = async function(note) {
+    const nowIso = new Date().toISOString()
+    window.__refreshBaseline = new Date(nowIso).getTime()
+    const { error } = await sb.from('app_signals').upsert(
+      { key: 'refresh_all', bumped_at: nowIso, note: note || null },
+      { onConflict: 'key' }
+    )
+    return !error
   }
 
   // ── SIGN OUT ─────────────────────────────────────────────────
