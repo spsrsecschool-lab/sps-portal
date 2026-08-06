@@ -432,7 +432,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
     <div class="page" id="page-rollnos">
       <div class="page-head"><div><h2>Roll Numbers</h2><p>Assign or change roll numbers for your students</p></div>
-        <button class="btn btn-ghost" onclick="saveAllRollNos()">Save All</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="saveAllRollNos()">Save All</button>
+          <button class="btn btn-danger" onclick="clearAllRollNos()">Clear All</button>
+        </div>
       </div>
       <div class="card" style="margin-bottom:14px;background:var(--grn-100);border-color:var(--grn)">
         <div style="font-size:12.5px;color:var(--grn-dark)">📝 Type a roll number and tap the green <b>✓</b> in that row to save just that student (or press Enter). Use <b>Save All</b> to save every filled row at once. Duplicates are flagged with the student they clash with.</div>
@@ -1490,15 +1493,13 @@ async function moveStudentSection(eid, newSectionId, newSectionName){
   const fromLabel=(MY_CLASS.classes?.name||'')+'-'+(MY_CLASS.class_sections?.name||'')
   const toLabel=(MY_CLASS.classes?.name||'')+'-'+newSectionName
 
-  // Next roll number in the destination section (highest + 1), same rule the
-  // admin uses on admission. Keeps rolls contiguous and collision-free.
-  const newRoll=await nextRollFor(MY_CLASS.class_id, newSectionId)
-
+  // Do NOT auto-assign a roll number on move. Clear it so the receiving
+  // section's class teacher sets it deliberately (via the Roll Numbers tab).
   const{error}=await sb.from('student_enrollments')
-    .update({section_id:newSectionId, roll_no:newRoll}).eq('enrollment_id',eid)
+    .update({section_id:newSectionId, roll_no:null}).eq('enrollment_id',eid)
   if(error){toast('Move failed: '+error.message,'error');return}
 
-  toast('✓ '+stuName+' moved to '+toLabel+' (Roll '+newRoll+')','success')
+  toast('✓ '+stuName+' moved to '+toLabel+' — assign a roll number in the destination section','success')
   if(typeof prependActivity==='function')prependActivity(stuName+' moved to '+toLabel,'access')
   if(typeof log==='function')log(stuName+' moved to '+toLabel,'green')
 
@@ -1863,6 +1864,29 @@ async function loadRollNos(){
       +'<td><button class="btn btn-success btn-xs" title="Save this student\'s roll number" onclick="saveOneRollNo(\''+s.enrollment_id+'\')"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>'
       +'</tr>').join('')
     +'</tbody></table></div></div>'
+}
+
+// Clear ALL roll numbers for the class, after confirmation.
+async function clearAllRollNos(){
+  const withRoll=CLASS_STUDENTS.filter(s=>s.roll_no!=null)
+  if(!withRoll.length){toast('No roll numbers to clear','error');return}
+  const body='<div style="font-size:14px;line-height:1.6;color:var(--ink)">Clear roll numbers for <b>all '+withRoll.length+' student'+(withRoll.length>1?'s':'')+'</b> in '+esc((MY_CLASS.classes?.name||'')+'-'+(MY_CLASS.class_sections?.name||''))+'?</div>'
+    +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:8px">This removes every current roll number so you can re-assign from scratch. It cannot be undone.</div>'
+  const foot='<button class="btn btn-ghost" id="clr_cancel">Cancel</button><button class="btn btn-danger" id="clr_ok">Clear All Roll Numbers</button>'
+  openModal('Clear all roll numbers?',body,foot)
+  $('clr_cancel').onclick=()=>closeModal()
+  $('clr_ok').onclick=async()=>{
+    const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+    let ok=0
+    for(let i=0;i<eids.length;i+=100){
+      const{data,error}=await sb.from('student_enrollments').update({roll_no:null}).in('enrollment_id',eids.slice(i,i+100)).select('enrollment_id')
+      if(error){toast('Failed: '+error.message,'error');closeModal();return}
+      ok+=(data||[]).length
+    }
+    CLASS_STUDENTS.forEach(s=>s.roll_no=null); _classRaw.forEach(s=>s.roll_no=null)
+    closeModal(); loadRollNos()
+    toast('Cleared roll numbers for '+ok+' student'+(ok!==1?'s':'')+' ✓','success')
+  }
 }
 
 // Save ONE student's roll number, with a precise duplicate check.
