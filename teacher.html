@@ -1151,6 +1151,26 @@ function nameLink(sid,name){
   return '<span onclick="viewStudentProfile(\''+esc(String(sid))+'\')" style="cursor:pointer;color:var(--indigo-dark);font-weight:inherit;border-bottom:1px dotted var(--indigo)" title="View profile">'+esc(name||'?')+'</span>'
 }
 
+// Keep only students who take this subject. Students with NO subject rows are
+// kept (fallback: classes 1-10, and 11th/12th before combinations are assigned).
+async function filterStudentsBySubject(students, subId){
+  if(!students||!students.length||!subId)return students||[]
+  const eids=students.map(s=>s.enrollment_id)
+  const map={}
+  try{
+    // chunk to stay under URL limits for large lists
+    for(let i=0;i<eids.length;i+=100){
+      const{data:rows}=await sb.from('student_subjects').select('enrollment_id,subject_id').in('enrollment_id',eids.slice(i,i+100))
+      ;(rows||[]).forEach(r=>{(map[r.enrollment_id]=map[r.enrollment_id]||new Set()).add(r.subject_id)})
+    }
+  }catch(e){console.warn('[subjects] filter skipped',e);return students}
+  return students.filter(s=>{
+    const set=map[s.enrollment_id]
+    if(!set||!set.size)return true      // no combination → show (fallback)
+    return set.has(subId)               // has combination → only if takes this subject
+  })
+}
+
 // Read-only student profile — subject teachers can view but NOT edit.
 async function viewStudentProfile(studentId){
   if(!studentId){toast('Student not found','error');return}
@@ -1887,11 +1907,14 @@ async function loadMarksTable(){
   _marksLocked=isTeacherTest?false:(lockData?.is_locked===true)
 
   // Get students
-  const{data:students,error:se}=await sb.from('student_enrollments')
+  const{data:studentsRaw,error:se}=await sb.from('student_enrollments')
     .select('enrollment_id,roll_no,s_no,students(full_name,student_id,father_name)')
     .eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
     .order('roll_no')
-  if(se||!students?.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">No active students found for this class-section.</div>';return}
+  // Show only students who take THIS subject (11th/12th combinations). Students
+  // with no combination assigned still show (classes 1-10, or not yet set).
+  const students=await filterStudentsBySubject(studentsRaw, subId)
+  if(se||!students?.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">No students take this subject in this class-section.</div>';return}
 
   // Get existing marks
   const{data:existingMarks}=await sb.from('marks')
@@ -2349,8 +2372,9 @@ async function loadPerfAnalysis(){
   const selAssess=(assessments||[]).filter(a=>selectedIds.includes(a.assessment_id))
   if(!selAssess.length){emp2(el,'No assessments selected');return}
   // Get students
-  const{data:students}=await sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name,father_name,student_id)').eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no')
-  if(!students?.length){emp2(el,'No students found');return}
+  const{data:studentsRaw}=await sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name,father_name,student_id)').eq('class_id',classId).eq('section_id',secId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no')
+  const students=await filterStudentsBySubject(studentsRaw, subId)
+  if(!students?.length){emp2(el,'No students take this subject in this class-section');return}
   const eids=students.map(s=>s.enrollment_id)
   // Get marks
   const{data:marks}=await sb.from('marks').select('*').in('enrollment_id',eids).eq('subject_id',subId).in('assessment_id',assessIds)
