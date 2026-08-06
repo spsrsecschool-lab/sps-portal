@@ -1601,21 +1601,29 @@ async function renderDashboard(){
   }
 
   let pending=0
+  const dueMap={}   // assessment_id -> {name, deadline}
   MY_MAPPINGS.forEach(map=>{
-    dueAssessmentsFor(map.class_id).forEach(a=>{if(!submittedKeys.has(a.assessment_id+'_'+map.subject_id))pending++})
+    dueAssessmentsFor(map.class_id).forEach(a=>{
+      if(!submittedKeys.has(a.assessment_id+'_'+map.subject_id)){
+        pending++
+        dueMap[a.assessment_id]={name:a.name,deadline:a.submission_deadline}
+      }
+    })
   })
   $('statPending').textContent=pending
   if(pending>0){
+    if($('dashAllClear'))$('dashAllClear').style.display='none'
+    $('dashBanner').style.display='block'
+    $('bannerEyebrow').textContent=(SESS?.session_id||'')+' · Pending Submissions'
+    const dueList=Object.values(dueMap)
+    $('bannerTitle').textContent=dueList.length+' assessment'+(dueList.length>1?'s':'')+' awaiting marks'
+    // List each due assessment with its deadline.
+    const fmtDL=dl=>{ if(!dl)return 'no deadline set'; const d=new Date(dl); const over=d<new Date(); return (over?'⚠ was due ':'due ')+d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+', '+d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'}) }
+    $('bannerSub').innerHTML=dueList.map(a=>'<div style="margin-top:3px"><b>'+esc(a.name)+'</b> — '+esc(fmtDL(a.deadline))+'</div>').join('')
+  }else{
     const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
     const dayIdx=new Date().getDate()%allClearMsgs.length
-
-    if(pending>0){
-      $('dashBanner').style.display='block'
-      if($('dashAllClear'))$('dashAllClear').style.display='none'
-      $('bannerEyebrow').textContent=(SESS?.session_id||'')+' · Pending Submissions'
-      $('bannerTitle').textContent=pending+' assessment'+(pending>1?'s':'')+' awaiting marks'
-      $('bannerSub').textContent='Submit marks before the deadline to avoid lock.'
-    } else {
+    {
       $('dashBanner').style.display='none'
       const ac=$('dashAllClear')
       if(ac){
