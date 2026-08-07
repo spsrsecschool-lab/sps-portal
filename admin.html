@@ -869,6 +869,17 @@ tbody tr:hover td{background:var(--lav-50)}
           <select id="calMonth" onchange="renderCalendar()" style="font-family:var(--font);font-size:13px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);outline:none"></select>
         </div>
       </div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-size:13px;font-weight:800;margin-bottom:4px">Add a holiday group</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Mark a whole break at once (e.g. Summer Holidays, Diwali Break, Winter Break). Every day in the range becomes a holiday.</div>
+        <div class="form-row" style="flex-wrap:wrap;align-items:flex-end;gap:12px">
+          <div class="fg" style="max-width:220px"><label>Name</label><input id="hg_label" placeholder="e.g. Summer Holidays"></div>
+          <div class="fg" style="max-width:170px"><label>From</label><input type="date" id="hg_from"></div>
+          <div class="fg" style="max-width:170px"><label>To</label><input type="date" id="hg_to"></div>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;padding-bottom:8px"><input type="checkbox" id="hg_skipSun" checked style="width:15px;height:15px;accent-color:var(--indigo)"> Skip Sundays</label>
+          <button class="btn btn-dark" onclick="addHolidayGroup()">Add Holiday Group</button>
+        </div>
+      </div>
       <div class="card">
         <div id="calGrid"></div>
         <div style="display:flex;gap:16px;margin-top:14px;font-size:11.5px;color:var(--ink-soft)">
@@ -1303,6 +1314,7 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
     <div id="pm_fields"></div>
     <div id="pm_docs" style="margin-top:14px"></div>
+    <div id="pm_siblings" style="margin-top:14px"></div>
     <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="openEditDemoModal()">Edit Student</button>
       <button class="btn btn-ghost btn-sm" onclick="openUploadPhotoModal()">Change Photo</button>
@@ -2345,6 +2357,24 @@ async function openProfile(enrollId){
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
   if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a class="map-tag" href="'+esc(d.file_url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button></span>').join('')+'</div>'
   else $('pm_docs').innerHTML=''
+  // Siblings — other students sharing this family code with the same father.
+  if($('pm_siblings'))$('pm_siblings').innerHTML=''
+  await renderSiblings('pm_siblings', s, e.enrollment_id)
+}
+// Show siblings of a student (same family_code + same father) as clickable chips.
+async function renderSiblings(containerId, s, selfEnrollmentId){
+  const el=$(containerId); if(!el)return
+  const fc=s?.family_code; if(!fc){el.innerHTML='';return}
+  const norm=x=>String(x||'').trim().toLowerCase().replace(/\s+/g,' ')
+  const{data:sibs}=await sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,students!inner(student_id,full_name,father_name,family_code),classes(name),class_sections(name)')
+    .eq('session_id',SESS?.session_id||'').eq('relieved',false)
+    .eq('students.family_code',fc)
+  const list=(sibs||[]).filter(x=>x.enrollment_id!==selfEnrollmentId && norm(x.students?.father_name)===norm(s?.father_name))
+  if(!list.length){el.innerHTML='<div style="font-size:12px;color:var(--ink-faint)">No siblings in this session.</div>';return}
+  el.innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Siblings ('+list.length+')</h3><div class="map-tags">'
+    +list.map(x=>'<span class="map-tag" style="cursor:pointer" onclick="openProfile(\''+x.enrollment_id+'\')">'+esc(x.students?.full_name||'?')+' · '+esc((x.classes?.name||'?')+'-'+(x.class_sections?.name||'?'))+(x.roll_no?' · R'+esc(String(x.roll_no)):'')+'</span>').join('')
+    +'</div>'
 }
 async function deleteStudentDoc(sid,fileType,btn){
   if(!sid||!fileType)return
@@ -4107,10 +4137,56 @@ async function renderCalendar(){
     workingDays++
   }
   const wd=$('calWorkingDays'); if(wd)wd.textContent=workingDays+' working day'+(workingDays!==1?'s':'')+' this month'
-  $('holidayList').innerHTML=(data||[]).length?'<div class="map-tags">'+(data||[]).map(h=>'<span class="map-tag" style="background:var(--danger-soft);color:var(--danger)">'+fmtD(h.date)+(h.label?' — '+esc(h.label):'')+' <button onclick="removeHoliday(\''+h.holiday_id+'\')" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:4px;font-size:14px;line-height:1">×</button></span>').join('')+'</div>':''
+  // Group by label: named groups (e.g. Summer Holidays) show as one chip with a
+  // remove-all; unlabeled one-off holidays show as individual date chips.
+  const named={}, singles=[]
+  ;(data||[]).forEach(h=>{ if(h.label){(named[h.label]=named[h.label]||[]).push(h)} else singles.push(h) })
+  let listHtml=''
+  Object.keys(named).sort().forEach(lb=>{
+    const arr=named[lb]
+    listHtml+='<span class="map-tag" style="background:var(--danger-soft);color:var(--danger)"><b>'+esc(lb)+'</b> — '+arr.length+' day'+(arr.length!==1?'s':'')+' this month <button onclick="removeHolidayGroup(\''+esc(lb.replace(/'/g,"\\'"))+'\')" title="Remove the whole group" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:4px;font-size:14px;line-height:1">×</button></span>'
+  })
+  singles.sort((a,b)=>a.date.localeCompare(b.date)).forEach(h=>{
+    listHtml+='<span class="map-tag" style="background:var(--danger-soft);color:var(--danger)">'+fmtD(h.date)+' <button onclick="removeHoliday(\''+h.holiday_id+'\')" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:4px;font-size:14px;line-height:1">×</button></span>'
+  })
+  $('holidayList').innerHTML=listHtml?'<div class="map-tags">'+listHtml+'</div>':''
+}
+// Mark every day in a range as a holiday under one name (e.g. Summer Holidays).
+async function addHolidayGroup(){
+  const label=$('hg_label')?.value?.trim()
+  const from=$('hg_from')?.value, to=$('hg_to')?.value
+  const skipSun=$('hg_skipSun')?.checked!==false
+  if(!label){toast('Give the holiday group a name','error');return}
+  if(!from||!to){toast('Pick both From and To dates','error');return}
+  if(new Date(to)<new Date(from)){toast('To date cannot be before From date','error');return}
+  // Existing holidays in this range so we don't duplicate.
+  const{data:existing}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to)
+  const have=new Set((existing||[]).map(h=>h.date))
+  const rows=[]
+  const e=new Date(to+'T12:00:00')
+  for(let d=new Date(from+'T12:00:00'); d<=e; d.setDate(d.getDate()+1)){
+    if(skipSun && d.getDay()===0) continue
+    const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+    if(have.has(ds)) continue
+    rows.push({date:ds,label,session_id:SESS?.session_id||''})
+  }
+  if(!rows.length){toast('No new days to add in that range (already holidays or all Sundays)','error');return}
+  const{error}=await sb.from('holidays').insert(rows)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('✓ '+label+' — '+rows.length+' day'+(rows.length!==1?'s':'')+' marked as holiday','success')
+  $('hg_label').value='';$('hg_from').value='';$('hg_to').value=''
+  renderCalendar()
 }
 async function toggleHoliday(date,isHol){if(isHol){const h=(await sb.from('holidays').select('*').eq('date',date).eq('session_id',SESS?.session_id||'').maybeSingle()).data;if(h)await removeHoliday(h.holiday_id);return};const lbl=prompt('Mark '+fmtD(date)+' as holiday. Label (optional):');if(lbl===null)return;const{error}=await sb.from('holidays').insert({date,label:lbl.trim()||null,session_id:SESS?.session_id||''});if(error){toast('Failed: '+error.message,'error');return};toast('Holiday added','success');renderCalendar()}
 async function removeHoliday(id){await sb.from('holidays').delete().eq('holiday_id',id);toast('Holiday removed','success');renderCalendar()}
+// Remove an entire named holiday group (all its days across the session).
+async function removeHolidayGroup(label){
+  confirmAct('Remove "'+label+'"?','This removes every day in this holiday group across the whole session.',async()=>{
+    const{error}=await sb.from('holidays').delete().eq('session_id',SESS?.session_id||'').eq('label',label)
+    if(error){toast('Failed: '+error.message,'error');return}
+    toast('✓ '+label+' removed','success');renderCalendar()
+  })
+}
 
 // ═══════════ CLASS ATTENDANCE ═══════════
 async function caLoadSections(){const cid=$('ca_class')?.value,sel=$('ca_section');if(sel)sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');if(sel)sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('');await loadStreamsFor(cid,'ca_stream')}
