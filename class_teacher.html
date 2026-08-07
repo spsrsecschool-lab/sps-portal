@@ -382,9 +382,11 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
         <div style="font-size:12.5px;color:var(--grn-dark)">📅 Pick a month (or a custom From–To period). The system shows the <b>working days</b> for that period (all days except Sundays &amp; holidays). Enter each student's <b>Present</b> count — Absent fills in automatically so Present + Absent = Working Days. Tap the green <b>✓</b> to save that student. Use this only for periods you haven't marked day-by-day, to avoid double counting.</div>
       </div>
       <div class="card" style="margin-bottom:16px">
+        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">Choose <b>either</b> a whole month <b>or</b> a custom period (From–To) — not both.</div>
         <div class="form-row" style="margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
           <div class="fg" style="max-width:180px"><label>Month</label>
             <select id="pa_month" onchange="paMonthChanged()">
+              <option value="">— choose month —</option>
               <option value="4">April</option><option value="5">May</option><option value="6">June</option>
               <option value="7">July</option><option value="8">August</option><option value="9">September</option>
               <option value="10">October</option><option value="11">November</option><option value="12">December</option>
@@ -392,8 +394,8 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
             </select>
           </div>
           <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="pa_year" min="2024" max="2035"></div>
-          <div class="fg" style="max-width:170px"><label>From (optional)</label><input type="date" id="pa_from" onchange="paComputeWorking()"></div>
-          <div class="fg" style="max-width:170px"><label>To (optional)</label><input type="date" id="pa_to" onchange="paComputeWorking()"></div>
+          <div class="fg" style="max-width:170px"><label>From</label><input type="date" id="pa_from" onchange="paPeriodChanged()"></div>
+          <div class="fg" style="max-width:170px"><label>To</label><input type="date" id="pa_to" onchange="paPeriodChanged()"></div>
           <button class="btn btn-soft" onclick="loadPrevAtt()">Load Students</button>
         </div>
         <div id="pa_working" style="font-size:13px;font-weight:700;color:var(--indigo-dark)"></div>
@@ -656,7 +658,7 @@ async function loadClass(ct){
 
   // Students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code,admission_date)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -833,7 +835,7 @@ async function onRosterChanged(){
   clearTimeout(_rosterDebounce)
   _rosterDebounce=setTimeout(async()=>{
     const{data:students}=await sb.from('student_enrollments')
-      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code,admission_date)')
       .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
     const before=CLASS_STUDENTS.length
@@ -1138,11 +1140,20 @@ async function confirmAttSubmit(date){
 
 // ═══════════ ATTENDANCE REPORT ═══════════
 // ═══════════ PREVIOUS (BACKLOG) ATTENDANCE ═══════════
-let _paWorking=0
+let _paWorking=0, _paStudentWD={}, _paHolSet=new Set()
 function paRange(){
   const cf=$('pa_from')?.value, ct=$('pa_to')?.value
-  if(cf&&ct) return {from:cf,to:ct,custom:true}
-  const m=parseInt($('pa_month')?.value)||1, y=parseInt($('pa_year')?.value)||new Date().getFullYear()
+  // Period mode: active as soon as either date is set. Missing side defaults to
+  // the session start (From) or today (To).
+  if(cf||ct){
+    const from=cf||(SESS?.start_date||ct)
+    const to=ct||today()
+    return {from,to,custom:true}
+  }
+  // Month mode.
+  const m=parseInt($('pa_month')?.value)
+  if(!m) return {from:'',to:'',custom:false}
+  const y=parseInt($('pa_year')?.value)||new Date().getFullYear()
   const from=y+'-'+String(m).padStart(2,'0')+'-01'
   const to=y+'-'+String(m).padStart(2,'0')+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0')
   return {from,to,custom:false}
@@ -1160,19 +1171,31 @@ function countWorkingDays(from,to,holSet){
   }
   return n
 }
+// Working days for a student in [from,to], starting from their join date if they
+// joined mid-period (so a child who joined 12 Jul isn't counted from the 1st).
+function effectiveWD(admissionDate, from, to, holSet){
+  let start=from
+  if(admissionDate && admissionDate>to) return 0        // joined after this period
+  if(admissionDate && admissionDate>from) start=admissionDate
+  return countWorkingDays(start, to, holSet)
+}
 async function paComputeWorking(){
   const {from,to}=paRange(), el=$('pa_working')
   if(!from||!to||new Date(to+'T12:00:00')<new Date(from+'T12:00:00')){if(el)el.textContent='Pick a valid period.';_paWorking=0;return 0}
   const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to)
-  const holSet=new Set((hols||[]).map(h=>h.date))
-  const wd=countWorkingDays(from,to,holSet)
+  _paHolSet=new Set((hols||[]).map(h=>h.date))
+  const wd=countWorkingDays(from,to,_paHolSet)
   _paWorking=wd
-  if(el)el.textContent='Working days in this period: '+wd+'  ·  '+fmtD(from)+' → '+fmtD(to)+'  (excludes Sundays & '+(holSet.size)+' holiday'+(holSet.size!==1?'s':'')+')'
+  if(el)el.textContent='Working days in this period: '+wd+'  ·  '+fmtD(from)+' → '+fmtD(to)+'  (excludes Sundays & '+(_paHolSet.size)+' holiday'+(_paHolSet.size!==1?'s':'')+'). Students who joined mid-period get fewer, from their admission date.'
   return wd
 }
 function paMonthChanged(){ if($('pa_from'))$('pa_from').value=''; if($('pa_to'))$('pa_to').value=''; paComputeWorking() }
+// Picking a From/To date switches to period mode — clear the month selection so
+// the two are mutually exclusive, then recompute working days for the period.
+function paPeriodChanged(){ if($('pa_month'))$('pa_month').value=''; paComputeWorking() }
+function paWDFor(eid){ return _paStudentWD[eid]!=null ? _paStudentWD[eid] : (_paWorking||0) }
 function paSyncAbsent(inp){
-  const wd=_paWorking||0
+  const wd=paWDFor(inp.dataset.eid)
   const span=document.querySelector('.pa-absent[data-eid="'+inp.dataset.eid+'"]')
   if(!span)return
   if(inp.value===''){span.textContent='—';span.style.color='var(--ink-soft)';return}
@@ -1183,7 +1206,7 @@ function paSyncAbsent(inp){
   span.style.color=(ab<0||v>wd)?'var(--danger)':'var(--ink)'
 }
 async function loadPrevAtt(){
-  const wd=await paComputeWorking()
+  await paComputeWorking()
   const {from,to}=paRange(), el=$('prevAttWrap')
   if(!from||!to){emp(el,'Select a month or a valid date range.');return}
   if(!CLASS_STUDENTS.length){emp(el,'No students in your class.');return}
@@ -1191,22 +1214,26 @@ async function loadPrevAtt(){
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   const{data:existing}=await sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to)
   const exMap={}; (existing||[]).forEach(r=>exMap[r.enrollment_id]=r)
-  el.innerHTML='<div class="card"><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Enter <b>Present</b> days for each student — Absent updates automatically. Present + Absent must equal <b>'+wd+'</b> working days.</div><div style="overflow-x:auto"><table><thead><tr>'
-    +'<th>Roll</th><th>Student</th><th style="width:120px">Present</th><th style="width:90px">Absent</th><th style="width:60px">Save</th></tr></thead><tbody>'
-    +CLASS_STUDENTS.map(s=>{const ex=exMap[s.enrollment_id];const p=ex?ex.present_count:'';return '<tr data-eid="'+s.enrollment_id+'">'
+  // Per-student working days from join date.
+  _paStudentWD={}
+  CLASS_STUDENTS.forEach(s=>{_paStudentWD[s.enrollment_id]=effectiveWD(s.students?.admission_date, from, to, _paHolSet)})
+  el.innerHTML='<div class="card"><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Enter <b>Present</b> days for each student — Absent updates automatically. Present + Absent must equal that student\'s <b>Working Days</b> (fewer for those who joined mid-period).</div><div style="overflow-x:auto"><table><thead><tr>'
+    +'<th>Roll</th><th>Student</th><th style="width:80px">Working</th><th style="width:120px">Present</th><th style="width:90px">Absent</th><th style="width:60px">Save</th></tr></thead><tbody>'
+    +CLASS_STUDENTS.map(s=>{const ex=exMap[s.enrollment_id];const p=ex?ex.present_count:'';const wd=_paStudentWD[s.enrollment_id];const joined=s.students?.admission_date&&s.students.admission_date>from;return '<tr data-eid="'+s.enrollment_id+'">'
       +'<td class="mono">'+esc(s.roll_no||'—')+'</td>'
-      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
-      +'<td><input class="pa-present" type="number" min="0" max="'+wd+'" inputmode="numeric" data-eid="'+s.enrollment_id+'" value="'+p+'" oninput="paSyncAbsent(this)" onkeydown="if(event.key===\'Enter\')savePrevAttOne(\''+s.enrollment_id+'\')" style="width:100px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50);text-align:center;font-family:var(--mono)"></td>'
+      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+(joined?'<div style="font-size:10px;color:var(--indigo-dark);font-weight:500">joined '+fmtD(s.students.admission_date)+'</div>':'')+'</td>'
+      +'<td class="mono" style="font-weight:700">'+wd+'</td>'
+      +'<td><input class="pa-present" type="number" min="0" max="'+wd+'" inputmode="numeric" data-eid="'+s.enrollment_id+'" value="'+p+'" oninput="paSyncAbsent(this)" onkeydown="if(event.key===\'Enter\')savePrevAttOne(\''+s.enrollment_id+'\')" style="width:100px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50);text-align:center;font-family:var(--mono)"'+(wd<=0?' disabled':'')+'></td>'
       +'<td><span class="pa-absent" data-eid="'+s.enrollment_id+'" style="font-family:var(--mono);font-weight:700;color:'+(ex?'var(--ink)':'var(--ink-soft)')+'">'+(ex?ex.absent_count:'—')+'</span></td>'
-      +'<td><button class="btn btn-success btn-xs" title="Save this student" onclick="savePrevAttOne(\''+s.enrollment_id+'\')"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>'
+      +'<td><button class="btn btn-success btn-xs" title="Save this student" onclick="savePrevAttOne(\''+s.enrollment_id+'\')"'+(wd<=0?' disabled':'')+'><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>'
       +'</tr>'}).join('')
     +'</tbody></table></div></div>'
 }
 async function savePrevAttOne(eid){
-  const wd=_paWorking||0
+  const wd=paWDFor(eid)
   const {from,to}=paRange()
   if(!from||!to){toast('Select a period first','error');return}
-  if(wd<=0){toast('This period has no working days to record','error');return}
+  if(wd<=0){toast('This student has no working days in this period (joined after it)','error');return}
   const inp=document.querySelector('.pa-present[data-eid="'+eid+'"]')
   if(!inp)return
   inp.style.borderColor=''
@@ -1392,6 +1419,7 @@ async function viewStudentProfile(eid){
   const lbl='font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px'
   const inp='width:100%;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box'
 
+  const admLocked = !!enr.s_no   // students with an S.No. have admission date locked for teachers
   const fields=[
     {k:'full_name',label:'Full Name',val:s.full_name},
     {k:'father_name',label:'Fathers Name',val:s.father_name},
@@ -1400,13 +1428,16 @@ async function viewStudentProfile(eid){
     {k:'alt_phone',label:'Alt Phone',val:s.alt_phone},
     {k:'aadhar_no',label:'Aadhaar No',val:s.aadhar_no},
     {k:'address',label:'Address',val:s.address},
+    {k:'admission_date',label:'Date of Admission / Joining',val:s.admission_date,type:'date',locked:admLocked},
   ]
 
   const fieldsHtml=fields.map(f=>
     '<div style="margin-bottom:12px"><label style="'+lbl+'">'+f.label+'</label>'
     +(f.k==='address'
       ?'<textarea id="sp_'+f.k+'" '+(canEdit?'':' disabled')+' style="'+inp+';min-height:60px;resize:vertical">'+esc(f.val||'')+'</textarea>'
-      :'<input id="sp_'+f.k+'" '+(canEdit?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+'">')
+      :'<input id="sp_'+f.k+'" '+(f.type==='date'?'type="date"':'')+' '+((canEdit&&!f.locked)?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+(f.locked?';background:var(--lav-100);color:var(--ink-soft)':'')+'">')
+    +(f.k==='admission_date'&&f.locked?'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:3px">🔒 Locked — this student has an S.No. Ask the admin to change the admission date.</div>':'')
+    +(f.k==='admission_date'&&!f.locked?'<div style="font-size:10.5px;color:var(--indigo-dark);margin-top:3px">Attendance working days are counted from this date.</div>':'')
     +'</div>'
   ).join('')
 
@@ -1572,7 +1603,7 @@ async function saveStudentProfile(){
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code,admission_date)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -1718,6 +1749,7 @@ async function saveStudentProfile(studentId){
     alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
     aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
     address:document.getElementById('sp_address')?.value?.trim(),
+    admission_date:document.getElementById('sp_admission_date')?.value||null,
   }
   if(!updates.full_name){toast("Student name can't be empty",'error');return}
   const{data:updated,error}=await sb.from('students').update(updates).eq('student_id',sid).select()
@@ -1726,7 +1758,7 @@ async function saveStudentProfile(studentId){
   if(!updated||!updated.length){toast('Save did not persist — the database blocked this update (permissions).','error');console.warn('[profile] UPDATE affected 0 rows — likely RLS on students table',{sid});return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code,admission_date)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -1981,7 +2013,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code,admission_date)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -2059,13 +2091,17 @@ async function loadAssessMarks(){
     const byStudent={}
     ;(attData||[]).forEach(a=>{if(!byStudent[a.enrollment_id])byStudent[a.enrollment_id]=0;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]++})
     // Fold in BACKLOG monthly attendance (present totals for periods filled as
-    // monthly counts rather than day-by-day). The working-days count above already
-    // includes those days, so we only need to add the present counts.
+    // monthly counts rather than day-by-day).
     try{
       const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
       ;(monthly||[]).forEach(mr=>{byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
-    CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStudent[s.enrollment_id]||0,working:workingDays}})
+    // Working days PER STUDENT — a child who joined mid-session is counted from
+    // their admission date, not the session start.
+    const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=s.students?.admission_date||null})
+    const wdCache={}
+    const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
+    CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStudent[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id])}})
   }
 
   // Which subjects have marks entered vs still pending? A subject is "submitted"
