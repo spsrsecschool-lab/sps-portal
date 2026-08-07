@@ -1231,13 +1231,12 @@ async function confirmAttSubmit(date){
 
 // ═══════════ ATTENDANCE REPORT ═══════════
 // ═══════════ PREVIOUS (BACKLOG) ATTENDANCE ═══════════
-let _paWorking=0, _paStudentWD={}, _paHolSet=new Set()
+let _paWorking=0, _paStudentWD={}, _paHolSet=new Set(), _paOverlap=false
 function paRange(){
   const cf=$('pa_from')?.value, ct=$('pa_to')?.value
   if(cf||ct){
-    const from=cf||(SESS?.start_date||ct)
-    const to=ct||today()
-    return {from,to,custom:true}
+    if(!cf||!ct) return {from:'',to:'',custom:true,partial:true}   // need both dates
+    return {from:cf,to:ct,custom:true}
   }
   const m=parseInt($('pa_month')?.value)
   if(!m) return {from:'',to:'',custom:false}
@@ -1266,13 +1265,27 @@ function effectiveWD(admissionDate, from, to, holSet){
   return countWorkingDays(start, to, holSet)
 }
 async function paComputeWorking(){
-  const {from,to}=paRange(), el=$('pa_working')
-  if(!from||!to||new Date(to+'T12:00:00')<new Date(from+'T12:00:00')){if(el)el.textContent='Pick a valid period.';_paWorking=0;return 0}
+  const r=paRange(), {from,to}=r, el=$('pa_working')
+  if(r.partial){if(el)el.textContent='Pick both From and To dates for a custom period.';_paWorking=0;_paOverlap=false;return 0}
+  if(!from||!to||new Date(to+'T12:00:00')<new Date(from+'T12:00:00')){if(el)el.textContent='Pick a month or a valid period.';_paWorking=0;_paOverlap=false;return 0}
   const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to)
   _paHolSet=new Set((hols||[]).map(h=>h.date))
   const wd=countWorkingDays(from,to,_paHolSet)
   _paWorking=wd
-  if(el)el.textContent='Working days in this period: '+wd+'  ·  '+fmtD(from)+' → '+fmtD(to)+'  (excludes Sundays & '+(_paHolSet.size)+' holiday'+(_paHolSet.size!==1?'s':'')+'). Students who joined mid-period get fewer, from their admission date.'
+  _paOverlap=false; let overlapMsg=''
+  const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  if(eids.length){
+    const{data:daily}=await sb.from('student_attendance').select('date').in('enrollment_id',eids).gte('date',from).lte('date',to).limit(1)
+    if(daily&&daily.length){ _paOverlap=true; overlapMsg='⚠ Daily attendance is already marked for one or more days in this period. Pick a period that doesn\'t overlap already-marked days.' }
+    else {
+      const{data:mon}=await sb.from('attendance_monthly').select('id').in('enrollment_id',eids).lte('from_date',to).gte('to_date',from).limit(1)
+      if(mon&&mon.length){ _paOverlap=true; overlapMsg='⚠ A previous-attendance entry already covers part of this period. Pick a different period, or delete that entry first.' }
+    }
+  }
+  if(el){
+    el.innerHTML='Working days in this period: <b>'+wd+'</b>  ·  '+esc(fmtD(from)+' → '+fmtD(to))+'  (excludes Sundays &amp; '+(_paHolSet.size)+' holiday'+(_paHolSet.size!==1?'s':'')+'). Students who joined mid-period get fewer, from their admission date.'
+      +(overlapMsg?'<div style="color:var(--danger);font-weight:700;margin-top:6px">'+overlapMsg+'</div>':'')
+  }
   return wd
 }
 function paMonthChanged(){ if($('pa_from'))$('pa_from').value=''; if($('pa_to'))$('pa_to').value=''; paComputeWorking() }
@@ -1293,6 +1306,7 @@ async function loadPrevAtt(){
   await paComputeWorking()
   const {from,to}=paRange(), el=$('prevAttWrap')
   if(!from||!to){emp(el,'Select a month or a valid date range.');return}
+  if(_paOverlap){emp(el,'This period already has attendance recorded. Pick a period with no existing attendance.');return}
   if(!CLASS_STUDENTS.length){emp(el,'No students in your class.');return}
   ldg(el)
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
@@ -1316,6 +1330,7 @@ async function savePrevAttOne(eid){
   const wd=paWDFor(eid)
   const {from,to}=paRange()
   if(!from||!to){toast('Select a period first','error');return}
+  if(_paOverlap){toast('This period already has attendance recorded — cannot backfill it','error');return}
   if(wd<=0){toast('This student has no working days in this period (joined after it)','error');return}
   const inp=document.querySelector('.pa-present[data-eid="'+eid+'"]')
   if(!inp)return
@@ -1502,7 +1517,7 @@ async function viewStudentProfile(eid){
   const lbl='font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px'
   const inp='width:100%;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box'
 
-  const admLocked = !!enr.s_no   // students with an S.No. have admission date locked for teachers
+  const admLocked = !enr.is_new_admission   // only NEW admissions can have their join date set; continuing students stay at session start
   const fields=[
     {k:'full_name',label:'Full Name',val:s.full_name},
     {k:'father_name',label:'Fathers Name',val:s.father_name},
@@ -1519,7 +1534,7 @@ async function viewStudentProfile(eid){
     +(f.k==='address'
       ?'<textarea id="sp_'+f.k+'" '+(canEdit?'':' disabled')+' style="'+inp+';min-height:60px;resize:vertical">'+esc(f.val||'')+'</textarea>'
       :'<input id="sp_'+f.k+'" '+(f.type==='date'?'type="date"':'')+' '+((canEdit&&!f.locked)?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+(f.locked?';background:var(--lav-100);color:var(--ink-soft)':'')+'">')
-    +(f.k==='admission_date'&&f.locked?'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:3px">🔒 Locked — this student has an S.No. Ask the admin to change the admission date.</div>':'')
+    +(f.k==='admission_date'&&f.locked?'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:3px">🔒 Continuing student — attendance counts from the session start. Only new admissions can change this.</div>':'')
     +(f.k==='admission_date'&&!f.locked?'<div style="font-size:10.5px;color:var(--indigo-dark);margin-top:3px">Attendance working days are counted from this date.</div>':'')
     +'</div>'
   ).join('')
