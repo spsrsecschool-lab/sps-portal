@@ -1483,6 +1483,7 @@ async function viewStudentProfile(eid){
     +docsHtml
     +(canEdit?'<button onclick="openDocUploadModal(_profileStudentId)" style="margin-top:10px;background:var(--lav-100);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);font-family:var(--font)">📎 Upload Document</button>':'')
     +'</div>'
+    +'<div id="sp_siblings" style="margin-top:16px"></div>'
 
   const foot='<button class="btn btn-ghost" onclick="closeModal()">Close</button>'
     +(canEdit?'<button class="btn btn-primary" onclick="saveStudentProfile()">Save Changes</button>':'')
@@ -1491,6 +1492,24 @@ async function viewStudentProfile(eid){
 
   openModal('Student Profile',body,foot)
   if(canEdit) populateSectionPicker(enr)
+  renderSiblings('sp_siblings', s, enr.enrollment_id)
+}
+// Siblings (same family_code + same father) shown as chips (display-only, since a
+// sibling may be in another class this teacher doesn't manage).
+async function renderSiblings(containerId, s, selfEnrollmentId){
+  const el=$(containerId); if(!el)return
+  const fc=s?.family_code; if(!fc){el.innerHTML='';return}
+  const norm=x=>String(x||'').trim().toLowerCase().replace(/\s+/g,' ')
+  const{data:sibs}=await sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,students!inner(student_id,full_name,father_name,family_code),classes(name),class_sections(name)')
+    .eq('session_id',SESS?.session_id||'').eq('relieved',false)
+    .eq('students.family_code',fc)
+  const list=(sibs||[]).filter(x=>x.enrollment_id!==selfEnrollmentId && norm(x.students?.father_name)===norm(s?.father_name))
+  const lbl='<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:8px">Siblings'+(list.length?' ('+list.length+')':'')+'</div>'
+  if(!list.length){el.innerHTML=lbl+'<div style="font-size:12px;color:var(--ink-faint)">No siblings in this session.</div>';return}
+  el.innerHTML=lbl+'<div style="display:flex;flex-wrap:wrap;gap:7px">'
+    +list.map(x=>'<span style="background:var(--lav-100);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--ink)">'+esc(x.students?.full_name||'?')+' · '+esc((x.classes?.name||'?')+'-'+(x.class_sections?.name||'?'))+(x.roll_no?' · R'+esc(String(x.roll_no)):'')+'</span>').join('')
+    +'</div>'
 }
 
 // Fetch the OTHER sections of the SAME class so the teacher can move the
