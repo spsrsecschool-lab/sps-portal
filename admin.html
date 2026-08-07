@@ -888,6 +888,11 @@ tbody tr:hover td{background:var(--lav-50)}
         </div>
         <div id="holidayList" style="margin-top:16px"></div>
       </div>
+      <div class="card" style="margin-top:16px">
+        <div style="font-size:13px;font-weight:800;margin-bottom:2px">Working days by month</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px">Counted from the session start (<span id="wdSummaryStart">—</span>), excluding Sundays &amp; holidays. This is the same figure teachers use for attendance.</div>
+        <div id="calMonthSummary"><div style="color:var(--ink-faint);font-size:12.5px">Loading…</div></div>
+      </div>
     </div>
 
     <!-- CLASS ATTENDANCE -->
@@ -4137,6 +4142,7 @@ async function renderCalendar(){
     workingDays++
   }
   const wd=$('calWorkingDays'); if(wd)wd.textContent=workingDays+' working day'+(workingDays!==1?'s':'')+' this month'
+  renderWorkingDaysSummary()
   // Group by label: named groups (e.g. Summer Holidays) show as one chip with a
   // remove-all; unlabeled one-off holidays show as individual date chips.
   const named={}, singles=[]
