@@ -1609,7 +1609,7 @@ async function initAdmission(){
 async function refreshAdmSnoPlaceholder(){
   const el=$('adm_sno'); if(!el||!SESS)return
   try{
-    const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).not('s_no','is',null)
+    const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).eq('relieved',false).not('s_no','is',null)
     const maxN=(snos||[]).reduce((m,r)=>{const n=parseInt((r.s_no||'').replace(/\D/g,''))||0;return n>m?n:m},0)
     el.placeholder='next: '+(maxN+1)
   }catch(e){el.placeholder='next: —'}
@@ -2562,7 +2562,7 @@ async function saveEditDemo(){
   if(sno&&!/^\d+$/.test(sno)){toast('S.No must be a plain number','error');return}
   if(sno&&SESS){
     const{data:clash}=await sb.from('student_enrollments').select('enrollment_id,students(full_name)')
-      .eq('session_id',SESS.session_id).eq('s_no',sno).neq('enrollment_id',eid).maybeSingle()
+      .eq('session_id',SESS.session_id).eq('s_no',sno).eq('relieved',false).neq('enrollment_id',eid).maybeSingle()
     if(clash){toast('S.No '+sno+' is already used by '+(clash.students?.full_name||'another student'),'error');return}
   }
   // Ensure the family code exists in `families` first — otherwise the students
@@ -2806,7 +2806,7 @@ async function commitImport(count,type){
 
     const[sidCheck,snoCheck]=await Promise.all([
       csvStudentIds.length ? sb.from('students').select('student_id').in('student_id',csvStudentIds) : Promise.resolve({data:[]}),
-      csvSNos.length ? sb.from('student_enrollments').select('s_no').in('s_no',csvSNos).eq('session_id',SESS.session_id) : Promise.resolve({data:[]})
+      csvSNos.length ? sb.from('student_enrollments').select('s_no').in('s_no',csvSNos).eq('session_id',SESS.session_id).eq('relieved',false) : Promise.resolve({data:[]})
     ])
 
     const dupSids=new Set((sidCheck.data||[]).map(r=>r.student_id))
@@ -2850,7 +2850,7 @@ async function commitImport(count,type){
     if(se){toast('Student insert failed: '+se.message,'error');return}
 
     // ── Create enrollment records ───────────────────────────────────────────
-    const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).not('s_no','is',null)
+    const{data:snos}=await sb.from('student_enrollments').select('s_no').eq('session_id',SESS.session_id).eq('relieved',false).not('s_no','is',null)
     let maxN=(snos||[]).reduce((m,r)=>{const n=parseInt((r.s_no||'').replace(/\D/g,'')||'0');return n>m?n:m},0)
 
     const enrollRows=[]
