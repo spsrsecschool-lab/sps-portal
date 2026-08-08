@@ -92,9 +92,12 @@ tbody td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middl
 tbody tr:hover td{background:var(--lav-50)}
 .sticky-col{position:sticky;background:var(--white);z-index:2}
 .att-scroll{max-height:72vh;overflow:auto;position:relative}
-.att-scroll>h3{position:sticky;top:0;z-index:7;background:var(--white);margin:0;padding:10px 2px;height:44px;box-sizing:border-box;display:flex;align-items:center}
-.att-scroll thead th{position:sticky;top:44px;z-index:4}
-.att-scroll thead th.sticky-col{z-index:6}
+.att-scroll table{border-collapse:separate;border-spacing:0}
+.att-scroll thead th{position:sticky;background:var(--lav-100);z-index:4}
+.att-scroll thead tr.mrow th{top:0;height:44px;padding:0 12px;box-sizing:border-box;z-index:6;text-align:left;font-weight:800;font-size:13px;color:var(--ink)}
+.att-scroll thead tr.hrow th{top:44px;z-index:5}
+.att-scroll .rollcol{position:sticky;left:0;background:var(--white);z-index:3}
+.att-scroll thead .hrow .rollcol{background:var(--lav-100);z-index:7}
 thead .sticky-col{background:var(--lav-100);z-index:3}
 .cell-p{background:#FDEAEF!important;color:#1A7A4A;font-weight:700;text-align:center;font-size:11px}
 .cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
@@ -1072,30 +1075,32 @@ async function renderDashboard(){
     const mdEl=$('dashMarksDue')
     const{data:ac}=await sb.from('assessment_classes').select('assessment_id').eq('class_id',MY_CLASS.class_id)
     const aIds=[...new Set((ac||[]).map(r=>r.assessment_id))]
-    let dueNames=[]
+    let dueItems=[]   // {name, deadline, pending:[subjectNames]}
     if(aIds.length){
       const{data:asmts}=await sb.from('assessments').select('assessment_id,name,is_marks_unlocked,submission_deadline').in('assessment_id',aIds).eq('session_id',SESS?.session_id||'')
       const unlocked=(asmts||[]).filter(a=>a.is_marks_unlocked)
       if(unlocked.length){
-        // Subjects expected for this class.
-        const{data:subMaps}=await sb.from('teacher_subject_class_map').select('subject_id').eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id).eq('session_id',SESS?.session_id||'')
-        const subIds=[...new Set((subMaps||[]).map(m=>m.subject_id).filter(Boolean))]
-        const addDue=a=>dueNames.push({name:a.name,deadline:a.submission_deadline})
+        // Subjects expected for this class (with names for the breakdown).
+        const{data:subMaps}=await sb.from('teacher_subject_class_map').select('subject_id,subjects(name)').eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id).eq('session_id',SESS?.session_id||'')
+        const subPairs=[...new Map((subMaps||[]).filter(m=>m.subject_id).map(m=>[m.subject_id,m.subjects?.name||'Subject'])).entries()]
+        const subIds=subPairs.map(p=>p[0])
+        const nameOf=id=>{const f=subPairs.find(p=>p[0]===id);return f?f[1]:'Subject'}
         if(subIds.length && eids.length){
           const{data:marks}=await sb.from('marks').select('assessment_id,subject_id').in('enrollment_id',eids).in('assessment_id',unlocked.map(a=>a.assessment_id))
           const bySubj={}; (marks||[]).forEach(m=>{(bySubj[m.assessment_id]=bySubj[m.assessment_id]||new Set()).add(m.subject_id)})
-          unlocked.forEach(a=>{ const done=bySubj[a.assessment_id]||new Set(); if(!subIds.every(s=>done.has(s)))addDue(a) })
+          unlocked.forEach(a=>{ const done=bySubj[a.assessment_id]||new Set(); const pend=subIds.filter(s=>!done.has(s)); if(pend.length)dueItems.push({name:a.name,deadline:a.submission_deadline,pending:pend.map(nameOf)}) })
         } else if(subIds.length){
-          unlocked.forEach(addDue)  // no students yet, still flag
+          unlocked.forEach(a=>dueItems.push({name:a.name,deadline:a.submission_deadline,pending:subPairs.map(p=>p[1])}))
         }
       }
     }
     if(mdEl){
-      if(dueNames.length){
+      const totalPending=dueItems.reduce((n,it)=>n+it.pending.length,0)
+      if(totalPending){
         const fmtDL=dl=>{ if(!dl)return 'no deadline set'; const d=new Date(dl); const over=d<new Date(); return (over?'⚠ was due ':'due ')+d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+', '+d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'}) }
         mdEl.style.display='block'
-        $('dashMarksDueTitle').textContent=dueNames.length+' assessment'+(dueNames.length>1?'s':'')+' awaiting marks'
-        $('dashMarksDueSub').innerHTML=dueNames.map(a=>'<div style="margin-top:2px"><b>'+esc(a.name)+'</b> — '+esc(fmtDL(a.deadline))+'</div>').join('')
+        $('dashMarksDueTitle').textContent=totalPending+' subject'+(totalPending>1?'s':'')+' awaiting marks'
+        $('dashMarksDueSub').innerHTML=dueItems.map(a=>'<div style="margin-top:2px"><b>'+esc(a.name)+'</b> — '+esc(a.pending.join(', '))+' <span style="color:var(--ink-faint)">('+esc(fmtDL(a.deadline))+')</span></div>').join('')
       }else{ mdEl.style.display='none' }
     }
   }catch(e){console.warn('[dash] marks-due check skipped',e)}
@@ -1444,13 +1449,15 @@ async function loadAttReport(){
     el.innerHTML=h; return
   }
 
-  // Table
-  let html='<div class="card"><div class="att-scroll"><h3>'
-    +monthName+' — Working Days: '+workingDays+'</h3>'
-    +'<table style="min-width:800px"><thead><tr>'
-    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
-    +'<th class="sticky-col" style="left:50px;min-width:140px">Name</th>'
-    +'<th class="sticky-col" style="left:190px;min-width:140px">Father\'s Name</th>'
+  // Table — pinned month bar + column headers; only Roll frozen horizontally.
+  const ncols=3+days.length+3
+  let html='<div class="card"><div class="att-scroll"><table style="min-width:800px">'
+    +'<thead>'
+    +'<tr class="mrow"><th class="rollcol" colspan="'+ncols+'">'+monthName+' — Working Days: '+workingDays+'</th></tr>'
+    +'<tr class="hrow">'
+    +'<th class="rollcol" style="min-width:50px">Roll</th>'
+    +'<th style="min-width:130px">Name</th>'
+    +'<th style="min-width:130px">Father\'s Name</th>'
   days.forEach(d=>{
     const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';
     html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'
@@ -1460,9 +1467,9 @@ async function loadAttReport(){
   CLASS_STUDENTS.forEach(s=>{
     let pCount=0,aCount=0,lCount=0
     html+='<tr>'
-    html+='<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-    html+='<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
-    html+='<td class="sticky-col" style="left:190px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+    html+='<td class="rollcol" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
+    html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+    html+='<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     days.forEach(d=>{
       if(d.isSun){html+='<td class="cell-h" style="font-size:10px">—</td>';return}
       if(d.isHol){html+='<td class="cell-h" style="font-size:10px">H</td>';return}
@@ -1481,9 +1488,9 @@ async function loadAttReport(){
 
   // Totals row
   html+='<tr style="background:var(--lav-100);font-weight:700">'
-    +'<td class="sticky-col" style="left:0;background:var(--lav-100)"></td>'
-    +'<td class="sticky-col" style="left:50px;background:var(--lav-100);font-size:10.5px;color:var(--ink-soft)">TOTAL PRESENT</td>'
-    +'<td class="sticky-col" style="left:190px;background:var(--lav-100)"></td>'
+    +'<td class="rollcol" style="background:var(--lav-100)"></td>'
+    +'<td style="background:var(--lav-100);font-size:10.5px;color:var(--ink-soft)">TOTAL PRESENT</td>'
+    +'<td style="background:var(--lav-100)"></td>'
   days.forEach(d=>{
     if(d.isSun||d.isHol){html+='<td style="text-align:center;background:var(--lav-100)">—</td>';return}
     const cnt=CLASS_STUDENTS.filter(s=>attMap[s.enrollment_id]?.[d.dateStr]==='P'||attMap[s.enrollment_id]?.[d.dateStr]==='L').length
@@ -2237,8 +2244,8 @@ async function loadAssessMarks(){
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table style="min-width:800px"><thead><tr>'
     +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
-    +'<th class="sticky-col" style="left:50px;min-width:140px">Name</th>'
-    +'<th class="sticky-col" style="left:190px;min-width:130px">Father\'s Name</th>'
+    +'<th style="min-width:140px">Name</th>'
+    +'<th style="min-width:130px">Father\'s Name</th>'
   uniqueSubs.forEach(m=>{
     const mx=maxFor(m.subject_id)
     html+='<th style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')
@@ -2261,8 +2268,8 @@ async function loadAssessMarks(){
 
     html+='<tr>'
     html+='<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-    html+='<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
-    html+='<td class="sticky-col" style="left:190px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+    html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+    html+='<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
       const maxM=maxFor(m.subject_id)
@@ -2995,7 +3002,7 @@ async function loadViewMarks(){
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet (Max: '+maxM+', Pass: '+passM+')</h3>'
     +'<table style="min-width:800px"><thead><tr>'
     +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
-    +'<th class="sticky-col" style="left:50px;min-width:150px">Name</th>'
+    +'<th style="min-width:150px">Name</th>'
   MK_SUBJECTS.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.short_code||s.name)+'</th>'})
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att.</th><th style="text-align:center">Att.%</th></tr></thead><tbody>'
 
@@ -3004,7 +3011,7 @@ async function loadViewMarks(){
     let total=0,possible=0,hasAbsent=false
     html+='<tr>'
     html+='<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-    html+='<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+    html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
     MK_SUBJECTS.forEach(sub=>{
       const mk=sMarks[sub.subject_id]
       if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
@@ -3093,7 +3100,7 @@ async function loadAssessMarksEditable(){
   let html='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px"><h3 style="margin:0">'+esc(assess?.name||'Assessment')+' — Enter Marks</h3><button class="btn btn-primary btn-sm" onclick="saveAllMarks(\''+assessId+'\')">Save All Marks</button></div>'
   html+='<div style="overflow-x:auto"><table style="width:100%'+(single?'':';min-width:520px')+'"><thead><tr>'
     +'<th class="sticky-col" style="left:0;min-width:42px">Roll</th>'
-    +'<th class="sticky-col" style="left:42px;min-width:96px">Name</th>'
+    +'<th style="min-width:96px">Name</th>'
   cols.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+'</span></th>'})
   if(!single)html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th>'
   html+='</tr></thead><tbody>'
@@ -3102,7 +3109,7 @@ async function loadAssessMarksEditable(){
     const sMarks=marksMap[s.enrollment_id]||{}
     html+='<tr data-eid="'+s.enrollment_id+'">'
     html+='<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-    html+='<td class="sticky-col" style="left:42px;font-weight:600;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+esc(s.students?.full_name||'?')+'</td>'
+    html+='<td style="font-weight:600;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+esc(s.students?.full_name||'?')+'</td>'
     cols.forEach(sub=>{
       const mk=sMarks[sub.subject_id]
       const isAbs=!!mk?.is_absent
