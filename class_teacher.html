@@ -91,6 +91,10 @@ thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-w
 tbody td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middle}
 tbody tr:hover td{background:var(--lav-50)}
 .sticky-col{position:sticky;background:var(--white);z-index:2}
+.att-scroll{max-height:72vh;overflow:auto;position:relative}
+.att-scroll>h3{position:sticky;top:0;z-index:7;background:var(--white);margin:0;padding:10px 2px;height:44px;box-sizing:border-box;display:flex;align-items:center}
+.att-scroll thead th{position:sticky;top:44px;z-index:4}
+.att-scroll thead th.sticky-col{z-index:6}
 thead .sticky-col{background:var(--lav-100);z-index:3}
 .cell-p{background:#E4F7EE!important;color:#1A7A4A;font-weight:700;text-align:center;font-size:11px}
 .cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
@@ -161,6 +165,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 @media(max-width:760px){
   [style*="position:sticky"]{position:relative!important;left:auto!important;z-index:auto!important;background:inherit!important}
   .sticky-col{position:relative!important;left:auto!important;z-index:auto!important}
+  td.sticky-col:first-child,th.sticky-col:first-child{position:sticky!important;left:0!important;z-index:5!important}
   .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
 }
 
@@ -484,6 +489,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 @media(max-width:760px){
   [style*="position:sticky"]{position:relative!important;left:auto!important;z-index:auto!important;background:inherit!important}
   .sticky-col{position:relative!important;left:auto!important;z-index:auto!important}
+  td.sticky-col:first-child,th.sticky-col:first-child{position:sticky!important;left:0!important;z-index:5!important}
   .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
 }
 
@@ -1360,7 +1366,7 @@ async function loadAttReport(){
   }
 
   // Table
-  let html='<div class="card" style="overflow-x:auto"><h3>'
+  let html='<div class="card"><div class="att-scroll"><h3>'
     +['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year+' — Working Days: '+workingDays+'</h3>'
     +'<table style="min-width:800px"><thead><tr>'
     +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
@@ -1405,7 +1411,7 @@ async function loadAttReport(){
     html+='<td style="text-align:center;font-size:11px">'+cnt+'</td>'
   })
   html+='<td></td><td></td><td></td></tr>'
-  html+='</tbody></table></div>'
+  html+='</tbody></table></div></div>'
 
   // Summary below
   const full=CLASS_STUDENTS.filter(s=>{
