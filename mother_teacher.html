@@ -3029,6 +3029,11 @@ async function loadAssessMarksEditable(){
   const maxM=assess?.max_marks||100
   const passM=assess?.pass_marks||Math.round(maxM*0.33)
   if(!MK_SUBJECTS.length)await loadClassSubjects()
+  // Per-subject max/pass overrides for this assessment + class.
+  const{data:_ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
+  const _ovMap={}; (_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  const maxFor=sid=>{const o=_ovMap[sid];return (o&&o.max!=null)?o.max:maxM}
+  const passFor=sid=>{const o=_ovMap[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
   // Subject filter: if a subject is chosen, show only that column
   const selSub=$('mk_subject')?.value
   const cols=selSub?MK_SUBJECTS.filter(s=>s.subject_id===selSub):MK_SUBJECTS
@@ -3037,11 +3042,11 @@ async function loadAssessMarksEditable(){
   const marksMap={}
   ;(marks||[]).forEach(mk=>{if(!marksMap[mk.enrollment_id])marksMap[mk.enrollment_id]={};marksMap[mk.enrollment_id][mk.subject_id]=mk})
 
-  let html='<div class="card" style="overflow-x:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px"><h3 style="margin:0">'+esc(assess?.name||'Assessment')+' — Enter Marks (Max: '+maxM+', Pass: '+passM+')</h3><button class="btn btn-primary btn-sm" onclick="saveAllMarks(\''+assessId+'\')">Save All Marks</button></div>'
+  let html='<div class="card" style="overflow-x:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px"><h3 style="margin:0">'+esc(assess?.name||'Assessment')+' — Enter Marks</h3><button class="btn btn-primary btn-sm" onclick="saveAllMarks(\''+assessId+'\')">Save All Marks</button></div>'
   html+='<table style="min-width:700px"><thead><tr>'
     +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
     +'<th class="sticky-col" style="left:50px;min-width:150px">Name</th>'
-  cols.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.name)+'</th>'})
+  cols.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+'</span></th>'})
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th></tr></thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
@@ -3053,11 +3058,10 @@ async function loadAssessMarksEditable(){
       const mk=sMarks[sub.subject_id]
       const isAbs=!!mk?.is_absent
       const val=isAbs?'':(mk?.marks_obtained!=null?mk.marks_obtained:'')
-      // Numeric keyboard on phones. Tap the ⊘ chip to toggle Absent (so no need
-      // to type "A"). When absent the box is disabled and shows "A".
+      const sMax=maxFor(sub.subject_id), sPass=passFor(sub.subject_id)
       html+='<td style="text-align:center;white-space:nowrap">'
-        +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(isAbs?'A':'—')+'"'+(isAbs?' disabled':'')+' oninput="mkMarkChanged(this,'+maxM+','+passM+')" style="'+(isAbs?'background:var(--warn-soft);':'')+'">'
-        +'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this,'+maxM+','+passM+')" style="margin-left:3px;font-size:10px;font-weight:700;padding:2px 5px;border-radius:5px;cursor:pointer;border:1px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-faint)')+'">A</button>'
+        +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-max="'+sMax+'" data-pass="'+sPass+'" inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(isAbs?'A':'—')+'"'+(isAbs?' disabled':'')+' oninput="mkMarkChanged(this)" style="'+(isAbs?'background:var(--warn-soft);':'')+'">'
+        +'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this)" style="margin-left:3px;font-size:10px;font-weight:700;padding:2px 5px;border-radius:5px;cursor:pointer;border:1px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-faint)')+'">A</button>'
         +'</td>'
     })
     html+='<td class="mk-total" style="text-align:center;font-weight:700">—</td><td class="mk-pct" style="text-align:center;font-weight:700">—</td>'
@@ -3066,11 +3070,11 @@ async function loadAssessMarksEditable(){
   html+='</tbody></table><p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px">Type marks, or tap the small <b>A</b> to mark absent. Failing marks are highlighted. Click Save All Marks when done.</p></div>'
   el.innerHTML=html
   // Compute initial totals
-  document.querySelectorAll('#mkAssessWrap tr[data-eid]').forEach(row=>mkRecomputeRow(row,maxM,passM))
+  document.querySelectorAll('#mkAssessWrap tr[data-eid]').forEach(row=>mkRecomputeRow(row))
 }
 
 // Toggle a matrix cell's Absent state via its little "A" chip.
-function mkToggleAbsent(btn,maxM,passM){
+function mkToggleAbsent(btn){
   const inp=btn.parentElement.querySelector('.mk-mark-input')
   if(!inp)return
   const nowAbs=!inp.classList.contains('is-abs')
@@ -3082,27 +3086,28 @@ function mkToggleAbsent(btn,maxM,passM){
     inp.disabled=false;inp.placeholder='—';inp.style.background=''
     btn.style.border='1px solid var(--line)';btn.style.background='transparent';btn.style.color='var(--ink-faint)'
   }
-  mkRecomputeRow(inp.closest('tr'),maxM,passM)
+  mkRecomputeRow(inp.closest('tr'))
 }
 
-function mkMarkChanged(input,maxM,passM){
+function mkMarkChanged(input){
   // digits + decimal only
   input.value=input.value.replace(/[^0-9.]/g,'')
   input.classList.remove('fail')
   const v=input.value.trim()
+  const passM=parseFloat(input.dataset.pass)||0
   if(v!==''){
     const n=parseFloat(v)
     if(!isNaN(n)&&n<passM)input.classList.add('fail')
   }
-  mkRecomputeRow(input.closest('tr'),maxM,passM)
+  mkRecomputeRow(input.closest('tr'))
 }
 
-function mkRecomputeRow(row,maxM,passM){
+function mkRecomputeRow(row){
   let total=0,possible=0
   row.querySelectorAll('.mk-mark-input').forEach(inp=>{
     if(inp.classList.contains('is-abs'))return
     const v=inp.value.trim()
-    if(v!==''){const n=parseFloat(v);if(!isNaN(n)){total+=n;possible+=maxM}}
+    if(v!==''){const n=parseFloat(v);if(!isNaN(n)){total+=n;possible+=(parseFloat(inp.dataset.max)||0)}}
   })
   const pct=possible>0?Math.round(total/possible*100):null
   const tc=row.querySelector('.mk-total'),pc=row.querySelector('.mk-pct')
@@ -3114,19 +3119,19 @@ async function saveAllMarks(assessId){
   const inputs=document.querySelectorAll('#mkAssessWrap .mk-mark-input')
   const rows=[]
   let invalid=false
-  const maxM=(MK_ASSESSMENTS.find(a=>a.assessment_id===assessId)?.max_marks)||100
   inputs.forEach(inp=>{
     const eid=inp.dataset.eid,sid=inp.dataset.sid
+    const sMax=parseFloat(inp.dataset.max)||100
     if(inp.classList.contains('is-abs')){
       rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:true,marks_obtained:null})
       return
     }
     const v=inp.value.trim()
     if(v==='')return
-    const n=parseFloat(v);if(isNaN(n)||n<0||n>maxM){invalid=true;inp.style.borderColor='var(--danger)';return}
+    const n=parseFloat(v);if(isNaN(n)||n<0||n>sMax){invalid=true;inp.style.borderColor='var(--danger)';return}
     rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:false,marks_obtained:n})
   })
-  if(invalid){toast('Some marks are invalid (must be 0–'+maxM+', or tap A for absent)','error');return}
+  if(invalid){toast('Some marks exceed that subject\'s max (or are negative). Fix the highlighted cells.','error');return}
   if(!rows.length){toast('No marks to save','error');return}
   // Upsert each: delete existing for (enrollment,subject,assessment) then insert
   let errors=0
