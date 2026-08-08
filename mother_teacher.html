@@ -826,7 +826,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
 <script>
 // ═══════════ GLOBALS ═══════════
-let sb, TEACHER=null, SESS=null, MY_CLASS=null
+let sb, TEACHER=null, SESS=null, MY_CLASS=null, MY_CLASS_START=null
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 // Profile display globals (mother teacher context)
 let _isClassTeacher=true, _myClassTeacher=null, MY_MAPPINGS=[]
@@ -895,6 +895,12 @@ SPS.ready().then(async()=>{
   if(!ct){toast('You are not assigned as a mother teacher this session','error');setTimeout(()=>location.href='login.html',2500);return}
   MY_CLASS=ct
   _myClassTeacher=ct
+  // Effective start date for THIS class (per-class override, else session start).
+  MY_CLASS_START=SESS?.start_date||null
+  try{
+    const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS?.session_id||'').eq('class_id',ct.class_id).maybeSingle()
+    if(cs?.start_date)MY_CLASS_START=cs.start_date
+  }catch(e){}
 
   // Update UI
   const av=$('topAvatar'),nm=$('topName'),rl=$('topRole'),lbl=$('sbClassLabel')
@@ -1245,7 +1251,7 @@ function countWorkingDays(from,to,holSet){
     const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
     if(d.getDay()===0)continue
     if(holSet.has(ds))continue
-    if(SESS?.start_date&&ds<SESS.start_date)continue
+    if(MY_CLASS_START&&ds<MY_CLASS_START)continue
     if(SESS?.end_date&&ds>SESS.end_date)continue
     n++
   }
@@ -1371,7 +1377,7 @@ async function loadAttReport(){
     const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow]
     days.push({dateStr,dayLabel,dayName,isSun:dow===0,isHol:holSet.has(dateStr)})
   }
-  const workingDays=days.filter(d=>!d.isSun&&!d.isHol).length
+  const workingDays=days.filter(d=>!d.isSun&&!d.isHol&&(!MY_CLASS_START||d.dateStr>=MY_CLASS_START)).length
   const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year
 
   // Month uploaded as monthly totals (no daily data) → counts-only summary.
@@ -2133,6 +2139,12 @@ async function loadAssessMarks(){
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id).eq('session_id',SESS?.session_id||'')
   const uniqueSubs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
   if(!uniqueSubs.length){emp(el,'No subjects configured for your class.');return}
+  // Per-subject max/pass overrides for this assessment + class (fall back to the
+  // assessment default when a subject has no override).
+  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
+  const ovMap={}; (ovs||[]).forEach(o=>{ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  const maxFor=sid=>{const o=ovMap[sid];return (o&&o.max!=null)?o.max:(assess?.max_marks||100)}
+  const passFor=sid=>{const o=ovMap[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return (assess?.pass_marks!=null?assess.pass_marks:Math.round((assess?.max_marks||100)*0.33))}
 
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   // Get marks for all students in this assessment
@@ -2148,7 +2160,7 @@ async function loadAssessMarks(){
   const cutoffDate=assess?.end_date||assess?.commencement_date||null
   let attMap={}
   if(cutoffDate){
-    const sessStart=SESS?.start_date||today().slice(0,5)+'04-01'
+    const sessStart=MY_CLASS_START||today().slice(0,5)+'04-01'
     const attToStr=cutoffDate                       // inclusive — the end date itself counts
     // Get holidays to calculate working days
     const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
@@ -2181,8 +2193,9 @@ async function loadAssessMarks(){
     +'<th class="sticky-col" style="left:50px;min-width:140px">Name</th>'
     +'<th class="sticky-col" style="left:190px;min-width:130px">Father\'s Name</th>'
   uniqueSubs.forEach(m=>{
+    const mx=maxFor(m.subject_id)
     html+='<th style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')
-      +(assess?.max_marks?'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+assess.max_marks+'</span>':'')
+      +'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+mx+'</span>'
       +'</th>'
   })
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att. Days</th><th style="text-align:center">Att. %</th></tr></thead><tbody>'
@@ -2193,7 +2206,7 @@ async function loadAssessMarks(){
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
       if(mk?.is_absent)hasAbsent=true
-      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained);possible+=(assess?.max_marks||100)}
+      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained);possible+=maxFor(m.subject_id)}
     })
     const pct=!hasAbsent&&possible>0?Math.round(total/possible*100):null
     const attInfo=attMap[s.enrollment_id]||{}
@@ -2205,8 +2218,8 @@ async function loadAssessMarks(){
     html+='<td class="sticky-col" style="left:190px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
-      const maxM=assess?.max_marks||100
-      const pass=Math.round(maxM*0.33)
+      const maxM=maxFor(m.subject_id)
+      const pass=passFor(m.subject_id)
       if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
       if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';return}
       const fail=parseFloat(mk.marks_obtained)<pass
@@ -2911,7 +2924,7 @@ async function loadViewMarks(){
   let attMap={}
   const cutoffDate=assess?.end_date||assess?.commencement_date||null
   if(cutoffDate){
-    const sessStart=SESS?.start_date||(String(cutoffDate).slice(0,4)+'-04-01')
+    const sessStart=MY_CLASS_START||(String(cutoffDate).slice(0,4)+'-04-01')
     const attToStr=cutoffDate                       // inclusive — the end date itself counts
     const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
     const holSet=new Set((hols||[]).map(h=>h.date))
@@ -2929,6 +2942,9 @@ async function loadViewMarks(){
     CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStu[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id])}})
   }
 
+  const ovMapV=await (async()=>{const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id);const m={};(ovs||[]).forEach(o=>{m[o.subject_id]={max:o.max_marks,pass:o.pass_marks}});return m})()
+  const maxFor=sid=>{const o=ovMapV[sid];return (o&&o.max!=null)?o.max:maxM}
+  const passFor=sid=>{const o=ovMapV[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet (Max: '+maxM+', Pass: '+passM+')</h3>'
     +'<table style="min-width:800px"><thead><tr>'
     +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
@@ -2946,8 +2962,8 @@ async function loadViewMarks(){
       const mk=sMarks[sub.subject_id]
       if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
       if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';hasAbsent=true;return}
-      total+=parseFloat(mk.marks_obtained);possible+=maxM
-      const fail=parseFloat(mk.marks_obtained)<passM
+      total+=parseFloat(mk.marks_obtained);possible+=maxFor(sub.subject_id)
+      const fail=parseFloat(mk.marks_obtained)<passFor(sub.subject_id)
       html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+mk.marks_obtained+'</td>'
     })
     const pct=!hasAbsent&&possible>0?Math.round(total/possible*100):null
