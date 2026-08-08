@@ -186,6 +186,12 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .pill-neutral{background:var(--lav-100);color:var(--ink-soft)}
 .pill-indigo{background:var(--indigo-100);color:var(--indigo-dark)}
 .table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
+.sticky-col{position:sticky;background:var(--white);z-index:2}
+thead .sticky-col{background:var(--lav-100);z-index:3}
+.cell-p{background:#E4F7EE!important;color:#1A7A4A;font-weight:700;text-align:center;font-size:11px}
+.cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
+.cell-l{background:#FCF1E0!important;color:#C47A20;font-weight:700;text-align:center;font-size:11px}
+.cell-h{background:#F0F0F0!important;color:#888;font-weight:700;text-align:center;font-size:11px}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:11px 14px;text-align:left;white-space:nowrap}
 tbody td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap}
@@ -757,23 +763,13 @@ tbody tr:hover td{background:var(--lav-50)}
 
     <!-- MARKS OVERVIEW -->
     <div class="page" id="page-marksoverview">
-      <div class="page-head"><div><h2>Marks Overview</h2><p>View marks for any class, subject and assessment</p></div></div>
+      <div class="page-head"><div><h2>Marks Overview</h2><p>View the marks sheet for any class, section and assessment</p></div></div>
       <div class="card" style="margin-bottom:18px">
-        <h3>Submission Status</h3>
-        <div id="marksStatus"><div class="loading-row"><div class="spinner"></div></div></div>
-      </div>
-      <div class="card" style="margin-bottom:18px">
-        <div class="form-row" style="margin-bottom:0">
+        <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
           <div class="fg"><label>Class</label><select id="mo_class" onchange="moLoadSections()"><option value="">Select class</option></select></div>
-          <div class="fg"><label>Section</label><select id="mo_section" onchange="syncStreamSection('section','mo')"><option value="">All sections</option></select></div>
-          <div class="fg" id="mo_stream_fg" style="display:none"><label>Stream</label><select id="mo_stream" onchange="syncStreamSection('stream','mo')"><option value="">All streams</option></select></div>
-          <div class="fg"><label>Subject</label><select id="mo_subject"><option value="">All subjects</option></select></div>
-          <div class="fg"><label>Assessments</label>
-            <div id="mo_assessments_wrap" style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px;max-height:120px;overflow-y:auto;min-width:180px">
-              <p style="font-size:11.5px;color:var(--ink-faint)">Select class first</p>
-            </div>
-          </div>
-          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMarksTable()">Load</button>
+          <div class="fg"><label>Section</label><select id="mo_section"><option value="">All sections</option></select></div>
+          <div class="fg"><label>Assessment</label><select id="mo_assess"><option value="">Select class first</option></select></div>
+          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadMarksTable()">Load Marks Sheet</button>
         </div>
       </div>
       <div id="marksTable"></div>
@@ -869,17 +865,6 @@ tbody tr:hover td{background:var(--lav-50)}
           <select id="calMonth" onchange="renderCalendar()" style="font-family:var(--font);font-size:13px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);outline:none"></select>
         </div>
       </div>
-      <div class="card" style="margin-bottom:16px">
-        <div style="font-size:13px;font-weight:800;margin-bottom:4px">Add a holiday group</div>
-        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Mark a whole break at once (e.g. Summer Holidays, Diwali Break, Winter Break). Every day in the range becomes a holiday.</div>
-        <div class="form-row" style="flex-wrap:wrap;align-items:flex-end;gap:12px">
-          <div class="fg" style="max-width:220px"><label>Name</label><input id="hg_label" placeholder="e.g. Summer Holidays"></div>
-          <div class="fg" style="max-width:170px"><label>From</label><input type="date" id="hg_from"></div>
-          <div class="fg" style="max-width:170px"><label>To</label><input type="date" id="hg_to"></div>
-          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;padding-bottom:8px"><input type="checkbox" id="hg_skipSun" checked style="width:15px;height:15px;accent-color:var(--indigo)"> Skip Sundays</label>
-          <button class="btn btn-dark" onclick="addHolidayGroup()">Add Holiday Group</button>
-        </div>
-      </div>
       <div class="card">
         <div id="calGrid"></div>
         <div style="display:flex;gap:16px;margin-top:14px;font-size:11.5px;color:var(--ink-soft)">
@@ -893,19 +878,36 @@ tbody tr:hover td{background:var(--lav-50)}
         <div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px">Counted from the session start (<span id="wdSummaryStart">—</span>), excluding Sundays &amp; holidays. This is the same figure teachers use for attendance.</div>
         <div id="calMonthSummary"><div style="color:var(--ink-faint);font-size:12.5px">Loading…</div></div>
       </div>
+      <div class="card" style="margin-top:16px">
+        <div style="font-size:13px;font-weight:800;margin-bottom:4px">Add a holiday group</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Mark a whole break at once (e.g. Summer Holidays, Diwali Break, Winter Break). Every day in the range becomes a holiday.</div>
+        <div class="form-row" style="flex-wrap:wrap;align-items:flex-end;gap:12px">
+          <div class="fg" style="max-width:220px"><label>Name</label><input id="hg_label" placeholder="e.g. Summer Holidays"></div>
+          <div class="fg" style="max-width:170px"><label>From</label><input type="date" id="hg_from"></div>
+          <div class="fg" style="max-width:170px"><label>To</label><input type="date" id="hg_to"></div>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;padding-bottom:8px"><input type="checkbox" id="hg_skipSun" checked style="width:15px;height:15px;accent-color:var(--indigo)"> Skip Sundays</label>
+          <button class="btn btn-dark" onclick="addHolidayGroup()">Add Holiday Group</button>
+        </div>
+      </div>
     </div>
 
     <!-- CLASS ATTENDANCE -->
     <div class="page" id="page-classatt">
-      <div class="page-head"><div><h2>Class Attendance</h2><p>View or upload attendance for any class and date</p></div></div>
+      <div class="page-head"><div><h2>Class Attendance</h2><p>View the monthly attendance report for any class</p></div></div>
       <div class="card" style="margin-bottom:18px">
-        <div class="form-row" style="margin-bottom:0">
+        <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
           <div class="fg"><label>Class</label><select id="ca_class" onchange="caLoadSections()"><option value="">Select class</option></select></div>
-          <div class="fg"><label>Section</label><select id="ca_section" onchange="syncStreamSection('section','ca')"><option value="">Select class first</option></select></div>
-          <div class="fg" id="ca_stream_fg" style="display:none"><label>Stream</label><select id="ca_stream" onchange="syncStreamSection('stream','ca')"><option value="">All streams</option></select></div>
-          <div class="fg"><label>Date From</label><input type="date" id="ca_from"></div>
-          <div class="fg"><label>Date To</label><input type="date" id="ca_to"></div>
-          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load</button><button class="btn btn-ghost" style="align-self:flex-end" onclick="debugAttendance()">🔍 Debug</button>
+          <div class="fg"><label>Section</label><select id="ca_section"><option value="">Select class first</option></select></div>
+          <div class="fg" style="max-width:170px"><label>Month</label>
+            <select id="ca_month">
+              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="ca_year" min="2024" max="2035"></div>
+          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load Report</button>
         </div>
       </div>
       <div id="caTable"></div>
@@ -1616,7 +1618,7 @@ function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
 const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',settings:'Settings',requests:'Access Requests'}
-const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
+const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt}
 
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
@@ -3827,48 +3829,94 @@ async function toggleMiscFee(id,current){const{error}=await sb.from('misc_fees')
 async function deleteMiscFee(id,name){confirmAct('Delete "'+name+'"?','Payment records are preserved.',async()=>{const{error}=await sb.from('misc_fees').delete().eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Fee deleted','success');loadMiscFees()})}
 
 // ═══════════ MARKS OVERVIEW ═══════════
-async function loadMarksOverviewShell(){
-  const el=$('marksStatus');ldg(el)
-  if(!SESS){emp(el,'No active session');return}
-  const{data:asmts}=await sb.from('assessments').select('assessment_id,name').eq('session_id',SESS.session_id)
-  if(!asmts?.length){emp(el,'No assessments in this session');return}
-  const marks=await Promise.all(asmts.map(a=>sb.from('marks').select('*',{count:'exact',head:true}).eq('assessment_id',a.assessment_id)))
-  el.innerHTML='<div class="map-tags">'+asmts.map((a,i)=>'<span class="map-tag">'+esc(a.name)+': <b>'+(marks[i].count||0)+'</b> marks</span>').join('')+'</div>'
+function loadMarksOverviewShell(){
+  // Populate the class dropdown; the marks sheet loads on demand.
+  const sel=$('mo_class'); if(sel)sel.innerHTML='<option value="">Select class</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
 }
 async function moLoadSections(){
   const cid=$('mo_class')?.value
-  $('mo_section').innerHTML='<option value="">All sections</option>'
-  $('mo_subject').innerHTML='<option value="">All subjects</option>'
-  $('mo_assessments_wrap').innerHTML='<p style="font-size:11.5px;color:var(--ink-faint)">Select class first</p>'
+  if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'
+  if($('mo_assess'))$('mo_assess').innerHTML='<option value="">Select class first</option>'
   if(!cid||!SESS)return
-  const[{data:secs},{data:subs},{data:acRows}]=await Promise.all([
+  const[{data:secs},{data:acRows}]=await Promise.all([
     sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name'),
-    sb.from('class_subject_assignments').select('subjects(subject_id,name)').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true),
-    sb.from('assessment_classes').select('assessment_id,assessments(assessment_id,name,commencement_date)').eq('class_id',cid)
+    sb.from('assessment_classes').select('assessment_id,assessments(assessment_id,name,commencement_date,end_date,max_marks,pass_marks)').eq('class_id',cid)
   ])
-  $('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
-  await loadStreamsFor(cid,'mo_stream')
-  $('mo_subject').innerHTML='<option value="">All subjects</option>'+(subs||[]).map(s=>'<option value="'+s.subjects.subject_id+'">'+esc(s.subjects.name)+'</option>').join('')
-  const asmtList=(acRows||[]).map(r=>r.assessments).filter(Boolean)
-  if(!asmtList.length){$('mo_assessments_wrap').innerHTML='<p style="font-size:11.5px;color:var(--ink-faint)">No assessments for this class</p>';return}
-  $('mo_assessments_wrap').innerHTML=asmtList.map(a=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" value="'+a.assessment_id+'" class="mo_asmt_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(a.name)+'</span></label>').join('')
+  if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+  const asmtList=(acRows||[]).map(r=>r.assessments).filter(Boolean).sort((a,b)=>String(a.commencement_date||'').localeCompare(String(b.commencement_date||'')))
+  if($('mo_assess'))$('mo_assess').innerHTML= asmtList.length
+    ? '<option value="">Select assessment</option>'+asmtList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
+    : '<option value="">No assessments for this class</option>'
+  window._moAssessById={}; asmtList.forEach(a=>window._moAssessById[a.assessment_id]=a)
 }
+// Marks sheet for one class+section+assessment — students × subjects, like the
+// class-teacher assessment report (per-subject max via overrides, total, %).
 async function loadMarksTable(){
-  const classId=$('mo_class')?.value,secId=$('mo_section')?.value,subId=$('mo_subject')?.value
-  const selectedA=[...document.querySelectorAll('.mo_asmt_chk:checked')].map(el=>el.value)
-  const el=$('marksTable');ldg(el)
-  if(!classId){emp(el,'Select a class first');return}
-  let q=sb.from('marks').select('marks_obtained,is_absent,is_locked,assessment_id,subject_id,subjects(name),assessments(name),teachers(full_name),student_enrollments!inner(roll_no,students(full_name,student_id),class_id,section_id,session_id)').eq('student_enrollments.session_id',SESS?.session_id||'').eq('student_enrollments.class_id',classId)
-  if(secId)q=q.eq('student_enrollments.section_id',secId)
-  if(subId)q=q.eq('subject_id',subId)
-  if(selectedA.length)q=q.in('assessment_id',selectedA)
-  const{data,error}=await q.limit(500)
-  if(error||!data?.length){emp(el,error?'Error: '+error.message:'No marks found.');return}
-  const students={},cols={}
-  data.forEach(m=>{const sid=m.student_enrollments?.students?.student_id||m.student_enrollments?.roll_no||'?';if(!students[sid])students[sid]={roll:m.student_enrollments?.roll_no,name:m.student_enrollments?.students?.full_name,marks:{}};const key=(m.assessments?.name||'Test')+' — '+(m.subjects?.name||'?');students[sid].marks[key]=m.is_absent?'A':String(m.marks_obtained??'—');cols[key]=true})
-  const colList=Object.keys(cols)
-  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student</th>'+colList.map(k=>'<th>'+esc(k)+'</th>').join('')+'</tr></thead><tbody>'+Object.values(students).map(s=>'<tr><td class="mono">'+(s.roll||'—')+'</td><td>'+esc(s.name||'—')+'</td>'+colList.map(k=>'<td class="mono">'+esc(s.marks[k]||'—')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div></div>'
+  const classId=$('mo_class')?.value,secId=$('mo_section')?.value,assessId=$('mo_assess')?.value
+  const el=$('marksTable')
+  if(!classId){emp(el,'Select a class');return}
+  if(!assessId){emp(el,'Select an assessment');return}
+  ldg(el,'Loading marks sheet…')
+  const assess=(window._moAssessById||{})[assessId]||null
+
+  // Students in this class (+ section if chosen)
+  let sq=sb.from('student_enrollments')
+    .select('enrollment_id,roll_no,students(full_name,father_name)')
+    .eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').eq('relieved',false)
+  if(secId)sq=sq.eq('section_id',secId)
+  const{data:studs}=await sq.order('roll_no')
+  if(!studs?.length){emp(el,'No students in this class'+(secId?'/section':'')+'.');return}
+  const eids=studs.map(s=>s.enrollment_id)
+
+  // Subjects for this class (+section). If a specific section is chosen use it,
+  // else take the distinct subjects across the class.
+  let mq=sb.from('teacher_subject_class_map').select('subject_id,subjects(name,subject_id)').eq('class_id',classId).eq('session_id',SESS?.session_id||'')
+  if(secId)mq=mq.eq('section_id',secId)
+  const{data:subMaps}=await mq
+  const uniqueSubs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
+  if(!uniqueSubs.length){emp(el,'No subjects mapped for this class in Class & Subject Mapping.');return}
+
+  // Per-subject max/pass overrides.
+  const _defMax=assess?.max_marks||100, _defPass=assess?.pass_marks||Math.round(_defMax*0.33)
+  const{data:_ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',classId)
+  const _ovMap={}; (_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  const subMax=sid=>{const o=_ovMap[sid];return (o&&o.max!=null)?o.max:_defMax}
+  const subPass=sid=>{const o=_ovMap[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return _defPass}
+
+  const{data:marks}=await sb.from('marks').select('*').in('enrollment_id',eids).eq('assessment_id',assessId)
+  const marksMap={}; (marks||[]).forEach(m=>{if(!marksMap[m.enrollment_id])marksMap[m.enrollment_id]={};marksMap[m.enrollment_id][m.subject_id]=m})
+
+  let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
+    +'<table style="min-width:800px"><thead><tr>'
+    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
+    +'<th class="sticky-col" style="left:50px;min-width:140px">Name</th>'
+    +'<th class="sticky-col" style="left:190px;min-width:130px">Father\'s Name</th>'
+  uniqueSubs.forEach(m=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+subMax(m.subject_id)+'</span></th>'})
+  html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th></tr></thead><tbody>'
+
+  studs.forEach(s=>{
+    const sMarks=marksMap[s.enrollment_id]||{}
+    let total=0,possible=0
+    html+='<tr>'
+      +'<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
+      +'<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td class="sticky-col" style="left:190px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+    uniqueSubs.forEach(m=>{
+      const mk=sMarks[m.subject_id]
+      if(mk?.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';return}
+      if(mk?.marks_obtained==null){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
+      const v=parseFloat(mk.marks_obtained); total+=v; possible+=subMax(m.subject_id)
+      const fail=v<subPass(m.subject_id)
+      html+='<td style="text-align:center;font-weight:700;'+(fail?'color:var(--danger);background:#FCE7EA':'')+'">'+mk.marks_obtained+'</td>'
+    })
+    const pct=possible>0?Math.round(total/possible*100):null
+    html+='<td style="text-align:center;font-weight:700">'+(possible>0?total:'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--indigo-dark)">'+(pct!=null?pct+'%':'—')+'</td></tr>'
+  })
+  html+='</tbody></table></div>'
+  el.innerHTML=html
 }
+
 
 // ═══════════ PROMOTION ═══════════
 // ═══════════ STUDENT RELIEVING ═══════════
@@ -4267,7 +4315,7 @@ async function removeHolidayGroup(label){
 }
 
 // ═══════════ CLASS ATTENDANCE ═══════════
-async function caLoadSections(){const cid=$('ca_class')?.value,sel=$('ca_section');if(sel)sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');if(sel)sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('');await loadStreamsFor(cid,'ca_stream')}
+async function caLoadSections(){const cid=$('ca_class')?.value,sel=$('ca_section');if(sel)sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');if(sel)sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')}
 async function debugAttendance(){
   const classId=$('ca_class')?.value,secId=$('ca_section')?.value
   const fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
@@ -4296,96 +4344,103 @@ async function debugAttendance(){
   toast('Total att sample: '+JSON.stringify(total?.slice(0,2)),'info')
 }
 
+function caInit(){
+  const now=new Date()
+  if($('ca_month')&&!$('ca_month').value)$('ca_month').value = SESS?.start_date ? (new Date(SESS.start_date+'T12:00:00').getMonth()+1) : (now.getMonth()+1)
+  if($('ca_year')&&!$('ca_year').value)$('ca_year').value = now.getFullYear()
+}
 async function loadClassAttendance(){
   const classId=$('ca_class')?.value,secId=$('ca_section')?.value
-  const fromDate=$('ca_from')?.value,toDate=$('ca_to')?.value
-  if(!classId||!fromDate||!toDate){toast('Select class and date range','error');return}
-  if(fromDate>toDate){toast('From date must be before To date','error');return}
-  const el=$('caTable');ldg(el)
+  const month=parseInt($('ca_month')?.value),year=parseInt($('ca_year')?.value)||new Date().getFullYear()
+  const el=$('caTable')
+  if(!classId){toast('Select a class','error');return}
+  if(!month){toast('Select a month','error');return}
+  ldg(el,'Generating report…')
 
-  // STEP 1 — Get enrollment IDs for this class (simple query, no joins)
-  const streamId=$('ca_stream')?.value||null
+  // Students in this class (+ section if chosen)
   let eq=sb.from('student_enrollments')
-    .select('enrollment_id,roll_no,student_id,section_id,stream_id')
-    .eq('session_id',SESS?.session_id||'')
-    .eq('class_id',classId)
-    .eq('status','active')
-  if(secId) eq=eq.eq('section_id',secId)
-  if(streamId) eq=eq.eq('stream_id',streamId)
-  const{data:enrollments,error:ee}=await eq
-  if(ee||!enrollments?.length){
-    emp(el,ee?'Error: '+ee.message:'No enrolled students found.');
-    $('caUpload').style.display='block'
-    return
+    .select('enrollment_id,roll_no,is_new_admission,students(full_name,father_name,admission_date)')
+    .eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').eq('relieved',false)
+  if(secId)eq=eq.eq('section_id',secId)
+  const{data:studs,error:se}=await eq.order('roll_no')
+  if(se){emp(el,'Error: '+se.message);return}
+  if(!studs?.length){emp(el,'No students in this class'+(secId?'/section':'')+'.');return}
+  const eids=studs.map(s=>s.enrollment_id)
+
+  // Effective start date for THIS class (per-class override, else session start).
+  let classStart=SESS?.start_date||null
+  try{
+    const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS?.session_id||'').eq('class_id',classId).maybeSingle()
+    if(cs?.start_date)classStart=cs.start_date
+  }catch(e){}
+
+  const daysInMonth=new Date(year,month,0).getDate()
+  const monthStr=String(month).padStart(2,'0')
+  const from=year+'-'+monthStr+'-01', to=year+'-'+monthStr+'-'+String(daysInMonth).padStart(2,'0')
+
+  const[{data:att},{data:hols},{data:monthly}]=await Promise.all([
+    sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',from).lte('date',to),
+    sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to),
+    sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to)
+  ])
+  const attMap={}; (att||[]).forEach(a=>{if(!attMap[a.enrollment_id])attMap[a.enrollment_id]={};attMap[a.enrollment_id][a.date]=a.status})
+  const holSet=new Set((hols||[]).map(h=>h.date))
+
+  const days=[]
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr=year+'-'+monthStr+'-'+String(d).padStart(2,'0')
+    const dow=new Date(dateStr+'T12:00:00').getDay()
+    days.push({dateStr,dayLabel:String(d).padStart(2,'0')+'/'+monthStr,dayName:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow],isSun:dow===0,isHol:holSet.has(dateStr)})
+  }
+  const workingDays=days.filter(d=>!d.isSun&&!d.isHol&&(!classStart||d.dateStr>=classStart)).length
+  const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year
+
+  // Monthly-total months (no daily data) → counts-only summary.
+  if((att||[]).length===0 && (monthly||[]).length>0){
+    const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
+    let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
+      +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was back-filled with monthly totals, so only Present/Absent counts are available (no day-by-day record).</div>'
+      +'<table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">Present</th><th style="text-align:center">Absent</th></tr></thead><tbody>'
+    studs.forEach(s=>{const m=mMap[s.enrollment_id];h+='<tr>'
+      +'<td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td>'
+      +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td style="color:var(--ink-soft);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+(m?m.working_days:'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--success)">'+(m?m.present_count:'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+(m?m.absent_count:'—')+'</td></tr>'})
+    h+='</tbody></table></div>'
+    el.innerHTML=h; return
   }
 
-  const enrollIds=enrollments.map(e=>e.enrollment_id)
-  const studentIds=[...new Set(enrollments.map(e=>e.student_id))]
-  const sectionIds=[...new Set(enrollments.map(e=>e.section_id))]
+  let html='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+(classStart&&classStart>from?' <span style="font-size:11px;font-weight:600;color:var(--indigo-dark)">· class starts '+fmtD(classStart)+'</span>':'')+'</h3>'
+    +'<table style="min-width:800px"><thead><tr>'
+    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
+    +'<th class="sticky-col" style="left:50px;min-width:140px">Name</th>'
+    +'<th class="sticky-col" style="left:190px;min-width:140px">Father\'s Name</th>'
+  days.forEach(d=>{const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'})
+  html+='<th style="text-align:center">P</th><th style="text-align:center">A</th><th style="text-align:center">L</th></tr></thead><tbody>'
 
-  // STEP 2 — Get student names (simple query)
-  const{data:stuRows}=await sb.from('students').select('student_id,full_name').in('student_id',studentIds)
-  const nameMap={}; (stuRows||[]).forEach(s=>{nameMap[s.student_id]=s.full_name})
-
-  // STEP 3 — Get section names (simple query)
-  const{data:secRows}=await sb.from('class_sections').select('section_id,name').in('section_id',sectionIds)
-  const secNameMap={}; (secRows||[]).forEach(s=>{secNameMap[s.section_id]=s.name})
-
-  // STEP 4 — Get attendance records (simple IN query)
-  const{data:attRows,error:ae}=await sb.from('student_attendance')
-    .select('enrollment_id,date,status')
-    .in('enrollment_id',enrollIds)
-    .gte('date',fromDate)
-    .lte('date',toDate)
-  if(ae){emp(el,'Attendance query error: '+ae.message);return}
-
-  // Build status map keyed by "enrollmentId_date"
-  const statusMap={}
-  ;(attRows||[]).forEach(r=>{statusMap[r.enrollment_id+'_'+r.date]=r.status})
-
-  // Build date columns with no timezone offset (pure string arithmetic)
-  const dates=[]
-  let[_y,_mo,_d]=fromDate.split('-').map(Number)
-  const[_ey,_em,_ed]=toDate.split('-').map(Number)
-  while(_y<_ey||(_y===_ey&&_mo<_em)||(_y===_ey&&_mo===_em&&_d<=_ed)){
-    dates.push(_y+'-'+String(_mo).padStart(2,'0')+'-'+String(_d).padStart(2,'0'))
-    _d++
-    const dim=new Date(_y,_mo,0).getDate()
-    if(_d>dim){_d=1;_mo++}
-    if(_mo>12){_mo=1;_y++}
-  }
-
-  const sClr={'P':'pill-success','A':'pill-danger','L':'pill-warn','H':'pill-neutral'}
-  const sorted=[...enrollments].sort((a,b)=>(a.roll_no||0)-(b.roll_no||0))
-
-  el.innerHTML='<div class="card"><p style="font-size:11.5px;color:var(--ink-soft);margin-bottom:12px">'+
-    sorted.length+' students · '+dates.length+' date(s) · '+(attRows?.length||0)+' records found</p>'+
-    '<div class="table-wrap" style="max-height:520px;overflow:auto"><table>'+
-    '<thead><tr><th>Roll</th><th>Name</th><th>Sec</th>'+
-    dates.map(d=>'<th style="font-size:10px;writing-mode:vertical-rl;padding:8px 4px;min-width:26px">'+d.slice(5)+'</th>').join('')+
-    '<th>P</th><th>A</th></tr></thead><tbody>'+
-    sorted.map(e=>{
-      const nm=nameMap[e.student_id]||e.student_id||'—'
-      const sec=secNameMap[e.section_id]||'—'
-      const statuses=dates.map(d=>statusMap[e.enrollment_id+'_'+d]||'—')
-      const p=statuses.filter(x=>x==='P').length
-      const a=statuses.filter(x=>x==='A').length
-      return '<tr>'+
-        '<td class="mono">'+(e.roll_no||'—')+'</td>'+
-        '<td>'+esc(nm)+'</td>'+
-        '<td>'+esc(sec)+'</td>'+
-        statuses.map(s=>'<td style="text-align:center;padding:6px 3px">'+
-          (s==='—'?'<span style="color:var(--ink-faint);font-size:11px">—</span>':
-          '<span class="pill '+sClr[s]+'" style="padding:2px 6px;font-size:9.5px">'+s+'</span>')+
-          '</td>').join('')+
-        '<td class="mono" style="color:var(--success);font-weight:700">'+p+'</td>'+
-        '<td class="mono" style="color:var(--danger);font-weight:700">'+a+'</td></tr>'
-    }).join('')+
-    '</tbody></table></div></div>'
-
-  $('caUpload').style.display='block'
-  $('caUploadTitle').textContent='Upload Attendance — '+fmtD(fromDate)+' to '+fmtD(toDate)
-
+  studs.forEach(s=>{
+    let pCount=0,aCount=0,lCount=0
+    html+='<tr>'
+    html+='<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
+    html+='<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+    html+='<td class="sticky-col" style="left:190px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+    days.forEach(d=>{
+      if(d.isSun){html+='<td class="cell-h" style="font-size:10px">—</td>';return}
+      if(d.isHol){html+='<td class="cell-h" style="font-size:10px">H</td>';return}
+      const st=attMap[s.enrollment_id]?.[d.dateStr]||''
+      if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
+      else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
+      else if(st==='L'){lCount++;pCount++;html+='<td class="cell-l">L</td>'}
+      else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
+    })
+    html+='<td style="text-align:center;font-weight:700;color:var(--success)">'+pCount+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+aCount+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--warn)">'+lCount+'</td></tr>'
+  })
+  html+='</tbody></table></div>'
+  el.innerHTML=html
 }
 
 async function downloadAttSample(){
