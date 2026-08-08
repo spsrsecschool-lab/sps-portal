@@ -525,7 +525,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
               <option value="1">January</option><option value="2">February</option><option value="3">March</option>
             </select>
           </div>
-          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="pa_year" min="2024" max="2035"></div>
+          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="pa_year" min="2024" max="2035" onchange="paMonthChanged()"></div>
           <button class="btn btn-soft" onclick="loadPrevAtt()">Load Students</button>
         </div>
         <div id="pa_working" style="font-size:13px;font-weight:700;color:var(--indigo-dark)"></div>
@@ -1236,6 +1236,7 @@ async function confirmAttSubmit(date){
 // ═══════════ ATTENDANCE REPORT ═══════════
 // ═══════════ PREVIOUS (BACKLOG) ATTENDANCE ═══════════
 let _paWorking=0, _paStudentWD={}, _paHolSet=new Set(), _paMonthLocked=false
+let _paLoadedKey=null, _paLoadedLabel='', _paDirtyRows=new Set()
 function paRange(){
   const m=parseInt($('pa_month')?.value)
   if(!m) return {from:'',to:'',custom:false}
@@ -1283,9 +1284,21 @@ async function paComputeWorking(){
   }
   return wd
 }
-function paMonthChanged(){ paComputeWorking() }
+async function paMonthChanged(){
+  const wrap=$('prevAttWrap')
+  if(_paLoadedKey){
+    if(_paDirtyRows.size){
+      const doSave=confirm('You have unsaved attendance for '+_paLoadedLabel+'.\n\nOK = save it now,  Cancel = discard it.')
+      if(doSave)await saveAllPrevAtt(true)
+    }
+    if(wrap)wrap.innerHTML=''
+    _paLoadedKey=null; _paLoadedLabel=''; _paDirtyRows.clear()
+  }
+  paComputeWorking()
+}
 function paWDFor(eid){ return _paStudentWD[eid]!=null ? _paStudentWD[eid] : (_paWorking||0) }
 function paSyncAbsent(inp){
+  if(inp?.dataset?.eid)_paDirtyRows.add(inp.dataset.eid)
   const wd=paWDFor(inp.dataset.eid)
   const span=document.querySelector('.pa-absent[data-eid="'+inp.dataset.eid+'"]')
   if(!span)return
@@ -1308,7 +1321,9 @@ async function loadPrevAtt(){
   const exMap={}; (existing||[]).forEach(r=>exMap[r.enrollment_id]=r)
   _paStudentWD={}
   CLASS_STUDENTS.forEach(s=>{_paStudentWD[s.enrollment_id]=effectiveWD(s.is_new_admission?s.students?.admission_date:null, from, to, _paHolSet)})
-  el.innerHTML='<div class="card"><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Enter <b>Present</b> days for each student — Absent updates automatically. Present + Absent must equal that student\'s <b>Working Days</b> (fewer for those who joined mid-period).</div><div style="overflow-x:auto"><table><thead><tr>'
+  const month=parseInt($('pa_month')?.value),year=parseInt($('pa_year')?.value)||new Date().getFullYear()
+  const mLabel=['January','February','March','April','May','June','July','August','September','October','November','December'][month-1]+' '+year
+  el.innerHTML='<div class="card"><h3 style="margin:0 0 4px">'+esc(mLabel)+'</h3><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Enter <b>Present</b> days for each student — Absent updates automatically. Present + Absent must equal that student\'s <b>Working Days</b> (fewer for those who joined mid-period).</div><div style="overflow-x:auto"><table><thead><tr>'
     +'<th>Roll</th><th>Student</th><th style="width:80px">Working</th><th style="width:120px">Present</th><th style="width:90px">Absent</th><th style="width:60px">Save</th></tr></thead><tbody>'
     +CLASS_STUDENTS.map(s=>{const ex=exMap[s.enrollment_id];const p=ex?ex.present_count:'';const wd=_paStudentWD[s.enrollment_id];const joined=s.is_new_admission&&s.students?.admission_date&&s.students.admission_date>from;return '<tr data-eid="'+s.enrollment_id+'">'
       +'<td class="mono">'+esc(s.roll_no||'—')+'</td>'
@@ -1318,7 +1333,32 @@ async function loadPrevAtt(){
       +'<td><span class="pa-absent" data-eid="'+s.enrollment_id+'" style="font-family:var(--mono);font-weight:700;color:'+(ex?'var(--ink)':'var(--ink-soft)')+'">'+(ex?ex.absent_count:'—')+'</span></td>'
       +'<td><button class="btn btn-success btn-xs" title="Save this student" onclick="savePrevAttOne(\''+s.enrollment_id+'\')"'+(wd<=0?' disabled':'')+'><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><polyline points="20 6 9 17 4 12"/></svg></button></td>'
       +'</tr>'}).join('')
-    +'</tbody></table></div></div>'
+    +'</tbody></table></div>'
+    +'<div style="margin-top:14px"><button class="btn btn-primary" onclick="saveAllPrevAtt()">Save All</button></div>'
+    +'</div>'
+  _paLoadedKey=from+'_'+to; _paLoadedLabel=mLabel; _paDirtyRows.clear()
+}
+async function saveAllPrevAtt(silent){
+  const {from,to}=paRange()
+  if(!from||!to){if(!silent)toast('Select a month','error');return}
+  if(_paMonthLocked){if(!silent)toast('This month is already marked in daily attendance','error');return}
+  const rows=[]; let bad=0
+  CLASS_STUDENTS.forEach(s=>{
+    const eid=s.enrollment_id, wd=paWDFor(eid); if(wd<=0)return
+    const inp=document.querySelector('.pa-present[data-eid="'+eid+'"]'); if(!inp)return
+    const raw=(inp.value||'').trim(); if(raw==='')return
+    const present=parseInt(raw)
+    if(isNaN(present)||present<0||present>wd){bad++;inp.style.borderColor='var(--danger)';return}
+    inp.style.borderColor=''
+    rows.push({enrollment_id:eid,session_id:SESS?.session_id||null,from_date:from,to_date:to,working_days:wd,present_count:present,absent_count:wd-present,entered_by:TEACHER.teacher_id,updated_at:new Date().toISOString()})
+  })
+  if(bad){toast(bad+' row(s) have an invalid present count — fix the highlighted ones','error');return}
+  if(!rows.length){if(!silent)toast('Enter present counts first','error');return}
+  const{data,error}=await sb.from('attendance_monthly').upsert(rows,{onConflict:'enrollment_id,from_date,to_date'}).select()
+  if(error){toast('Failed: '+error.message,'error');return}
+  rows.forEach(r=>{const sp=document.querySelector('.pa-absent[data-eid="'+r.enrollment_id+'"]');if(sp){sp.textContent=r.absent_count;sp.style.color='var(--ink)'}const ip=document.querySelector('.pa-present[data-eid="'+r.enrollment_id+'"]');if(ip)ip.style.borderColor='var(--grn)'})
+  _paDirtyRows.clear()
+  if(!silent)toast('Saved attendance for '+rows.length+' student'+(rows.length!==1?'s':'')+' ✓','success')
 }
 async function savePrevAttOne(eid){
   const wd=paWDFor(eid)
@@ -1344,6 +1384,7 @@ async function savePrevAttOne(eid){
   if(error){toast('Failed: '+error.message,'error');return}
   if(!data||!data.length){toast('Save did not persist — check the attendance_monthly table exists (run the SQL).','error');return}
   inp.style.borderColor='var(--grn)'
+  _paDirtyRows.delete(eid)
   const span=document.querySelector('.pa-absent[data-eid="'+eid+'"]');if(span){span.textContent=absent;span.style.color='var(--ink)'}
   toast(name+': '+present+' present · '+absent+' absent saved ✓','success')
 }
