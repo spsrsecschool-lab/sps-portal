@@ -187,6 +187,10 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .pill-indigo{background:var(--indigo-100);color:var(--indigo-dark)}
 .table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
 .sticky-col{position:sticky;background:var(--white);z-index:2}
+.att-scroll{max-height:72vh;overflow:auto;position:relative}
+.att-scroll>h3{position:sticky;top:0;z-index:7;background:var(--white);margin:0;padding:10px 2px;height:44px;box-sizing:border-box;display:flex;align-items:center}
+.att-scroll thead th{position:sticky;top:44px;z-index:4}
+.att-scroll thead th.sticky-col{z-index:6}
 thead .sticky-col{background:var(--lav-100);z-index:3}
 .cell-p{background:#E4F7EE!important;color:#1A7A4A;font-weight:700;text-align:center;font-size:11px}
 .cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
@@ -4412,7 +4416,7 @@ async function loadClassAttendance(){
     el.innerHTML=h; return
   }
 
-  let html='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+(classStart&&classStart>from?' <span style="font-size:11px;font-weight:600;color:var(--indigo-dark)">· class starts '+fmtD(classStart)+'</span>':'')+'</h3>'
+  let html='<div class="card"><div class="att-scroll"><h3>'+monthName+' — Working Days: '+workingDays+(classStart&&classStart>from?' <span style="font-size:11px;font-weight:600;color:var(--indigo-dark)">· class starts '+fmtD(classStart)+'</span>':'')+'</h3>'
     +'<table style="min-width:800px"><thead><tr>'
     +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
     +'<th class="sticky-col" style="left:50px;min-width:140px">Name</th>'
@@ -4439,7 +4443,7 @@ async function loadClassAttendance(){
       +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+aCount+'</td>'
       +'<td style="text-align:center;font-weight:700;color:var(--warn)">'+lCount+'</td></tr>'
   })
-  html+='</tbody></table></div>'
+  html+='</tbody></table></div></div>'
   el.innerHTML=html
 }
 
