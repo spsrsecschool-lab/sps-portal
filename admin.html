@@ -1066,6 +1066,11 @@ tbody tr:hover td{background:var(--lav-50)}
 
       <div id="settingsTab-session">
         <div class="card" style="max-width:640px;margin-bottom:18px">
+          <h3 style="margin-top:0">Class start dates (this session)</h3>
+          <div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px">Most classes use the session's start date. Set a date here only for classes that start later (e.g. 11th). Blank = uses the session start. This drives working-days and the mark-sheet attendance column for that class.</div>
+          <div id="classStartList"><div class="loading-row"><div class="spinner"></div></div></div>
+        </div>
+        <div class="card" style="max-width:640px;margin-bottom:18px">
           <h3>All Sessions</h3>
           <div id="sessionList"><div class="loading-row"><div class="spinner"></div></div></div>
           <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
@@ -6183,11 +6188,41 @@ function refreshAllPortals(){
 // ═══════════ SETTINGS PAGE INIT ═══════════
 function loadSettings(){
   loadSessionList()
+  loadClassStartDates()
   loadClassesList()
   loadSubjectsList()
   loadStreamsList()
   loadClassTeacherControl()
   reflectThemeChoice()
+}
+
+// Per-class start-date overrides for the current session.
+async function loadClassStartDates(){
+  const el=$('classStartList'); if(!el)return
+  if(!SESS){el.innerHTML='<div style="color:var(--ink-faint);font-size:12.5px">No active session.</div>';return}
+  const{data:overrides}=await sb.from('class_session_start').select('class_id,start_date').eq('session_id',SESS.session_id)
+  const ovMap={}; (overrides||[]).forEach(o=>ovMap[o.class_id]=o.start_date)
+  const classes=(ALL_CLASSES||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  el.innerHTML='<div style="font-size:11px;color:var(--ink-soft);margin-bottom:8px">Session start: <b>'+(SESS.start_date?fmtD(SESS.start_date):'not set')+'</b></div>'
+    +classes.map(c=>'<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">'
+      +'<div style="flex:1;font-weight:600;font-size:13px">'+esc(c.name)+'</div>'
+      +'<input type="date" id="cs_'+c.class_id+'" value="'+(ovMap[c.class_id]||'')+'" style="font-family:var(--font);font-size:13px;padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;background:var(--lav-50)">'
+      +'<button class="btn btn-success btn-xs" onclick="saveClassStart(\''+c.class_id+'\')" title="Save">✓</button>'
+      +(ovMap[c.class_id]?'<button class="btn btn-ghost btn-xs" onclick="clearClassStart(\''+c.class_id+'\')" title="Use session start">✕</button>':'')
+      +'</div>').join('')
+}
+async function saveClassStart(classId){
+  const v=$('cs_'+classId)?.value
+  if(!v){ return clearClassStart(classId) }
+  if(SESS?.start_date && v<SESS.start_date){toast('Class start cannot be before the session start ('+fmtD(SESS.start_date)+')','error');return}
+  const{error}=await sb.from('class_session_start').upsert({session_id:SESS.session_id,class_id:classId,start_date:v,updated_at:new Date().toISOString()},{onConflict:'session_id,class_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Class start date saved ✓','success'); loadClassStartDates()
+}
+async function clearClassStart(classId){
+  const{error}=await sb.from('class_session_start').delete().eq('session_id',SESS.session_id).eq('class_id',classId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Reverted to session start','success'); loadClassStartDates()
 }
 
 // ═══════════ THEME ═══════════
