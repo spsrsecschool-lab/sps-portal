@@ -188,9 +188,12 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
 .sticky-col{position:sticky;background:var(--white);z-index:2}
 .att-scroll{max-height:72vh;overflow:auto;position:relative}
-.att-scroll>h3{position:sticky;top:0;z-index:7;background:var(--white);margin:0;padding:10px 2px;height:44px;box-sizing:border-box;display:flex;align-items:center}
-.att-scroll thead th{position:sticky;top:44px;z-index:4}
-.att-scroll thead th.sticky-col{z-index:6}
+.att-scroll table{border-collapse:separate;border-spacing:0}
+.att-scroll thead th{position:sticky;background:var(--lav-100);z-index:4}
+.att-scroll thead tr.mrow th{top:0;height:44px;padding:0 12px;box-sizing:border-box;z-index:6;text-align:left;font-weight:800;font-size:13px;color:var(--ink)}
+.att-scroll thead tr.hrow th{top:44px;z-index:5}
+.att-scroll .rollcol{position:sticky;left:0;background:var(--white);z-index:3}
+.att-scroll thead .hrow .rollcol{background:var(--lav-100);z-index:7}
 thead .sticky-col{background:var(--lav-100);z-index:3}
 .cell-p{background:#E4F7EE!important;color:#1A7A4A;font-weight:700;text-align:center;font-size:11px}
 .cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
@@ -4416,20 +4419,23 @@ async function loadClassAttendance(){
     el.innerHTML=h; return
   }
 
-  let html='<div class="card"><div class="att-scroll"><h3>'+monthName+' — Working Days: '+workingDays+(classStart&&classStart>from?' <span style="font-size:11px;font-weight:600;color:var(--indigo-dark)">· class starts '+fmtD(classStart)+'</span>':'')+'</h3>'
-    +'<table style="min-width:800px"><thead><tr>'
-    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
-    +'<th class="sticky-col" style="left:50px;min-width:140px">Name</th>'
-    +'<th class="sticky-col" style="left:190px;min-width:140px">Father\'s Name</th>'
+  const ncols=3+days.length+3
+  let html='<div class="card"><div class="att-scroll"><table style="min-width:800px">'
+    +'<thead>'
+    +'<tr class="mrow"><th class="rollcol" colspan="'+ncols+'">'+monthName+' — Working Days: '+workingDays+(classStart&&classStart>from?'  ·  class starts '+fmtD(classStart):'')+'</th></tr>'
+    +'<tr class="hrow">'
+    +'<th class="rollcol" style="min-width:50px">Roll</th>'
+    +'<th style="min-width:130px">Name</th>'
+    +'<th style="min-width:130px">Father\'s Name</th>'
   days.forEach(d=>{const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'})
   html+='<th style="text-align:center">P</th><th style="text-align:center">A</th><th style="text-align:center">L</th></tr></thead><tbody>'
 
   studs.forEach(s=>{
     let pCount=0,aCount=0,lCount=0
     html+='<tr>'
-    html+='<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-    html+='<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
-    html+='<td class="sticky-col" style="left:190px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+    html+='<td class="rollcol" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
+    html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+    html+='<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     days.forEach(d=>{
       if(d.isSun){html+='<td class="cell-h" style="font-size:10px">—</td>';return}
       if(d.isHol){html+='<td class="cell-h" style="font-size:10px">H</td>';return}
