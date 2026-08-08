@@ -525,7 +525,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
 <script>
 // ═══════════ GLOBALS ═══════════
-let sb, TEACHER=null, SESS=null, MY_CLASS=null
+let sb, TEACHER=null, SESS=null, MY_CLASS=null, MY_CLASS_START=null
 let MY_CLASSES=[]   // all class-teacher rows for this teacher this session
 let _ctChan=null    // realtime channel, re-subscribed per class
 let _enrChan=null   // enrollment (section-move) channel, re-subscribed per class
@@ -634,6 +634,14 @@ function labelFor(ct){
 async function loadClass(ct){
   MY_CLASS=ct
   hideClassPicker()
+  // Effective start date for THIS class: the per-class override if the admin set
+  // one for this session, else the session's global start date. Drives all
+  // working-days counts (attendance + mark-sheet attendance column).
+  MY_CLASS_START=SESS?.start_date||null
+  try{
+    const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS?.session_id||'').eq('class_id',ct.class_id).maybeSingle()
+    if(cs?.start_date)MY_CLASS_START=cs.start_date
+  }catch(e){}
 
   // The flag may have changed since page load (admin toggled it while we were
   // on another class). Refresh this row so access is current on arrival.
@@ -1155,7 +1163,7 @@ function countWorkingDays(from,to,holSet){
     const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
     if(d.getDay()===0)continue                          // Sunday off
     if(holSet.has(ds))continue                          // holiday
-    if(SESS?.start_date&&ds<SESS.start_date)continue    // before session
+    if(MY_CLASS_START&&ds<MY_CLASS_START)continue       // before this class's start
     if(SESS?.end_date&&ds>SESS.end_date)continue        // after session
     n++
   }
@@ -1286,7 +1294,7 @@ async function loadAttReport(){
     const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow]
     days.push({dateStr,dayLabel,dayName,isSun:dow===0,isHol:holSet.has(dateStr)})
   }
-  const workingDays=days.filter(d=>!d.isSun&&!d.isHol).length
+  const workingDays=days.filter(d=>!d.isSun&&!d.isHol&&(!MY_CLASS_START||d.dateStr>=MY_CLASS_START)).length
   const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year
 
   // If this month has NO daily attendance but WAS uploaded as monthly totals via
@@ -2116,7 +2124,7 @@ async function loadAssessMarks(){
   const cutoffDate=assess?.end_date||assess?.commencement_date||null
   let attMap={}
   if(cutoffDate){
-    const sessStart=SESS?.start_date||today().slice(0,5)+'04-01'
+    const sessStart=MY_CLASS_START||today().slice(0,5)+'04-01'
     const attToStr=cutoffDate                       // inclusive — the end date itself counts
     // Get holidays to calculate working days
     const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
