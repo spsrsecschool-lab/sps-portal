@@ -419,7 +419,10 @@
 
   // ── SIGN OUT ─────────────────────────────────────────────────
   SPS.signOut = async function() {
-    await sb.auth.signOut()
+    // scope:'local' signs out ONLY this device. The default ('global') revokes
+    // the refresh token everywhere, which was logging the user out on their
+    // other logged-in devices too.
+    try { await sb.auth.signOut({ scope: 'local' }) } catch (_) { try { await sb.auth.signOut() } catch (_) {} }
     sessionStorage.removeItem('sps_user')
     clearAllPortalCache()
     redirectToLogin()
