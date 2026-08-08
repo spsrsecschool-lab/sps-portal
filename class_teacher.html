@@ -2107,13 +2107,13 @@ async function loadAssessMarks(){
     marksMap[m.enrollment_id][m.subject_id]=m
   })
 
-  // Get attendance up to assessment date for each student
-  const assessDate=assess?.commencement_date?new Date(assess.commencement_date):null
+  // Attendance is counted from session start up to and INCLUDING the assessment's
+  // end date (falls back to the start date if no end date is set).
+  const cutoffDate=assess?.end_date||assess?.commencement_date||null
   let attMap={}
-  if(assessDate){
+  if(cutoffDate){
     const sessStart=SESS?.start_date||today().slice(0,5)+'04-01'
-    const attTo=new Date(assessDate);attTo.setDate(attTo.getDate()-1)
-    const attToStr=attTo.toISOString().slice(0,10)
+    const attToStr=cutoffDate                       // inclusive — the end date itself counts
     // Get holidays to calculate working days
     const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
     const holSet=new Set((hols||[]).map(h=>h.date))
