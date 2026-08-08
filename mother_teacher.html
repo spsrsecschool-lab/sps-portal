@@ -2968,11 +2968,12 @@ async function loadViewMarks(){
 let MK_SUBJECTS_ARE_CONFIGURED=false   // false when falling back to "all subjects" (nothing mapped in admin yet)
 
 async function loadClassSubjects(){
-  // Subjects come from class_subject_assignments for this class
-  const{data:csa}=await sb.from('class_subject_assignments')
+  // Subjects come from Class & Subject Mapping (teacher_subject_class_map),
+  // filtered to this class + section — the SAME source as the marks matrix.
+  const{data:tscm}=await sb.from('teacher_subject_class_map')
     .select('subject_id,subjects(subject_id,name,short_code)')
-    .eq('class_id',MY_CLASS.class_id).eq('session_id',SESS?.session_id||'').eq('is_active',true)
-  let subs=(csa||[]).map(r=>r.subjects).filter(Boolean)
+    .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id).eq('session_id',SESS?.session_id||'')
+  let subs=(tscm||[]).map(r=>r.subjects).filter(Boolean)
   MK_SUBJECTS_ARE_CONFIGURED=subs.length>0
   // Fallback: if none configured, load all active subjects so marks entry etc.
   // still work — a mother teacher covers every subject for her class by design.
