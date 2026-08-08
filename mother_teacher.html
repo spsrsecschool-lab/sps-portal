@@ -91,6 +91,10 @@ thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-w
 tbody td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middle}
 tbody tr:hover td{background:var(--lav-50)}
 .sticky-col{position:sticky;background:var(--white);z-index:2}
+.att-scroll{max-height:72vh;overflow:auto;position:relative}
+.att-scroll>h3{position:sticky;top:0;z-index:7;background:var(--white);margin:0;padding:10px 2px;height:44px;box-sizing:border-box;display:flex;align-items:center}
+.att-scroll thead th{position:sticky;top:44px;z-index:4}
+.att-scroll thead th.sticky-col{z-index:6}
 thead .sticky-col{background:var(--lav-100);z-index:3}
 .cell-p{background:#FDEAEF!important;color:#1A7A4A;font-weight:700;text-align:center;font-size:11px}
 .cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
@@ -160,6 +164,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 @media(max-width:760px){
   [style*="position:sticky"]{position:relative!important;left:auto!important;z-index:auto!important;background:inherit!important}
   .sticky-col{position:relative!important;left:auto!important;z-index:auto!important}
+  td.sticky-col:first-child,th.sticky-col:first-child{position:sticky!important;left:0!important;z-index:5!important}
   .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
 }
 
@@ -785,6 +790,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 @media(max-width:760px){
   [style*="position:sticky"]{position:relative!important;left:auto!important;z-index:auto!important;background:inherit!important}
   .sticky-col{position:relative!important;left:auto!important;z-index:auto!important}
+  td.sticky-col:first-child,th.sticky-col:first-child{position:sticky!important;left:0!important;z-index:5!important}
   .table-wrap{border-radius:0;margin:0 -16px;width:calc(100% + 32px)}
 }
 
@@ -1439,7 +1445,7 @@ async function loadAttReport(){
   }
 
   // Table
-  let html='<div class="card" style="overflow-x:auto"><h3>'
+  let html='<div class="card"><div class="att-scroll"><h3>'
     +monthName+' — Working Days: '+workingDays+'</h3>'
     +'<table style="min-width:800px"><thead><tr>'
     +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
@@ -1484,7 +1490,7 @@ async function loadAttReport(){
     html+='<td style="text-align:center;font-size:11px">'+cnt+'</td>'
   })
   html+='<td></td><td></td><td></td></tr>'
-  html+='</tbody></table></div>'
+  html+='</tbody></table></div></div>'
 
   // Summary below
   const full=CLASS_STUDENTS.filter(s=>{
@@ -3083,32 +3089,35 @@ async function loadAssessMarksEditable(){
   const marksMap={}
   ;(marks||[]).forEach(mk=>{if(!marksMap[mk.enrollment_id])marksMap[mk.enrollment_id]={};marksMap[mk.enrollment_id][mk.subject_id]=mk})
 
-  let html='<div class="card" style="overflow-x:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px"><h3 style="margin:0">'+esc(assess?.name||'Assessment')+' — Enter Marks</h3><button class="btn btn-primary btn-sm" onclick="saveAllMarks(\''+assessId+'\')">Save All Marks</button></div>'
-  html+='<table style="min-width:700px"><thead><tr>'
-    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
-    +'<th class="sticky-col" style="left:50px;min-width:150px">Name</th>'
+  const single=cols.length===1
+  let html='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px"><h3 style="margin:0">'+esc(assess?.name||'Assessment')+' — Enter Marks</h3><button class="btn btn-primary btn-sm" onclick="saveAllMarks(\''+assessId+'\')">Save All Marks</button></div>'
+  html+='<div style="overflow-x:auto"><table style="width:100%'+(single?'':';min-width:520px')+'"><thead><tr>'
+    +'<th class="sticky-col" style="left:0;min-width:42px">Roll</th>'
+    +'<th class="sticky-col" style="left:42px;min-width:96px">Name</th>'
   cols.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+'</span></th>'})
-  html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th></tr></thead><tbody>'
+  if(!single)html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th>'
+  html+='</tr></thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
     html+='<tr data-eid="'+s.enrollment_id+'">'
     html+='<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-    html+='<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+    html+='<td class="sticky-col" style="left:42px;font-weight:600;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+esc(s.students?.full_name||'?')+'</td>'
     cols.forEach(sub=>{
       const mk=sMarks[sub.subject_id]
       const isAbs=!!mk?.is_absent
       const val=isAbs?'':(mk?.marks_obtained!=null?mk.marks_obtained:'')
       const sMax=maxFor(sub.subject_id), sPass=passFor(sub.subject_id)
-      html+='<td style="text-align:center;white-space:nowrap">'
-        +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-max="'+sMax+'" data-pass="'+sPass+'" inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(isAbs?'A':'—')+'"'+(isAbs?' disabled':'')+' oninput="mkMarkChanged(this)" style="'+(isAbs?'background:var(--warn-soft);':'')+'">'
-        +'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this)" style="margin-left:3px;font-size:10px;font-weight:700;padding:2px 5px;border-radius:5px;cursor:pointer;border:1px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-faint)')+'">A</button>'
-        +'</td>'
+      html+='<td style="text-align:center;white-space:nowrap;padding:6px 4px">'
+        +'<div style="display:inline-flex;align-items:center;gap:5px">'
+        +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-max="'+sMax+'" data-pass="'+sPass+'" inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(isAbs?'A':'—')+'"'+(isAbs?' disabled':'')+' oninput="mkMarkChanged(this)" style="width:56px;text-align:center;'+(isAbs?'background:var(--warn-soft);':'')+'">'
+        +'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this)" style="font-size:12px;font-weight:800;padding:6px 11px;border-radius:7px;cursor:pointer;border:1.5px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">A</button>'
+        +'</div></td>'
     })
-    html+='<td class="mk-total" style="text-align:center;font-weight:700">—</td><td class="mk-pct" style="text-align:center;font-weight:700">—</td>'
+    if(!single)html+='<td class="mk-total" style="text-align:center;font-weight:700">—</td><td class="mk-pct" style="text-align:center;font-weight:700">—</td>'
     html+='</tr>'
   })
-  html+='</tbody></table><p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px">Type marks, or tap the small <b>A</b> to mark absent. Failing marks are highlighted. Click Save All Marks when done.</p></div>'
+  html+='</tbody></table></div><p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px">Type marks, or tap <b>A</b> to mark absent. Failing marks are highlighted. Tap Save All Marks when done.</p></div>'
   el.innerHTML=html
   // Compute initial totals
   document.querySelectorAll('#mkAssessWrap tr[data-eid]').forEach(row=>mkRecomputeRow(row))
