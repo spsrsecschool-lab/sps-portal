@@ -1839,12 +1839,16 @@ async function renderTodayPanel(){
   const enrById={}; (enr||[]).forEach(e=>{enrById[e.enrollment_id]=e})
   const totalStudents=(enr||[]).length
 
-  const[attR,tchAttR,reqR,tchAllR]=await Promise.all([
+  const[attR,tchAttR,reqR,tchAllR,holR]=await Promise.all([
     sb.from('student_attendance').select('enrollment_id,status').eq('date',iso),
     sb.from('teacher_attendance').select('teacher_id,status').eq('date',iso),
     sb.from('access_requests').select('*',{count:'exact',head:true}).eq('status','pending'),
-    sb.from('teachers').select('teacher_id',{count:'exact',head:true}).eq('is_active',true)
+    sb.from('teachers').select('teacher_id',{count:'exact',head:true}).eq('is_active',true),
+    sb.from('holidays').select('label').eq('session_id',sid).eq('date',iso).maybeSingle()
   ])
+  const holidayToday=holR?.data||null
+  const isHoliday=!!holidayToday
+  const isSunday=today.getDay()===0
 
   // Only count attendance rows for students actually in this session.
   const att=(attR.data||[]).filter(a=>enrById[a.enrollment_id])
@@ -1891,7 +1895,30 @@ async function renderTodayPanel(){
     +'<div style="font-size:24px;font-weight:800;color:'+(color||'var(--ink)')+';margin-top:2px">'+val+'</div>'
     +(sub?'<div style="font-size:11px;color:var(--ink-soft);margin-top:1px">'+sub+'</div>':'')+'</div>'
 
-  let html='<div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0 4px">'
+  let html=''
+  if(isHoliday||isSunday){
+    const label=isHoliday?(holidayToday.label||'Holiday'):'Sunday'
+    html+='<div style="display:flex;align-items:center;gap:12px;background:var(--indigo-100);border:1px solid var(--indigo);border-radius:12px;padding:14px 16px;margin:12px 0 4px">'
+      +'<div style="width:34px;height:34px;border-radius:9px;background:var(--indigo);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>'
+      +'<div><div style="font-size:14px;font-weight:800;color:var(--indigo-dark)">Today is a holiday'+(isHoliday?': '+esc(label):' (Sunday)')+'</div><div style="font-size:12px;color:var(--ink-soft);margin-top:1px">No student attendance is expected today. Staff attendance still applies.</div></div>'
+      +'</div>'
+    // Holiday: show staff + requests + new admissions only (no student attendance).
+    html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0 4px">'
+      +stat('Staff Present',staffPresent+' / '+staffTotal, staffAbsent+' absent'+(staffUnmarked?' · '+staffUnmarked+' unmarked':''), 'var(--grn,#216F40)')
+      +stat('Pending Requests',pendingReq, pendingReq?'need your review':'all clear', pendingReq?'#C0392B':'var(--ink-soft)')
+      +stat('New Admissions',newAdmToday,'today')
+      +'</div>'
+    // Recent activity still useful on a holiday.
+    const feedH=await buildRecentFeed()
+    html+='<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Recent activity</div>'
+    if(feedH.length){ html+=feedH.map(a=>'<div class="log-row"><div class="log-dot" style="background:'+a.color+'"></div><div><div class="txt">'+(a.who?'<b>'+esc(a.who)+'</b> ':'')+esc(a.text)+'</div><div class="ts">'+rel(a.t)+'</div></div></div>').join('') }
+    else{ html+='<p style="font-size:12px;color:var(--ink-faint)">No recent activity yet.</p>' }
+    html+='</div>'
+    el.innerHTML=html
+    return
+  }
+
+  html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0 4px">'
     +stat('Students Present',presentTotal+' / '+marked, pctPresent+'% of marked'+(marked<totalStudents?' · '+(totalStudents-marked)+' unmarked':''), pctPresent>=75?'var(--grn,#216F40)':'var(--warn,#E8A23D)')
     +stat('Absent',A,'students today','#C0392B')
     +stat('Staff Present',staffPresent+' / '+staffTotal, staffAbsent+' absent'+(staffUnmarked?' · '+staffUnmarked+' unmarked':''), 'var(--grn,#216F40)')
