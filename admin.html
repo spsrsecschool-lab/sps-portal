@@ -3598,16 +3598,16 @@ async function loadAssessments(){
     const pill=a.is_marks_unlocked?'<span class="pill pill-success">Marks Open</span>':(a.commencement_date&&a.commencement_date<today()?'<span class="pill pill-neutral">Closed</span>':'<span class="pill pill-warn">Scheduled</span>')
     const cn=(clsByA[a.assessment_id]||[]).join(', ')||'No classes linked'
     const fees=a.exam_fees||[]
-    return '<div class="assess-card" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4>'+pill+'</div><div class="meta" style="font-size:11px">'+esc(cn)+'</div><div class="arow"><span>Date</span><span>'+(fmtD(a.commencement_date)||'TBD')+'</span></div><div class="arow"><span>Deadline</span><span>'+(a.submission_deadline?fmtD(a.submission_deadline.slice(0,10)):'—')+'</span></div>'+(fees.length?'<div class="arow"><span>Exam Fee</span><span>'+fees.map(f=>'₹'+f.amount).join(', ')+'</span></div>':'')+'</div>'
+    return '<div class="assess-card" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4>'+pill+'</div><div class="meta" style="font-size:11px">'+esc(cn)+'</div><div class="arow"><span>Start</span><span>'+(fmtD(a.commencement_date)||'TBD')+'</span></div><div class="arow"><span>End</span><span>'+(a.end_date?fmtD(a.end_date):(fmtD(a.commencement_date)||'—'))+'</span></div><div class="arow"><span>Deadline</span><span>'+(a.submission_deadline?fmtD(a.submission_deadline.slice(0,10)):'—')+'</span></div>'+(fees.length?'<div class="arow"><span>Exam Fee</span><span>'+fees.map(f=>'₹'+f.amount).join(', ')+'</span></div>':'')+'</div>'
   }).join('')
 }
 function openAssessEditById(id,classNames){const a=window._assessMap?.[id];if(!a){toast('Assessment not found','error');return};openAssessEdit({...a,_classNames:classNames})}
 let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
-  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, marks unlock toggle</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div></div>'
+  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, marks unlock toggle</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div></div>'
 }
-function openAssessSettings(){if(!_currentAssess)return;const a=_currentAssess;openSub('assessments','sub-assess-settings');$('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="'+esc(a.name)+'"></div><div class="fg"><label>Date</label><input type="date" id="ae_date" value="'+(a.commencement_date||'')+'"></div></div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="'+(a.submission_deadline?.slice(0,16)||'')+'"></div></div><div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch '+(a.is_marks_unlocked?'on':'')+'" id="ae_unlock" onclick="this.classList.toggle(\'on\')"></div></div><button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'}
+function openAssessSettings(){if(!_currentAssess)return;const a=_currentAssess;openSub('assessments','sub-assess-settings');$('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="'+esc(a.name)+'"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="ae_date" value="'+(a.commencement_date||'')+'"></div><div class="fg"><label>End Date</label><input type="date" id="ae_enddate" value="'+(a.end_date||'')+'"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance working days are counted up to and including the <b>End Date</b>. Start date is informational.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="'+(a.submission_deadline?.slice(0,16)||'')+'"></div></div><div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch '+(a.is_marks_unlocked?'on':'')+'" id="ae_unlock" onclick="this.classList.toggle(\'on\')"></div></div><button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'}
 function openExamFees(){if(!_currentAssess)return;const a=_currentAssess,ef=a.exam_fees||[];openSub('assessments','sub-assess-examfees');$('assessExamFeesContent').innerHTML='<div class="page-head"><div><h2>Exam Fees — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div id="efRows">'+ef.map(f=>'<div class="form-row" id="efr_'+f.exam_fee_id+'"><div class="fg"><label>Class Group</label><input id="efg_'+f.exam_fee_id+'" value="'+esc(f.class_group||'')+'"></div><div class="fg"><label>Amount ₹</label><input type="number" inputmode="decimal" id="efa_'+f.exam_fee_id+'" value="'+(f.amount||'')+'"></div><div class="fg" style="flex:0;align-items:flex-end"><div class="switch '+(f.is_collection_unlocked?'on':'')+'" id="efu_'+f.exam_fee_id+'" onclick="this.classList.toggle(\'on\')" style="margin-top:20px"></div></div><div style="display:flex;gap:5px;align-items:flex-end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="saveEF(\''+f.exam_fee_id+'\',\''+a.assessment_id+'\')">Save</button><button class="btn btn-danger btn-xs" onclick="deleteEF(\''+f.exam_fee_id+'\')">×</button></div></div>').join('')+'</div><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="addEFRow(\''+a.assessment_id+'\')">+ Add Fee Row</button></div>'}
 async function openSubmissionStatus(){
   if(!_currentAssess)return;const a=_currentAssess
@@ -3704,7 +3704,7 @@ async function deleteMarkOverride(id){
 
 function openAddAssessmentModal(){
   const clsChecks=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" value="'+c.class_id+'" class="na_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(c.name)+'</span></label>').join('')
-  openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Date</label><input type="date" id="na_date"></div><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div class="form-row"><div class="fg"><label>Max Marks</label><input id="na_maxmarks" type="number" inputmode="decimal" value="100" min="1"></div><div class="fg"><label>Pass Marks</label><input id="na_passmarks" type="number" inputmode="decimal" value="33" min="1"></div></div><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
+  openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="na_date"></div><div class="fg"><label>End Date</label><input type="date" id="na_enddate"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance is counted up to and including the End Date.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div class="form-row"><div class="fg"><label>Max Marks</label><input id="na_maxmarks" type="number" inputmode="decimal" value="100" min="1"></div><div class="fg"><label>Pass Marks</label><input id="na_passmarks" type="number" inputmode="decimal" value="33" min="1"></div></div><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
     '<button class="btn btn-dark" onclick="createAssessment()">Create Assessment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 async function createAssessment(){
@@ -3712,13 +3712,13 @@ async function createAssessment(){
   const selectedClasses=[...document.querySelectorAll('.na_cls_chk:checked')].map(el=>el.value)
   if(!name){toast('Name required','error');return}
   if(!selectedClasses.length){toast('Select at least one class','error');return}
-  const{data:asmtData,error}=await sb.from('assessments').insert({name,session_id:SESS.session_id,commencement_date:$('na_date')?.value||null,submission_deadline:$('na_dl')?.value?new Date($('na_dl').value).toISOString():null,is_marks_unlocked:false,max_marks:parseInt($('na_maxmarks')?.value)||100,pass_marks:parseInt($('na_passmarks')?.value)||33}).select().single()
+  const{data:asmtData,error}=await sb.from('assessments').insert({name,session_id:SESS.session_id,commencement_date:$('na_date')?.value||null,end_date:$('na_enddate')?.value||null,submission_deadline:$('na_dl')?.value?new Date($('na_dl').value).toISOString():null,is_marks_unlocked:false,max_marks:parseInt($('na_maxmarks')?.value)||100,pass_marks:parseInt($('na_passmarks')?.value)||33}).select().single()
   if(error){toast('Failed: '+error.message,'error');return}
   const{error:je}=await sb.from('assessment_classes').insert(selectedClasses.map(class_id=>({assessment_id:asmtData.assessment_id,class_id})))
   if(je){toast('Assessment created but class linking failed: '+je.message,'error');return}
   toast('Assessment created for '+selectedClasses.length+' class(es)','success');closeModal();loadAssessments()
 }
-async function saveAssess(id){const{error}=await sb.from('assessments').update({name:$('ae_name')?.value?.trim(),commencement_date:$('ae_date')?.value||null,submission_deadline:$('ae_dl')?.value?new Date($('ae_dl').value).toISOString():null,is_marks_unlocked:$('ae_unlock')?.classList.contains('on')}).eq('assessment_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Saved','success');loadAssessments()}
+async function saveAssess(id){const{error}=await sb.from('assessments').update({name:$('ae_name')?.value?.trim(),commencement_date:$('ae_date')?.value||null,end_date:$('ae_enddate')?.value||null,submission_deadline:$('ae_dl')?.value?new Date($('ae_dl').value).toISOString():null,is_marks_unlocked:$('ae_unlock')?.classList.contains('on')}).eq('assessment_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Saved','success');loadAssessments()}
 async function deleteAssessment(id,name){
   const{count}=await sb.from('marks').select('*',{count:'exact',head:true}).eq('assessment_id',id)
   if(count>0){toast('Cannot delete "'+name+'" — '+count+' marks exist.','error');return}
@@ -4182,6 +4182,46 @@ async function addHolidayGroup(){
   toast('✓ '+label+' — '+rows.length+' day'+(rows.length!==1?'s':'')+' marked as holiday','success')
   $('hg_label').value='';$('hg_from').value='';$('hg_to').value=''
   renderCalendar()
+}
+// Month-by-month working days for the whole session (Sundays + holidays excluded,
+// bounded by session start/end). Same figure teachers use for attendance.
+async function renderWorkingDaysSummary(){
+  const el=$('calMonthSummary'); if(!el)return
+  try{
+    const st=SESS?.start_date, en=SESS?.end_date
+    if($('wdSummaryStart'))$('wdSummaryStart').textContent=st?fmtD(st):'not set'
+    if(!st){el.innerHTML='<div style="color:var(--ink-faint);font-size:12.5px">Set the session start date in Settings to see this.</div>';return}
+    const endStr = en || (new Date().getFullYear()+'-12-31')
+    const{data:hols,error}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',st).lte('date',endStr)
+    if(error)throw error
+    const hset=new Set((hols||[]).map(h=>h.date))
+    const start=new Date(st+'T12:00:00'), end=new Date(endStr+'T12:00:00')
+    const rows=[]; let total=0
+    const cur=new Date(start.getFullYear(),start.getMonth(),1)
+    const last=new Date(end.getFullYear(),end.getMonth(),1)
+    while(cur<=last){
+      const y=cur.getFullYear(), m=cur.getMonth()+1, days=new Date(y,m,0).getDate()
+      let wd=0
+      for(let d=1;d<=days;d++){
+        const ds=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0')
+        if(new Date(y,m-1,d).getDay()===0)continue
+        if(hset.has(ds))continue
+        if(ds<st)continue
+        if(endStr&&ds>endStr)continue
+        wd++
+      }
+      total+=wd
+      rows.push({label:cur.toLocaleDateString('en-IN',{month:'long',year:'numeric'}),wd})
+      cur.setMonth(cur.getMonth()+1)
+    }
+    el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Month</th><th style="text-align:right">Working days</th></tr></thead><tbody>'
+      +rows.map(r=>'<tr><td>'+esc(r.label)+'</td><td class="mono" style="text-align:right;font-weight:700">'+r.wd+'</td></tr>').join('')
+      +'<tr style="border-top:2px solid var(--line)"><td style="font-weight:800">Total (session so far)</td><td class="mono" style="text-align:right;font-weight:800;color:var(--indigo-dark)">'+total+'</td></tr>'
+      +'</tbody></table></div>'
+  }catch(e){
+    console.error('[wdSummary] failed',e)
+    el.innerHTML='<div style="color:var(--danger);font-size:12.5px">Couldn\'t load the working-days summary. '+esc(e?.message||'')+'</div>'
+  }
 }
 async function toggleHoliday(date,isHol){if(isHol){const h=(await sb.from('holidays').select('*').eq('date',date).eq('session_id',SESS?.session_id||'').maybeSingle()).data;if(h)await removeHoliday(h.holiday_id);return};const lbl=prompt('Mark '+fmtD(date)+' as holiday. Label (optional):');if(lbl===null)return;const{error}=await sb.from('holidays').insert({date,label:lbl.trim()||null,session_id:SESS?.session_id||''});if(error){toast('Failed: '+error.message,'error');return};toast('Holiday added','success');renderCalendar()}
 async function removeHoliday(id){await sb.from('holidays').delete().eq('holiday_id',id);toast('Holiday removed','success');renderCalendar()}
