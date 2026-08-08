@@ -388,7 +388,21 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
-    lock: async (_name, _acquireTimeout, fn) => await fn()
+    lock: async (name, acquireTimeout, fn) => {
+      try {
+        if (navigator.locks && navigator.locks.request) {
+          const ctrl = new AbortController()
+          const ms = acquireTimeout && acquireTimeout > 0 ? acquireTimeout : 5000
+          const timer = setTimeout(() => { try { ctrl.abort() } catch (_) {} }, ms)
+          try {
+            return await navigator.locks.request(name, { signal: ctrl.signal }, async () => {
+              clearTimeout(timer); return await fn()
+            })
+          } catch (_) { clearTimeout(timer); return await fn() }
+        }
+      } catch (_) {}
+      return await fn()
+    }
   }
 })
 
@@ -734,7 +748,7 @@ async function handleLogin(e) {
 
 // ─── SIGN OUT ────────────────────────────────────────────────
 async function signOut() {
-  await sb.auth.signOut()
+  try { await sb.auth.signOut({ scope: 'local' }) } catch (_) { try { await sb.auth.signOut() } catch (_) {} }
   sessionStorage.removeItem('sps_user')
   // Return to login form
   $('portalView').classList.remove('show')
