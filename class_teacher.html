@@ -91,6 +91,9 @@ thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-w
 tbody td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middle}
 tbody tr:hover td{background:var(--lav-50)}
 .sticky-col{position:sticky;background:var(--white);z-index:2}
+.msheet{border-collapse:separate;border-spacing:0}
+.msheet .rollfix{position:sticky;left:0;background:var(--white);z-index:3}
+.msheet thead .rollfix{background:var(--lav-100);z-index:5}
 .att-scroll{max-height:72vh;overflow:auto;position:relative}
 .att-scroll table{border-collapse:separate;border-spacing:0}
 .att-scroll thead th{position:sticky;background:var(--lav-100);z-index:4}
@@ -1013,16 +1016,18 @@ async function renderDashboard(){
     $('statAvgAtt').textContent=totalRecs?Math.round(presRecs/totalRecs*100)+'%':'—'
   }
 
-  // Recent activity — student_attendance logs, marks updates
+  // Recent activity — deduped: one entry per attendance DATE, one per marks
+  // (assessment+subject). Otherwise every student's row shows as a repeat.
   const actEl=$('dashActivity')
   const{data:recentAtt}=await sb.from('student_attendance')
-    .select('date,status,enrollment_id,marked_at').in('enrollment_id',eids).order('marked_at',{ascending:false}).limit(3)
+    .select('date,marked_at').in('enrollment_id',eids).order('marked_at',{ascending:false}).limit(60)
   const{data:recentMarks}=await sb.from('marks')
-    .select('entered_at,assessments(name),subjects(name)').in('enrollment_id',eids).order('entered_at',{ascending:false}).limit(3)
-  const events=[
-    ...(recentAtt||[]).map(r=>({ts:r.marked_at||r.date,label:'Attendance marked for '+fmtD(r.date),type:'att'})),
-    ...(recentMarks||[]).map(r=>({ts:r.entered_at,label:'Marks updated — '+(r.assessments?.name||'?')+' · '+(r.subjects?.name||'?'),type:'marks'}))
-  ].sort((a,b)=>new Date(b.ts)-new Date(a.ts)).slice(0,6)
+    .select('entered_at,assessment_id,subject_id,assessments(name),subjects(name)').in('enrollment_id',eids).order('entered_at',{ascending:false}).limit(60)
+  const attSeen=new Set(), attEvents=[]
+  ;(recentAtt||[]).forEach(r=>{ if(attSeen.has(r.date))return; attSeen.add(r.date); attEvents.push({ts:r.marked_at||r.date,label:'Attendance marked for '+fmtD(r.date),type:'att'}) })
+  const mkSeen=new Set(), mkEvents=[]
+  ;(recentMarks||[]).forEach(r=>{ const k=r.assessment_id+'|'+r.subject_id; if(mkSeen.has(k))return; mkSeen.add(k); mkEvents.push({ts:r.entered_at,label:'Marks updated — '+(r.assessments?.name||'?')+' · '+(r.subjects?.name||'?'),type:'marks'}) })
+  const events=[...attEvents,...mkEvents].sort((a,b)=>new Date(b.ts)-new Date(a.ts)).slice(0,6)
   if(!events.length){emp(actEl,'No recent activity yet.');return}
   actEl.innerHTML=events.map(e=>'<div class="log-row"><div class="log-dot" style="background:'+(e.type==='att'?'var(--grn)':'var(--warn)')+'"></div><div><div class="txt">'+esc(e.label)+'</div><div class="ts">'+rel(e.ts)+'</div></div></div>').join('')
 }
@@ -2233,8 +2238,8 @@ async function loadAssessMarks(){
 
   // Render table
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
-    +'<table style="min-width:800px"><thead><tr>'
-    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
+    +'<table class="msheet" style="min-width:800px"><thead><tr>'
+    +'<th class="rollfix" style="min-width:50px">Roll</th>'
     +'<th style="min-width:140px">Name</th>'
     +'<th style="min-width:130px">Father\'s Name</th>'
   uniqueSubs.forEach(m=>{
@@ -2257,7 +2262,7 @@ async function loadAssessMarks(){
     const attPct=attInfo.working>0?Math.round(attInfo.present/attInfo.working*100):null
 
     html+='<tr>'
-    html+='<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
+    html+='<td class="rollfix" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
     html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
     html+='<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     uniqueSubs.forEach(m=>{
