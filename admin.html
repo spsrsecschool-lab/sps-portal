@@ -1095,6 +1095,24 @@ tbody tr:hover td{background:var(--lav-50)}
 
       <div id="settingsTab-classes" style="display:none">
 
+        <!-- CARD 0: Merge Sections -->
+        <div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer" onclick="toggleSettingsCard('cs_merge')">
+            <div><div style="font-weight:700;font-size:14px">Merge Sections</div><div style="font-size:12px;color:var(--ink-soft);margin-top:2px">Combine two sections of the same class into one (non-stream classes only)</div></div>
+            <svg id="cs_merge_chev" viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--ink-faint);fill:none;stroke-width:2;transition:transform 0.2s"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div id="cs_merge" style="display:none;border-top:1px solid var(--line);padding:18px">
+            <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;line-height:1.5">The <b>source</b> section merges into the <b>target</b>. Students move to the target; the source keeps nothing and is hidden (recoverable). The target keeps its own subjects &amp; timetable; the source's are deleted. <b>All roll numbers in the merged section are cleared</b> for reassignment.</div>
+            <div class="form-row" style="flex-wrap:wrap;align-items:flex-end;gap:12px;margin-bottom:0">
+              <div class="fg" style="max-width:220px"><label>Class</label><select id="mrg_class" onchange="mrgLoadSections()"><option value="">Select class</option></select></div>
+              <div class="fg" style="max-width:220px"><label>Source (merged away)</label><select id="mrg_source" onchange="mrgPreview()"><option value="">Select class first</option></select></div>
+              <div class="fg" style="max-width:220px"><label>Target (kept)</label><select id="mrg_target" onchange="mrgPreview()"><option value="">Select class first</option></select></div>
+            </div>
+            <div id="mrg_preview" style="margin-top:14px"></div>
+          </div>
+        </div>
+
+
         <!-- CARD 1: Classes & Sections -->
         <div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer" onclick="toggleSettingsCard('cs_card1')">
@@ -6281,6 +6299,7 @@ function refreshAllPortals(){
 function loadSettings(){
   loadSessionList()
   loadClassStartDates()
+  loadMergeSectionsCard()
   loadClassesList()
   loadSubjectsList()
   loadStreamsList()
@@ -6288,6 +6307,96 @@ function loadSettings(){
   reflectThemeChoice()
 }
 
+// ═══════════ MERGE SECTIONS ═══════════
+let _mrgStreamClassIds=new Set()
+async function loadMergeSectionsCard(){
+  const sel=$('mrg_class'); if(!sel||!SESS)return
+  const{data:strm}=await sb.from('streams').select('class_id').eq('session_id',SESS.session_id)
+  _mrgStreamClassIds=new Set((strm||[]).map(s=>s.class_id))
+  const opts=(ALL_CLASSES||[]).filter(c=>c.is_active && !_mrgStreamClassIds.has(c.class_id)).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  sel.innerHTML='<option value="">Select class</option>'+opts.map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+}
+async function mrgLoadSections(){
+  const cid=$('mrg_class')?.value, ss=$('mrg_source'), ts=$('mrg_target')
+  if(ss)ss.innerHTML='<option value="">Select class first</option>'
+  if(ts)ts.innerHTML='<option value="">Select class first</option>'
+  if($('mrg_preview'))$('mrg_preview').innerHTML=''
+  if(!cid)return
+  const{data:secs}=await sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  const o='<option value="">Select</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+  if(ss)ss.innerHTML=o; if(ts)ts.innerHTML=o
+}
+async function mrgPreview(){
+  const src=$('mrg_source')?.value, tgt=$('mrg_target')?.value, el=$('mrg_preview')
+  if(!el)return
+  el.innerHTML=''
+  if(!src||!tgt)return
+  if(src===tgt){el.innerHTML='<div style="color:var(--danger);font-size:12.5px;font-weight:600">Source and target must be different sections.</div>';return}
+  el.innerHTML='<div style="color:var(--ink-faint);font-size:12.5px">Checking…</div>'
+  const srcName=$('mrg_source').selectedOptions[0].textContent, tgtName=$('mrg_target').selectedOptions[0].textContent
+  const[{data:srcStud},{data:tgtStud},{data:teachers},{data:tgtCT}]=await Promise.all([
+    sb.from('student_enrollments').select('enrollment_id,student_id,students(full_name)').eq('session_id',SESS.session_id).eq('section_id',src).eq('status','active').eq('relieved',false),
+    sb.from('student_enrollments').select('enrollment_id,student_id').eq('session_id',SESS.session_id).eq('section_id',tgt).eq('status','active').eq('relieved',false),
+    sb.from('teachers').select('teacher_id,full_name').eq('is_active',true).order('full_name'),
+    sb.from('class_teacher_map').select('teacher_id').eq('session_id',SESS.session_id).eq('section_id',tgt).maybeSingle()
+  ])
+  const tgtStudentIds=new Set((tgtStud||[]).map(e=>e.student_id))
+  const conflicts=(srcStud||[]).filter(e=>tgtStudentIds.has(e.student_id))
+  if(conflicts.length){
+    el.innerHTML='<div style="background:var(--danger-soft);border:1px solid var(--danger);border-radius:10px;padding:12px 14px"><div style="font-weight:700;color:var(--danger);font-size:13px;margin-bottom:6px">Cannot merge — '+conflicts.length+' student(s) are in both sections</div><div style="font-size:12px;color:var(--ink-soft)">A student can only be in one section per session. Move or relieve these first:</div><ul style="margin:6px 0 0 18px;font-size:12px">'+conflicts.map(c=>'<li>'+esc(c.students?.full_name||c.student_id)+'</li>').join('')+'</ul></div>'
+    return
+  }
+  const srcN=(srcStud||[]).length, tgtN=(tgtStud||[]).length, total=srcN+tgtN
+  const ctOpts='<option value="">— no class teacher —</option>'+(teachers||[]).map(t=>'<option value="'+t.teacher_id+'"'+(tgtCT&&tgtCT.teacher_id===t.teacher_id?' selected':'')+'>'+esc(t.full_name)+'</option>').join('')
+  el.innerHTML='<div style="background:var(--lav-50);border:1px solid var(--line);border-radius:10px;padding:14px">'
+    +'<div style="font-size:13px;line-height:1.65"><b>'+srcN+'</b> student(s) from <b>'+esc(srcName)+'</b> will move into <b>'+esc(tgtName)+'</b> (<b>'+total+'</b> total).<br>'
+    +'All <b>'+total+'</b> roll numbers in '+esc(tgtName)+' will be <b>cleared</b> for reassignment.<br>'
+    +esc(srcName)+'\'s subject mappings, timetable periods and class-teacher assignment will be <b>deleted</b>; '+esc(srcName)+' will be <b>hidden</b> (recoverable).</div>'
+    +'<div class="fg" style="max-width:300px;margin-top:14px"><label>Class teacher for '+esc(tgtName)+' (after merge)</label><select id="mrg_ct">'+ctOpts+'</select></div>'
+    +'<button class="btn btn-danger" style="margin-top:14px" onclick="doMergeSections()">Merge Sections</button>'
+    +'</div>'
+}
+async function doMergeSections(){
+  const cid=$('mrg_class')?.value, src=$('mrg_source')?.value, tgt=$('mrg_target')?.value
+  const ctId=$('mrg_ct')?.value||null
+  if(!src||!tgt||src===tgt)return
+  const srcName=$('mrg_source').selectedOptions[0].textContent, tgtName=$('mrg_target').selectedOptions[0].textContent
+  confirmAct('Merge '+srcName+' into '+tgtName+'?','This moves students, clears all roll numbers in '+tgtName+', deletes '+srcName+'\'s periods, mappings and class teacher, and hides '+srcName+'. It cannot be auto-undone.',async()=>{
+    try{
+      // Fresh conflict re-check
+      const[{data:srcStud},{data:tgtStud}]=await Promise.all([
+        sb.from('student_enrollments').select('enrollment_id,student_id').eq('session_id',SESS.session_id).eq('section_id',src).eq('status','active').eq('relieved',false),
+        sb.from('student_enrollments').select('enrollment_id,student_id').eq('session_id',SESS.session_id).eq('section_id',tgt).eq('status','active').eq('relieved',false)
+      ])
+      const tgtIds=new Set((tgtStud||[]).map(e=>e.student_id))
+      const conflict=(srcStud||[]).filter(e=>tgtIds.has(e.student_id))
+      if(conflict.length){toast('Aborted — '+conflict.length+' student(s) already in both sections','error');mrgPreview();return}
+      // Move source students → target
+      const srcEids=(srcStud||[]).map(e=>e.enrollment_id)
+      if(srcEids.length){
+        const{data:moved,error:mErr}=await sb.from('student_enrollments').update({section_id:tgt}).in('enrollment_id',srcEids).select('enrollment_id')
+        if(mErr){toast('Move failed: '+mErr.message,'error');return}
+        if((moved||[]).length!==srcEids.length){toast('Only '+(moved||[]).length+'/'+srcEids.length+' students moved — merge halted. Check permissions and retry.','error');return}
+      }
+      // Blank ALL roll numbers in merged target
+      await sb.from('student_enrollments').update({roll_no:null}).eq('session_id',SESS.session_id).eq('section_id',tgt).eq('status','active')
+      // Delete source section's mappings, timetable, class-teacher
+      await sb.from('teacher_subject_class_map').delete().eq('session_id',SESS.session_id).eq('section_id',src)
+      await sb.from('timetable_entries').delete().eq('section_id',src)
+      await sb.from('class_teacher_map').delete().eq('session_id',SESS.session_id).eq('section_id',src)
+      // Set target class teacher (clear then set)
+      await sb.from('class_teacher_map').delete().eq('session_id',SESS.session_id).eq('section_id',tgt)
+      if(ctId){ await sb.from('class_teacher_map').insert({teacher_id:ctId,session_id:SESS.session_id,class_id:cid,section_id:tgt,can_edit_profiles:true}) }
+      // Hide source section
+      await sb.from('class_sections').update({is_active:false}).eq('section_id',src)
+      toast('Merged '+srcName+' into '+tgtName+' ✓ — reassign roll numbers in the class teacher portal','success')
+      if($('mrg_source'))$('mrg_source').value=''
+      if($('mrg_target'))$('mrg_target').value=''
+      if($('mrg_preview'))$('mrg_preview').innerHTML=''
+      mrgLoadSections()
+    }catch(e){toast('Merge failed: '+(e?.message||e),'error')}
+  })
+}
 // Per-class start-date overrides for the current session.
 async function loadClassStartDates(){
   const el=$('classStartList'); if(!el)return
