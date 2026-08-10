@@ -1097,6 +1097,61 @@ function getWaiverRemark(stu,month){
   return (stu.waivers[month]||{}).remark||'';
 }
 
+// ══════════════════════════════════════════════
+//  ANNUAL CARRY-FORWARD + FAMILY PREV-BALANCE HOLDER HELPERS
+//  Annual charges are collected in April. Once the ongoing month is PAST April,
+//  whatever annual is still unpaid is folded (display-only) into the family
+//  previous balance. It is still collectable under its own 'Annual' head — the
+//  carry is purely for how the previous-balance figure is shown and totalled.
+// ══════════════════════════════════════════════
+// Current academic-month index for the ONGOING session (0 = April … 11 = March).
+function currentAcademicMonthIdx(){
+  return getAdmissionMonthIdx(new Date().toISOString());
+}
+// Is the annual carry-forward active right now? Only for the live session, and
+// only once we are past April (idx > 0).
+function annualCarryActive(){
+  return viewSession===currentSession && currentAcademicMonthIdx()>0;
+}
+// Unpaid annual for a single student (base − waived − paid), never negative.
+function annualRemaining(stu){
+  const annualPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id)
+    .reduce((s,p)=>s+(p.annual||0),0);
+  const annualWaived=getWaivedAmount(stu,HEAD_ANNUAL);
+  return Math.max(0,getAnnualCharge(stu)-annualWaived-annualPaid);
+}
+// Annual carried into prev balance for one student (0 unless carry is active).
+function annualCarriedFor(stu){
+  return annualCarryActive()?annualRemaining(stu):0;
+}
+// Sum of carried annual across a whole family.
+function familyCarriedAnnual(fCode){
+  if(!fCode) return 0;
+  return students.filter(s=>s.familyCode===fCode)
+    .reduce((sum,s)=>sum+annualCarriedFor(s),0);
+}
+// The single sibling who "holds" the family's cumulative previous balance:
+// the eldest (highest class; ties broken deterministically by sortSiblings —
+// S.No then name). For a lone child, that's themselves.
+function familyPrevHolder(stu){
+  const sibs=siblingsOf(stu);
+  if(sibs.length<=1) return stu;
+  return sortSiblings(sibs)[0];
+}
+function isFamilyPrevHolder(stu){
+  return familyPrevHolder(stu).enrollment_id===stu.enrollment_id;
+}
+// Raw stored family prev balance (gross of siblings' prevBalance minus HEAD_PREV
+// payments) — same number getFamilyPrevBalance returns; named for clarity where
+// we specifically want the "stored, before annual carry" figure.
+function familyStoredPrevGross(fCode){
+  return getFamilyPrevBalance(fCode);
+}
+// Family previous balance AS DISPLAYED = stored arrears + carried annual.
+function getFamilyPrevBalanceDisplay(fCode){
+  return getFamilyPrevBalance(fCode)+familyCarriedAnnual(fCode);
+}
+
 function activeMonthsFor(){
   let endIdx=MONTHS.length;
   if(viewSession===currentSession) endIdx=getAdmissionMonthIdx(new Date().toISOString())+1;
@@ -1122,16 +1177,36 @@ function getTotalDues(stu){
     if(due>0) breakdown.push({month:m,due,base:mt,waived});
     return sum+due;
   },0);
-  const annualPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id)
-    .reduce((s,p)=>s+(p.annual||0),0);
-  const annualWaived=getWaivedAmount(stu,HEAD_ANNUAL);
-  const annualDue=Math.max(0,getAnnualCharge(stu)-annualWaived-annualPaid);
+
+  // Raw unpaid annual (always the real collectable figure, used by the
+  // allocator regardless of the carry). annualDueRaw is what the 'Annual' head
+  // still owes; annualDue is what's shown as a SEPARATE annual line — which
+  // becomes 0 once the carry folds it into the previous balance instead.
+  const annualDueRaw=annualRemaining(stu);
+  const carry=annualCarryActive();
+  const annualDue=carry?0:annualDueRaw;
+
   const prevPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===HEAD_PREV)
     .reduce((s,p)=>s+(p.prev||0),0);
-  const prevBalance=Math.max(0,parseFloat(stu.prevBalance||0)-prevPaid);
-  if(prevBalance>0) breakdown.push({month:'Previous Session Arrears',due:prevBalance,base:parseFloat(stu.prevBalance||0)});
-  if(annualDue>0) breakdown.push({month:'Annual Charge',due:annualDue,base:getAnnualCharge(stu),waived:annualWaived});
-  return {tuitionDue,annualDue,prevBalance,total:tuitionDue+annualDue+prevBalance,breakdown};
+
+  // Previous balance shown against THIS student:
+  //  · non-holder sibling  → 0 (the family total lives on the eldest)
+  //  · holder with family  → family stored arrears + family carried annual
+  //  · holder, no family   → own stored arrears (+ own carried annual)
+  let prevBalance;
+  if(!isFamilyPrevHolder(stu)){
+    prevBalance=0;
+  }else if(stu.familyCode){
+    prevBalance=Math.max(0,getFamilyPrevBalance(stu.familyCode)+familyCarriedAnnual(stu.familyCode));
+  }else{
+    const storedPrev=Math.max(0,parseFloat(stu.prevBalance||0)-prevPaid);
+    prevBalance=storedPrev+(carry?annualDueRaw:0);
+  }
+
+  if(prevBalance>0) breakdown.push({month:'Previous Balance (Arrears)',due:prevBalance,base:prevBalance});
+  if(!carry && annualDue>0) breakdown.push({month:'Annual Charge',due:annualDue,base:getAnnualCharge(stu),waived:getWaivedAmount(stu,HEAD_ANNUAL)});
+
+  return {tuitionDue,annualDue,annualDueRaw,prevBalance,total:tuitionDue+annualDue+prevBalance,breakdown};
 }
 
 function getTodayTotal(){
@@ -1311,7 +1386,7 @@ function selectFamily(fCode){
 
 function refreshFamilyDues(){
   if(!activeFamilyCode)return;
-  const famPrevBal=getFamilyPrevBalance(activeFamilyCode);
+  const famPrevBal=getFamilyPrevBalanceDisplay(activeFamilyCode);
   let totalTuition=0,totalAnnual=0,summaryHTML='';
 
   activeSiblings.forEach(stu=>{
@@ -1345,6 +1420,14 @@ function refreshFamilyDues(){
       prevLedger.push({date:'—',source:'Opening balance (no breakdown available)',amt:parseFloat(stu.prevBalance||0),stuName:stu.name,bundleID:'—'});
     }
   });
+  // Once past April, each sibling's still-unpaid annual charge is carried into
+  // the family previous balance for display, labelled with its source.
+  if(annualCarryActive()){
+    activeSiblings.forEach(stu=>{
+      const carried=annualRemaining(stu);
+      if(carried>0) prevLedger.push({date:'—',source:'Annual charges (carried forward from April)',amt:carried,stuName:stu.name,bundleID:'—'});
+    });
+  }
   const eids=activeSiblings.map(s=>s.enrollment_id);
   const prevPayments=payments.filter(p=>eids.includes(p.enrollment_id)&&p.month===HEAD_PREV&&(p.prev||0)>0);
 
@@ -1608,7 +1691,7 @@ function runFamilyAutoAllocate(){
         const waivedAmt=getWaivedAmount(stu,m);
         const due=Math.max(0,mt-waivedAmt-alreadyPaid);
         if(due<=0)return;
-        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
+        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDueRaw,0);
         const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
         if(shouldAcceptTuition(mt,due,cash,famAnnDue,famPrevDue)){
           const pay=Math.min(cash,due);
@@ -1624,7 +1707,7 @@ function runFamilyAutoAllocate(){
   function allocAnnual(){
     activeSiblings.forEach(stu=>{
       if(cash<=0)return;
-      const due=getTotalDues(stu).annualDue;
+      const due=getTotalDues(stu).annualDueRaw;
       if(due<=0)return;
       const pay=Math.min(cash,due);
       autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:pay,fullDue:due});
@@ -1655,7 +1738,7 @@ function runFamilyAutoAllocate(){
         const wv=getWaivedAmount(stu,m);
         const due=Math.max(0,mt-wv-paid);
         if(due<=0)return;
-        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
+        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDueRaw,0);
         const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
         if(shouldAcceptTuition(mt,due,cash,famAnnDue,famPrevDue)){
           const pay=Math.min(cash,due);
@@ -1664,7 +1747,7 @@ function runFamilyAutoAllocate(){
         }else{ skipped.push(`${stu.name} — ${m}`) }
       });
       if(cash<=0)return;
-      const annDue=getTotalDues(stu).annualDue;
+      const annDue=getTotalDues(stu).annualDueRaw;
       if(annDue>0){const pay=Math.min(cash,annDue);autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:pay,fullDue:annDue});cash-=pay}
     });
   }
@@ -1672,7 +1755,7 @@ function runFamilyAutoAllocate(){
   function allocPerStudentAT(){
     activeSiblings.forEach(stu=>{
       if(cash<=0)return;
-      const annDue=getTotalDues(stu).annualDue;
+      const annDue=getTotalDues(stu).annualDueRaw;
       if(annDue>0){const pay=Math.min(cash,annDue);autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:pay,fullDue:annDue});cash-=pay}
       activeMonths.forEach(m=>{
         if(cash<=0)return;
@@ -1681,7 +1764,7 @@ function runFamilyAutoAllocate(){
         const wv=getWaivedAmount(stu,m);
         const due=Math.max(0,mt-wv-paid);
         if(due<=0)return;
-        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
+        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDueRaw,0);
         const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
         if(shouldAcceptTuition(mt,due,cash,famAnnDue,famPrevDue)){
           const pay=Math.min(cash,due);
@@ -2199,6 +2282,26 @@ function renderProfileFields(stu,edit){
   if(edit){ pfLoadSections(stu.section_id, stu.stream_id) }
 
   const sibCount=siblingsOf(stu).length;
+  const _prevHolder=isFamilyPrevHolder(stu);
+  const _multi=sibCount>1;
+  // Gross stored family arrears (what the editable field writes to), and the
+  // display figure (stored arrears + carried annual) shown to the holder.
+  const _storedGross = stu.familyCode?familyStoredPrevGross(stu.familyCode):(parseFloat(stu.prevBalance)||0);
+  const _prevDisplay = stu.familyCode?getFamilyPrevBalanceDisplay(stu.familyCode)
+                                     :(Math.max(0,parseFloat(stu.prevBalance||0))+annualCarriedFor(stu));
+  let prevFieldHTML;
+  if(!_prevHolder){
+    // Younger sibling — the cumulative family balance is shown on the eldest.
+    prevFieldHTML=`<div class="field-row"><label>Previous Balance <span style="color:var(--muted);font-size:10px">(family total shown on eldest sibling)</span></label>
+      <div class="field-val mono" style="opacity:.55">—</div></div>`;
+  }else{
+    const holderNote=_multi?` <span style="color:var(--accent);font-size:10px">(whole family)</span>`:'';
+    prevFieldHTML=`<div class="field-row"><label>Previous Balance${holderNote}</label>
+      ${edit?`<input type="number" inputmode="decimal" id="pf_prevBalance" value="${_storedGross}" class="editable">
+              <div class="text-muted" style="font-size:10px;margin-top:3px">Currently showing ${fmtINR(_prevDisplay)}${annualCarriedFor(stu)||familyCarriedAnnual(stu.familyCode)?' (incl. annual carried from April)':''}. Editing sets the family arrears for all siblings.</div>`
+            :`<div class="field-val mono">${fmtINR(_prevDisplay)}${_multi?' <span class="text-muted" style="font-size:10px">· family total</span>':''}</div>`}
+    </div>`;
+  }
   $('prof_fees').innerHTML=`
     <div class="field-row"><label>Monthly Tuition Override (Base: ${fmtINR(feeFor(stu).tuition)}${stu.stream?' · '+esc(stu.stream):''})</label>
       ${edit?`<input type="number" inputmode="decimal" id="pf_tuitionOverride" value="${stu.tuitionOverride??''}" placeholder="Leave empty for default" class="editable">`
@@ -2208,10 +2311,7 @@ function renderProfileFields(stu,edit){
       ${edit?`<input type="number" inputmode="decimal" id="pf_annualOverride" value="${stu.annualOverride??''}" placeholder="Leave empty for default" class="editable">`
             :`<div class="field-val mono">${fmtINR(ac)}${stu.annualOverride!=null?' ✎ custom':(stu.isNew?' (New Adm. Waived)':'')}</div>`}
     </div>
-    <div class="field-row"><label>Previous Balance</label>
-      ${edit?`<input type="number" inputmode="decimal" id="pf_prevBalance" value="${stu.prevBalance||0}" class="editable">`
-            :`<div class="field-val mono">${fmtINR(stu.prevBalance||0)}</div>`}
-    </div>`;
+    ${prevFieldHTML}`;
 
   $('prof_dues').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
     <div class="dues-block"><div class="lbl">Tuition Due</div><div class="amt ${dues.tuitionDue>0?'red':'green'}">${fmtINR(dues.tuitionDue)}</div></div>
@@ -2313,8 +2413,9 @@ async function saveProfile(){
 
   const famCode=$('pf_familyCode').value.trim()||stu.familyCode;
   const to=$('pf_tuitionOverride').value, ao=$('pf_annualOverride').value;
-  const pb=$('pf_prevBalance').value;
-  const newPb=pb===''?0:parseFloat(pb);
+  // Previous Balance is only editable on the eldest "holder" sibling; the input
+  // is absent for younger siblings, so guard on its presence.
+  const prevInput=$('pf_prevBalance');
 
   updateStatus('saving');
   try{
@@ -2342,9 +2443,35 @@ async function saveProfile(){
     const {error:e2}=await sb.from('student_enrollments').update(patch).eq('enrollment_id',stu.enrollment_id);
     if(e2) throw e2;
 
-    if(newPb!==(parseFloat(stu.prevBalance)||0)){
-      await addLedgerEntry(stu.enrollment_id,today(),`Manual edit (was ${fmtINR(stu.prevBalance||0)})`,newPb-(parseFloat(stu.prevBalance)||0),null);
-      await setPrevBalance(stu.enrollment_id,newPb);
+    // Save the (family) previous balance — only the eldest holder shows the box.
+    if(prevInput && isFamilyPrevHolder(stu)){
+      const enteredGross=prevInput.value===''?0:parseFloat(prevInput.value)||0;
+      const sibs=siblingsOf(stu);
+      if(sibs.length>1){
+        // Consolidate: the whole family's arrears live on the eldest. Zero out
+        // every younger sibling's stored balance (with a ledger note) and set
+        // the holder to the entered gross.
+        for(const sib of sibs){
+          if(sib.enrollment_id===stu.enrollment_id) continue;
+          const prior=parseFloat(sib.prevBalance)||0;
+          if(prior!==0){
+            await addLedgerEntry(sib.enrollment_id,today(),`Arrears consolidated onto eldest sibling (${stu.name})`,-prior,null);
+            await setPrevBalance(sib.enrollment_id,0);
+          }
+        }
+        const holderPrior=parseFloat(stu.prevBalance)||0;
+        if(enteredGross!==holderPrior){
+          await addLedgerEntry(stu.enrollment_id,today(),`Family previous balance set (was ${fmtINR(holderPrior)})`,enteredGross-holderPrior,null);
+        }
+        await setPrevBalance(stu.enrollment_id,enteredGross);
+      }else{
+        // Lone child — behave as before.
+        const holderPrior=parseFloat(stu.prevBalance)||0;
+        if(enteredGross!==holderPrior){
+          await addLedgerEntry(stu.enrollment_id,today(),`Manual edit (was ${fmtINR(holderPrior)})`,enteredGross-holderPrior,null);
+          await setPrevBalance(stu.enrollment_id,enteredGross);
+        }
+      }
     }
 
     await log(`Profile updated: ${newName}`,'accent');
@@ -2425,7 +2552,7 @@ function renderMatrix(){
       <td class="sticky2"><a onclick="openProfileModal('${stu.enrollment_id}','matrix')" style="font-weight:600;font-size:12px;color:var(--accent);text-decoration:none;cursor:pointer;">${esc(stu.name)}</a><br><span style="font-size:9px;color:var(--muted)">${esc(stu.familyCode||'—')}</span></td>
       <td class="sticky3">${esc(stu.father||'—')}</td>
       ${cells}
-      <td class="mono ${dues.annualDue===0?'cell-paid':'cell-unpaid'}" style="text-align:center;font-size:11px">${fmtINR(annPaid)}/${fmtINR(getAnnualCharge(stu))}</td>
+      <td class="mono ${dues.annualDueRaw===0?'cell-paid':'cell-unpaid'}" style="text-align:center;font-size:11px">${fmtINR(annPaid)}/${fmtINR(getAnnualCharge(stu))}</td>
       <td class="mono" style="text-align:center;font-size:11px">${fmtINR(dues.prevBalance)}</td>
       <td class="mono" style="color:${dues.total===0?'var(--green)':'var(--red)'};font-weight:600;text-align:center">${fmtINR(dues.total)}</td>
     </tr>`;
@@ -2659,7 +2786,7 @@ function _renderFamilyProfileFields(edit){
 
   const totalT=fam.reduce((s,stu)=>s+getTotalDues(stu).tuitionDue,0);
   const totalA=fam.reduce((s,stu)=>s+getTotalDues(stu).annualDue,0);
-  const totalP=getFamilyPrevBalance(fpCode);
+  const totalP=getFamilyPrevBalanceDisplay(fpCode);
   const grand=totalT+totalA+(totalP>0?totalP:0);
   $('fp_dues').innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:8px">
@@ -3084,147 +3211,169 @@ function renderDefaulters(){
 // ══════════════════════════════════════════════
 //  SETTINGS
 // ══════════════════════════════════════════════
-let FEE_ROWS=[];
-// One editable fee row per (class, stream). Classes without streams
-// (Nur-10th) get a single row with sid=null -> fee_master.stream_id NULL.
-function feeMasterRows(){
-  const rows=[];
-  CLASSES.forEach(c=>{
-    const cid=CLASS_ID[c]; if(!cid)return;
-    const strs=streamsFor(cid);
-    if(strs.length) strs.forEach(s=>rows.push({cid,cls:c,sid:s.stream_id,stream:s.name}));
-    else rows.push({cid,cls:c,sid:null,stream:null});
-  });
-  return rows;
-}
-
 function renderSettings(){
-  populateCls();
-  populateSessionDropdowns();
-  FEE_ROWS=feeMasterRows();
-  $('feeSettingsTable').innerHTML=`<table>
-    <thead><tr><th>Class</th><th>Stream</th><th>Monthly Tuition (₹)</th><th>Annual Charge (₹)</th><th>Sibling Flat Fee (₹)</th></tr></thead>
-    <tbody>${FEE_ROWS.map((r,i)=>{
-      const f=(FEEM[r.cid]||{})[r.sid||'_']||{tuition:0,annual:0,sibDisc:0};
-      return `<tr>
-        <td><b>${esc(r.cls)}</b></td>
-        <td>${r.stream?`<span class="pill pill-blue">${esc(r.stream)}</span>`:'<span class="text-muted">—</span>'}</td>
-        <td><input type="number" inputmode="decimal" id="fee_t_${i}" value="${f.tuition||0}" style="width:110px"></td>
-        <td><input type="number" inputmode="decimal" id="fee_a_${i}" value="${f.annual||0}" style="width:110px"></td>
-        <td><input type="number" inputmode="numeric" id="fee_s_${i}" value="${f.sibDisc||0}" style="width:110px"></td>
-      </tr>`;
-    }).join('')||'<tr><td colspan="5" class="text-muted" style="padding:14px">No classes defined. Add them in the Admin Portal.</td></tr>'}</tbody></table>`;
   renderSessionManager();
-  populateAllocPriorityDropdown('globalAllocPriority',globalAllocPriority);
+  populateAllocPriorityDropdown('globalAllocPriority', globalAllocPriority);
   const p=ALLOC_PRIORITIES.find(x=>x.code===globalAllocPriority);
   if(p)$('priorityDescription').textContent=p.desc;
+
+  const cls=CLASSES;
+  let rows='';
+  cls.forEach(cName=>{
+    const cid=CLASS_ID[cName];
+    const strs=streamsFor(cid);
+    if(strs.length){
+      strs.forEach(st=>{
+        const f=(FEEM[cid]||{})[st.stream_id]||{tuition:0,annual:0,sibDisc:0};
+        rows+=`<tr>
+          <td><b>${esc(cName)}</b> <span class="pill pill-blue">${esc(st.name)}</span></td>
+          <td><input type="number" inputmode="decimal" data-cid="${cid}" data-stream="${st.stream_id}" data-field="tuition" value="${f.tuition||0}" style="width:110px;text-align:right"></td>
+          <td><input type="number" inputmode="decimal" data-cid="${cid}" data-stream="${st.stream_id}" data-field="annual" value="${f.annual||0}" style="width:110px;text-align:right"></td>
+          <td><input type="number" inputmode="decimal" data-cid="${cid}" data-stream="${st.stream_id}" data-field="sibDisc" value="${f.sibDisc||0}" style="width:110px;text-align:right"></td>
+        </tr>`;
+      });
+    }else{
+      const f=(FEEM[cid]||{})['_']||{tuition:0,annual:0,sibDisc:0};
+      rows+=`<tr>
+        <td><b>${esc(cName)}</b></td>
+        <td><input type="number" inputmode="decimal" data-cid="${cid}" data-stream="_" data-field="tuition" value="${f.tuition||0}" style="width:110px;text-align:right"></td>
+        <td><input type="number" inputmode="decimal" data-cid="${cid}" data-stream="_" data-field="annual" value="${f.annual||0}" style="width:110px;text-align:right"></td>
+        <td><input type="number" inputmode="decimal" data-cid="${cid}" data-stream="_" data-field="sibDisc" value="${f.sibDisc||0}" style="width:110px;text-align:right"></td>
+      </tr>`;
+    }
+  });
+  $('feeSettingsTable').innerHTML=`<table>
+    <thead><tr><th>Class</th><th>Monthly Tuition (₹)</th><th>Annual Charge (₹)</th><th>Sibling Flat Fee (₹)</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="4" class="text-muted" style="padding:14px">No classes defined. Add them in the Admin Portal.</td></tr>'}</tbody>
+  </table>`;
 }
 
 function renderSessionManager(){
-  $('sessionManagerList').innerHTML=availableSessions.map(s=>`
+  const list=$('sessionManagerList');
+  list.innerHTML=[...availableSessions].reverse().map(s=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-      <div><b>${esc(s)}</b>${s===currentSession?'<span class="pill pill-green" style="margin-left:8px;">Current Active</span>':''}</div>
-      <div>${s!==currentSession?`<button class="btn btn-ghost btn-sm" onclick="setAsCurrentSession('${esc(s)}')">Make Current</button>`:''}</div>
+      <div><b>${esc(s)}</b> ${s===currentSession?'<span class="pill pill-green" style="margin-left:6px">Active</span>':''} ${s===viewSession&&s!==currentSession?'<span class="pill pill-yellow" style="margin-left:6px">Viewing</span>':''}</div>
+      <div style="display:flex;gap:6px">
+        ${s!==viewSession?`<button class="btn btn-ghost btn-sm" onclick="previewSession('${esc(s)}')">View</button>`:''}
+        ${s!==currentSession?`<button class="btn btn-primary btn-sm" onclick="setAsCurrentSession('${esc(s)}')">Set Active</button>`:''}
+      </div>
     </div>`).join('')||'<p class="text-muted">No sessions found.</p>';
 }
 
-async function setAsCurrentSession(s){
+async function setAsCurrentSession(sess){
   const ok=await showConfirm('Change Active Session?',
-    `This makes ${s} the active session for EVERY portal — admin, teacher, class teacher and mother teacher. Continue?`,[],'✓ Make Current','✕ Cancel');
+    `Set ${sess} as the globally active session? This affects the Admin and Teacher portals too.`,[],'✓ Set Active','✕ Cancel');
   if(!ok)return;
   updateStatus('saving');
   try{
-    await sb.from('sessions').update({is_current:false}).neq('session_id','__none__');
-    const {error}=await sb.from('sessions').update({is_current:true}).eq('session_id',s);
-    if(error) throw error;
-    viewSession=s;
-    await log(`Active session switched to ${s}`,'accent');
+    await sb.from('sessions').update({is_current:false}).eq('is_current',true);
+    await sb.from('sessions').update({is_current:true}).eq('session_id',sess);
+    await log(`Active session changed to ${sess}`,'accent');
+    toast(`Active session set to ${sess}`,'success');
+    viewSession=sess;
     await refreshAll();
-    toast(`Session switched to ${s}`,'success');
-  }catch(e){ updateStatus('offline'); toast('Switch failed: '+(e.message||e),'error') }
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Failed: '+(e.message||e),'error') }
 }
 
 async function createNewSession(){
-  const ns=$('newSessionName').value.trim();
-  if(!ns||!ns.includes('-')){toast('Enter valid format (e.g. 2028-2029)','error');return}
-  if(availableSessions.includes(ns)){toast('Session already exists','error');return}
-  const [y1,y2]=ns.split('-').map(Number);
-  if(!y1||!y2||y2!==y1+1){toast('Session years must be consecutive (e.g. 2028-2029)','error');return}
+  const name=$('newSessionName').value.trim();
+  if(!name){toast('Enter a session name','error');return}
+  if(availableSessions.includes(name)){toast('That session already exists','error');return}
+  if(!/^\d{4}-\d{4}$/.test(name)){
+    const go=await showConfirm('Unusual Format','Sessions are usually like 2027-2028. Create anyway?',[],'✓ Create','✕ Cancel');
+    if(!go)return;
+  }
   updateStatus('saving');
   try{
-    const {error}=await sb.from('sessions').insert({
-      session_id:ns, start_date:`${y1}-04-01`, end_date:`${y2}-03-31`, is_current:false
-    });
+    const {error}=await sb.from('sessions').insert({session_id:name,is_current:false});
     if(error) throw error;
-    await log(`Session ${ns} created`,'accent');
-    toast(`Session ${ns} created`,'success');
+    await log(`New session created: ${name}`,'green');
+    toast(`Session ${name} created`,'success');
     $('newSessionName').value='';
-    await refreshAll();
-  }catch(e){ updateStatus('offline'); toast('Create failed: '+(e.message||e),'error') }
+    await loadAll();
+    populateSessionDropdowns();
+    renderSettings();
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Failed: '+(e.message||e),'error') }
 }
 
 async function saveFeeSettings(){
   updateStatus('saving');
   try{
-    if(!FEE_ROWS.length){toast('No classes to save','error');return}
-    for(let i=0;i<FEE_ROWS.length;i++){
-      const r=FEE_ROWS[i];
-      const patch={
-        monthly_tuition:parseFloat($('fee_t_'+i).value)||0,
-        annual_charge:parseFloat($('fee_a_'+i).value)||0,
-        sibling_discount_flat:parseFloat($('fee_s_'+i).value)||0
+    const inputs=document.querySelectorAll('#feeSettingsTable input');
+    const acc={};
+    inputs.forEach(inp=>{
+      const cid=inp.dataset.cid, stream=inp.dataset.stream, field=inp.dataset.field;
+      const key=cid+'|'+stream;
+      if(!acc[key])acc[key]={cid,stream};
+      acc[key][field]=parseFloat(inp.value)||0;
+    });
+    for(const key in acc){
+      const {cid,stream,tuition,annual,sibDisc}=acc[key];
+      const existing=(FEEM[cid]||{})[stream];
+      const row={
+        session_id:viewSession, class_id:cid,
+        stream_id: stream==='_'?null:stream,
+        monthly_tuition:tuition||0, annual_charge:annual||0, sibling_discount_flat:sibDisc||0
       };
-      const existing=(FEEM[r.cid]||{})[r.sid||'_']?.id;
-      if(existing){
-        const {error}=await sb.from('fee_master').update(patch).eq('fee_master_id',existing);
-        if(error) throw error;
+      if(existing&&existing.id){
+        await sb.from('fee_master').update(row).eq('fee_master_id',existing.id);
       }else{
-        const {error}=await sb.from('fee_master')
-          .insert({session_id:viewSession, class_id:r.cid, stream_id:r.sid, ...patch});
-        if(error) throw error;
+        await sb.from('fee_master').insert(row);
       }
     }
     await log(`Fee master updated for ${viewSession}`,'accent');
     toast('Fee master saved','success');
-    await loadAll(); renderSettings();
+    await loadAll();
+    renderSettings();
     updateStatus('connected');
   }catch(e){ updateStatus('offline'); toast('Save failed: '+(e.message||e),'error') }
 }
 
-function bulkSetSibFlat(){
+async function bulkSetSibFlat(){
   const amt=parseFloat($('bulkSibFlat').value);
-  if(isNaN(amt)){toast('Enter an amount first','error');return}
+  if(isNaN(amt)){toast('Enter an amount','error');return}
   const scope=$('bulkSibScope').value;
   const lowerSet=['Nur','LKG','UKG','1st','2nd','3rd','4th','5th'];
-  let n=0;
-  FEE_ROWS.forEach((r,i)=>{
-    const isLower=lowerSet.includes(r.cls);
-    if(scope==='lower'&&!isLower)return;
-    if(scope==='upper'&&isLower)return;
-    const el=$('fee_s_'+i);
-    if(el){el.value=amt;n++}
+  document.querySelectorAll('#feeSettingsTable input[data-field="sibDisc"]').forEach(inp=>{
+    const cid=inp.dataset.cid;
+    const cName=CLASS_NAME[cid]||'';
+    let apply=false;
+    if(scope==='all') apply=true;
+    else if(scope==='lower') apply=lowerSet.includes(cName);
+    else if(scope==='upper') apply=!lowerSet.includes(cName);
+    if(apply) inp.value=amt;
   });
-  toast(`Set ${n} class(es) — click "Save Fee Master" to apply`,'success');
+  toast(`Sibling flat fee set to ${fmtINR(amt)} in the grid — review, then Save Fee Master`,'success');
 }
 
 async function purgeSessionFeeData(){
-  const c=prompt(`DANGER: this deletes ALL fee data for ${viewSession} — payments, allocations, waivers and arrears.\n\nStudents and enrollments are NOT deleted.\n\nType PURGE to confirm.`);
-  if(c!=='PURGE'){toast('Purge cancelled','error');return}
+  const ok=await showConfirm('⚠ Purge Fee Data?',
+    `This deletes ALL payments, allocations, waivers and previous-balance records for ${viewSession}. Students and enrollments are NOT affected. This cannot be undone.`,
+    [],'✓ Purge','✕ Cancel');
+  if(!ok)return;
+  const ok2=await showConfirm('Are you absolutely sure?',
+    `Final confirmation — permanently wipe fee data for ${viewSession}?`,[],'✓ Yes, Purge Everything','✕ Cancel');
+  if(!ok2)return;
   updateStatus('saving');
   try{
     const eids=students.map(s=>s.enrollment_id);
     const {data:pays}=await sb.from('payments').select('payment_id').eq('session_id',viewSession);
     const pids=(pays||[]).map(p=>p.payment_id);
-    if(pids.length) await deleteInChunks('payment_allocations','payment_id',pids);
-    await sb.from('payments').delete().eq('session_id',viewSession);
+    if(pids.length){
+      await deleteInChunks('payment_allocations','payment_id',pids);
+      await deleteInChunks('payments','payment_id',pids);
+    }
     if(eids.length){
       await deleteInChunks('fee_waivers','enrollment_id',eids);
       await deleteInChunks('prev_balance_ledger','enrollment_id',eids);
       await deleteInChunks('previous_balances','enrollment_id',eids);
     }
-    await log(`Fee data purged for session ${viewSession}`,'red');
-    toast(`Fee data for ${viewSession} purged`,'success');
+    await log(`Fee data purged for ${viewSession}`,'red');
+    toast('Fee data purged','success');
     await refreshAll();
+    updateStatus('connected');
   }catch(e){ updateStatus('offline'); toast('Purge failed: '+(e.message||e),'error') }
 }
 
@@ -3232,335 +3381,230 @@ async function purgeSessionFeeData(){
 //  CSV IMPORT / EXPORT
 // ══════════════════════════════════════════════
 function downloadSampleCSV(){
-  // Full schema. IDENTICAL to Admin Portal > Bulk Import > Download Sample Template.
-  // Only full_name, father_name and class are required; every other column may be
-  // blank, or omitted from the file entirely.
-  const h=['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob',
-           'aadhar_no','address','admission_date','family_code','class','section','stream',
-           'roll_no','is_new_admission','tuition_override','annual_override'];
-  const sec=SECTIONS[0]?.name||'A';
-  const c1=CLASSES[0]||'Nur', c2=CLASSES[10]||CLASSES[0]||'11th Science';
-  const r1=['','1','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-08-15',
-            '123456789012','House 1, City','2024-04-01','F0001',c2,sec,'','1','false','',''];
-  const r2=['','2','Neha Kumar','Shyam Kumar','Sita Devi','9876543210','','2020-03-09',
-            '','','2026-07-01','F0001',c1,sec,'','2','true','',''];
-  const notes=[
-    ['--- NOTES — DELETE EVERY ROW BELOW BEFORE IMPORTING ---'],
-    ['Same template as Admin Portal > Bulk Import. One CSV, either portal.'],
-    [''],
-    ['REQUIRED: full_name, father_name, class'],
-    ['Everything else is optional. Blank cells are fine, and you may delete whole'],
-    ['columns you do not have — the importer only reads the headers present.'],
-    [''],
-    ['student_id  blank = auto-generate STU-0001, STU-0002 ...'],
-    ['s_no        plain number for this session (1, 2, 3). Blank = continue the series.'],
-    ['            Leave blank ONLY for new admissions. A promoted student awaiting'],
-    ['            re-admission should not be in this file at all.'],
-    ['dob / admission_date    YYYY-MM-DD'],
-    ['section     blank = "A" (auto-created if the class has no sections yet)'],
-    [`class       must match exactly: ${CLASSES.join(' | ')}`],
-    ['stream      REQUIRED for any class that has streams (11th/12th) — the fee'],
-    ['            is set per stream, so it cannot be guessed. Leave blank for Nur-10th.'],
-    [`            available: ${STREAMS.length?[...new Set(STREAMS.map(s=>(CLASS_NAME[s.class_id]||'?')+': '+s.name))].join(' | '):'(none)'}`],
-    [`section     available in ${viewSession}: ${[...new Set(SECTIONS.map(s=>s.name))].join(' | ')||'(none yet — "A" will be created)'}`],
-    ['family_code blank = auto-generate. Same code on 2 rows = siblings.'],
-    ['            3+ siblings sharing a code triggers the flat sibling fee.'],
-    ['is_new_admission   true = waives the annual charge.  BLANK DEFAULTS TO false.'],
-    ['tuition_override / annual_override   blank = use the class fee master'],
-  ];
-  const rows=[h,r1,r2,[''],['']];
-  notes.forEach(n=>rows.push(n));
-  const csv=rows.map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download='sps_student_import_template.csv';
-  a.click();
-  toast('Template downloaded — same file works in the Admin Portal','success');
+  const headers=['student_id','full_name','father_name','mother_name','phone','alt_phone','dob','admission_date','class','section','s_no','family_code','is_new_admission','tuition_override','annual_override'];
+  const sample=['SPS-S-0001','Aarav Sharma','Rajesh Sharma','Sunita Sharma','9876543210','9812345678','2015-06-12','2024-04-01','5th','A','1','F001','false','',''];
+  const csv=headers.join(',')+'\n'+sample.join(',');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='sps_import_sample.csv'; a.click();
+  URL.revokeObjectURL(url);
 }
 
-// Shares the Admin Portal's column names and field mapping so a single CSV
-// produces byte-identical records from either portal.
-function importCSV(input){
+function parseCSVLine(line){
+  const out=[]; let cur='', inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){ if(inQ&&line[i+1]==='"'){cur+='"';i++} else inQ=!inQ }
+    else if(c===','&&!inQ){ out.push(cur); cur='' }
+    else cur+=c;
+  }
+  out.push(cur);
+  return out.map(s=>s.trim());
+}
+
+async function importCSV(input){
   const file=input.files[0]; if(!file)return;
-  const reader=new FileReader();
-  reader.onload=async e=>{
-    try{
-      const lines=e.target.result.split('\n').map(l=>l.trim()).filter(Boolean)
-        .filter(l=>!l.startsWith('"---')&&!l.startsWith('---'));
-      if(lines.length<2){toast('CSV is empty or has no data rows','error');input.value='';return}
-      const headers=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
-      if(!headers.includes('full_name')){
-        toast('Wrong CSV format — needs the admin columns (full_name, father_name, class…). Download the template.','error');
-        input.value=''; return;
-      }
+  const text=await file.text();
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  if(lines.length<2){toast('CSV appears empty','error');input.value='';return}
+  const headers=parseCSVLine(lines[0]).map(h=>h.toLowerCase());
+  const idx=n=>headers.indexOf(n);
 
-      const parsed=[];
-      lines.slice(1).forEach((line,li)=>{
-        const vals=line.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
-        const o={}; headers.forEach((h,i)=>o[h]=vals[i]||'');
-        if(!o.full_name&&!o.father_name)return;
-        o._row=li+2;
-        parsed.push(o);
-      });
-      if(!parsed.length){toast('No usable rows found','error');input.value='';return}
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const c=parseCSVLine(lines[i]);
+    if(!c[idx('full_name')])continue;
+    rows.push(c);
+  }
+  if(!rows.length){toast('No valid rows found','error');input.value='';return}
 
-      // ── Validate ──
-      const errors=[];
-      const seenSno={}, seenSid={};
-      parsed.forEach(o=>{
-        if(!o.full_name||!o.father_name) errors.push(`Row ${o._row}: full_name and father_name are required`);
-        if(!o.class||!CLASS_ID[o.class]) errors.push(`Row ${o._row}: unknown class "${o.class||''}" — create it in the Admin Portal first`);
-        else{
-          if(o.section&&!sectionsFor(CLASS_ID[o.class]).find(x=>x.name.toLowerCase()===o.section.toLowerCase()))
-            errors.push(`Row ${o._row}: section "${o.section}" not found in class "${o.class}" — leave the cell blank to use "A"`);
-          // A class with streams charges per stream, so it can't be guessed.
-          const _st=streamsFor(CLASS_ID[o.class]);
-          if(_st.length){
-            if(!o.stream) errors.push(`Row ${o._row}: class "${o.class}" needs a stream (${_st.map(x=>x.name).join('/')}) — its fee depends on it`);
-            else if(!_st.find(x=>x.name.toLowerCase()===o.stream.toLowerCase()))
-              errors.push(`Row ${o._row}: stream "${o.stream}" not found in "${o.class}" — available: ${_st.map(x=>x.name).join(', ')}`);
-          } else if(o.stream){
-            errors.push(`Row ${o._row}: class "${o.class}" has no streams, but stream "${o.stream}" was given`);
-          }
+  const ok=await showConfirm('Import Students?',
+    `Import ${rows.length} student(s) into ${viewSession}? Existing student_ids will be skipped (no duplicates created).`,[],'✓ Import','✕ Cancel');
+  if(!ok){input.value='';return}
+
+  updateStatus('saving');
+  let created=0, skipped=0, errors=0;
+  try{
+    const {data:existingStu}=await sb.from('students').select('student_id');
+    const existingIds=new Set((existingStu||[]).map(s=>s.student_id));
+
+    for(const c of rows){
+      try{
+        let sid=c[idx('student_id')]||'';
+        if(sid&&existingIds.has(sid)){
+          const clsName=c[idx('class')];
+          const cid=CLASS_ID[clsName];
+          if(!cid){errors++;continue}
+          const secs=sectionsFor(cid);
+          const secName=c[idx('section')]||'';
+          const sec=secs.find(x=>x.name===secName)||secs[0];
+          const {data:already}=await sb.from('student_enrollments').select('enrollment_id').eq('student_id',sid).eq('session_id',viewSession).maybeSingle();
+          if(already){skipped++;continue}
+          await sb.from('student_enrollments').insert({
+            student_id:sid, session_id:viewSession, class_id:cid,
+            section_id:sec?sec.section_id:null,
+            s_no:c[idx('s_no')]||null, status:'active',
+            is_new_admission:(c[idx('is_new_admission')]||'').toLowerCase()==='true',
+            tuition_override: idx('tuition_override')>=0&&c[idx('tuition_override')]!==''?parseFloat(c[idx('tuition_override')]):null,
+            annual_override:  idx('annual_override')>=0&&c[idx('annual_override')]!==''?parseFloat(c[idx('annual_override')]):null
+          });
+          created++; continue;
         }
-        if(o.s_no){
-          if(!/^\d+$/.test(o.s_no)) errors.push(`Row ${o._row}: s_no must be a plain number, got "${o.s_no}"`);
-          if(seenSno[o.s_no]) errors.push(`Row ${o._row}: s_no ${o.s_no} duplicated (also row ${seenSno[o.s_no]})`);
-          seenSno[o.s_no]=o._row;
-          const taken=students.find(s=>String(s.sno)===String(o.s_no));
-          if(taken) errors.push(`Row ${o._row}: s_no ${o.s_no} already used by ${taken.name} in ${viewSession}`);
-        }
-        if(o.student_id){
-          if(seenSid[o.student_id]) errors.push(`Row ${o._row}: student_id ${o.student_id} duplicated`);
-          seenSid[o.student_id]=o._row;
-        }
-      });
-      if(errors.length){
-        alert('❌ CSV REJECTED — nothing was imported.\n\n'+errors.slice(0,25).join('\n')
-          +(errors.length>25?`\n\n…and ${errors.length-25} more.`:'')+'\n\nFix the CSV and re-upload.');
-        toast(`Import rejected: ${errors.length} problem(s)`,'error');
-        input.value=''; return;
-      }
-
-      // ── Duplicate check against the DB (same rule as Admin) ──
-      const sids=parsed.map(r=>r.student_id).filter(Boolean);
-      const dupSids=new Set();
-      if(sids.length){
-        const {data}=await sb.from('students').select('student_id').in('student_id',sids);
-        (data||[]).forEach(r=>dupSids.add(r.student_id));
-      }
-      const valid=[], skipped=[];
-      parsed.forEach(r=>{
-        if(r.student_id&&dupSids.has(r.student_id)) skipped.push(`${r.full_name} (student_id ${r.student_id} exists)`);
-        else valid.push(r);
-      });
-      if(!valid.length){toast('All rows were duplicates — nothing imported','error');input.value='';return}
-
-      const newCount=valid.filter(r=>['true','1','yes','y'].includes(String(r.is_new_admission||'').toLowerCase())).length;
-      const go=await showConfirm('Import Students?',
-        `${valid.length} student(s) will be created in ${viewSession}.\n\n`
-        +`${newCount} marked as new admissions (annual charge waived)\n`
-        +`${valid.length-newCount} as existing students (annual charge applies)\n`
-        +(skipped.length?`\n${skipped.length} duplicate(s) will be skipped.`:''),
-        skipped.slice(0,8),'✓ Import','✕ Cancel');
-      if(!go){input.value='';return}
-
-      updateStatus('saving');
-      // Max-based ID generation — identical to the Admin Portal
-      const {data:allSids}=await sb.from('students').select('student_id');
-      let sidMax=(allSids||[]).reduce((m,r)=>{const n=parseInt(String(r.student_id).replace(/\D/g,''))||0;return n>m?n:m},0);
-      const {data:allFams}=await sb.from('families').select('family_code');
-      let famMax=(allFams||[]).reduce((m,r)=>{const n=parseInt(String(r.family_code).replace(/\D/g,''))||0;return n>m?n:m},0);
-      const knownFams=new Set((allFams||[]).map(f=>f.family_code));
-      let snoMax=Math.max(0,...students.filter(s=>s.sno!=null&&s.sno!=='').map(s=>parseInt(s.sno)||0),
-                          ...valid.map(r=>parseInt(r.s_no)||0));
-
-      const stuRows=[], enrRows=[], autoSecs=[];
-      for(const r of valid){
-        let fc=(r.family_code||'').trim();
-        if(!fc){ famMax++; fc='F'+String(famMax).padStart(4,'0') }
-        if(!knownFams.has(fc)){ await ensureFamily(fc,r.phone); knownFams.add(fc) }
-        const studentId=r.student_id||('STU-'+String(++sidMax).padStart(4,'0'));
-        // Section defaults to 'A', auto-created if the class has none yet.
-        // section_id is NOT NULL so it must always resolve to something.
-        const secName=(r.section||'').trim()||'A';
-        let sec=sectionsFor(CLASS_ID[r.class]).find(x=>x.name.toLowerCase()===secName.toLowerCase());
-        if(!sec){
-          const {data:ns,error:nse}=await sb.from('class_sections')
-            .insert({name:secName,class_id:CLASS_ID[r.class],session_id:viewSession,is_active:true})
-            .select().maybeSingle();
-          if(nse||!ns) throw new Error(`Could not create section "${secName}" for class ${r.class}: ${nse?.message||'unknown'}`);
-          SECTIONS.push(ns); sec=ns; autoSecs.push(`${r.class}-${secName}`);
-        }
-        stuRows.push({
-          student_id:studentId, full_name:r.full_name, father_name:r.father_name,
-          mother_name:r.mother_name||null, phone:r.phone||null, alt_phone:r.alt_phone||null,
-          dob:parseAdmDate(r.dob), aadhar_no:r.aadhar_no||null, address:r.address||null,
-          admission_date:parseAdmDate(r.admission_date), family_code:fc
+        if(!sid) sid=await nextStudentId();
+        const familyCode=c[idx('family_code')]||await nextFamilyCode();
+        await ensureFamily(familyCode,c[idx('phone')]);
+        await sb.from('students').insert({
+          student_id:sid, full_name:c[idx('full_name')], father_name:c[idx('father_name')]||null,
+          mother_name:c[idx('mother_name')]||null, phone:c[idx('phone')]||null, alt_phone:c[idx('alt_phone')]||null,
+          dob:parseAdmDate(c[idx('dob')])||null, admission_date:parseAdmDate(c[idx('admission_date')])||today(),
+          family_code:familyCode
         });
-        const _strs=streamsFor(CLASS_ID[r.class]);
-        const _stream=_strs.length?_strs.find(x=>x.name.toLowerCase()===(r.stream||'').toLowerCase()):null;
-        enrRows.push({
-          student_id:studentId, session_id:viewSession,
-          class_id:CLASS_ID[r.class], section_id:sec.section_id,
-          stream_id:_stream?_stream.stream_id:null,
-          roll_no:parseInt(r.roll_no)||null,
-          s_no:r.s_no||String(++snoMax), status:'active',
-          is_new_admission:['true','1','yes','y'].includes(String(r.is_new_admission||'').toLowerCase()),
-          tuition_override:r.tuition_override?parseFloat(r.tuition_override):null,
-          annual_override:r.annual_override?parseFloat(r.annual_override):null
+        existingIds.add(sid);
+        const clsName=c[idx('class')];
+        const cid=CLASS_ID[clsName];
+        if(!cid){errors++;continue}
+        const secs=sectionsFor(cid);
+        const secName=c[idx('section')]||'';
+        const sec=secs.find(x=>x.name===secName)||secs[0];
+        await sb.from('student_enrollments').insert({
+          student_id:sid, session_id:viewSession, class_id:cid,
+          section_id:sec?sec.section_id:null,
+          s_no:c[idx('s_no')]||null, status:'active',
+          is_new_admission:(c[idx('is_new_admission')]||'').toLowerCase()==='true',
+          tuition_override: idx('tuition_override')>=0&&c[idx('tuition_override')]!==''?parseFloat(c[idx('tuition_override')]):null,
+          annual_override:  idx('annual_override')>=0&&c[idx('annual_override')]!==''?parseFloat(c[idx('annual_override')]):null
         });
-      }
-
-      const {error:e1}=await sb.from('students').insert(stuRows);
-      if(e1) throw e1;
-      const {error:e2}=await sb.from('student_enrollments').insert(enrRows);
-      if(e2){
-        await sb.from('students').delete().in('student_id',stuRows.map(s=>s.student_id));
-        throw new Error('Enrollment failed, students rolled back: '+e2.message);
-      }
-
-      await log(`CSV import: ${stuRows.length} students added to ${viewSession}`,'green');
-      toast(`✓ ${stuRows.length} students imported${skipped.length?` (${skipped.length} skipped)`:''}${autoSecs.length?` · auto-created sections: ${[...new Set(autoSecs)].join(', ')}`:''}`,'success');
-      input.value='';
-      await refreshAll();
-    }catch(err){
-      console.error(err);
-      updateStatus('offline');
-      toast('Import failed: '+(err.message||err),'error');
-      input.value='';
-      await refreshAll();
+        created++;
+      }catch(rowErr){ console.error('row import failed',rowErr); errors++ }
     }
-  };
-  reader.readAsText(file);
+    await log(`CSV import: ${created} created, ${skipped} skipped, ${errors} errors`,'accent');
+    toast(`Import done — ${created} added, ${skipped} skipped, ${errors} errors`,errors?'error':'success');
+    await refreshAll();
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Import failed: '+(e.message||e),'error') }
+  input.value='';
 }
 
 function exportCSV(){
-  const page=document.querySelector('.page.active').id.replace('page-','');
-  let data,filename;
-  if(page==='defaulters'){
-    const list=students.map(s=>({...s,due:getTotalDues(s).total})).filter(s=>s.due>0);
-    data=[['S.No','Name',"Father's Name",'Phone','Class','Total Due'],
-      ...list.map(s=>[s.sno||'NOT RE-ADMITTED',s.name,s.father||'',s.phone||'',s.cls,s.due])];
-    filename=`defaulters_${viewSession}.csv`;
-  }else if(page==='transactions'){
-    data=[['Bundle Txn ID','Date','S.No','Student Name','Head','Amount'],
-      ...payments.map(p=>{
-        const stu=students.find(s=>s.enrollment_id===p.enrollment_id);
-        return [p.bundleID||'',p.datetime||'',stu?.sno||'',stu?stu.name:'Unknown',p.month,p.total];
-      })];
-    filename=`transactions_${viewSession}.csv`;
-  }else if(page==='readmission'){
-    data=[['Status','Name',"Father's Name",'Class','Family Code','S.No'],
-      ...readmissionList().map(s=>[(s.sno?'Re-admitted':'Pending'),s.name,s.father||'',s.cls,s.familyCode||'',s.sno||''])];
-    filename=`readmission_${viewSession}.csv`;
-  }else{
-    data=[['S.No','Student ID','Name',"Father's Name",'Phone','Class','Family Code','New Admission','Re-admitted','Total Due'],
-      ...sortBySno(students).map(s=>[s.sno||'',s.student_id,s.name,s.father||'',s.phone||'',s.cls,s.familyCode||'',!!s.isNew,(s.sno?'Yes':'No'),getTotalDues(s).total])];
-    filename=`students_${viewSession}.csv`;
-  }
-  const csv=data.map(r=>r.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download=filename; a.click();
+  const headers=['s_no','student_id','full_name','father_name','mother_name','phone','alt_phone','class','section','stream','family_code','is_new_admission','tuition_override','annual_override','prev_balance','tuition_due','annual_due','total_due'];
+  const lines=[headers.join(',')];
+  sortBySno(students).forEach(s=>{
+    const d=getTotalDues(s);
+    const secName=(SECTIONS.find(x=>x.section_id===s.section_id)||{}).name||'';
+    const row=[
+      s.sno||'', s.student_id, s.name, s.father||'', s.mother||'', s.phone||'', s.altPhone||'',
+      s.cls, secName, s.stream||'', s.familyCode||'', s.isNew?'true':'false',
+      s.tuitionOverride??'', s.annualOverride??'', s.prevBalance||0,
+      d.tuitionDue, d.annualDue, d.total
+    ].map(v=>{
+      const str=String(v==null?'':v);
+      return /[",\n]/.test(str)?'"'+str.replace(/"/g,'""')+'"':str;
+    });
+    lines.push(row.join(','));
+  });
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`sps_fees_${viewSession}.csv`; a.click();
+  URL.revokeObjectURL(url);
   toast('CSV exported','success');
 }
 
 // ══════════════════════════════════════════════
-//  WAIVER DASHBOARD  → fee_waivers
+//  WAIVER DASHBOARD
 // ══════════════════════════════════════════════
-let waiverEid=null, waiverMonth=null;
+let waiverEid=null, waiverMonth=null, waiverBaseFee=0;
 
 function openWaiverModal(eid){
   waiverEid=eid;
-  const stu=students.find(s=>s.enrollment_id===eid);
-  if(!stu){toast('Open a student profile first','error');return}
-  $('wm_title').textContent=`Fee Waiver Dashboard — ${stu.name}${stu.sno?' (#'+stu.sno+')':''}`;
+  const stu=students.find(s=>s.enrollment_id===eid); if(!stu)return;
+  $('wm_title').textContent=`Fee Waivers — ${stu.name}`;
   $('wm_studentInfo').innerHTML=`
-    <span><b>Class:</b> ${esc(stu.cls)}</span>
-    <span><b>Base Tuition:</b> <span class="mono">${fmtINR(getMonthlyTuition(stu))}/month</span></span>
-    <span><b>Annual Charge:</b> <span class="mono">${fmtINR(getAnnualCharge(stu))}</span></span>
-    <span><b>Family:</b> ${esc(stu.familyCode||'—')}</span>`;
+    <div><span class="text-muted">Student:</span> <b>${esc(stu.name)}</b></div>
+    <div><span class="text-muted">Class:</span> <b>${esc(stu.cls)}${stu.stream?' · '+esc(stu.stream):''}</b></div>
+    <div><span class="text-muted">S.No:</span> <b>${esc(stu.sno||'—')}</b></div>
+    <div><span class="text-muted">Monthly Tuition:</span> <b>${fmtINR(getMonthlyTuition(stu))}</b></div>`;
   _renderWaiverTable(stu);
   $('waiverModal').style.display='flex';
 }
-
-function closeWaiverModal(){
-  $('waiverModal').style.display='none';
-  closeWaiverPopup();
-  waiverEid=null;
-  if(profileEid){
-    const stu=students.find(s=>s.enrollment_id===profileEid);
-    if(stu) renderProfileFields(stu,false);
-  }
-}
+function closeWaiverModal(){ $('waiverModal').style.display='none'; waiverEid=null }
 
 function _renderWaiverTable(stu){
-  const mt=getMonthlyTuition(stu), ac=getAnnualCharge(stu);
-  const activeMonths=activeMonthsFor();
-  let totalWaived=0,totalNetDue=0;
-
-  const rows=activeMonths.map(m=>{
-    const waivedAmt=getWaivedAmount(stu,m);
+  const rows=MONTHS.map(m=>{
+    const mi=MONTHS.indexOf(m);
+    const base=monthlyTuitionForMonth(stu,mi);
+    const waived=getWaivedAmount(stu,m);
     const remark=getWaiverRemark(stu,m);
-    const paid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===m).reduce((s,p)=>s+(p.tuition||0),0);
-    const netDue=Math.max(0,Math.max(0,mt-waivedAmt)-paid);
-    const hasWaiver=waivedAmt>0;
-    totalWaived+=waivedAmt; totalNetDue+=netDue;
-    return `<tr class="${hasWaiver?'cell-waived':''}">
+    const net=Math.max(0,base-waived);
+    return `<tr>
       <td><b>${m}</b></td>
-      <td class="mono">${fmtINR(mt)}</td>
-      <td class="mono" style="color:${hasWaiver?'var(--yellow)':'var(--muted)'}">${hasWaiver?fmtINR(waivedAmt):'—'}</td>
-      <td class="mono" style="color:${netDue>0?'var(--red)':'var(--green)'}">${fmtINR(netDue)}</td>
-      <td style="font-size:11px;color:var(--muted);font-style:italic">${esc(remark||'—')}</td>
-      <td style="white-space:nowrap">${hasWaiver
-        ?`<button class="btn btn-danger btn-sm" onclick="revertWaiver('${m}')">↩ Revert</button>`
-        :`<button class="btn btn-ghost btn-sm" style="border-color:var(--yellow);color:var(--yellow);" onclick="openWaiverPopup('${m}',${mt},'Tuition')">✎ Waive Off</button>`}</td>
+      <td class="mono">${fmtINR(base)}</td>
+      <td class="mono" style="color:${waived>0?'var(--yellow)':'var(--muted)'}">${waived>0?fmtINR(waived):'—'}</td>
+      <td class="mono" style="color:${net===0&&waived>0?'var(--green)':'var(--text)'}">${fmtINR(net)}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(remark||'—')}</td>
+      <td style="display:flex;gap:5px">
+        <button class="btn btn-ghost btn-sm" onclick="openWaiverPopup('${m}',${base},'${m}')" style="border-color:var(--yellow);color:var(--yellow)">${waived>0?'Edit':'Add'}</button>
+        ${waived>0?`<button class="btn btn-ghost btn-sm" onclick="revertWaiver('${m}')" style="border-color:var(--red);color:var(--red)">Revert</button>`:''}
+      </td>
     </tr>`;
   });
 
+  // "All Months" bulk row — one amount applied to every active month at once.
+  // The base shown is the sum of every month's tuition; the per-month cap is
+  // applied when the waiver is actually saved (see applyWaiver).
+  const activeMonths=activeMonthsFor();
+  const allBase=activeMonths.reduce((s,m)=>s+monthlyTuitionForMonth(stu,MONTHS.indexOf(m)),0);
+  const allWaived=activeMonths.reduce((s,m)=>s+getWaivedAmount(stu,m),0);
+  const anyWaived=activeMonths.some(m=>getWaivedAmount(stu,m)>0);
+  const allNet=Math.max(0,allBase-allWaived);
+  const allRow=`<tr style="background:rgba(243,156,18,.07)">
+    <td><b>All Months</b> <span class="text-muted" style="font-size:10px">(Tuition — bulk)</span></td>
+    <td class="mono">${fmtINR(allBase)}</td>
+    <td class="mono" style="color:${allWaived>0?'var(--yellow)':'var(--muted)'}">${allWaived>0?fmtINR(allWaived):'—'}</td>
+    <td class="mono" style="color:${allNet===0&&allWaived>0?'var(--green)':'var(--text)'}">${fmtINR(allNet)}</td>
+    <td style="font-size:11px;color:var(--muted)">Applies one waiver to every active month</td>
+    <td style="display:flex;gap:5px">
+      <button class="btn btn-ghost btn-sm" onclick="openWaiverPopup('__ALL__',${allBase},'AllMonths')" style="border-color:var(--yellow);color:var(--yellow)">Apply to All</button>
+      ${anyWaived?`<button class="btn btn-ghost btn-sm" onclick="revertAllWaivers()" style="border-color:var(--red);color:var(--red)">Revert All</button>`:''}
+    </td>
+  </tr>`;
+  rows.unshift(allRow);
+  const annBase=getAnnualCharge(stu);
   const annWaived=getWaivedAmount(stu,HEAD_ANNUAL);
   const annRemark=getWaiverRemark(stu,HEAD_ANNUAL);
-  const annPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id).reduce((s,p)=>s+(p.annual||0),0);
-  const annNetDue=Math.max(0,ac-annWaived-annPaid);
-  const annHasW=annWaived>0;
-  totalWaived+=annWaived; totalNetDue+=annNetDue;
-
-  rows.push(`<tr class="${annHasW?'cell-waived':''}">
+  const annNet=Math.max(0,annBase-annWaived);
+  const annRow=`<tr style="background:rgba(79,142,247,.05)">
     <td><b>Annual Charge</b></td>
-    <td class="mono">${fmtINR(ac)}</td>
-    <td class="mono" style="color:${annHasW?'var(--yellow)':'var(--muted)'}">${annHasW?fmtINR(annWaived):'—'}</td>
-    <td class="mono" style="color:${annNetDue>0?'var(--red)':'var(--green)'}">${fmtINR(annNetDue)}</td>
-    <td style="font-size:11px;color:var(--muted);font-style:italic">${esc(annRemark||'—')}</td>
-    <td style="white-space:nowrap">${annHasW
-      ?`<button class="btn btn-danger btn-sm" onclick="revertWaiver('${HEAD_ANNUAL}')">↩ Revert</button>`
-      :`<button class="btn btn-ghost btn-sm" style="border-color:var(--yellow);color:var(--yellow);" onclick="openWaiverPopup('${HEAD_ANNUAL}',${ac},'Annual')">✎ Waive Off</button>`}</td>
-  </tr>`);
-
-  rows.push(`<tr style="background:var(--surface2);font-weight:600;">
-    <td>TOTAL</td>
-    <td class="mono">${fmtINR(mt*activeMonths.length+ac)}</td>
-    <td class="mono" style="color:var(--yellow)">${fmtINR(totalWaived)}</td>
-    <td class="mono" style="color:${totalNetDue>0?'var(--red)':'var(--green)'}">${fmtINR(totalNetDue)}</td>
-    <td colspan="2"></td>
-  </tr>`);
-
+    <td class="mono">${fmtINR(annBase)}</td>
+    <td class="mono" style="color:${annWaived>0?'var(--yellow)':'var(--muted)'}">${annWaived>0?fmtINR(annWaived):'—'}</td>
+    <td class="mono" style="color:${annNet===0&&annWaived>0?'var(--green)':'var(--text)'}">${fmtINR(annNet)}</td>
+    <td style="font-size:11px;color:var(--muted)">${esc(annRemark||'—')}</td>
+    <td style="display:flex;gap:5px">
+      <button class="btn btn-ghost btn-sm" onclick="openWaiverPopup('${HEAD_ANNUAL}',${annBase},'Annual')" style="border-color:var(--yellow);color:var(--yellow)">${annWaived>0?'Edit':'Add'}</button>
+      ${annWaived>0?`<button class="btn btn-ghost btn-sm" onclick="revertWaiver('${HEAD_ANNUAL}')" style="border-color:var(--red);color:var(--red)">Revert</button>`:''}
+    </td>
+  </tr>`;
   $('wm_table').innerHTML=`<table>
-    <thead><tr><th>Month / Item</th><th>Base Fee</th><th>Waived Amount</th><th>Net Due</th><th>Waiver Remark</th><th>Action</th></tr></thead>
-    <tbody>${rows.join('')}</tbody></table>`;
+    <thead><tr><th>Month / Head</th><th>Base Fee</th><th>Waived</th><th>Net Due</th><th>Remark</th><th>Action</th></tr></thead>
+    <tbody>${rows.join('')}${annRow}</tbody>
+  </table>`;
 }
 
-function openWaiverPopup(month,baseFee,type){
-  waiverMonth=month;
-  $('wp_title').textContent=`Waive Off — ${month} ${type==='Annual'?'(Annual Charge)':'(Tuition)'}`;
-  $('wp_base').textContent=fmtINR(baseFee);
-  $('wp_amount').value=''; $('wp_remark').value='';
-  $('wp_amount').max=baseFee;
+function openWaiverPopup(month,baseFee,label){
+  waiverMonth=month; waiverBaseFee=baseFee;
+  const stu=students.find(s=>s.enrollment_id===waiverEid);
+  const isAll=(month==='__ALL__'||label==='AllMonths');
+  // For the bulk row there is no single stored waiver to pre-fill from.
+  const existing=(!isAll&&stu)?getWaivedAmount(stu,month):0;
+  const existingRemark=(!isAll&&stu)?getWaiverRemark(stu,month):'';
+  $('wp_title').textContent=isAll?'Waiver — All Months (bulk)'
+    :`Waiver — ${label==='Annual'?'Annual Charge':label}`;
+  $('wp_base').textContent=isAll?`${fmtINR(baseFee)} (total across active months)`:fmtINR(baseFee);
+  $('wp_amount').value=existing>0?existing:'';
+  $('wp_remark').value=existingRemark||'';
   $('waiverPopupBackdrop').style.display='block';
   $('waiverPopup').style.display='block';
   setTimeout(()=>$('wp_amount').focus(),50);
 }
-
 function closeWaiverPopup(){
   $('waiverPopupBackdrop').style.display='none';
   $('waiverPopup').style.display='none';
@@ -3568,90 +3612,147 @@ function closeWaiverPopup(){
 }
 
 async function applyWaiver(){
-  const amtRaw=parseFloat($('wp_amount').value);
+  const amt=parseFloat($('wp_amount').value);
   const remark=$('wp_remark').value.trim();
-  const maxVal=parseFloat($('wp_amount').max);
-  if(!amtRaw||amtRaw<=0){toast('Please enter a waiver amount greater than ₹0','error');return}
-  if(amtRaw>maxVal){toast(`Waiver cannot exceed base fee of ${fmtINR(maxVal)}`,'error');return}
+  if(isNaN(amt)||amt<0){toast('Enter a valid waiver amount','error');return}
   const stu=students.find(s=>s.enrollment_id===waiverEid); if(!stu)return;
+
+  // ── Bulk: apply this amount to EVERY active month at once ──────────────
+  if(waiverMonth==='__ALL__'){
+    updateStatus('saving');
+    try{
+      const active=activeMonthsFor();
+      for(const m of active){
+        const cap=monthlyTuitionForMonth(stu,MONTHS.indexOf(m));
+        const w=Math.min(amt,cap);                 // never waive more than that month's tuition
+        await sb.from('fee_waivers').upsert(
+          {enrollment_id:waiverEid,head:m,amount:w,remark:remark||null},
+          {onConflict:'enrollment_id,head'}
+        );
+      }
+      await log(`Bulk waiver ${fmtINR(amt)}/month applied to ${stu.name} (${active.length} months)`,'yellow');
+      toast('Waiver applied to all active months','success');
+      await loadAll();
+      const fresh=students.find(s=>s.enrollment_id===waiverEid);
+      _renderWaiverTable(fresh);
+      closeWaiverPopup();
+      updateStatus('connected');
+    }catch(e){ updateStatus('offline'); toast('Failed: '+(e.message||e),'error') }
+    return;
+  }
+
+  // ── Single head (month or Annual) ─────────────────────────────────────
+  if(amt>waiverBaseFee){toast(`Waiver cannot exceed the base fee of ${fmtINR(waiverBaseFee)}`,'error');return}
   updateStatus('saving');
   try{
-    const {error}=await sb.from('fee_waivers').upsert({
-      enrollment_id:waiverEid, head:waiverMonth, amount:amtRaw, remark:remark||null, created_by:ME
-    },{onConflict:'enrollment_id,head'});
-    if(error) throw error;
-    await log(`Waiver applied: ${stu.name} — ${waiverMonth} — ${fmtINR(amtRaw)}${remark?' ('+remark+')':''}`,'yellow');
-    toast(`Waiver of ${fmtINR(amtRaw)} applied for ${waiverMonth}`,'success');
-    closeWaiverPopup();
+    const existing=(stu.waivers||{})[waiverMonth];
+    if(existing&&existing.id){
+      await sb.from('fee_waivers').update({amount:amt,remark:remark||null}).eq('waiver_id',existing.id);
+    }else{
+      await sb.from('fee_waivers').insert({enrollment_id:waiverEid,head:waiverMonth,amount:amt,remark:remark||null});
+    }
+    await log(`Waiver ${fmtINR(amt)} applied to ${stu.name} (${waiverMonth})`,'yellow');
+    toast('Waiver applied','success');
     await loadAll();
     const fresh=students.find(s=>s.enrollment_id===waiverEid);
-    if(fresh)_renderWaiverTable(fresh);
+    _renderWaiverTable(fresh);
+    closeWaiverPopup();
     updateStatus('connected');
-  }catch(e){ updateStatus('offline'); toast('Waiver failed: '+(e.message||e),'error') }
+  }catch(e){ updateStatus('offline'); toast('Failed: '+(e.message||e),'error') }
 }
 
 async function revertWaiver(month){
-  const stu=students.find(s=>s.enrollment_id===waiverEid);
-  if(!stu||!stu.waivers||!stu.waivers[month])return;
-  const w=stu.waivers[month];
+  const stu=students.find(s=>s.enrollment_id===waiverEid); if(!stu)return;
+  const existing=(stu.waivers||{})[month];
+  if(!existing||!existing.id){toast('No waiver to revert','error');return}
+  const ok=await showConfirm('Revert Waiver?',`Restore the full base fee for ${month}? The waived amount will become payable again.`,[],'✓ Revert','✕ Cancel');
+  if(!ok)return;
   updateStatus('saving');
   try{
-    const {error}=await sb.from('fee_waivers').delete().eq('enrollment_id',waiverEid).eq('head',month);
-    if(error) throw error;
-    await log(`Waiver reverted: ${stu.name} — ${month} — ${fmtINR(w.amt)}`,'red');
-    toast(`Waiver for ${month} reverted — full fee restored`,'success');
+    await sb.from('fee_waivers').delete().eq('waiver_id',existing.id);
+    await log(`Waiver reverted for ${stu.name} (${month})`,'red');
+    toast('Waiver reverted','success');
     await loadAll();
     const fresh=students.find(s=>s.enrollment_id===waiverEid);
-    if(fresh)_renderWaiverTable(fresh);
+    _renderWaiverTable(fresh);
     updateStatus('connected');
-  }catch(e){ updateStatus('offline'); toast('Revert failed: '+(e.message||e),'error') }
+  }catch(e){ updateStatus('offline'); toast('Failed: '+(e.message||e),'error') }
+}
+
+// Revert EVERY month-tuition waiver at once (leaves the Annual head untouched).
+async function revertAllWaivers(){
+  const stu=students.find(s=>s.enrollment_id===waiverEid); if(!stu)return;
+  const heads=MONTHS.filter(m=>getWaivedAmount(stu,m)>0);
+  if(!heads.length){toast('No month waivers to revert','error');return}
+  const ok=await showConfirm('Revert All Month Waivers?',
+    `Restore the full tuition for all ${heads.length} waived month(s)? The Annual charge waiver (if any) is left unchanged.`,
+    heads,'✓ Revert All','✕ Cancel');
+  if(!ok)return;
+  updateStatus('saving');
+  try{
+    await sb.from('fee_waivers').delete().eq('enrollment_id',waiverEid).in('head',heads);
+    await log(`All month waivers reverted for ${stu.name} (${heads.length} months)`,'red');
+    toast('All month waivers reverted','success');
+    await loadAll();
+    const fresh=students.find(s=>s.enrollment_id===waiverEid);
+    _renderWaiverTable(fresh);
+    updateStatus('connected');
+  }catch(e){ updateStatus('offline'); toast('Failed: '+(e.message||e),'error') }
 }
 
 // ══════════════════════════════════════════════
-//  INIT
+//  SIDEBAR + INIT
 // ══════════════════════════════════════════════
-// ── Collapsible sidebar ──────────────────────────────────────────────────
-// Mobile (≤860px): slides the drawer in/out. Desktop: collapses to an icon rail
-// and remembers the choice.
 function toggleSidebar(){
-  const mobile=window.matchMedia('(max-width:860px)').matches
-  if(mobile){
-    const open=document.body.classList.toggle('sb-open')
-    document.getElementById('sidebarOverlay').classList.toggle('show',open)
+  const isMobile=window.matchMedia('(max-width:860px)').matches;
+  if(isMobile){
+    document.body.classList.toggle('sb-open');
+    $('sidebarOverlay').classList.toggle('show',document.body.classList.contains('sb-open'));
   }else{
-    const collapsed=document.body.classList.toggle('sb-collapsed')
-    try{localStorage.setItem('feeSidebarCollapsed',collapsed?'1':'0')}catch(e){}
+    document.body.classList.toggle('sb-collapsed');
+    saveData('sb_collapsed',document.body.classList.contains('sb-collapsed'));
   }
 }
-// restore desktop collapsed preference
-try{if(localStorage.getItem('feeSidebarCollapsed')==='1'&&!window.matchMedia('(max-width:860px)').matches)document.body.classList.add('sb-collapsed')}catch(e){}
 
-document.querySelectorAll('nav a').forEach(a=>{a.onclick=()=>{
-  goTo(a.dataset.page)
-  // On mobile, close the drawer after picking a page.
-  if(window.matchMedia('(max-width:860px)').matches){
-    document.body.classList.remove('sb-open')
-    document.getElementById('sidebarOverlay').classList.remove('show')
-  }
-}});
-window.addEventListener('online',  ()=>refreshAll());
-window.addEventListener('offline', ()=>updateStatus('offline'));
+document.querySelectorAll('nav a[data-page]').forEach(a=>{
+  a.addEventListener('click',()=>{
+    goTo(a.dataset.page);
+    if(window.matchMedia('(max-width:860px)').matches){
+      document.body.classList.remove('sb-open');
+      $('sidebarOverlay').classList.remove('show');
+    }
+  });
+});
 
-SPS.ready().then(async()=>{
-  ME = SPS.admin?.admin_id || SPS.user?.id || null;
+window.addEventListener('online', ()=>{updateStatus('connected');toast('Back online','success')});
+window.addEventListener('offline',()=>{updateStatus('offline');toast('You are offline','error')});
+
+async function boot(){
   applyTheme();
-  const saved=loadData('fp_viewSession',null);
-  if(saved) viewSession=saved;
+  if(loadData('sb_collapsed',false)&&window.matchMedia('(min-width:861px)').matches){
+    document.body.classList.add('sb-collapsed');
+  }
+  const savedView=loadData('fp_viewSession',null);
+  if(savedView) viewSession=savedView;
+  try{
+    ME = (SPS && SPS.user && (SPS.user.id||SPS.user.admin_id)) || null;
+  }catch{ ME=null }
   await loadAll();
   populateSessionDropdowns();
   populateCls();
-  renderDashboard();
-  $('bootOverlay').style.display='none';
-  if(!ME) toast('Signed in, but no admin record found — payments may fail to save.','error');
-}).catch(e=>{
-  console.error('auth failed',e);
-  $('bootOverlay').innerHTML='<div style="text-align:center"><p style="color:var(--red);margin-bottom:10px">Authentication failed</p><p class="text-muted">'+String(e.message||e)+'</p></div>';
-});
+  goTo('dashboard');
+  const boot=$('bootOverlay'); if(boot)boot.style.display='none';
+}
+
+if(window.SPS && SPS.ready){
+  SPS.ready().then(boot).catch(e=>{
+    console.error('SPS.ready failed',e);
+    const boot=$('bootOverlay'); if(boot)boot.innerHTML='<div class="text-muted">Failed to initialise. Please refresh.</div>';
+  });
+}else{
+  document.addEventListener('DOMContentLoaded',boot);
+}
+
 </script>
 </body>
 </html>
