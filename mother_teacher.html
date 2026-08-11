@@ -3001,14 +3001,18 @@ async function loadViewMarks(){
     CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStu[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id])}})
   }
 
-  const ovMapV=await (async()=>{const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id);const m={};(ovs||[]).forEach(o=>{m[o.subject_id]={max:o.max_marks,pass:o.pass_marks}});return m})()
+  // Overrides are strictly per (assessment, class, subject) — the same subject
+  // can legitimately have different max/pass in different classes, so we must
+  // NOT fall back across classes.
+  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
+  const ovMapV={}; (ovs||[]).forEach(o=>{ovMapV[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
   const maxFor=sid=>{const o=ovMapV[sid];return (o&&o.max!=null)?o.max:maxM}
   const passFor=sid=>{const o=ovMapV[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
-  let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet (Max: '+maxM+', Pass: '+passM+')</h3>'
+  let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table class="msheet" style="min-width:800px"><thead><tr>'
     +'<th class="rollfix" style="min-width:50px">Roll</th>'
     +'<th style="min-width:150px">Name</th>'
-  MK_SUBJECTS.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.short_code||s.name)+'</th>'})
+  MK_SUBJECTS.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.short_code||s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max '+maxFor(s.subject_id)+' · Pass '+passFor(s.subject_id)+'</span></th>'})
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att.</th><th style="text-align:center">Att.%</th></tr></thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
@@ -3100,13 +3104,18 @@ async function loadAssessMarksEditable(){
   const{data:marks}=await sb.from('marks').select('*').in('enrollment_id',eids).eq('assessment_id',assessId)
   const marksMap={}
   ;(marks||[]).forEach(mk=>{if(!marksMap[mk.enrollment_id])marksMap[mk.enrollment_id]={};marksMap[mk.enrollment_id][mk.subject_id]=mk})
+  // Locked subjects (already submitted) — read-only until admin approves an edit.
+  const{data:_lk}=await sb.from('marks_lock_state').select('subject_id,is_locked').eq('teacher_id',TEACHER.teacher_id).eq('assessment_id',assessId).eq('section_id',MY_CLASS.section_id)
+  const lockedSet=new Set((_lk||[]).filter(x=>x.is_locked===true).map(x=>x.subject_id))
+  const anyLocked=cols.some(c=>lockedSet.has(c.subject_id))
+  window._mkLockedSet=lockedSet; window._mkAssessId=assessId
 
   const single=cols.length===1
   let html='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px"><h3 style="margin:0">'+esc(assess?.name||'Assessment')+' — Enter Marks</h3><button class="btn btn-primary btn-sm" onclick="saveAllMarks(\''+assessId+'\')">Save All Marks</button></div>'
   html+='<div style="overflow-x:auto"><table class="msheet" style="width:100%'+(single?'':';min-width:520px')+'"><thead><tr>'
     +'<th class="rollfix" style="min-width:42px">Roll</th>'
     +'<th style="min-width:96px">Name</th>'
-  cols.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+'</span></th>'})
+  cols.forEach(s=>{const lk=lockedSet.has(s.subject_id);html+='<th style="text-align:center;white-space:nowrap">'+esc(s.name)+(lk?' 🔒':'')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+(lk?' · locked':'')+'</span></th>'})
   if(!single)html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th>'
   html+='</tr></thead><tbody>'
 
@@ -3118,18 +3127,25 @@ async function loadAssessMarksEditable(){
     cols.forEach(sub=>{
       const mk=sMarks[sub.subject_id]
       const isAbs=!!mk?.is_absent
+      const lk=lockedSet.has(sub.subject_id)
       const val=isAbs?'':(mk?.marks_obtained!=null?mk.marks_obtained:'')
       const sMax=maxFor(sub.subject_id), sPass=passFor(sub.subject_id)
-      html+='<td style="text-align:center;white-space:nowrap;padding:6px 4px">'
+      const dis=(isAbs||lk)?' disabled':''
+      html+='<td style="text-align:center;white-space:nowrap;padding:6px 4px'+(lk?';opacity:.6':'')+'">'
         +'<div style="display:inline-flex;align-items:center;gap:5px">'
-        +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-max="'+sMax+'" data-pass="'+sPass+'" inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(isAbs?'A':'—')+'"'+(isAbs?' disabled':'')+' oninput="mkMarkChanged(this)" style="width:56px;text-align:center;'+(isAbs?'background:var(--warn-soft);':'')+'">'
-        +'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this)" style="font-size:12px;font-weight:800;padding:6px 11px;border-radius:7px;cursor:pointer;border:1.5px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">A</button>'
+        +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-max="'+sMax+'" data-pass="'+sPass+'"'+(lk?' data-locked="1"':'')+' inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(lk?'🔒':(isAbs?'A':'—'))+'"'+dis+' oninput="mkMarkChanged(this)" style="width:56px;text-align:center;'+(isAbs?'background:var(--warn-soft);':'')+(lk?'background:var(--lav-100);':'')+'">'
+        +(lk?'':'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this)" style="font-size:12px;font-weight:800;padding:6px 11px;border-radius:7px;cursor:pointer;border:1.5px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">A</button>')
         +'</div></td>'
     })
     if(!single)html+='<td class="mk-total" style="text-align:center;font-weight:700">—</td><td class="mk-pct" style="text-align:center;font-weight:700">—</td>'
     html+='</tr>'
   })
-  html+='</tbody></table></div><p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px">Type marks, or tap <b>A</b> to mark absent. Failing marks are highlighted. Tap Save All Marks when done.</p></div>'
+  html+='</tbody></table></div>'
+  if(anyLocked){
+    const lockedNames=cols.filter(c=>lockedSet.has(c.subject_id)).map(c=>esc(c.name)).join(', ')
+    html+='<div style="margin-top:12px;background:var(--lav-100);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px"><b>🔒 Submitted & locked:</b> '+lockedNames+'. These can\'t be edited. Need a change? <button class="btn btn-soft btn-xs" onclick="requestMarksEdit()">Request edit access</button></div>'
+  }
+  html+='<p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px">Type marks, or tap <b>A</b> to mark absent. Tap Save All Marks to submit &amp; lock. Locked subjects need admin approval to change.</p></div>'
   el.innerHTML=html
   // Compute initial totals
   document.querySelectorAll('#mkAssessWrap tr[data-eid]').forEach(row=>mkRecomputeRow(row))
@@ -3195,16 +3211,52 @@ async function saveAllMarks(assessId){
   })
   if(invalid){toast('Some marks exceed that subject\'s max (or are negative). Fix the highlighted cells.','error');return}
   if(!rows.length){toast('No marks to save','error');return}
-  // Upsert each: delete existing for (enrollment,subject,assessment) then insert
+  // Never re-save/re-lock a subject that's already locked.
+  const lockedSet=window._mkLockedSet||new Set()
+  const toSave=rows.filter(r=>!lockedSet.has(r.subject_id))
+  if(!toSave.length){toast('These subjects are locked — request edit access to change them','error');return}
+  if(!confirm('Submit and lock these marks?\n\nOnce submitted, the marks are locked and you\'ll need admin approval to edit them again.')){return}
   let errors=0
-  for(const r of rows){
+  for(const r of toSave){
     await sb.from('marks').delete().eq('enrollment_id',r.enrollment_id).eq('subject_id',r.subject_id).eq('assessment_id',assessId)
     const{error}=await sb.from('marks').insert({...r,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
     if(error)errors++
   }
+  // Lock each distinct subject just submitted, so the admin's submission status
+  // (which reads marks_lock_state) shows this teacher as Submitted & Locked.
+  try{
+    const subjIds=[...new Set(toSave.map(r=>r.subject_id))]
+    const lockRows=subjIds.map(sid=>({
+      teacher_id:TEACHER.teacher_id, assessment_id:assessId, subject_id:sid,
+      section_id:MY_CLASS.section_id, class_id:MY_CLASS.class_id, session_id:SESS?.session_id||'',
+      is_locked:true, locked_at:new Date().toISOString()
+    }))
+    if(lockRows.length){
+      const{error:le}=await sb.from('marks_lock_state').upsert(lockRows,{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
+      if(le)console.warn('[lock] failed:',le.message)
+    }
+  }catch(e){console.warn('[lock] skipped:',e)}
   if(errors)toast(errors+' marks failed to save','error')
-  else toast('All marks saved ✓','success')
+  else toast('Marks submitted & locked ✓','success')
   loadAssessMarksEditable()
+}
+// Request admin approval to edit already-locked marks for this assessment/section.
+async function requestMarksEdit(){
+  const assessId=window._mkAssessId||$('mk_assess')?.value
+  const lockedSet=window._mkLockedSet||new Set()
+  const subjIds=[...lockedSet]
+  if(!assessId||!subjIds.length){toast('Nothing locked to request','error');return}
+  const note=prompt('Reason for editing these locked marks?')
+  if(note==null)return
+  if(!note.trim()){toast('Please give a reason','error');return}
+  let sent=0
+  for(const sid of subjIds){
+    const{data:existing}=await sb.from('access_requests').select('request_id').eq('teacher_id',TEACHER.teacher_id).eq('assessment_id',assessId).eq('subject_id',sid).eq('section_id',MY_CLASS.section_id).eq('status','pending').maybeSingle()
+    if(existing)continue
+    const{error}=await sb.from('access_requests').insert({request_type:'marks_edit',teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id||'',assessment_id:assessId,class_id:MY_CLASS.class_id,section_id:MY_CLASS.section_id,subject_id:sid,note:note.trim()})
+    if(!error)sent++
+  }
+  toast(sent?('Edit request sent for '+sent+' subject'+(sent>1?'s':'')+' — admin will review'):'Request already pending','success')
 }
 
 
