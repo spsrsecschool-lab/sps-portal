@@ -1336,7 +1336,13 @@ async function loadPrevAtt(){
   const{data:existing}=await sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to)
   const exMap={}; (existing||[]).forEach(r=>exMap[r.enrollment_id]=r)
   _paStudentWD={}
-  CLASS_STUDENTS.forEach(s=>{_paStudentWD[s.enrollment_id]=effectiveWD(s.is_new_admission?s.students?.admission_date:null, from, to, _paHolSet)})
+  // Only a genuine new admission WITH a stored joining date gets a reduced
+  // count from that date. Everyone else — continuing students, or students
+  // added without a date — counts the full period from the session/month start.
+  CLASS_STUDENTS.forEach(s=>{
+    const admForWD=(s.is_new_admission && s.students?.admission_date) ? s.students.admission_date : null
+    _paStudentWD[s.enrollment_id]=effectiveWD(admForWD, from, to, _paHolSet)
+  })
   const month=parseInt($('pa_month')?.value),year=parseInt($('pa_year')?.value)||new Date().getFullYear()
   const mLabel=['January','February','March','April','May','June','July','August','September','October','November','December'][month-1]+' '+year
   el.innerHTML='<div class="card"><h3 style="margin:0 0 4px">'+esc(mLabel)+'</h3><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Enter <b>Present</b> days for each student — Absent updates automatically. Present + Absent must equal that student\'s <b>Working Days</b> (fewer for those who joined mid-period).</div><div style="overflow-x:auto"><table><thead><tr>'
