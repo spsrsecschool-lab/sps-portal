@@ -290,6 +290,10 @@
             <label style="color:var(--accent);font-weight:600;">Total Cash Received (₹)</label>
             <input type="number" inputmode="decimal" id="c_totalCash" placeholder="Enter lump sum…" style="font-size:20px;font-family:var(--mono);border-color:var(--accent);" oninput="runFamilyAutoAllocate()">
           </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--yellow)">
+            <input type="checkbox" id="c_payFuture" onchange="runFamilyAutoAllocate()" style="width:15px;height:15px;accent-color:var(--yellow);cursor:pointer">
+            <span>Allow paying <b>future months</b> (whole session, not just up to today) — applies to all siblings in this transaction</span>
+          </label>
           <div id="autoAllocPreview" style="margin-top:12px;background:rgba(79,142,247,.08);padding:12px;border-radius:8px;border:1px solid rgba(79,142,247,.2);display:none;"></div>
         </div>
         <div id="extraFeesContainer" style="display:none;margin-bottom:16px;"></div>
