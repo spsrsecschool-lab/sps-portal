@@ -3111,7 +3111,12 @@ async function loadAssessMarksEditable(){
   window._mkLockedSet=lockedSet; window._mkAssessId=assessId
 
   const single=cols.length===1
+  const lockedNames=cols.filter(c=>lockedSet.has(c.subject_id)).map(c=>esc(c.name)).join(', ')
+  const lockNoticeHtml=anyLocked
+    ? '<div style="margin-bottom:14px;background:var(--lav-100);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span><b>🔒 Submitted &amp; locked:</b> '+lockedNames+'. These can\'t be edited.</span><button class="btn btn-soft btn-xs" onclick="requestMarksEdit()">Request edit access</button></div>'
+    : ''
   let html='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px"><h3 style="margin:0">'+esc(assess?.name||'Assessment')+' — Enter Marks</h3><button class="btn btn-primary btn-sm" onclick="saveAllMarks(\''+assessId+'\')">Save All Marks</button></div>'
+  html+=lockNoticeHtml
   html+='<div style="overflow-x:auto"><table class="msheet" style="width:100%'+(single?'':';min-width:520px')+'"><thead><tr>'
     +'<th class="rollfix" style="min-width:42px">Roll</th>'
     +'<th style="min-width:96px">Name</th>'
@@ -3141,10 +3146,6 @@ async function loadAssessMarksEditable(){
     html+='</tr>'
   })
   html+='</tbody></table></div>'
-  if(anyLocked){
-    const lockedNames=cols.filter(c=>lockedSet.has(c.subject_id)).map(c=>esc(c.name)).join(', ')
-    html+='<div style="margin-top:12px;background:var(--lav-100);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px"><b>🔒 Submitted & locked:</b> '+lockedNames+'. These can\'t be edited. Need a change? <button class="btn btn-soft btn-xs" onclick="requestMarksEdit()">Request edit access</button></div>'
-  }
   html+='<p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px">Type marks, or tap <b>A</b> to mark absent. Tap Save All Marks to submit &amp; lock. Locked subjects need admin approval to change.</p></div>'
   el.innerHTML=html
   // Compute initial totals
@@ -3222,23 +3223,23 @@ async function saveAllMarks(assessId){
     const{error}=await sb.from('marks').insert({...r,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
     if(error)errors++
   }
-  // Lock each distinct subject just submitted, so the admin's submission status
-  // (which reads marks_lock_state) shows this teacher as Submitted & Locked.
-  try{
-    const subjIds=[...new Set(toSave.map(r=>r.subject_id))]
-    const lockRows=subjIds.map(sid=>({
+  // Lock each distinct subject just submitted (one upsert per subject, matching
+  // the teacher portal), so the admin's submission status shows Submitted &
+  // Locked. Any failure is surfaced, not swallowed.
+  const subjIds=[...new Set(toSave.map(r=>r.subject_id))]
+  let lockErr=null, lockedOk=0
+  for(const sid of subjIds){
+    const{error:le}=await sb.from('marks_lock_state').upsert({
       teacher_id:TEACHER.teacher_id, assessment_id:assessId, subject_id:sid,
       section_id:MY_CLASS.section_id, class_id:MY_CLASS.class_id, session_id:SESS?.session_id||'',
       is_locked:true, locked_at:new Date().toISOString()
-    }))
-    if(lockRows.length){
-      const{error:le}=await sb.from('marks_lock_state').upsert(lockRows,{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
-      if(le)console.warn('[lock] failed:',le.message)
-    }
-  }catch(e){console.warn('[lock] skipped:',e)}
+    },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
+    if(le){lockErr=le; console.warn('[lock] failed for',sid,le.message)} else lockedOk++
+  }
   if(errors)toast(errors+' marks failed to save','error')
+  else if(lockErr)toast('Marks saved, but locking failed: '+lockErr.message,'error')
   else toast('Marks submitted & locked ✓','success')
-  loadAssessMarksEditable()
+  await loadAssessMarksEditable()
 }
 // Request admin approval to edit already-locked marks for this assessment/section.
 async function requestMarksEdit(){
