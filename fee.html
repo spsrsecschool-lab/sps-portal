@@ -2410,8 +2410,11 @@ async function saveProfile(){
 
   const famCode=$('pf_familyCode').value.trim()||stu.familyCode;
   const to=$('pf_tuitionOverride').value, ao=$('pf_annualOverride').value;
-  const pb=$('pf_prevBalance').value;
-  const newPb=pb===''?0:parseFloat(pb);
+  // Prev-balance input only exists on the eldest sibling's profile; for younger
+  // siblings the field is a read-only note, so there's nothing to save here.
+  const pbInput=$('pf_prevBalance');
+  const pbEditable=!!pbInput;
+  const newPb=pbEditable ? (pbInput.value===''?0:parseFloat(pbInput.value)) : (parseFloat(stu.prevBalance)||0);
 
   updateStatus('saving');
   try{
@@ -2439,7 +2442,7 @@ async function saveProfile(){
     const {error:e2}=await sb.from('student_enrollments').update(patch).eq('enrollment_id',stu.enrollment_id);
     if(e2) throw e2;
 
-    if(newPb!==(parseFloat(stu.prevBalance)||0)){
+    if(pbEditable && newPb!==(parseFloat(stu.prevBalance)||0)){
       await addLedgerEntry(stu.enrollment_id,today(),`Manual edit (was ${fmtINR(stu.prevBalance||0)})`,newPb-(parseFloat(stu.prevBalance)||0),null);
       await setPrevBalance(stu.enrollment_id,newPb);
     }
