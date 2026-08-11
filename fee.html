@@ -290,10 +290,6 @@
             <label style="color:var(--accent);font-weight:600;">Total Cash Received (₹)</label>
             <input type="number" inputmode="decimal" id="c_totalCash" placeholder="Enter lump sum…" style="font-size:20px;font-family:var(--mono);border-color:var(--accent);" oninput="runFamilyAutoAllocate()">
           </div>
-          <label style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--yellow)">
-            <input type="checkbox" id="c_payFuture" onchange="runFamilyAutoAllocate()" style="width:15px;height:15px;accent-color:var(--yellow);cursor:pointer">
-            <span>Allow paying <b>future months</b> (whole session, not just up to today) — applies to all siblings in this transaction</span>
-          </label>
           <div id="autoAllocPreview" style="margin-top:12px;background:rgba(79,142,247,.08);padding:12px;border-radius:8px;border:1px solid rgba(79,142,247,.2);display:none;"></div>
         </div>
         <div id="extraFeesContainer" style="display:none;margin-bottom:16px;"></div>
@@ -601,6 +597,8 @@ const ALLOC_PRIORITIES = [
     desc:'1. Global family prev balance\nThen student by student (eldest first):\n  · Pay tuition (oldest→newest month)\n  · Pay annual charge' },
   { code:'P_AT_ST', label:'P(A+T) — Prev Balance → Per Student: Annual then Tuition',
     desc:'1. Global family prev balance\nThen student by student (eldest first):\n  · Pay annual charge\n  · Pay tuition (oldest→newest month)' },
+  { code:'TAP_FULL', label:'TAP — Whole Session (pay all unpaid months, incl. future)',
+    desc:'Same as TAP, but ALL 12 months of the session are payable — including months after today. Use for parents paying the whole year in advance.\n\n1. All siblings tuition (April → March)\n2. All siblings annual charges (eldest first)\n3. Global family prev balance' },
 ];
 
 // ══════════════════════════════════════════════
@@ -1617,8 +1615,13 @@ function runFamilyAutoAllocate(){
   autoAllocPlan=[];
   if(cash<=0){previewBox.style.display='none';updateFamilyLock();return}
 
-  const activeMonths=activeMonthsFor();
-  const priority=$('c_allocPriority').value||globalAllocPriority;
+  // Priority codes ending with _FULL cover the whole session (April–March) so a
+  // parent can pay upcoming months in advance. All other codes stick to the
+  // months-so-far window that matches the fee matrix.
+  const priorityRaw=$('c_allocPriority').value||globalAllocPriority;
+  const wholeSession=/_FULL$/.test(priorityRaw);
+  const priority=wholeSession?priorityRaw.replace(/_FULL$/,''):priorityRaw;
+  const activeMonths=wholeSession?MONTHS.slice():activeMonthsFor();
   const skipped=[];
 
   function shouldAcceptTuition(mt,due,availCash,famAnnDue,famPrevDue){
