@@ -187,6 +187,9 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .pill-indigo{background:var(--indigo-100);color:var(--indigo-dark)}
 .table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
 .sticky-col{position:sticky;background:var(--white);z-index:2}
+.msheet{border-collapse:separate;border-spacing:0}
+.msheet .rollfix{position:sticky;left:0;background:var(--white);z-index:3}
+.msheet thead .rollfix{background:var(--lav-100);z-index:5}
 .att-scroll{max-height:72vh;overflow:auto;position:relative}
 .att-scroll table{border-collapse:separate;border-spacing:0}
 .att-scroll thead th{position:sticky;background:var(--lav-100);z-index:4}
@@ -3912,10 +3915,10 @@ async function loadMarksTable(){
   const marksMap={}; (marks||[]).forEach(m=>{if(!marksMap[m.enrollment_id])marksMap[m.enrollment_id]={};marksMap[m.enrollment_id][m.subject_id]=m})
 
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
-    +'<table style="min-width:800px"><thead><tr>'
-    +'<th class="sticky-col" style="left:0;min-width:50px">Roll</th>'
-    +'<th class="sticky-col" style="left:50px;min-width:140px">Name</th>'
-    +'<th class="sticky-col" style="left:190px;min-width:130px">Father\'s Name</th>'
+    +'<table class="msheet" style="min-width:800px"><thead><tr>'
+    +'<th class="rollfix" style="min-width:50px">Roll</th>'
+    +'<th style="min-width:140px">Name</th>'
+    +'<th style="min-width:130px">Father\'s Name</th>'
   uniqueSubs.forEach(m=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+subMax(m.subject_id)+'</span></th>'})
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th></tr></thead><tbody>'
 
@@ -3923,9 +3926,9 @@ async function loadMarksTable(){
     const sMarks=marksMap[s.enrollment_id]||{}
     let total=0,possible=0
     html+='<tr>'
-      +'<td class="sticky-col" style="left:0;font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-      +'<td class="sticky-col" style="left:50px;font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
-      +'<td class="sticky-col" style="left:190px;white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
+      +'<td class="rollfix" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
+      +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
       if(mk?.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';return}
