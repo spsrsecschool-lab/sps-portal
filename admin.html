@@ -3677,13 +3677,71 @@ async function openSubmissionStatus(){
   el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="loading-row"><div class="spinner"></div></div>'
   const{data:acRows}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',a.assessment_id)
   const classIds=(acRows||[]).map(r=>r.class_id)
-  if(!classIds.length){el.innerHTML+='<p style="color:var(--ink-faint)">No classes linked to this assessment.</p>';return}
+  if(!classIds.length){el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
   const{data:maps}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id,teachers(full_name),classes(name),class_sections(name),subjects(name)').eq('session_id',SESS?.session_id||'').in('class_id',classIds)
   if(!maps?.length){el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="empty-state"><p>No teacher-subject mappings for these classes.</p></div>';return}
+
+  // Student roster for these classes: map enrollment→section + count per section.
+  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,section_id').eq('session_id',SESS?.session_id||'').in('class_id',classIds).eq('status','active').eq('relieved',false)
+  const enrSection={}; const secCount={}
+  ;(enr||[]).forEach(e=>{ enrSection[e.enrollment_id]=e.section_id; secCount[e.section_id]=(secCount[e.section_id]||0)+1 })
+  const eids=(enr||[]).map(e=>e.enrollment_id)
+
+  // Actual marks entered for this assessment → count distinct students per (subject, section).
+  let marks=[]
+  for(let i=0;i<eids.length;i+=120){
+    const chunk=eids.slice(i,i+120)
+    const{data:mk}=await sb.from('marks').select('enrollment_id,subject_id').eq('assessment_id',a.assessment_id).in('enrollment_id',chunk)
+    if(mk)marks=marks.concat(mk)
+  }
+  const entered={}  // key: subject_id + '_' + section_id → Set(enrollment_id)
+  marks.forEach(m=>{ const sec=enrSection[m.enrollment_id]; if(!sec)return; const k=m.subject_id+'_'+sec; (entered[k]=entered[k]||new Set()).add(m.enrollment_id) })
+
   const{data:lockRows}=await sb.from('marks_lock_state').select('teacher_id,subject_id,section_id,is_locked').eq('assessment_id',a.assessment_id)
   const lockMap={};lockRows?.forEach(m=>{lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]=m.is_locked})
-  const byTeacher={};maps.forEach(m=>{if(!byTeacher[m.teacher_id])byTeacher[m.teacher_id]={name:m.teachers?.full_name||'—',rows:[]};byTeacher[m.teacher_id].rows.push(m)})
-  el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="card"><div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Section</th><th>Subject</th><th>Status</th></tr></thead><tbody>'+Object.entries(byTeacher).map(([tid,t])=>t.rows.map((r,i)=>{const lk=lockMap[tid+'_'+r.subject_id+'_'+r.section_id];const status=lk===true?'<span class="pill pill-success">Submitted & Locked</span>':lk===false?'<span class="pill pill-warn">In Progress</span>':'<span class="pill pill-neutral">Not Started</span>';return'<tr>'+(i===0?'<td rowspan="'+t.rows.length+'" style="font-weight:700;vertical-align:top">'+esc(t.name)+'</td>':'')+'<td>'+esc(r.classes?.name||'—')+'</td><td>'+esc(r.class_sections?.name||'—')+'</td><td>'+esc(r.subjects?.name||'—')+'</td><td>'+status+'</td></tr>'}).join('')).join('')+'</tbody></table></div></div>'
+
+  // Compute status per mapping row + tally pending per teacher.
+  const pendingByTeacher={}  // teacher_id → {name, pending:count}
+  const byTeacher={}
+  // Submission is decided purely by marks lock state: a subject counts as
+  // submitted only once the teacher has locked it. Anything not locked is
+  // pending, regardless of how many marks were entered.
+  maps.forEach(m=>{
+    if(!byTeacher[m.teacher_id])byTeacher[m.teacher_id]={name:m.teachers?.full_name||'—',rows:[]}
+    const total=secCount[m.section_id]||0
+    const enteredCount=(entered[m.subject_id+'_'+m.section_id]||new Set()).size
+    const locked=lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]===true
+    let statusKey, isPending=false
+    if(total===0){ statusKey='none' }
+    else if(locked){ statusKey='locked' }
+    else { statusKey='notsubmitted'; isPending=true }
+    byTeacher[m.teacher_id].rows.push({...m,total,enteredCount,statusKey})
+    if(isPending){ pendingByTeacher[m.teacher_id]=pendingByTeacher[m.teacher_id]||{name:m.teachers?.full_name||'—',pending:0}; pendingByTeacher[m.teacher_id].pending++ }
+  })
+
+  const pill=(r)=>{
+    if(r.statusKey==='none')return '<span class="pill pill-neutral">No students</span>'
+    if(r.statusKey==='locked')return '<span class="pill pill-success">Submitted &amp; Locked</span>'
+    return '<span class="pill pill-danger">Not Submitted</span>'
+  }
+
+  const table='<div class="card"><div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Section</th><th>Subject</th><th>Status</th></tr></thead><tbody>'
+    +Object.entries(byTeacher).map(([tid,t])=>t.rows.map((r,i)=>'<tr>'+(i===0?'<td rowspan="'+t.rows.length+'" style="font-weight:700;vertical-align:top">'+esc(t.name)+'</td>':'')+'<td>'+esc(r.classes?.name||'—')+'</td><td>'+esc(r.class_sections?.name||'—')+'</td><td>'+esc(r.subjects?.name||'—')+'</td><td>'+pill(r)+'</td></tr>').join('')).join('')
+    +'</tbody></table></div></div>'
+
+  // Defaulters — teachers with pending subjects, most-pending first.
+  const defaulters=Object.values(pendingByTeacher).sort((a,b)=>b.pending-a.pending)
+  let defHtml=''
+  if(defaulters.length){
+    defHtml='<div class="card" style="margin-top:16px"><h3 style="margin-top:0;color:var(--danger)">Defaulters — '+defaulters.length+' teacher'+(defaulters.length>1?'s':'')+' with pending marks</h3>'
+      +'<div class="table-wrap"><table><thead><tr><th>#</th><th>Teacher</th><th style="text-align:center">Subjects pending</th></tr></thead><tbody>'
+      +defaulters.map((d,i)=>'<tr><td class="mono">'+(i+1)+'</td><td style="font-weight:600">'+esc(d.name)+'</td><td style="text-align:center;font-weight:800;color:var(--danger)">'+d.pending+'</td></tr>').join('')
+      +'</tbody></table></div></div>'
+  }else{
+    defHtml='<div class="card" style="margin-top:16px"><div style="color:var(--success);font-weight:700">✓ All subjects submitted — no defaulters.</div></div>'
+  }
+
+  el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div>'+table+defHtml
 }
 async function openMarkOverrides(){
   if(!_currentAssess)return
