@@ -3217,26 +3217,36 @@ async function saveAllMarks(assessId){
   const toSave=rows.filter(r=>!lockedSet.has(r.subject_id))
   if(!toSave.length){toast('These subjects are locked — request edit access to change them','error');return}
   if(!confirm('Submit and lock these marks?\n\nOnce submitted, the marks are locked and you\'ll need admin approval to edit them again.')){return}
+
+  // Batch the writes. The old code did a sequential delete+insert PER ROW
+  // (hundreds of round-trips → ~30s). Instead: group by subject, and for each
+  // subject do ONE delete + ONE bulk insert, running subjects in parallel.
+  const bySubject={}
+  toSave.forEach(r=>{(bySubject[r.subject_id]=bySubject[r.subject_id]||[]).push(r)})
+  const now=new Date().toISOString()
   let errors=0
-  for(const r of toSave){
-    await sb.from('marks').delete().eq('enrollment_id',r.enrollment_id).eq('subject_id',r.subject_id).eq('assessment_id',assessId)
-    const{error}=await sb.from('marks').insert({...r,entered_by:TEACHER.teacher_id,entered_at:new Date().toISOString()})
-    if(error)errors++
-  }
-  // Lock each distinct subject just submitted (one upsert per subject, matching
-  // the teacher portal), so the admin's submission status shows Submitted &
-  // Locked. Any failure is surfaced, not swallowed.
-  const subjIds=[...new Set(toSave.map(r=>r.subject_id))]
-  let lockErr=null, lockedOk=0
-  for(const sid of subjIds){
-    const{error:le}=await sb.from('marks_lock_state').upsert({
+  await Promise.all(Object.entries(bySubject).map(async([sid,srows])=>{
+    const eidsForSub=srows.map(r=>r.enrollment_id)
+    // Clear only the students being (re)entered for this subject, then bulk insert.
+    await sb.from('marks').delete().eq('assessment_id',assessId).eq('subject_id',sid).in('enrollment_id',eidsForSub)
+    const{error}=await sb.from('marks').insert(srows.map(r=>({...r,entered_by:TEACHER.teacher_id,entered_at:now})))
+    if(error){errors++; console.warn('[marks] insert failed for',sid,error.message)}
+  }))
+
+  // Lock all submitted subjects in a single upsert.
+  const subjIds=Object.keys(bySubject)
+  let lockErr=null
+  if(subjIds.length){
+    const lockRows=subjIds.map(sid=>({
       teacher_id:TEACHER.teacher_id, assessment_id:assessId, subject_id:sid,
       section_id:MY_CLASS.section_id, class_id:MY_CLASS.class_id, session_id:SESS?.session_id||'',
-      is_locked:true, locked_at:new Date().toISOString()
-    },{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
-    if(le){lockErr=le; console.warn('[lock] failed for',sid,le.message)} else lockedOk++
+      is_locked:true, locked_at:now
+    }))
+    const{error:le}=await sb.from('marks_lock_state').upsert(lockRows,{onConflict:'teacher_id,subject_id,section_id,assessment_id'})
+    if(le){lockErr=le; console.warn('[lock] failed:',le.message)}
   }
-  if(errors)toast(errors+' marks failed to save','error')
+
+  if(errors)toast(errors+' subject(s) failed to save','error')
   else if(lockErr)toast('Marks saved, but locking failed: '+lockErr.message,'error')
   else toast('Marks submitted & locked ✓','success')
   await loadAssessMarksEditable()
