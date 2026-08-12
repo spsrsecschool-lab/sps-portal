@@ -4379,26 +4379,43 @@ async function generateMarksheet(){
   const{data:marks}=await sb.from('marks').select('enrollment_id,subject_id,marks_obtained,is_absent').in('enrollment_id',eids).eq('assessment_id',assessId)
   const mkMap={}; (marks||[]).forEach(m=>{(mkMap[m.enrollment_id]=mkMap[m.enrollment_id]||{})[m.subject_id]=m})
 
-  // Attendance up to assessment end date (working-days basis, per class start)
+  // Attendance up to assessment end date — MUST match the class-teacher view:
+  // merge daily student_attendance AND the monthly backlog (attendance_monthly),
+  // and compute working days per student (new admissions with a date start later).
   let classStart=SESS?.start_date||null
   try{const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS.session_id).eq('class_id',classId).maybeSingle();if(cs?.start_date)classStart=cs.start_date}catch(e){}
   const attTo=aRow?.end_date||aRow?.commencement_date||new Date().toISOString().slice(0,10)
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
-  const[{data:hols},{data:att}]=await Promise.all([
+  const[{data:hols},{data:att},{data:monthly}]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
-    sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo)
+    sb.from('student_attendance').select('enrollment_id,status').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
+    sb.from('attendance_monthly').select('enrollment_id,present_count').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo)
   ])
   const holSet=new Set((hols||[]).map(h=>h.date))
-  let workingDays=0
-  {const e=new Date(attTo+'T12:00:00');for(let d=new Date(attFrom+'T12:00:00');d<=e;d.setDate(d.getDate()+1)){const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(d.getDay()===0)continue;if(holSet.has(ds))continue;workingDays++}}
-  const presentMap={}; (att||[]).forEach(a=>{if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1})
+  // Present per student = daily (P/L) + monthly backlog present_count.
+  const presentMap={}
+  ;(att||[]).forEach(a=>{if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1})
+  ;(monthly||[]).forEach(mr=>{presentMap[mr.enrollment_id]=(presentMap[mr.enrollment_id]||0)+(mr.present_count||0)})
+  // Working days per student (cached by effective start date).
+  const admBy={}; studs.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission&&s.students?.admission_date)?s.students.admission_date:null})
+  const wdCache={}
+  const wdFor=adm=>{const key=adm||'_';if(wdCache[key]!=null)return wdCache[key];let start=attFrom;if(adm&&adm>attTo)return(wdCache[key]=0);if(adm&&adm>attFrom)start=adm;let n=0;const c=new Date(start+'T12:00:00'),e2=new Date(attTo+'T12:00:00');while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)}return(wdCache[key]=n)}
+
+  // Class teacher name for the header.
+  let classTeacher=''
+  try{
+    let ctq=sb.from('class_teacher_map').select('teachers(full_name)').eq('session_id',SESS.session_id)
+    ctq=secId?ctq.eq('section_id',secId):ctq.eq('class_id',classId)
+    const{data:ctRow}=await ctq.maybeSingle()
+    classTeacher=ctRow?.teachers?.full_name||''
+  }catch(e){}
 
   _msData={
-    clsName, secName, assess:aRow, subs, totalMax, workingDays,
+    clsName, secName, assess:aRow, subs, totalMax, classTeacher,
     students:studs.map(s=>({
       roll:s.roll_no, name:s.students?.full_name||'?', father:s.students?.father_name||'',
       marks:subs.map(sub=>{const m=mkMap[s.enrollment_id]?.[sub.subject_id];return {subject_id:sub.subject_id, absent:!!m?.is_absent, val:(m&&m.marks_obtained!=null)?parseFloat(m.marks_obtained):null}}),
-      present:presentMap[s.enrollment_id]||0
+      present:presentMap[s.enrollment_id]||0, working:wdFor(admBy[s.enrollment_id])
     }))
   }
   renderMarksheetRules()
@@ -4474,36 +4491,55 @@ function renderMarksheetView(){
   $('ms_preview').innerHTML='<div class="card" style="overflow-x:auto"><div style="margin-bottom:10px"><button class="btn btn-dark btn-sm" onclick="printMarksheet()">🖨 Print / Save PDF</button></div>'
     +buildMarksheetHTML(rows,rankColor,rules,false)+'</div>'
 }
-// Build the marksheet table HTML (shared by preview + print).
+// Build the marksheet HTML (shared by preview + print). Paginates 20 rows/page.
 function buildMarksheetHTML(rows,rankColor,rules,forPrint){
   const d=_msData, a=d.assess||{}
+  const RED='#F6C9CE'   // red cell highlight (inlined so preview + print both show it)
   const title=esc(a.name||'Assessment')+(a.commencement_date?' ('+new Date(a.commencement_date+'T12:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'})+')':'')
-  const clsLabel=esc(d.clsName)+(d.secName?d.secName:'')
-  let h='<div class="msheet-doc">'
-  h+='<div class="ms-top"><div class="ms-school">SHIV PUBLIC SR. SEC. SCHOOL</div><div class="ms-title-r">'+title+' MARKSHEET</div></div>'
-  h+='<table class="ms-meta"><tr><td class="ms-metL">Class</td><td class="ms-title-band" rowspan="2">'+title+'<div class="ms-sub">FINAL MARKSHEET</div></td><td class="ms-ct">Class Teacher:'+(rules.r10?' ______________':'')+'</td></tr><tr><td class="ms-metL"><b>'+clsLabel+'</b></td><td></td></tr></table>'
-  h+='<table class="ms-grid"><thead>'
-  h+='<tr><th rowspan="2">R.No.</th><th rowspan="2">Name</th><th rowspan="2">Father\'s Name</th>'
+  const clsLabel=esc(d.clsName)+(d.secName?esc(d.secName):'')
+  const nSub=d.subs.length
+  // Fixed column widths (percent) — subjects all equal, name/father tighter.
+  const subW=(38/Math.max(1,nSub)).toFixed(3)
+  const colgroup='<colgroup>'
+    +'<col style="width:5%">'      // R.No
+    +'<col style="width:13%">'     // Name
+    +'<col style="width:14%">'     // Father
+    +d.subs.map(()=>'<col style="width:'+subW+'%">').join('')
+    +'<col style="width:6%">'      // TOTAL
+    +'<col style="width:6%">'      // PER%
+    +'<col style="width:6%">'      // ATT
+    +'<col style="width:6%">'      // SIGN
+    +'</colgroup>'
+  const thead='<thead>'
+    +'<tr><th rowspan="2">R.No.</th><th rowspan="2">Name</th><th rowspan="2">Father\'s Name</th>'
     +d.subs.map(s=>'<th>'+esc(s.short)+'</th>').join('')
     +'<th>TOTAL</th><th rowspan="2">PER%</th><th rowspan="2">ATT.</th><th rowspan="2">SIGN.</th></tr>'
-  h+='<tr>'+d.subs.map(s=>'<th class="ms-max">'+s.max+'</th>').join('')+'<th class="ms-max">'+d.totalMax+'</th></tr>'
-  h+='</thead><tbody>'
-  rows.forEach(({st,calc})=>{
+    +'<tr>'+d.subs.map(s=>'<th class="ms-max">'+s.max+'</th>').join('')+'<th class="ms-max">'+d.totalMax+'</th></tr>'
+    +'</thead>'
+  const header='<div class="ms-top"><div class="ms-school">SHIV PUBLIC SR. SEC. SCHOOL</div><div class="ms-title-r">'+title+' MARKSHEET</div></div>'
+    +'<table class="ms-meta"><tr><td class="ms-metL">Class</td><td class="ms-title-band" rowspan="2">'+title+'<div class="ms-sub">FINAL MARKSHEET</div></td><td class="ms-ct">Class Teacher: '+(rules.r10?esc(d.classTeacher||'______________'):'')+'</td></tr>'
+    +'<tr><td class="ms-metL"><b>'+clsLabel+'</b></td><td></td></tr></table>'
+  const rowHTML=({st,calc})=>{
     const bg=rankColor[st.roll+'|'+st.name]
-    const attRed=rules.r7 && d.workingDays>0 && st.present < 0.33*d.workingDays
-    h+='<tr'+(bg?' style="background:'+bg+'"':'')+'>'
+    const attRed=rules.r7 && st.working>0 && st.present < 0.33*st.working
+    return '<tr'+(bg?' style="background:'+bg+'"':'')+'>'
       +'<td class="ms-c">'+esc(st.roll||'')+'</td>'
       +'<td class="ms-l">'+esc(st.name)+'</td>'
       +'<td class="ms-l">'+esc(st.father)+'</td>'
-      +calc.cells.map(c=>'<td class="ms-c'+(c.red?' ms-red':'')+'">'+esc(c.text)+'</td>').join('')
+      +calc.cells.map(c=>'<td class="ms-c"'+(c.red?' style="background:'+RED+'"':'')+'>'+esc(c.text)+'</td>').join('')
       +'<td class="ms-c">'+esc(calc.totalText)+'</td>'
-      +'<td class="ms-c'+(calc.pctText==='FAIL'?' ms-red':'')+'">'+esc(calc.pctText)+'</td>'
-      +'<td class="ms-c'+(attRed?' ms-red':'')+'">'+esc(String(st.present))+'</td>'
+      +'<td class="ms-c"'+(calc.pctText==='FAIL'?' style="background:'+RED+'"':'')+'>'+esc(calc.pctText)+'</td>'
+      +'<td class="ms-c"'+(attRed?' style="background:'+RED+'"':'')+'>'+esc(String(st.present))+'</td>'
       +'<td class="ms-c"></td>'
       +'</tr>'
-  })
-  h+='</tbody></table></div>'
-  return h
+  }
+  // Paginate: 20 students per page.
+  const PER=20, pages=[]
+  for(let i=0;i<rows.length;i+=PER)pages.push(rows.slice(i,i+PER))
+  return pages.map((pg,idx)=>'<div class="msheet-doc'+(idx<pages.length-1?' ms-break':'')+'">'
+    +header
+    +'<table class="ms-grid">'+colgroup+thead+'<tbody>'+pg.map(rowHTML).join('')+'</tbody></table>'
+    +'</div>').join('')
 }
 function printMarksheet(){
   if(!_msData){toast('Generate a marksheet first','error');return}
@@ -4520,25 +4556,25 @@ function printMarksheet(){
 }
 const MS_PRINT_CSS=`
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:14px;color:#111}
-.msheet-doc{width:100%}
-.ms-top{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:6px}
-.ms-meta{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:12px}
-.ms-meta td{border:1px solid #333;padding:6px 8px}
-.ms-metL{width:60px;text-align:center;font-weight:700}
-.ms-title-band{text-align:center;font-weight:800}
-.ms-sub{font-weight:700;font-size:11px;margin-top:2px}
-.ms-ct{width:220px;font-weight:600}
-.ms-grid{width:100%;border-collapse:collapse;font-size:11px}
-.ms-grid th,.ms-grid td{border:1px solid #333;padding:3px 4px;text-align:center}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:12px;color:#111}
+.msheet-doc{width:100%;margin-bottom:16px}
+.ms-break{page-break-after:always}
+.ms-top{display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin-bottom:8px}
+.ms-meta{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:13px}
+.ms-meta td{border:1px solid #333;padding:8px 10px}
+.ms-metL{width:70px;text-align:center;font-weight:700}
+.ms-title-band{text-align:center;font-weight:800;font-size:14px}
+.ms-sub{font-weight:700;font-size:12px;margin-top:3px}
+.ms-ct{width:260px;font-weight:600}
+.ms-grid{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.ms-grid th,.ms-grid td{border:1px solid #333;padding:7px 4px;text-align:center;overflow:hidden}
 .ms-grid thead th{background:#EDEDED;font-weight:700}
-.ms-max{font-weight:700}
-.ms-l{text-align:left;white-space:nowrap;padding-left:6px}
+.ms-max{font-weight:700;font-size:11px}
+.ms-l{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:6px}
 .ms-c{text-align:center}
-.ms-red{color:#D00;font-weight:700}
-.ms-grid tbody tr{page-break-inside:avoid}
+.ms-grid tbody tr{page-break-inside:avoid;height:30px}
 thead{display:table-header-group}
-@page{size:A4 landscape;margin:10mm}
+@page{size:A4 landscape;margin:9mm}
 `
 async function loadTemplates(){const el=$('templateGrid');ldg(el);const{data,error}=await sb.from('report_card_templates').select('*').order('created_at');if(error||!data?.length){emp(el,'No templates yet.');el.className='';return};el.className='grid-3';el.innerHTML=data.map(t=>'<div class="assess-card"><div class="top"><h4>'+esc(t.name)+'</h4><span class="pill pill-indigo">'+esc(t.class_group||'')+'</span></div><div class="meta">'+esc((t.applicable_assessment_names||[]).join(', ')||'All assessments')+'</div></div>').join('')}
 function openAddTemplateModal(){openModal('New Report Card Template','<div class="form-row"><div class="fg"><label>Template Name *</label><input id="rt_name"></div><div class="fg"><label>Class Group *</label><input id="rt_group" placeholder="e.g. Nur-5th"></div></div><div class="form-row"><div class="fg"><label>Applicable Assessments (comma-separated)</label><input id="rt_asmts" placeholder="Term 1, Term 2"></div></div><div class="toggle-row"><span>Show rank in class</span><div class="switch" id="rt_rank" onclick="this.classList.toggle(\'on\')"></div></div><div class="toggle-row" style="border-bottom:none"><span>Include co-curricular remarks</span><div class="switch on" id="rt_cocurr" onclick="this.classList.toggle(\'on\')"></div></div>','<button class="btn btn-dark" onclick="saveTemplate()">Create Template</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')}
