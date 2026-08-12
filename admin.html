@@ -4586,15 +4586,15 @@ body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;color:#111}
 .ms-title-band{text-align:center;font-weight:800;font-size:12px}
 .ms-sub{font-weight:700;font-size:10px;margin-top:1px}
 .ms-ct{width:240px;font-weight:600}
-.ms-grid{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
-.ms-grid th,.ms-grid td{border:1px solid #333;padding:3px 3px;text-align:center;overflow:hidden;line-height:1.1}
+.ms-grid{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.ms-grid th,.ms-grid td{border:1px solid #333;padding:7px 4px;text-align:center;overflow:hidden}
 .ms-grid thead th{background:#EDEDED;font-weight:700}
-.ms-max{font-weight:700;font-size:9px}
-.ms-l{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:5px}
+.ms-max{font-weight:700;font-size:10px}
+.ms-l{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:6px}
 .ms-c{text-align:center}
 .ms-grid tbody tr{page-break-inside:avoid}
 thead{display:table-header-group}
-@page{size:A4 landscape;margin:5mm}
+@page{size:A4 landscape;margin:6mm}
 `
 async function loadTemplates(){const el=$('templateGrid');ldg(el);const{data,error}=await sb.from('report_card_templates').select('*').order('created_at');if(error||!data?.length){emp(el,'No templates yet.');el.className='';return};el.className='grid-3';el.innerHTML=data.map(t=>'<div class="assess-card"><div class="top"><h4>'+esc(t.name)+'</h4><span class="pill pill-indigo">'+esc(t.class_group||'')+'</span></div><div class="meta">'+esc((t.applicable_assessment_names||[]).join(', ')||'All assessments')+'</div></div>').join('')}
 function openAddTemplateModal(){openModal('New Report Card Template','<div class="form-row"><div class="fg"><label>Template Name *</label><input id="rt_name"></div><div class="fg"><label>Class Group *</label><input id="rt_group" placeholder="e.g. Nur-5th"></div></div><div class="form-row"><div class="fg"><label>Applicable Assessments (comma-separated)</label><input id="rt_asmts" placeholder="Term 1, Term 2"></div></div><div class="toggle-row"><span>Show rank in class</span><div class="switch" id="rt_rank" onclick="this.classList.toggle(\'on\')"></div></div><div class="toggle-row" style="border-bottom:none"><span>Include co-curricular remarks</span><div class="switch on" id="rt_cocurr" onclick="this.classList.toggle(\'on\')"></div></div>','<button class="btn btn-dark" onclick="saveTemplate()">Create Template</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')}
