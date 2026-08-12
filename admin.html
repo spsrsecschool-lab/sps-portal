@@ -863,11 +863,24 @@ tbody tr:hover td{background:var(--lav-50)}
 
     <!-- REPORT CARD TEMPLATES -->
     <div class="page" id="page-reportcards">
-      <div class="page-head">
-        <div><h2>Report Card Templates</h2><p>Configure templates per class group and assessment type</p></div>
-        <button class="btn btn-dark" onclick="openAddTemplateModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Template</button>
+      <div class="sub-page active" id="sub-rc-list">
+        <div class="page-head">
+          <div><h2>Report Card Templates</h2><p>Configure templates per class group and assessment type</p></div>
+          <button class="btn btn-dark" onclick="openAddTemplateModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Template</button>
+        </div>
+        <div class="grid-3" style="margin-bottom:18px">
+          <div class="assess-card" onclick="openMarksheetGen()" style="cursor:pointer;border:1.5px solid var(--indigo)">
+            <div class="top"><h4>📄 Class Marksheet</h4></div>
+            <div class="meta">Generate a printable class marksheet for an assessment, with pass/fail &amp; rank rules</div>
+            <div class="arow"><span>Open</span><span>→</span></div>
+          </div>
+        </div>
+        <div id="templateGrid" class="grid-3"><div class="loading-row" style="grid-column:1/-1"><div class="spinner"></div></div></div>
       </div>
-      <div id="templateGrid" class="grid-3"><div class="loading-row" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+      <div class="sub-page" id="sub-rc-marksheet">
+        <button class="back-btn" onclick="openSub('reportcards','sub-rc-list')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="marksheetGenContent"></div>
+      </div>
     </div>
 
     <!-- HOLIDAY CALENDAR -->
@@ -4304,6 +4317,229 @@ async function confirmPromotion(){const nextSessId=SESS?.session_id?.replace(/(\
 function resetPromotion(){$('promoTable').innerHTML='';$('promoConfirm').style.display='none';$('prStep1').className='step active';$('prStep2').className='step';$('prStep3').className='step'}
 
 // ═══════════ REPORT CARD TEMPLATES ═══════════
+// ═══════════ CLASS MARKSHEET GENERATOR ═══════════
+let _msData=null
+function openMarksheetGen(){
+  openSub('reportcards','sub-rc-marksheet')
+  const el=$('marksheetGenContent')
+  el.innerHTML='<div class="page-head"><div><h2>Class Marksheet</h2><p>Pick a class &amp; assessment, then print. Rules below are on by default — untick any to change the sheet.</p></div></div>'
+    +'<div class="card" style="margin-bottom:16px"><div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">'
+    +'<div class="fg"><label>Class</label><select id="ms_class" onchange="msLoadSecAsmt()"><option value="">Select class</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')+'</select></div>'
+    +'<div class="fg"><label>Section</label><select id="ms_section"><option value="">All sections</option></select></div>'
+    +'<div class="fg"><label>Assessment</label><select id="ms_assess"><option value="">Select class first</option></select></div>'
+    +'<button class="btn btn-soft" style="align-self:flex-end" onclick="generateMarksheet()">Generate</button>'
+    +'</div></div>'
+    +'<div id="ms_rules"></div><div id="ms_preview"></div>'
+}
+async function msLoadSecAsmt(){
+  const cid=$('ms_class')?.value
+  if($('ms_section'))$('ms_section').innerHTML='<option value="">All sections</option>'
+  if($('ms_assess'))$('ms_assess').innerHTML='<option value="">Select class first</option>'
+  if(!cid||!SESS)return
+  const[{data:secs},{data:ac}]=await Promise.all([
+    sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name'),
+    sb.from('assessment_classes').select('assessments(assessment_id,name,commencement_date,end_date,max_marks,pass_marks)').eq('class_id',cid)
+  ])
+  if($('ms_section'))$('ms_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+  const asmts=(ac||[]).map(r=>r.assessments).filter(Boolean).sort((a,b)=>String(a.commencement_date||'').localeCompare(String(b.commencement_date||'')))
+  if($('ms_assess'))$('ms_assess').innerHTML= asmts.length?'<option value="">Select assessment</option>'+asmts.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join(''):'<option value="">No assessments for this class</option>'
+}
+async function generateMarksheet(){
+  const classId=$('ms_class')?.value, secId=$('ms_section')?.value, assessId=$('ms_assess')?.value
+  const prev=$('ms_preview')
+  if(!classId){toast('Select a class','error');return}
+  if(!assessId){toast('Select an assessment','error');return}
+  ldg(prev,'Building marksheet…')
+  const clsName=$('ms_class').selectedOptions[0].textContent
+  const secName=secId?$('ms_section').selectedOptions[0].textContent:''
+  const{data:aRow}=await sb.from('assessments').select('*').eq('assessment_id',assessId).maybeSingle()
+
+  // Students
+  let sq=sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name,father_name)').eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false)
+  if(secId)sq=sq.eq('section_id',secId)
+  const{data:studs}=await sq.order('roll_no')
+  if(!studs?.length){emp(prev,'No students in this class'+(secId?'/section':'')+'.');return}
+  const eids=studs.map(s=>s.enrollment_id)
+
+  // Subjects for the class (+section) from the mapping
+  let mq=sb.from('teacher_subject_class_map').select('subject_id,subjects(name,short_code)').eq('class_id',classId).eq('session_id',SESS.session_id)
+  if(secId)mq=mq.eq('section_id',secId)
+  const{data:subMaps}=await mq
+  const subs=[...new Map((subMaps||[]).map(m=>[m.subject_id,{subject_id:m.subject_id,name:m.subjects?.name||'?',short:m.subjects?.short_code||m.subjects?.name||'?'}])).values()]
+  if(!subs.length){emp(prev,'No subjects mapped for this class.');return}
+
+  // Per-subject max/pass overrides
+  const defMax=aRow?.max_marks||100, defPass=aRow?.pass_marks||Math.round(defMax*0.33)
+  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',classId)
+  const ovMap={}; (ovs||[]).forEach(o=>{ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  subs.forEach(s=>{const o=ovMap[s.subject_id];s.max=(o&&o.max!=null)?o.max:defMax;s.pass=(o&&o.pass!=null)?o.pass:(o&&o.max!=null?Math.round(o.max*0.33):defPass)})
+  const totalMax=subs.reduce((t,s)=>t+s.max,0)
+
+  // Marks
+  const{data:marks}=await sb.from('marks').select('enrollment_id,subject_id,marks_obtained,is_absent').in('enrollment_id',eids).eq('assessment_id',assessId)
+  const mkMap={}; (marks||[]).forEach(m=>{(mkMap[m.enrollment_id]=mkMap[m.enrollment_id]||{})[m.subject_id]=m})
+
+  // Attendance up to assessment end date (working-days basis, per class start)
+  let classStart=SESS?.start_date||null
+  try{const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS.session_id).eq('class_id',classId).maybeSingle();if(cs?.start_date)classStart=cs.start_date}catch(e){}
+  const attTo=aRow?.end_date||aRow?.commencement_date||new Date().toISOString().slice(0,10)
+  const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
+  const[{data:hols},{data:att}]=await Promise.all([
+    sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
+    sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo)
+  ])
+  const holSet=new Set((hols||[]).map(h=>h.date))
+  let workingDays=0
+  {const e=new Date(attTo+'T12:00:00');for(let d=new Date(attFrom+'T12:00:00');d<=e;d.setDate(d.getDate()+1)){const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(d.getDay()===0)continue;if(holSet.has(ds))continue;workingDays++}}
+  const presentMap={}; (att||[]).forEach(a=>{if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1})
+
+  _msData={
+    clsName, secName, assess:aRow, subs, totalMax, workingDays,
+    students:studs.map(s=>({
+      roll:s.roll_no, name:s.students?.full_name||'?', father:s.students?.father_name||'',
+      marks:subs.map(sub=>{const m=mkMap[s.enrollment_id]?.[sub.subject_id];return {subject_id:sub.subject_id, absent:!!m?.is_absent, val:(m&&m.marks_obtained!=null)?parseFloat(m.marks_obtained):null}}),
+      present:presentMap[s.enrollment_id]||0
+    }))
+  }
+  renderMarksheetRules()
+  renderMarksheetView()
+}
+const MS_RULES=[
+  ['r1','Show "AB" for absent students'],
+  ['r2','Blank total &amp; % for absent students'],
+  ['r3','Fail in any subject → total shown, % blank'],
+  ['r4','Overall &lt; 33% → "FAIL" in %, total blank'],
+  ['r5','Show total &amp; % only for all-pass, non-absent students'],
+  ['r6','Red cell where a mark is below pass marks'],
+  ['r7','Red attendance where present &lt; 33% of working days'],
+  ['r8','Round marks (15.5 → 16), totals from rounded marks'],
+  ['r9','Colour top-3 rows (green / blue / yellow by %)'],
+  ['r10','Show class-teacher name &amp; parent-signature space']
+]
+function renderMarksheetRules(){
+  $('ms_rules').innerHTML='<div class="card" style="margin-bottom:16px"><div style="font-size:13px;font-weight:800;margin-bottom:10px">Marksheet rules <span style="font-weight:500;color:var(--ink-soft);font-size:12px">— all on by default; untick to change the sheet</span></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px 18px">'
+    +MS_RULES.map(([id,label])=>'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer"><input type="checkbox" id="ms_'+id+'" checked onchange="renderMarksheetView()" style="width:15px;height:15px;accent-color:var(--indigo)"><span>'+label+'</span></label>').join('')
+    +'</div>'
+    +'<button class="btn btn-dark" style="margin-top:14px" onclick="printMarksheet()">🖨 Print / Save PDF</button>'
+    +'</div>'
+}
+// Apply the ticked rules to one student → {cells, total, pct, rowColor}
+function computeStudentRow(st, rules){
+  const round=v=>rules.r8?Math.round(v):v
+  let anyAbsent=false, failCount=0, total=0
+  const cells=st.marks.map((m,i)=>{
+    const sub=_msData.subs[i]
+    if(m.absent){anyAbsent=true;return {text:rules.r1?'AB':'', red:false, absent:true}}
+    if(m.val==null){return {text:'', red:false, absent:false, missing:true}}
+    const shown=round(m.val)
+    total+=shown
+    const fail=m.val<sub.pass
+    if(fail)failCount++
+    return {text:String(shown), red:(rules.r6&&fail), absent:false}
+  })
+  const pct=_msData.totalMax>0?(total/_msData.totalMax*100):0
+  // Decide total & % display per the rule cascade.
+  let totalText='', pctText='', eligible=false
+  if(anyAbsent){
+    totalText = rules.r2?'':String(total)     // r2 on → blank; off → show sum of entered
+    pctText   = ''                            // % always blank when absent
+  } else if(failCount>0){
+    totalText = String(total)                 // total shown
+    pctText   = rules.r3?'':(pct.toFixed(1)+'%')  // r3 on → blank %
+  } else if(pct<33){
+    totalText = rules.r4?'':String(total)     // r4 on → total blank
+    pctText   = rules.r4?'FAIL':(pct.toFixed(1)+'%')
+  } else {
+    totalText = String(total)
+    pctText   = pct.toFixed(1)+'%'
+    eligible  = true
+  }
+  // r5 gate: if on, only all-pass non-absent get total+% (others blank).
+  if(rules.r5 && !eligible){ if(!anyAbsent && failCount===0){} }
+  return {cells, totalText, pctText, pct, eligible:(eligible&&!anyAbsent&&failCount===0)}
+}
+function renderMarksheetView(){
+  if(!_msData)return
+  const rules={}; MS_RULES.forEach(([id])=>rules[id]=$('ms_'+id)?.checked!==false)
+  const rows=_msData.students.map(st=>({st,calc:computeStudentRow(st,rules)}))
+  // Rank (r9) among eligible students by %.
+  const rankColor={}
+  if(rules.r9){
+    const elig=rows.filter(r=>r.calc.eligible).sort((a,b)=>b.calc.pct-a.calc.pct)
+    if(elig[0])rankColor[elig[0].st.roll+'|'+elig[0].st.name]='#C8E6C9'   // green 1st
+    if(elig[1])rankColor[elig[1].st.roll+'|'+elig[1].st.name]='#BBDEFB'   // blue 2nd
+    if(elig[2])rankColor[elig[2].st.roll+'|'+elig[2].st.name]='#FFE9A8'   // yellow 3rd
+  }
+  $('ms_preview').innerHTML='<div class="card" style="overflow-x:auto"><div style="margin-bottom:10px"><button class="btn btn-dark btn-sm" onclick="printMarksheet()">🖨 Print / Save PDF</button></div>'
+    +buildMarksheetHTML(rows,rankColor,rules,false)+'</div>'
+}
+// Build the marksheet table HTML (shared by preview + print).
+function buildMarksheetHTML(rows,rankColor,rules,forPrint){
+  const d=_msData, a=d.assess||{}
+  const title=esc(a.name||'Assessment')+(a.commencement_date?' ('+new Date(a.commencement_date+'T12:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'})+')':'')
+  const clsLabel=esc(d.clsName)+(d.secName?d.secName:'')
+  let h='<div class="msheet-doc">'
+  h+='<div class="ms-top"><div class="ms-school">SHIV PUBLIC SR. SEC. SCHOOL</div><div class="ms-title-r">'+title+' MARKSHEET</div></div>'
+  h+='<table class="ms-meta"><tr><td class="ms-metL">Class</td><td class="ms-title-band" rowspan="2">'+title+'<div class="ms-sub">FINAL MARKSHEET</div></td><td class="ms-ct">Class Teacher:'+(rules.r10?' ______________':'')+'</td></tr><tr><td class="ms-metL"><b>'+clsLabel+'</b></td><td></td></tr></table>'
+  h+='<table class="ms-grid"><thead>'
+  h+='<tr><th rowspan="2">R.No.</th><th rowspan="2">Name</th><th rowspan="2">Father\'s Name</th>'
+    +d.subs.map(s=>'<th>'+esc(s.short)+'</th>').join('')
+    +'<th>TOTAL</th><th rowspan="2">PER%</th><th rowspan="2">ATT.</th><th rowspan="2">SIGN.</th></tr>'
+  h+='<tr>'+d.subs.map(s=>'<th class="ms-max">'+s.max+'</th>').join('')+'<th class="ms-max">'+d.totalMax+'</th></tr>'
+  h+='</thead><tbody>'
+  rows.forEach(({st,calc})=>{
+    const bg=rankColor[st.roll+'|'+st.name]
+    const attRed=rules.r7 && d.workingDays>0 && st.present < 0.33*d.workingDays
+    h+='<tr'+(bg?' style="background:'+bg+'"':'')+'>'
+      +'<td class="ms-c">'+esc(st.roll||'')+'</td>'
+      +'<td class="ms-l">'+esc(st.name)+'</td>'
+      +'<td class="ms-l">'+esc(st.father)+'</td>'
+      +calc.cells.map(c=>'<td class="ms-c'+(c.red?' ms-red':'')+'">'+esc(c.text)+'</td>').join('')
+      +'<td class="ms-c">'+esc(calc.totalText)+'</td>'
+      +'<td class="ms-c'+(calc.pctText==='FAIL'?' ms-red':'')+'">'+esc(calc.pctText)+'</td>'
+      +'<td class="ms-c'+(attRed?' ms-red':'')+'">'+esc(String(st.present))+'</td>'
+      +'<td class="ms-c"></td>'
+      +'</tr>'
+  })
+  h+='</tbody></table></div>'
+  return h
+}
+function printMarksheet(){
+  if(!_msData){toast('Generate a marksheet first','error');return}
+  const rules={}; MS_RULES.forEach(([id])=>rules[id]=$('ms_'+id)?.checked!==false)
+  const rows=_msData.students.map(st=>({st,calc:computeStudentRow(st,rules)}))
+  const rankColor={}
+  if(rules.r9){const elig=rows.filter(r=>r.calc.eligible).sort((x,y)=>y.calc.pct-x.calc.pct);if(elig[0])rankColor[elig[0].st.roll+'|'+elig[0].st.name]='#C8E6C9';if(elig[1])rankColor[elig[1].st.roll+'|'+elig[1].st.name]='#BBDEFB';if(elig[2])rankColor[elig[2].st.roll+'|'+elig[2].st.name]='#FFE9A8'}
+  const body=buildMarksheetHTML(rows,rankColor,rules,true)
+  const win=window.open('','_blank')
+  win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(_msData.clsName)+' Marksheet</title><style>'+MS_PRINT_CSS+'</style></head><body>'+body+'</body></html>')
+  win.document.close()
+  win.focus()
+  setTimeout(()=>{win.print()},350)
+}
+const MS_PRINT_CSS=`
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:14px;color:#111}
+.msheet-doc{width:100%}
+.ms-top{display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:6px}
+.ms-meta{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:12px}
+.ms-meta td{border:1px solid #333;padding:6px 8px}
+.ms-metL{width:60px;text-align:center;font-weight:700}
+.ms-title-band{text-align:center;font-weight:800}
+.ms-sub{font-weight:700;font-size:11px;margin-top:2px}
+.ms-ct{width:220px;font-weight:600}
+.ms-grid{width:100%;border-collapse:collapse;font-size:11px}
+.ms-grid th,.ms-grid td{border:1px solid #333;padding:3px 4px;text-align:center}
+.ms-grid thead th{background:#EDEDED;font-weight:700}
+.ms-max{font-weight:700}
+.ms-l{text-align:left;white-space:nowrap;padding-left:6px}
+.ms-c{text-align:center}
+.ms-red{color:#D00;font-weight:700}
+.ms-grid tbody tr{page-break-inside:avoid}
+thead{display:table-header-group}
+@page{size:A4 landscape;margin:10mm}
+`
 async function loadTemplates(){const el=$('templateGrid');ldg(el);const{data,error}=await sb.from('report_card_templates').select('*').order('created_at');if(error||!data?.length){emp(el,'No templates yet.');el.className='';return};el.className='grid-3';el.innerHTML=data.map(t=>'<div class="assess-card"><div class="top"><h4>'+esc(t.name)+'</h4><span class="pill pill-indigo">'+esc(t.class_group||'')+'</span></div><div class="meta">'+esc((t.applicable_assessment_names||[]).join(', ')||'All assessments')+'</div></div>').join('')}
 function openAddTemplateModal(){openModal('New Report Card Template','<div class="form-row"><div class="fg"><label>Template Name *</label><input id="rt_name"></div><div class="fg"><label>Class Group *</label><input id="rt_group" placeholder="e.g. Nur-5th"></div></div><div class="form-row"><div class="fg"><label>Applicable Assessments (comma-separated)</label><input id="rt_asmts" placeholder="Term 1, Term 2"></div></div><div class="toggle-row"><span>Show rank in class</span><div class="switch" id="rt_rank" onclick="this.classList.toggle(\'on\')"></div></div><div class="toggle-row" style="border-bottom:none"><span>Include co-curricular remarks</span><div class="switch on" id="rt_cocurr" onclick="this.classList.toggle(\'on\')"></div></div>','<button class="btn btn-dark" onclick="saveTemplate()">Create Template</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')}
 async function saveTemplate(){const name=$('rt_name')?.value?.trim(),group=$('rt_group')?.value?.trim();if(!name||!group){toast('Name and class group required','error');return};const asmtsTxt=$('rt_asmts')?.value?.trim();const layout_config={sections:['header','student_info','marks_table','attendance_summary','grade_scale','remarks','signatures','footer'],show_rank:$('rt_rank')?.classList.contains('on'),include_cocurricular:$('rt_cocurr')?.classList.contains('on')};const{error}=await sb.from('report_card_templates').insert({name,class_group:group,applicable_assessment_names:asmtsTxt?asmtsTxt.split(',').map(s=>s.trim()).filter(Boolean):null,layout_config,created_by:SPS.admin?.admin_id});if(error){toast('Failed: '+error.message,'error');return};toast('Template created','success');closeModal();loadTemplates()}
