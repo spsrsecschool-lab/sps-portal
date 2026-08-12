@@ -201,6 +201,20 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .ms-max{font-weight:700;font-size:11px}
 .ms-grid .ms-l{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:6px}
 .ms-grid .ms-c{text-align:center}
+.slip-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;background:#fff;color:#111;padding:6px}
+.slip{border:1px solid #ccc;border-radius:6px;padding:10px 12px;font-family:'Times New Roman',Georgia,serif;font-size:12px}
+.slip .sl-h1{text-align:center;font-weight:800;font-size:15px}
+.slip .sl-h2{text-align:center;font-size:11px}
+.slip .sl-h3{text-align:center;font-weight:700;font-size:12px;margin:2px 0 6px}
+.slip .sl-info{display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px 10px;font-size:11px;margin-bottom:6px}
+.slip .sl-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.slip .sl-tbl th,.slip .sl-tbl td{border:1px solid #333;padding:4px 7px}
+.slip .sl-tbl th{background:#EDEDED;font-weight:700;text-align:center;font-size:11px}
+.slip .sl-sub{text-align:left;font-weight:700}
+.slip .sl-mk{text-align:center;font-weight:700}
+.slip .sl-mx{text-align:center}
+.slip .sl-foot{display:flex;justify-content:space-between;gap:10px;font-size:11px;margin-top:8px}
+.slip .sl-sign{margin-top:14px;font-size:11px}
 .msheet{border-collapse:separate;border-spacing:0}
 .msheet .rollfix{position:sticky;left:0;background:var(--white);z-index:3}
 .msheet thead .rollfix{background:var(--lav-100);z-index:5}
@@ -888,12 +902,21 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="meta">Generate a printable class marksheet for an assessment, with pass/fail &amp; rank rules</div>
             <div class="arow"><span>Open</span><span>→</span></div>
           </div>
+          <div class="assess-card" onclick="openResultSlips()" style="cursor:pointer;border:1.5px solid var(--indigo)">
+            <div class="top"><h4>🧾 Result Slips</h4></div>
+            <div class="meta">Per-student result slips, 6 to an A4 page, ready to print &amp; hand to parents</div>
+            <div class="arow"><span>Open</span><span>→</span></div>
+          </div>
         </div>
         <div id="templateGrid" class="grid-3"><div class="loading-row" style="grid-column:1/-1"><div class="spinner"></div></div></div>
       </div>
       <div class="sub-page" id="sub-rc-marksheet">
         <button class="back-btn" onclick="openSub('reportcards','sub-rc-list')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="marksheetGenContent"></div>
+      </div>
+      <div class="sub-page" id="sub-rc-slips">
+        <button class="back-btn" onclick="openSub('reportcards','sub-rc-list')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="slipsGenContent"></div>
       </div>
     </div>
 
@@ -3805,16 +3828,16 @@ async function openSubmissionStatus(){
     +Object.entries(byTeacher).map(([tid,t])=>t.rows.map((r,i)=>'<tr>'+(i===0?'<td rowspan="'+t.rows.length+'" style="font-weight:700;vertical-align:top">'+esc(t.name)+'</td>':'')+'<td>'+esc(r.classes?.name||'—')+'</td><td>'+esc(r.class_sections?.name||'—')+'</td><td>'+esc(r.subjects?.name||'—')+'</td><td>'+pill(r)+'</td></tr>').join('')).join('')
     +'</tbody></table></div></div>'
 
-  // Defaulters — teachers with pending subjects, most-pending first.
+  // Teachers with pending subjects, most-pending first.
   const defaulters=Object.values(pendingByTeacher).sort((a,b)=>b.pending-a.pending)
   let defHtml=''
   if(defaulters.length){
-    defHtml='<div class="card" style="margin-top:16px"><h3 style="margin-top:0;color:var(--danger)">Defaulters — '+defaulters.length+' teacher'+(defaulters.length>1?'s':'')+' with pending marks</h3>'
+    defHtml='<div class="card" style="margin-top:16px"><h3 style="margin-top:0;color:var(--danger)">Pending Submissions — '+defaulters.length+' teacher'+(defaulters.length>1?'s':'')+' yet to submit marks</h3>'
       +'<div class="table-wrap"><table><thead><tr><th>#</th><th>Teacher</th><th style="text-align:center">Subjects pending</th></tr></thead><tbody>'
       +defaulters.map((d,i)=>'<tr><td class="mono">'+(i+1)+'</td><td style="font-weight:600">'+esc(d.name)+'</td><td style="text-align:center;font-weight:800;color:var(--danger)">'+d.pending+'</td></tr>').join('')
       +'</tbody></table></div></div>'
   }else{
-    defHtml='<div class="card" style="margin-top:16px"><div style="color:var(--success);font-weight:700">✓ All subjects submitted — no defaulters.</div></div>'
+    defHtml='<div class="card" style="margin-top:16px"><div style="color:var(--success);font-weight:700">✓ All subjects submitted — nothing pending.</div></div>'
   }
 
   el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div>'+table+defHtml
@@ -4363,9 +4386,15 @@ async function generateMarksheet(){
   const prev=$('ms_preview')
   if(!classId){toast('Select a class','error');return}
   if(!assessId){toast('Select an assessment','error');return}
-  ldg(prev,'Building marksheet…')
-  const clsName=$('ms_class').selectedOptions[0].textContent
-  const secName=secId?$('ms_section').selectedOptions[0].textContent:''
+  await _fetchMarksheetData(classId,secId,assessId,secId?$('ms_section').selectedOptions[0].textContent:'',$('ms_class').selectedOptions[0].textContent,prev)
+  if(!_msData)return
+  renderMarksheetRules()
+  renderMarksheetView()
+}
+// Shared data pipeline for both the marksheet and the result slips.
+async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
+  _msData=null
+  ldg(prev,'Building…')
   const{data:aRow}=await sb.from('assessments').select('*').eq('assessment_id',assessId).maybeSingle()
 
   // Students
@@ -4399,6 +4428,7 @@ async function generateMarksheet(){
   let classStart=SESS?.start_date||null
   try{const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS.session_id).eq('class_id',classId).maybeSingle();if(cs?.start_date)classStart=cs.start_date}catch(e){}
   const attTo=aRow?.end_date||aRow?.commencement_date||new Date().toISOString().slice(0,10)
+  const attCutoffSet=!!(aRow?.end_date||aRow?.commencement_date)   // was a date actually set?
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
   const[{data:hols},{data:att},{data:monthly}]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
@@ -4425,15 +4455,14 @@ async function generateMarksheet(){
   }catch(e){}
 
   _msData={
-    clsName, secName, assess:aRow, subs, totalMax, classTeacher,
+    clsName, secName, assess:aRow, subs, totalMax, classTeacher, fullWorking:wdFor(null),
+    attCutoff:attTo, attCutoffSet,
     students:studs.map(s=>({
       roll:s.roll_no, name:s.students?.full_name||'?', father:s.students?.father_name||'',
       marks:subs.map(sub=>{const m=mkMap[s.enrollment_id]?.[sub.subject_id];return {subject_id:sub.subject_id, absent:!!m?.is_absent, val:(m&&m.marks_obtained!=null)?parseFloat(m.marks_obtained):null}}),
       present:presentMap[s.enrollment_id]||0, working:wdFor(admBy[s.enrollment_id])
     }))
   }
-  renderMarksheetRules()
-  renderMarksheetView()
 }
 const MS_RULES=[
   ['r1','Show "AB" for absent students'],
@@ -4525,11 +4554,11 @@ function buildMarksheetHTML(rows,rankPos,rules,forPrint){
   const thead='<thead>'
     +'<tr><th rowspan="2">R.No.</th><th rowspan="2">Name</th><th rowspan="2">Father\'s Name</th>'
     +d.subs.map(s=>'<th>'+esc(s.short)+'</th>').join('')
-    +'<th>TOTAL</th><th rowspan="2">PER%</th><th rowspan="2">ATT.</th><th rowspan="2">SIGN.</th></tr>'
-    +'<tr>'+d.subs.map(s=>'<th class="ms-max">'+s.max+'</th>').join('')+'<th class="ms-max">'+d.totalMax+'</th></tr>'
+    +'<th>TOTAL</th><th rowspan="2">PER%</th><th>ATT.</th><th rowspan="2">SIGN.</th></tr>'
+    +'<tr>'+d.subs.map(s=>'<th class="ms-max">'+s.max+'</th>').join('')+'<th class="ms-max">'+d.totalMax+'</th><th class="ms-max">'+d.fullWorking+'</th></tr>'
     +'</thead>'
   const header='<div class="ms-top"><div class="ms-school">SHIV PUBLIC SR. SEC. SCHOOL</div><div class="ms-title-r">'+title+' MARKSHEET</div></div>'
-    +'<table class="ms-meta"><tr><td class="ms-metL">Class</td><td class="ms-title-band" rowspan="2">'+title+'<div class="ms-sub">FINAL MARKSHEET</div></td><td class="ms-ct">Class Teacher: '+(rules.r10?esc(d.classTeacher||'______________'):'')+'</td></tr>'
+    +'<table class="ms-meta"><tr><td class="ms-metL">Class</td><td class="ms-title-band" rowspan="2">'+title+'<div class="ms-sub">FINAL MARKSHEET</div>'+(d.attCutoff?'<div class="ms-sub" style="font-weight:400;font-size:9px">Attendance up to '+esc(new Date(d.attCutoff+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}))+(d.attCutoffSet?'':' (no end date set — set one in Assessment Settings)')+'</div>':'')+'</td><td class="ms-ct">Class Teacher: '+(rules.r10?esc(d.classTeacher||'______________'):'')+'</td></tr>'
     +'<tr><td class="ms-metL"><b>'+clsLabel+'</b></td><td></td></tr></table>'
   const rowHTML=({st,calc})=>{
     const pos=rankPos[st.roll+'|'+st.name]         // 1 | 2 | 3 | undefined
@@ -4576,8 +4605,9 @@ function printMarksheet(){
 }
 const MS_PRINT_CSS=`
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;color:#111}
-.msheet-doc{width:100%}
+html,body{margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;color:#111}
+.msheet-doc{width:100%;max-width:287mm;margin:0 auto}
 .ms-break{page-break-after:always}
 .ms-top{display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin:0 0 3px}
 .ms-meta{width:100%;border-collapse:collapse;margin-bottom:4px;font-size:11px}
@@ -4596,7 +4626,125 @@ body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;color:#111}
 thead{display:table-header-group}
 @page{size:A4 landscape;margin:6mm}
 `
-async function loadTemplates(){const el=$('templateGrid');ldg(el);const{data,error}=await sb.from('report_card_templates').select('*').order('created_at');if(error||!data?.length){emp(el,'No templates yet.');el.className='';return};el.className='grid-3';el.innerHTML=data.map(t=>'<div class="assess-card"><div class="top"><h4>'+esc(t.name)+'</h4><span class="pill pill-indigo">'+esc(t.class_group||'')+'</span></div><div class="meta">'+esc((t.applicable_assessment_names||[]).join(', ')||'All assessments')+'</div></div>').join('')}
+// ═══════════ RESULT SLIPS GENERATOR ═══════════
+// Reuses the marksheet's data pipeline (generateMarksheet builds _msData) and
+// per-student rule engine (computeStudentRow); only the layout differs.
+function openResultSlips(){
+  openSub('reportcards','sub-rc-slips')
+  const el=$('slipsGenContent')
+  el.innerHTML='<div class="page-head"><div><h2>Result Slips</h2><p>Pick a class &amp; assessment, then print. 6 slips per A4 page. Same rules as the marksheet.</p></div></div>'
+    +'<div class="card" style="margin-bottom:16px"><div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">'
+    +'<div class="fg"><label>Class</label><select id="sl_class" onchange="slLoadSecAsmt()"><option value="">Select class</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')+'</select></div>'
+    +'<div class="fg"><label>Section</label><select id="sl_section"><option value="">All sections</option></select></div>'
+    +'<div class="fg"><label>Assessment</label><select id="sl_assess"><option value="">Select class first</option></select></div>'
+    +'<button class="btn btn-soft" style="align-self:flex-end" onclick="generateSlips()">Generate</button>'
+    +'</div></div><div id="sl_rules"></div><div id="sl_preview"></div>'
+}
+async function slLoadSecAsmt(){
+  const cid=$('sl_class')?.value
+  if($('sl_section'))$('sl_section').innerHTML='<option value="">All sections</option>'
+  if($('sl_assess'))$('sl_assess').innerHTML='<option value="">Select class first</option>'
+  if(!cid||!SESS)return
+  const[{data:secs},{data:ac}]=await Promise.all([
+    sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name'),
+    sb.from('assessment_classes').select('assessments(assessment_id,name,commencement_date,end_date,max_marks,pass_marks)').eq('class_id',cid)
+  ])
+  if($('sl_section'))$('sl_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+  const asmts=(ac||[]).map(r=>r.assessments).filter(Boolean).sort((a,b)=>String(a.commencement_date||'').localeCompare(String(b.commencement_date||'')))
+  if($('sl_assess'))$('sl_assess').innerHTML= asmts.length?'<option value="">Select assessment</option>'+asmts.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join(''):'<option value="">No assessments for this class</option>'
+}
+async function generateSlips(){
+  // Borrow the marksheet loader by temporarily pointing its inputs, then build.
+  const classId=$('sl_class')?.value, secId=$('sl_section')?.value, assessId=$('sl_assess')?.value
+  const prev=$('sl_preview')
+  if(!classId){toast('Select a class','error');return}
+  if(!assessId){toast('Select an assessment','error');return}
+  // Reuse generateMarksheet's fetch by mirroring the selects it reads.
+  // Simplest: call a shared fetch. We replicate by setting ms_* selects if present, else fetch inline.
+  await _fetchMarksheetData(classId,secId,assessId,
+    secId?$('sl_section').selectedOptions[0].textContent:'',
+    $('sl_class').selectedOptions[0].textContent, prev)
+  if(!_msData)return
+  renderSlipRules()
+  renderSlipsView()
+}
+const SLIP_RULES=MS_RULES // identical rule set
+function renderSlipRules(){
+  $('sl_rules').innerHTML='<div class="card" style="margin-bottom:16px"><div style="font-size:13px;font-weight:800;margin-bottom:10px">Slip rules <span style="font-weight:500;color:var(--ink-soft);font-size:12px">— all on by default; untick to change</span></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px 18px">'
+    +SLIP_RULES.map(([id,label])=>'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer"><input type="checkbox" id="sl_'+id+'" checked onchange="renderSlipsView()" style="width:15px;height:15px;accent-color:var(--indigo)"><span>'+label+'</span></label>').join('')
+    +'</div><button class="btn btn-dark" style="margin-top:14px" onclick="printSlips()">🖨 Print / Save PDF</button></div>'
+}
+// One student's slip → HTML. Uses computeStudentRow for the cascade.
+function buildSlipHTML(st, rules){
+  const d=_msData, a=d.assess||{}
+  const RED='#F6C9CE'
+  const calc=computeStudentRow(st,rules)
+  const month=a.commencement_date?new Date(a.commencement_date+'T12:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'}):''
+  // RESULT: PASS only if all-pass non-absent; FAIL only if overall <33%; else blank.
+  const anyAbsent=st.marks.some(m=>m.absent)
+  let result=''
+  if(calc.eligible) result='PASS'
+  else if(!anyAbsent && calc.pct<33 && st.marks.every(m=>m.val!=null)) result='FAIL'
+  // pct<33 path: computeStudentRow marks pct; but eligible already excludes fails. Use calc.pct only when not absent.
+  const attRed=rules.r7 && st.working>0 && st.present < 0.33*st.working
+  const rowsHTML=d.subs.map((sub,i)=>{
+    const c=calc.cells[i]
+    return '<tr><td class="sl-sub">'+esc(sub.name)+'</td>'
+      +'<td class="sl-mk"'+(c.red?' style="background:'+RED+'"':'')+'>'+esc(c.text)+'</td>'
+      +'<td class="sl-mx">'+sub.max+'</td></tr>'
+  }).join('')
+  return '<div class="slip">'
+    +'<div class="sl-h1">SHIV PUBLIC SR. SEC. SCHOOL</div>'
+    +'<div class="sl-h2">A-221, Dabua Colony, NIT FBD</div>'
+    +'<div class="sl-h3">RESULT SLIP : '+esc(month)+'</div>'
+    +'<div class="sl-info"><span><b>Name:</b> '+esc(st.name)+'</span><span><b>Class:</b> '+esc(d.clsName)+(d.secName?" '"+esc(d.secName)+"'":'')+'</span><span><b>Father\'s Name:</b> '+esc(st.father)+'</span></div>'
+    +'<table class="sl-tbl"><thead><tr><th>Subject</th><th>Marks Obtained</th><th>Maximum Marks</th></tr></thead><tbody>'
+    +rowsHTML
+    +'<tr><td class="sl-sub"><b>TOTAL</b></td><td class="sl-mk"><b>'+esc(calc.totalText)+'</b></td><td class="sl-mx"><b>'+d.totalMax+'</b></td></tr>'
+    +'</tbody></table>'
+    +'<div class="sl-foot"><span><b>PER (%):</b> '+esc(calc.pctText==='FAIL'?'':calc.pctText)+'</span><span><b>RESULT:</b> '+esc(result)+'</span><span'+(attRed?' style="background:'+RED+';padding:0 4px"':'')+'><b>ATT.:</b> '+esc(String(st.present))+'/'+esc(String(st.working))+'</span></div>'
+    +'<div class="sl-sign"><b>Teacher\'s Signature:</b></div>'
+    +'</div>'
+}
+function renderSlipsView(){
+  if(!_msData)return
+  const rules={}; SLIP_RULES.forEach(([id])=>rules[id]=$('sl_'+id)?.checked!==false)
+  const slips=_msData.students.map(st=>buildSlipHTML(st,rules)).join('')
+  $('sl_preview').innerHTML='<div class="card"><div style="margin-bottom:10px"><button class="btn btn-dark btn-sm" onclick="printSlips()">🖨 Print / Save PDF</button></div><div class="slip-grid">'+slips+'</div></div>'
+}
+function printSlips(){
+  if(!_msData){toast('Generate first','error');return}
+  const rules={}; SLIP_RULES.forEach(([id])=>rules[id]=$('sl_'+id)?.checked!==false)
+  const slips=_msData.students.map(st=>buildSlipHTML(st,rules))
+  // 6 slips per page.
+  let body=''
+  for(let i=0;i<slips.length;i+=6){body+='<div class="slip-page">'+slips.slice(i,i+6).join('')+'</div>'}
+  const win=window.open('','_blank')
+  win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Result Slips — '+esc(_msData.clsName)+'</title><style>'+SLIP_PRINT_CSS+'</style></head><body>'+body+'</body></html>')
+  win.document.close();win.focus();setTimeout(()=>win.print(),350)
+}
+const SLIP_PRINT_CSS=`
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}
+body{font-family:'Times New Roman',Georgia,serif;color:#111}
+.slip-page{width:100%;max-width:200mm;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);gap:6mm;page-break-after:always;height:283mm;padding:2mm}
+.slip-page:last-child{page-break-after:auto}
+.slip{border:0;padding:4px 8px;display:flex;flex-direction:column;font-size:11px}
+.sl-h1{text-align:center;font-weight:800;font-size:14px;letter-spacing:.3px}
+.sl-h2{text-align:center;font-size:10px}
+.sl-h3{text-align:center;font-weight:700;font-size:11px;margin:2px 0 5px}
+.sl-info{display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px 8px;font-size:10.5px;margin-bottom:5px}
+.sl-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.sl-tbl th,.sl-tbl td{border:1px solid #333;padding:3px 6px}
+.sl-tbl th{background:#EDEDED;font-weight:700;text-align:center;font-size:10px}
+.sl-sub{text-align:left;font-weight:700}
+.sl-mk{text-align:center;font-weight:700}
+.sl-mx{text-align:center}
+.sl-foot{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;margin-top:7px}
+.sl-sign{margin-top:12px;font-size:10.5px}
+@page{size:A4 portrait;margin:6mm}
+`
 function openAddTemplateModal(){openModal('New Report Card Template','<div class="form-row"><div class="fg"><label>Template Name *</label><input id="rt_name"></div><div class="fg"><label>Class Group *</label><input id="rt_group" placeholder="e.g. Nur-5th"></div></div><div class="form-row"><div class="fg"><label>Applicable Assessments (comma-separated)</label><input id="rt_asmts" placeholder="Term 1, Term 2"></div></div><div class="toggle-row"><span>Show rank in class</span><div class="switch" id="rt_rank" onclick="this.classList.toggle(\'on\')"></div></div><div class="toggle-row" style="border-bottom:none"><span>Include co-curricular remarks</span><div class="switch on" id="rt_cocurr" onclick="this.classList.toggle(\'on\')"></div></div>','<button class="btn btn-dark" onclick="saveTemplate()">Create Template</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')}
 async function saveTemplate(){const name=$('rt_name')?.value?.trim(),group=$('rt_group')?.value?.trim();if(!name||!group){toast('Name and class group required','error');return};const asmtsTxt=$('rt_asmts')?.value?.trim();const layout_config={sections:['header','student_info','marks_table','attendance_summary','grade_scale','remarks','signatures','footer'],show_rank:$('rt_rank')?.classList.contains('on'),include_cocurricular:$('rt_cocurr')?.classList.contains('on')};const{error}=await sb.from('report_card_templates').insert({name,class_group:group,applicable_assessment_names:asmtsTxt?asmtsTxt.split(',').map(s=>s.trim()).filter(Boolean):null,layout_config,created_by:SPS.admin?.admin_id});if(error){toast('Failed: '+error.message,'error');return};toast('Template created','success');closeModal();loadTemplates()}
 
