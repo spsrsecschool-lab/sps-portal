@@ -769,6 +769,10 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="assessStatusContent"></div>
       </div>
+      <div class="sub-page" id="sub-assess-classes">
+        <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="assessClassesContent"></div>
+      </div>
     </div>
 
     <!-- MARKS OVERVIEW -->
@@ -3667,7 +3671,52 @@ function openAssessEditById(id,classNames){const a=window._assessMap?.[id];if(!a
 let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
-  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, marks unlock toggle</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div></div>'
+  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, marks unlock toggle</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div></div>'
+}
+// Manage which classes an assessment applies to (add/remove after creation).
+async function openAssessClasses(){
+  if(!_currentAssess)return;const a=_currentAssess
+  openSub('assessments','sub-assess-classes')
+  const el=$('assessClassesContent')
+  el.innerHTML='<div class="page-head"><div><h2>Classes — '+esc(a.name)+'</h2><p>Tick the classes this assessment applies to. Unticking removes a class.</p></div></div><div class="loading-row"><div class="spinner"></div></div>'
+  const{data:acRows}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',a.assessment_id)
+  const linked=new Set((acRows||[]).map(r=>r.class_id))
+  // Count marks per class so we can warn before removing a class that has marks.
+  const{data:mk}=await sb.from('marks').select('enrollment_id,student_enrollments!inner(class_id)').eq('assessment_id',a.assessment_id)
+  const marksByClass={}; (mk||[]).forEach(m=>{const c=m.student_enrollments?.class_id;if(c)marksByClass[c]=(marksByClass[c]||0)+1})
+  const classes=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
+  el.innerHTML='<div class="page-head"><div><h2>Classes — '+esc(a.name)+'</h2><p>Tick the classes this assessment applies to. Unticking removes a class.</p></div></div>'
+    +'<div class="card" style="max-width:560px">'
+    +classes.map(c=>{const has=marksByClass[c.class_id]||0;return '<label style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer">'
+      +'<input type="checkbox" class="ac_chk" value="'+c.class_id+'"'+(linked.has(c.class_id)?' checked':'')+' style="width:16px;height:16px;accent-color:var(--indigo)">'
+      +'<span style="flex:1;font-weight:600;font-size:13px">'+esc(c.name)+'</span>'
+      +(has?'<span class="pill pill-warn" title="Has entered marks">'+has+' marks</span>':'')
+      +'</label>'}).join('')
+    +'<button class="btn btn-dark" style="margin-top:14px" onclick="saveAssessClasses(\''+a.assessment_id+'\')">Save Classes</button>'
+    +'<div style="font-size:11px;color:var(--ink-soft);margin-top:8px">Removing a class that already has marks will hide those marks from this assessment (the mark rows are kept, but the class is no longer part of the assessment).</div>'
+    +'</div>'
+  window._acMarksByClass=marksByClass; window._acLinked=linked
+}
+async function saveAssessClasses(assessId){
+  const checked=new Set([...document.querySelectorAll('.ac_chk:checked')].map(el=>el.value))
+  if(!checked.size){toast('An assessment must have at least one class','error');return}
+  const linked=window._acLinked||new Set()
+  const marksByClass=window._acMarksByClass||{}
+  const toRemove=[...linked].filter(cid=>!checked.has(cid))
+  const toAdd=[...checked].filter(cid=>!linked.has(cid))
+  // Warn if removing classes that have marks.
+  const removingWithMarks=toRemove.filter(cid=>marksByClass[cid]>0)
+  const proceed=()=>confirmAct('Save class changes?',
+    (toAdd.length?toAdd.length+' class(es) added. ':'')+(toRemove.length?toRemove.length+' removed'+(removingWithMarks.length?' ('+removingWithMarks.length+' had marks — those marks will be hidden from this assessment)':'')+'.':'')||'No changes.',
+    async()=>{
+      if(toRemove.length){const{error}=await sb.from('assessment_classes').delete().eq('assessment_id',assessId).in('class_id',toRemove);if(error){toast('Remove failed: '+error.message,'error');return}}
+      if(toAdd.length){const{error}=await sb.from('assessment_classes').insert(toAdd.map(cid=>({assessment_id:assessId,class_id:cid})));if(error){toast('Add failed: '+error.message,'error');return}}
+      toast('Classes updated ✓','success')
+      loadAssessments()
+      openAssessClasses()
+    })
+  if(!toAdd.length&&!toRemove.length){toast('No changes','error');return}
+  proceed()
 }
 function openAssessSettings(){if(!_currentAssess)return;const a=_currentAssess;openSub('assessments','sub-assess-settings');$('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="'+esc(a.name)+'"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="ae_date" value="'+(a.commencement_date||'')+'"></div><div class="fg"><label>End Date</label><input type="date" id="ae_enddate" value="'+(a.end_date||'')+'"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance working days are counted up to and including the <b>End Date</b>. Start date is informational.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="'+(a.submission_deadline?.slice(0,16)||'')+'"></div></div><div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch '+(a.is_marks_unlocked?'on':'')+'" id="ae_unlock" onclick="this.classList.toggle(\'on\')"></div></div><button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'}
 function openExamFees(){if(!_currentAssess)return;const a=_currentAssess,ef=a.exam_fees||[];openSub('assessments','sub-assess-examfees');$('assessExamFeesContent').innerHTML='<div class="page-head"><div><h2>Exam Fees — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div id="efRows">'+ef.map(f=>'<div class="form-row" id="efr_'+f.exam_fee_id+'"><div class="fg"><label>Class Group</label><input id="efg_'+f.exam_fee_id+'" value="'+esc(f.class_group||'')+'"></div><div class="fg"><label>Amount ₹</label><input type="number" inputmode="decimal" id="efa_'+f.exam_fee_id+'" value="'+(f.amount||'')+'"></div><div class="fg" style="flex:0;align-items:flex-end"><div class="switch '+(f.is_collection_unlocked?'on':'')+'" id="efu_'+f.exam_fee_id+'" onclick="this.classList.toggle(\'on\')" style="margin-top:20px"></div></div><div style="display:flex;gap:5px;align-items:flex-end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="saveEF(\''+f.exam_fee_id+'\',\''+a.assessment_id+'\')">Save</button><button class="btn btn-danger btn-xs" onclick="deleteEF(\''+f.exam_fee_id+'\')">×</button></div></div>').join('')+'</div><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="addEFRow(\''+a.assessment_id+'\')">+ Add Fee Row</button></div>'}
