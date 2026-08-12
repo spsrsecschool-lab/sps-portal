@@ -187,6 +187,20 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .pill-indigo{background:var(--indigo-100);color:var(--indigo-dark)}
 .table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
 .sticky-col{position:sticky;background:var(--white);z-index:2}
+.msheet-doc{margin-bottom:18px;background:#fff;color:#111}
+.ms-top{display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin-bottom:8px}
+.ms-meta{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:13px;color:#111}
+.ms-meta td{border:1px solid #333;padding:8px 10px}
+.ms-metL{width:70px;text-align:center;font-weight:700}
+.ms-title-band{text-align:center;font-weight:800;font-size:14px}
+.ms-sub{font-weight:700;font-size:12px;margin-top:3px}
+.ms-ct{width:260px;font-weight:600}
+.ms-grid{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;color:#111}
+.ms-grid th,.ms-grid td{border:1px solid #333;padding:7px 4px;text-align:center;overflow:hidden}
+.ms-grid thead th{background:#EDEDED;font-weight:700}
+.ms-max{font-weight:700;font-size:11px}
+.ms-grid .ms-l{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:6px}
+.ms-grid .ms-c{text-align:center}
 .msheet{border-collapse:separate;border-spacing:0}
 .msheet .rollfix{position:sticky;left:0;background:var(--white);z-index:3}
 .msheet thead .rollfix{background:var(--lav-100);z-index:5}
@@ -4480,19 +4494,17 @@ function renderMarksheetView(){
   if(!_msData)return
   const rules={}; MS_RULES.forEach(([id])=>rules[id]=$('ms_'+id)?.checked!==false)
   const rows=_msData.students.map(st=>({st,calc:computeStudentRow(st,rules)}))
-  // Rank (r9) among eligible students by %.
-  const rankColor={}
+  // Rank (r9) among eligible students by % → position 1/2/3.
+  const rankPos={}
   if(rules.r9){
     const elig=rows.filter(r=>r.calc.eligible).sort((a,b)=>b.calc.pct-a.calc.pct)
-    if(elig[0])rankColor[elig[0].st.roll+'|'+elig[0].st.name]='#C8E6C9'   // green 1st
-    if(elig[1])rankColor[elig[1].st.roll+'|'+elig[1].st.name]='#BBDEFB'   // blue 2nd
-    if(elig[2])rankColor[elig[2].st.roll+'|'+elig[2].st.name]='#FFE9A8'   // yellow 3rd
+    elig.slice(0,3).forEach((r,i)=>{rankPos[r.st.roll+'|'+r.st.name]=i+1})
   }
   $('ms_preview').innerHTML='<div class="card" style="overflow-x:auto"><div style="margin-bottom:10px"><button class="btn btn-dark btn-sm" onclick="printMarksheet()">🖨 Print / Save PDF</button></div>'
-    +buildMarksheetHTML(rows,rankColor,rules,false)+'</div>'
+    +buildMarksheetHTML(rows,rankPos,rules,false)+'</div>'
 }
-// Build the marksheet HTML (shared by preview + print). Paginates 20 rows/page.
-function buildMarksheetHTML(rows,rankColor,rules,forPrint){
+// Build the marksheet HTML (shared by preview + print). Print paginates 20/page.
+function buildMarksheetHTML(rows,rankPos,rules,forPrint){
   const d=_msData, a=d.assess||{}
   const RED='#F6C9CE'   // red cell highlight (inlined so preview + print both show it)
   const title=esc(a.name||'Assessment')+(a.commencement_date?' ('+new Date(a.commencement_date+'T12:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'})+')':'')
@@ -4520,20 +4532,28 @@ function buildMarksheetHTML(rows,rankColor,rules,forPrint){
     +'<table class="ms-meta"><tr><td class="ms-metL">Class</td><td class="ms-title-band" rowspan="2">'+title+'<div class="ms-sub">FINAL MARKSHEET</div></td><td class="ms-ct">Class Teacher: '+(rules.r10?esc(d.classTeacher||'______________'):'')+'</td></tr>'
     +'<tr><td class="ms-metL"><b>'+clsLabel+'</b></td><td></td></tr></table>'
   const rowHTML=({st,calc})=>{
-    const bg=rankColor[st.roll+'|'+st.name]
+    const pos=rankPos[st.roll+'|'+st.name]         // 1 | 2 | 3 | undefined
+    const ROMAN={1:'I',2:'II',3:'III'}
+    const shadeBg=(!forPrint&&pos)?({1:'#C8E6C9',2:'#BBDEFB',3:'#FFE9A8'}[pos]):null
     const attRed=rules.r7 && st.working>0 && st.present < 0.33*st.working
-    return '<tr'+(bg?' style="background:'+bg+'"':'')+'>'
+    let pctCell=esc(calc.pctText)
+    if(forPrint && pos && calc.pctText && calc.pctText!=='FAIL') pctCell='<b>'+esc(calc.pctText)+' '+ROMAN[pos]+'</b>'
+    return '<tr'+(shadeBg?' style="background:'+shadeBg+'"':'')+'>'
       +'<td class="ms-c">'+esc(st.roll||'')+'</td>'
       +'<td class="ms-l">'+esc(st.name)+'</td>'
       +'<td class="ms-l">'+esc(st.father)+'</td>'
       +calc.cells.map(c=>'<td class="ms-c"'+(c.red?' style="background:'+RED+'"':'')+'>'+esc(c.text)+'</td>').join('')
       +'<td class="ms-c">'+esc(calc.totalText)+'</td>'
-      +'<td class="ms-c"'+(calc.pctText==='FAIL'?' style="background:'+RED+'"':'')+'>'+esc(calc.pctText)+'</td>'
+      +'<td class="ms-c"'+(calc.pctText==='FAIL'?' style="background:'+RED+'"':'')+'>'+pctCell+'</td>'
       +'<td class="ms-c"'+(attRed?' style="background:'+RED+'"':'')+'>'+esc(String(st.present))+'</td>'
       +'<td class="ms-c"></td>'
       +'</tr>'
   }
-  // Paginate: 20 students per page.
+  // Preview: one consolidated table (no page cap). Print: 20 students per page.
+  if(!forPrint){
+    return '<div class="msheet-doc">'+header
+      +'<table class="ms-grid">'+colgroup+thead+'<tbody>'+rows.map(rowHTML).join('')+'</tbody></table></div>'
+  }
   const PER=20, pages=[]
   for(let i=0;i<rows.length;i+=PER)pages.push(rows.slice(i,i+PER))
   return pages.map((pg,idx)=>'<div class="msheet-doc'+(idx<pages.length-1?' ms-break':'')+'">'
@@ -4545,9 +4565,9 @@ function printMarksheet(){
   if(!_msData){toast('Generate a marksheet first','error');return}
   const rules={}; MS_RULES.forEach(([id])=>rules[id]=$('ms_'+id)?.checked!==false)
   const rows=_msData.students.map(st=>({st,calc:computeStudentRow(st,rules)}))
-  const rankColor={}
-  if(rules.r9){const elig=rows.filter(r=>r.calc.eligible).sort((x,y)=>y.calc.pct-x.calc.pct);if(elig[0])rankColor[elig[0].st.roll+'|'+elig[0].st.name]='#C8E6C9';if(elig[1])rankColor[elig[1].st.roll+'|'+elig[1].st.name]='#BBDEFB';if(elig[2])rankColor[elig[2].st.roll+'|'+elig[2].st.name]='#FFE9A8'}
-  const body=buildMarksheetHTML(rows,rankColor,rules,true)
+  const rankPos={}
+  if(rules.r9){const elig=rows.filter(r=>r.calc.eligible).sort((x,y)=>y.calc.pct-x.calc.pct);elig.slice(0,3).forEach((r,i)=>{rankPos[r.st.roll+'|'+r.st.name]=i+1})}
+  const body=buildMarksheetHTML(rows,rankPos,rules,true)
   const win=window.open('','_blank')
   win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(_msData.clsName)+' Marksheet</title><style>'+MS_PRINT_CSS+'</style></head><body>'+body+'</body></html>')
   win.document.close()
