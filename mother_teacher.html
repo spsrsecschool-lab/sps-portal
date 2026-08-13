@@ -3026,24 +3026,30 @@ async function loadViewMarks(){
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att.</th><th style="text-align:center">Att.%</th></tr></thead><tbody>'
 
   const fullMaxV=MK_SUBJECTS.reduce((t,s)=>t+maxFor(s.subject_id),0)
+  const rndV=v=>Math.round(v)
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
-    let total=0,hasAbsent=false
+    let total=0,hasAbsent=false,hasMissing=false,failCount=0
     html+='<tr>'
     html+='<td class="rollfix" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
     html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
     MK_SUBJECTS.forEach(sub=>{
       const mk=sMarks[sub.subject_id]
-      if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
+      if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';hasMissing=true;return}
       if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';hasAbsent=true;return}
-      total+=parseFloat(mk.marks_obtained)
-      const fail=parseFloat(mk.marks_obtained)<passFor(sub.subject_id)
-      html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+mk.marks_obtained+'</td>'
+      if(mk.marks_obtained==null){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';hasMissing=true;return}
+      const raw=parseFloat(mk.marks_obtained)
+      total+=rndV(raw)
+      const fail=raw<passFor(sub.subject_id); if(fail)failCount++
+      html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+rndV(raw)+'</td>'
     })
-    const pct=!hasAbsent&&fullMaxV>0?Math.round(total/fullMaxV*100):null
+    // Rules: absent OR any unentered mark → no total/%; failing → total only.
+    const blocked=hasAbsent||hasMissing
+    const showTotal=!blocked
+    const pct=(!blocked&&failCount===0&&fullMaxV>0)?Math.round(total/fullMaxV*100):null
     const att=attMap[s.enrollment_id]||{}
     const attPct=att.working>0?Math.round(att.present/att.working*100):null
-    html+='<td style="text-align:center;font-weight:700">'+(hasAbsent?'—':total)+'</td>'
+    html+='<td style="text-align:center;font-weight:700">'+(showTotal?total:'—')+'</td>'
     html+='<td class="'+(pct!==null&&pct<33?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+(pct!==null?pct+'%':'—')+'</td>'
     html+='<td style="text-align:center;font-family:var(--mono)">'+(att.working>0?att.present+'/'+att.working:'—')+'</td>'
     html+='<td class="'+(attPct!==null&&attPct<75?'cell-low-att':'')+'" style="text-align:center;font-weight:700">'+(attPct!==null?attPct+'%':'—')+'</td>'
@@ -3132,7 +3138,6 @@ async function loadAssessMarksEditable(){
     +'<th class="rollfix" style="min-width:42px">Roll</th>'
     +'<th style="min-width:96px">Name</th>'
   cols.forEach(s=>{const lk=lockedSet.has(s.subject_id);html+='<th style="text-align:center;white-space:nowrap">'+esc(s.name)+(lk?' 🔒':'')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+(lk?' · locked':'')+'</span></th>'})
-  if(!single)html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th>'
   html+='</tr></thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
@@ -3153,7 +3158,6 @@ async function loadAssessMarksEditable(){
         +(lk?'':'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this)" style="font-size:12px;font-weight:800;padding:6px 11px;border-radius:7px;cursor:pointer;border:1.5px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">A</button>')
         +'</div></td>'
     })
-    if(!single)html+='<td class="mk-total" style="text-align:center;font-weight:700">—</td><td class="mk-pct" style="text-align:center;font-weight:700">—</td>'
     html+='</tr>'
   })
   html+='</tbody></table></div>'
