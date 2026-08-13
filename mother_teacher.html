@@ -2236,15 +2236,15 @@ async function loadAssessMarks(){
     const end=new Date(attToStr)
     while(cur<=end){const dow=cur.getDay();if(dow!==0&&!holSet.has(cur.toISOString().slice(0,10)))workingDays++;cur.setDate(cur.getDate()+1)}
     // Get attendance per student
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
     const byStudent={}
-    ;(attData||[]).forEach(a=>{if(!byStudent[a.enrollment_id])byStudent[a.enrollment_id]=0;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]++})
-    // Fold in BACKLOG monthly attendance (present totals for periods filled as
-    // monthly counts rather than day-by-day). Working days already include them.
+    let monthPeriods={}
     try{
-      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
-      ;(monthly||[]).forEach(mr=>{byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
+      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
+      ;(monthly||[]).forEach(mr=>{(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
+    const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
+    ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=s.is_new_admission?(s.students?.admission_date||null):null})
     const wdCache={}
     const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
@@ -2265,15 +2265,16 @@ async function loadAssessMarks(){
   })
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att. Days</th><th style="text-align:center">Att. %</th></tr></thead><tbody>'
 
+  const fullMax=uniqueSubs.reduce((t,m)=>t+maxFor(m.subject_id),0)
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
-    let total=0,possible=0,hasAbsent=false
+    let total=0,hasAbsent=false
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
       if(mk?.is_absent)hasAbsent=true
-      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained);possible+=maxFor(m.subject_id)}
+      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained)}
     })
-    const pct=!hasAbsent&&possible>0?Math.round(total/possible*100):null
+    const pct=!hasAbsent&&fullMax>0?Math.round(total/fullMax*100):null
     const attInfo=attMap[s.enrollment_id]||{}
     const attPct=attInfo.working>0?Math.round(attInfo.present/attInfo.working*100):null
 
@@ -2995,12 +2996,15 @@ async function loadViewMarks(){
     const holSet=new Set((hols||[]).map(h=>h.date))
     let workingDays=0;const cur=new Date(sessStart),end=new Date(attToStr)
     while(cur<=end){const dow=cur.getDay();if(dow!==0&&!holSet.has(cur.toISOString().slice(0,10)))workingDays++;cur.setDate(cur.getDate()+1)}
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
-    const byStu={};(attData||[]).forEach(a=>{if(!byStu[a.enrollment_id])byStu[a.enrollment_id]=0;if(a.status==='P'||a.status==='L')byStu[a.enrollment_id]++})
+    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    const byStu={}
+    let _mp={}
     try{
-      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
-      ;(monthly||[]).forEach(mr=>{byStu[mr.enrollment_id]=(byStu[mr.enrollment_id]||0)+(mr.present_count||0)})
+      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
+      ;(monthly||[]).forEach(mr=>{(_mp[mr.enrollment_id]=_mp[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStu[mr.enrollment_id]=(byStu[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){}
+    const _inMon2=(eid,d)=>(_mp[eid]||[]).some(p=>d>=p.from&&d<=p.to)
+    ;(attData||[]).forEach(a=>{if(_inMon2(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')byStu[a.enrollment_id]=(byStu[a.enrollment_id]||0)+1})
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=s.is_new_admission?(s.students?.admission_date||null):null})
     const wdCache={}
     const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
@@ -3021,9 +3025,10 @@ async function loadViewMarks(){
   MK_SUBJECTS.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.short_code||s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max '+maxFor(s.subject_id)+' · Pass '+passFor(s.subject_id)+'</span></th>'})
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att.</th><th style="text-align:center">Att.%</th></tr></thead><tbody>'
 
+  const fullMaxV=MK_SUBJECTS.reduce((t,s)=>t+maxFor(s.subject_id),0)
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
-    let total=0,possible=0,hasAbsent=false
+    let total=0,hasAbsent=false
     html+='<tr>'
     html+='<td class="rollfix" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
     html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
@@ -3031,14 +3036,14 @@ async function loadViewMarks(){
       const mk=sMarks[sub.subject_id]
       if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
       if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';hasAbsent=true;return}
-      total+=parseFloat(mk.marks_obtained);possible+=maxFor(sub.subject_id)
+      total+=parseFloat(mk.marks_obtained)
       const fail=parseFloat(mk.marks_obtained)<passFor(sub.subject_id)
       html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+mk.marks_obtained+'</td>'
     })
-    const pct=!hasAbsent&&possible>0?Math.round(total/possible*100):null
+    const pct=!hasAbsent&&fullMaxV>0?Math.round(total/fullMaxV*100):null
     const att=attMap[s.enrollment_id]||{}
     const attPct=att.working>0?Math.round(att.present/att.working*100):null
-    html+='<td style="text-align:center;font-weight:700">'+(hasAbsent?'—':(possible>0?total:'—'))+'</td>'
+    html+='<td style="text-align:center;font-weight:700">'+(hasAbsent?'—':total)+'</td>'
     html+='<td class="'+(pct!==null&&pct<33?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+(pct!==null?pct+'%':'—')+'</td>'
     html+='<td style="text-align:center;font-family:var(--mono)">'+(att.working>0?att.present+'/'+att.working:'—')+'</td>'
     html+='<td class="'+(attPct!==null&&attPct<75?'cell-low-att':'')+'" style="text-align:center;font-weight:700">'+(attPct!==null?attPct+'%':'—')+'</td>'
