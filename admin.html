@@ -4079,23 +4079,25 @@ async function loadMarksTable(){
   uniqueSubs.forEach(m=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+subMax(m.subject_id)+'</span></th>'})
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th></tr></thead><tbody>'
 
+  const fullMax=uniqueSubs.reduce((t,m)=>t+subMax(m.subject_id),0)   // % out of ALL subjects
   studs.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
-    let total=0,possible=0
+    let total=0,hasAbsent=false
     html+='<tr>'
       +'<td class="rollfix" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
-      if(mk?.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';return}
+      if(mk?.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';hasAbsent=true;return}
       if(mk?.marks_obtained==null){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
-      const v=parseFloat(mk.marks_obtained); total+=v; possible+=subMax(m.subject_id)
+      const v=parseFloat(mk.marks_obtained); total+=v
       const fail=v<subPass(m.subject_id)
       html+='<td style="text-align:center;font-weight:700;'+(fail?'color:var(--danger);background:#FCE7EA':'')+'">'+mk.marks_obtained+'</td>'
     })
-    const pct=possible>0?Math.round(total/possible*100):null
-    html+='<td style="text-align:center;font-weight:700">'+(possible>0?total:'—')+'</td>'
+    // Absent in any subject → no total/%. Otherwise % is out of the full marks.
+    const pct=(!hasAbsent&&fullMax>0)?Math.round(total/fullMax*100):null
+    html+='<td style="text-align:center;font-weight:700">'+(hasAbsent?'—':total)+'</td>'
       +'<td style="text-align:center;font-weight:700;color:var(--indigo-dark)">'+(pct!=null?pct+'%':'—')+'</td></tr>'
   })
   html+='</tbody></table></div>'
@@ -4432,14 +4434,24 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
   const[{data:hols},{data:att},{data:monthly}]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
-    sb.from('student_attendance').select('enrollment_id,status').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
-    sb.from('attendance_monthly').select('enrollment_id,present_count').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo)
+    sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
+    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo)
   ])
   const holSet=new Set((hols||[]).map(h=>h.date))
-  // Present per student = daily (P/L) + monthly backlog present_count.
+  // Monthly (Previous Attendance) OVERRIDES daily for its period. Build each
+  // student's monthly periods so we can drop daily records that fall inside them,
+  // then add the monthly present_count — otherwise those days get counted twice.
+  const monthPeriods={}  // eid → [{from,to}], and present sum
   const presentMap={}
-  ;(att||[]).forEach(a=>{if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1})
-  ;(monthly||[]).forEach(mr=>{presentMap[mr.enrollment_id]=(presentMap[mr.enrollment_id]||0)+(mr.present_count||0)})
+  ;(monthly||[]).forEach(mr=>{
+    ;(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date})
+    presentMap[mr.enrollment_id]=(presentMap[mr.enrollment_id]||0)+(mr.present_count||0)
+  })
+  const inMonthly=(eid,date)=>(monthPeriods[eid]||[]).some(p=>date>=p.from&&date<=p.to)
+  ;(att||[]).forEach(a=>{
+    if(inMonthly(a.enrollment_id,a.date))return                 // superseded by monthly
+    if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1
+  })
   // Working days per student (cached by effective start date).
   const admBy={}; studs.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission&&s.students?.admission_date)?s.students.admission_date:null})
   const wdCache={}
@@ -4971,19 +4983,32 @@ async function loadClassAttendance(){
   const workingDays=days.filter(d=>!d.isSun&&!d.isHol&&(!classStart||d.dateStr>=classStart)).length
   const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year
 
-  // Monthly-total months (no daily data) → counts-only summary.
-  if((att||[]).length===0 && (monthly||[]).length>0){
+  // If Previous Attendance (monthly totals) exists for this month, it OVERRIDES
+  // any stray daily records — show the counts-only summary, not the day grid.
+  if((monthly||[]).length>0){
     const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
     let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
-      +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was back-filled with monthly totals, so only Present/Absent counts are available (no day-by-day record).</div>'
+      +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was entered as monthly totals via Previous Attendance, so only Present/Absent counts are shown (day-by-day records for this month are superseded).</div>'
       +'<table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">Present</th><th style="text-align:center">Absent</th></tr></thead><tbody>'
-    studs.forEach(s=>{const m=mMap[s.enrollment_id];h+='<tr>'
-      +'<td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td>'
-      +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
-      +'<td style="color:var(--ink-soft);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700">'+(m?m.working_days:'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--success)">'+(m?m.present_count:'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+(m?m.absent_count:'—')+'</td></tr>'})
+    studs.forEach(s=>{
+      const m=mMap[s.enrollment_id]
+      let pres,abs,wk
+      if(m){ pres=m.present_count; abs=m.absent_count; wk=m.working_days }
+      else {
+        // No monthly row for this student → fall back to their daily records.
+        const dr=attMap[s.enrollment_id]||{}
+        pres=Object.values(dr).filter(v=>v==='P'||v==='L').length
+        abs=Object.values(dr).filter(v=>v==='A').length
+        wk=workingDays
+      }
+      h+='<tr>'
+        +'<td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td>'
+        +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
+        +'<td style="color:var(--ink-soft);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
+        +'<td style="text-align:center;font-weight:700">'+(wk??'—')+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:var(--success)">'+(pres??'—')+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+(abs??'—')+'</td></tr>'
+    })
     h+='</tbody></table></div>'
     el.innerHTML=h; return
   }
