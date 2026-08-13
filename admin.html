@@ -4597,17 +4597,11 @@ function buildMarksheetHTML(rows,rankPos,rules,forPrint){
       +'<td class="ms-c"></td>'
       +'</tr>'
   }
-  // Preview: one consolidated table (no page cap). Print: 20 students per page.
-  if(!forPrint){
-    return '<div class="msheet-doc">'+header
-      +'<table class="ms-grid">'+colgroup+thead+'<tbody>'+rows.map(rowHTML).join('')+'</tbody></table></div>'
-  }
-  const PER=19, pages=[]
-  for(let i=0;i<rows.length;i+=PER)pages.push(rows.slice(i,i+PER))
-  return pages.map((pg,idx)=>'<div class="msheet-doc'+(idx<pages.length-1?' ms-break':'')+'">'
-    +header
-    +'<table class="ms-grid">'+colgroup+thead+'<tbody>'+pg.map(rowHTML).join('')+'</tbody></table>'
-    +'</div>').join('')
+  // One continuous table for both preview and print. The browser breaks pages
+  // naturally between rows, and the <thead> repeats on each page via
+  // display:table-header-group. No fixed students-per-page.
+  return '<div class="msheet-doc">'+header
+    +'<table class="ms-grid">'+colgroup+thead+'<tbody>'+rows.map(rowHTML).join('')+'</tbody></table></div>'
 }
 function printMarksheet(){
   if(!_msData){toast('Generate a marksheet first','error');return}
@@ -4626,7 +4620,6 @@ const MS_PRINT_CSS=`
 html,body{margin:0;padding:0}
 body{font-family:Arial,Helvetica,sans-serif;color:#111}
 .msheet-doc{width:100%;max-width:287mm;margin:0 auto}
-.ms-break{page-break-after:always}
 .ms-top{display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin:0 0 3px}
 .ms-meta{width:100%;border-collapse:collapse;margin-bottom:4px;font-size:11px}
 .ms-meta td{border:1px solid #333;padding:3px 7px;line-height:1.15}
