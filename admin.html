@@ -4535,14 +4535,21 @@ function renderMarksheetView(){
   if(!_msData)return
   const rules={}; MS_RULES.forEach(([id])=>rules[id]=$('ms_'+id)?.checked!==false)
   const rows=_msData.students.map(st=>({st,calc:computeStudentRow(st,rules)}))
-  // Rank (r9) among eligible students by % → position 1/2/3.
-  const rankPos={}
-  if(rules.r9){
-    const elig=rows.filter(r=>r.calc.eligible).sort((a,b)=>b.calc.pct-a.calc.pct)
-    elig.slice(0,3).forEach((r,i)=>{rankPos[r.st.roll+'|'+r.st.name]=i+1})
-  }
+  const rankPos=rules.r9?computeRankPos(rows):{}
   $('ms_preview').innerHTML='<div class="card" style="overflow-x:auto"><div style="margin-bottom:10px"><button class="btn btn-dark btn-sm" onclick="printMarksheet()">🖨 Print / Save PDF</button></div>'
     +buildMarksheetHTML(rows,rankPos,rules,false)+'</div>'
+}
+// Rank the top-3 DISTINCT percentages. Ties share a position: everyone with the
+// highest % is 1st, everyone with the 2nd-highest distinct % is 2nd, etc.
+// Grouped by the displayed (1-decimal) percentage so equal-looking %s tie.
+function computeRankPos(rows){
+  const elig=rows.filter(r=>r.calc.eligible)
+  const key=p=>Math.round(p*10)/10
+  const distinct=[...new Set(elig.map(r=>key(r.calc.pct)))].sort((a,b)=>b-a).slice(0,3)
+  const posByPct={}; distinct.forEach((p,i)=>posByPct[p]=i+1)
+  const rankPos={}
+  elig.forEach(r=>{const p=posByPct[key(r.calc.pct)]; if(p)rankPos[r.st.roll+'|'+r.st.name]=p})
+  return rankPos
 }
 // Build the marksheet HTML (shared by preview + print). Print paginates 20/page.
 function buildMarksheetHTML(rows,rankPos,rules,forPrint){
@@ -4595,7 +4602,7 @@ function buildMarksheetHTML(rows,rankPos,rules,forPrint){
     return '<div class="msheet-doc">'+header
       +'<table class="ms-grid">'+colgroup+thead+'<tbody>'+rows.map(rowHTML).join('')+'</tbody></table></div>'
   }
-  const PER=20, pages=[]
+  const PER=19, pages=[]
   for(let i=0;i<rows.length;i+=PER)pages.push(rows.slice(i,i+PER))
   return pages.map((pg,idx)=>'<div class="msheet-doc'+(idx<pages.length-1?' ms-break':'')+'">'
     +header
@@ -4606,8 +4613,7 @@ function printMarksheet(){
   if(!_msData){toast('Generate a marksheet first','error');return}
   const rules={}; MS_RULES.forEach(([id])=>rules[id]=$('ms_'+id)?.checked!==false)
   const rows=_msData.students.map(st=>({st,calc:computeStudentRow(st,rules)}))
-  const rankPos={}
-  if(rules.r9){const elig=rows.filter(r=>r.calc.eligible).sort((x,y)=>y.calc.pct-x.calc.pct);elig.slice(0,3).forEach((r,i)=>{rankPos[r.st.roll+'|'+r.st.name]=i+1})}
+  const rankPos=rules.r9?computeRankPos(rows):{}
   const body=buildMarksheetHTML(rows,rankPos,rules,true)
   const win=window.open('','_blank')
   win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(_msData.clsName)+' Marksheet</title><style>'+MS_PRINT_CSS+'</style></head><body>'+body+'</body></html>')
