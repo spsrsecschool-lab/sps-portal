@@ -4082,7 +4082,7 @@ async function loadMarksTable(){
   const fullMax=uniqueSubs.reduce((t,m)=>t+subMax(m.subject_id),0)   // % out of ALL subjects
   studs.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
-    let total=0,hasAbsent=false
+    let total=0,hasAbsent=false,hasFail=false
     html+='<tr>'
       +'<td class="rollfix" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
@@ -4092,12 +4092,13 @@ async function loadMarksTable(){
       if(mk?.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';hasAbsent=true;return}
       if(mk?.marks_obtained==null){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
       const v=parseFloat(mk.marks_obtained); total+=v
-      const fail=v<subPass(m.subject_id)
+      const fail=v<subPass(m.subject_id); if(fail)hasFail=true
       html+='<td style="text-align:center;font-weight:700;'+(fail?'color:var(--danger);background:#FCE7EA':'')+'">'+mk.marks_obtained+'</td>'
     })
-    // Absent in any subject → no total/%. Otherwise % is out of the full marks.
-    const pct=(!hasAbsent&&fullMax>0)?Math.round(total/fullMax*100):null
-    html+='<td style="text-align:center;font-weight:700">'+(hasAbsent?'—':total)+'</td>'
+    // No total/% for students absent in any exam OR failing any subject.
+    const showTotals=!hasAbsent&&!hasFail
+    const pct=(showTotals&&fullMax>0)?Math.round(total/fullMax*100):null
+    html+='<td style="text-align:center;font-weight:700">'+(showTotals?total:'—')+'</td>'
       +'<td style="text-align:center;font-weight:700;color:var(--indigo-dark)">'+(pct!=null?pct+'%':'—')+'</td></tr>'
   })
   html+='</tbody></table></div>'
@@ -4610,7 +4611,7 @@ function printMarksheet(){
   const rankPos=rules.r9?computeRankPos(rows):{}
   const body=buildMarksheetHTML(rows,rankPos,rules,true)
   const win=window.open('','_blank')
-  win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(_msData.clsName)+' Marksheet</title><style>'+MS_PRINT_CSS+'</style></head><body>'+body+'</body></html>')
+  win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(_msNameTag()+' Marksheet')+'</title><style>'+MS_PRINT_CSS+'</style></head><body>'+body+'</body></html>')
   win.document.close()
   win.focus()
   setTimeout(()=>{win.print()},350)
@@ -4728,20 +4729,24 @@ function printSlips(){
   if(!_msData){toast('Generate first','error');return}
   const rules={}; SLIP_RULES.forEach(([id])=>rules[id]=$('sl_'+id)?.checked!==false)
   const slips=_msData.students.map(st=>buildSlipHTML(st,rules))
-  // 6 slips per page.
-  let body=''
-  for(let i=0;i<slips.length;i+=6){body+='<div class="slip-page">'+slips.slice(i,i+6).join('')+'</div>'}
+  // Continuous flow — as many slips as fit per page, each kept whole.
+  const body='<div class="slip-wrap">'+slips.join('')+'</div>'
+  const fname=_msNameTag()+' Result Slips'
   const win=window.open('','_blank')
-  win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Result Slips — '+esc(_msData.clsName)+'</title><style>'+SLIP_PRINT_CSS+'</style></head><body>'+body+'</body></html>')
+  win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(fname)+'</title><style>'+SLIP_PRINT_CSS+'</style></head><body>'+body+'</body></html>')
   win.document.close();win.focus();setTimeout(()=>win.print(),350)
+}
+// Class + section tag used in print window titles (becomes the PDF filename).
+function _msNameTag(){
+  const d=_msData||{}
+  return (d.clsName||'Class')+(d.secName?('-'+d.secName):'')+(d.assess?.name?(' '+d.assess.name):'')
 }
 const SLIP_PRINT_CSS=`
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 html,body{margin:0;padding:0}
 body{font-family:'Times New Roman',Georgia,serif;color:#111}
-.slip-page{width:100%;max-width:200mm;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);gap:6mm;page-break-after:always;height:283mm;padding:2mm}
-.slip-page:last-child{page-break-after:auto}
-.slip{border:0;padding:4px 8px;display:flex;flex-direction:column;font-size:11px}
+.slip-wrap{display:flex;flex-wrap:wrap;align-content:flex-start;gap:5mm;width:100%;max-width:200mm;margin:0 auto}
+.slip{width:calc(50% - 2.5mm);border:1px solid #999;border-radius:4px;padding:6px 9px;font-size:11px;page-break-inside:avoid;break-inside:avoid}
 .sl-h1{text-align:center;font-weight:800;font-size:14px;letter-spacing:.3px}
 .sl-h2{text-align:center;font-size:10px}
 .sl-h3{text-align:center;font-weight:700;font-size:11px;margin:2px 0 5px}
