@@ -2198,16 +2198,18 @@ async function loadAssessMarks(){
     const cur=new Date(sessStart)
     const end=new Date(attToStr)
     while(cur<=end){const dow=cur.getDay();if(dow!==0&&!holSet.has(cur.toISOString().slice(0,10)))workingDays++;cur.setDate(cur.getDate()+1)}
-    // Get attendance per student
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    // Get attendance per student — but monthly (Previous Attendance) OVERRIDES
+    // daily for its period, so we drop daily records inside a monthly period
+    // before adding the monthly present_count (otherwise those days double-count).
+    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
     const byStudent={}
-    ;(attData||[]).forEach(a=>{if(!byStudent[a.enrollment_id])byStudent[a.enrollment_id]=0;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]++})
-    // Fold in BACKLOG monthly attendance (present totals for periods filled as
-    // monthly counts rather than day-by-day).
+    let monthPeriods={}
     try{
-      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
-      ;(monthly||[]).forEach(mr=>{byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
+      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
+      ;(monthly||[]).forEach(mr=>{(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
+    const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
+    ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
     // Working days PER STUDENT — a child who joined mid-session is counted from
     // their admission date, not the session start.
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=s.is_new_admission?(s.students?.admission_date||null):null})
@@ -2252,15 +2254,18 @@ async function loadAssessMarks(){
   })
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att. Days</th><th style="text-align:center">Att. %</th></tr></thead><tbody>'
 
+  const fullMax=uniqueSubs.reduce((t,m)=>t+subMax(m.subject_id),0)   // denominator = ALL subjects
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
-    let total=0,possible=0,hasAbsent=false
+    let total=0,hasAbsent=false
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
       if(mk?.is_absent)hasAbsent=true
-      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained);possible+=subMax(m.subject_id)}
+      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained)}
     })
-    const pct=!hasAbsent&&possible>0?Math.round(total/possible*100):null
+    // % is out of the FULL marks of all subjects (not just attempted). Absent
+    // students get no total/% at all.
+    const pct=!hasAbsent&&fullMax>0?Math.round(total/fullMax*100):null
     const attInfo=attMap[s.enrollment_id]||{}
     const attPct=attInfo.working>0?Math.round(attInfo.present/attInfo.working*100):null
 
