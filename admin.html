@@ -4414,6 +4414,12 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   const subs=[...new Map((subMaps||[]).map(m=>[m.subject_id,{subject_id:m.subject_id,name:m.subjects?.name||'?',short:m.subjects?.short_code||m.subjects?.name||'?'}])).values()]
   if(!subs.length){emp(prev,'No subjects mapped for this class.');return}
 
+  // Per-student subject combination (11th/12th electives). If a student has rows
+  // in student_subjects, the slip shows ONLY those subjects; otherwise (1–10,
+  // no combination recorded) it falls back to all class subjects.
+  const{data:ssubs}= eids.length ? await sb.from('student_subjects').select('enrollment_id,subject_id').in('enrollment_id',eids) : {data:[]}
+  const subjSetMap={}; (ssubs||[]).forEach(r=>{(subjSetMap[r.enrollment_id]=subjSetMap[r.enrollment_id]||new Set()).add(r.subject_id)})
+
   // Per-subject max/pass overrides
   const defMax=aRow?.max_marks||100, defPass=aRow?.pass_marks||Math.round(defMax*0.33)
   const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',classId)
@@ -4473,7 +4479,8 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
     students:studs.map(s=>({
       roll:s.roll_no, name:s.students?.full_name||'?', father:s.students?.father_name||'',
       marks:subs.map(sub=>{const m=mkMap[s.enrollment_id]?.[sub.subject_id];return {subject_id:sub.subject_id, absent:!!m?.is_absent, val:(m&&m.marks_obtained!=null)?parseFloat(m.marks_obtained):null}}),
-      present:presentMap[s.enrollment_id]||0, working:wdFor(admBy[s.enrollment_id])
+      present:presentMap[s.enrollment_id]||0, working:wdFor(admBy[s.enrollment_id]),
+      subjSet:(subjSetMap[s.enrollment_id]&&subjSetMap[s.enrollment_id].size)?subjSetMap[s.enrollment_id]:null
     }))
   }
 }
@@ -4687,25 +4694,44 @@ function renderSlipRules(){
     +SLIP_RULES.map(([id,label])=>'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer"><input type="checkbox" id="sl_'+id+'" checked onchange="renderSlipsView()" style="width:15px;height:15px;accent-color:var(--indigo)"><span>'+label+'</span></label>').join('')
     +'</div><button class="btn btn-dark" style="margin-top:14px" onclick="printSlips()">🖨 Print / Save PDF</button></div>'
 }
-// One student's slip → HTML. Uses computeStudentRow for the cascade.
+// One student's slip → HTML. Shows ONLY the subjects that student takes (their
+// combination), with total/max/% computed from those subjects.
 function buildSlipHTML(st, rules){
   const d=_msData, a=d.assess||{}
   const RED='#F6C9CE'
-  const calc=computeStudentRow(st,rules)
   const month=a.commencement_date?new Date(a.commencement_date+'T12:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'}):''
-  // RESULT: PASS only if all-pass non-absent; FAIL only if overall <33%; else blank.
-  const anyAbsent=st.marks.some(m=>m.absent)
-  let result=''
-  if(calc.eligible) result='PASS'
-  else if(!anyAbsent && calc.pct<33 && st.marks.every(m=>m.val!=null)) result='FAIL'
-  // pct<33 path: computeStudentRow marks pct; but eligible already excludes fails. Use calc.pct only when not absent.
-  const attRed=rules.r7 && st.working>0 && st.present < 0.33*st.working
-  const rowsHTML=d.subs.map((sub,i)=>{
-    const c=calc.cells[i]
+  const round=v=>rules.r8?Math.round(v):v
+  const mkBySub={}; st.marks.forEach(m=>mkBySub[m.subject_id]=m)
+  const mySubs = st.subjSet ? d.subs.filter(s=>st.subjSet.has(s.subject_id)) : d.subs
+
+  let total=0, anyAbsent=false, failCount=0, allEntered=true
+  const rowsHTML = mySubs.map(sub=>{
+    const m=mkBySub[sub.subject_id]
+    let cellText='', red=false
+    if(!m || (m.val==null && !m.absent)){ allEntered=false }
+    else if(m.absent){ anyAbsent=true; cellText=rules.r1?'AB':'' }
+    else { const shown=round(m.val); total+=shown; const fail=m.val<sub.pass; if(fail){failCount++; if(rules.r6)red=true} cellText=String(shown) }
     return '<tr><td class="sl-sub">'+esc(sub.name)+'</td>'
-      +'<td class="sl-mk"'+(c.red?' style="background:'+RED+'"':'')+'>'+esc(c.text)+'</td>'
+      +'<td class="sl-mk"'+(red?' style="background:'+RED+'"':'')+'>'+esc(cellText)+'</td>'
       +'<td class="sl-mx">'+sub.max+'</td></tr>'
   }).join('')
+  const myTotalMax = mySubs.reduce((t,s)=>t+s.max,0)
+  const pct = myTotalMax>0 ? (total/myTotalMax*100) : 0
+
+  // Total & % display cascade (same rules as the marksheet).
+  let totalText='', pctText='', eligible=false
+  if(anyAbsent){ totalText=rules.r2?'':String(total); pctText='' }
+  else if(failCount>0){ totalText=String(total); pctText=rules.r3?'':pct.toFixed(1)+'%' }
+  else if(pct<33){ totalText=rules.r4?'':String(total); pctText=rules.r4?'FAIL':pct.toFixed(1)+'%' }
+  else { totalText=String(total); pctText=pct.toFixed(1)+'%'; eligible=true }
+
+  // RESULT: PASS only if all-pass non-absent; FAIL only if overall <33%; else blank.
+  let result=''
+  if(eligible) result='PASS'
+  else if(!anyAbsent && failCount>0===false && pct<33 && allEntered) result='FAIL'
+  else if(!anyAbsent && pct<33 && allEntered) result='FAIL'
+  const attRed=rules.r7 && st.working>0 && st.present < 0.33*st.working
+
   return '<div class="slip">'
     +'<div class="sl-h1">SHIV PUBLIC SR. SEC. SCHOOL</div>'
     +'<div class="sl-h2">A-221, Dabua Colony, NIT FBD</div>'
@@ -4713,9 +4739,9 @@ function buildSlipHTML(st, rules){
     +'<div class="sl-info"><span><b>Name:</b> '+esc(st.name)+'</span><span><b>Class:</b> '+esc(d.clsName)+(d.secName?" '"+esc(d.secName)+"'":'')+'</span><span><b>Father\'s Name:</b> '+esc(st.father)+'</span></div>'
     +'<table class="sl-tbl"><thead><tr><th>Subject</th><th>Marks Obtained</th><th>Maximum Marks</th></tr></thead><tbody>'
     +rowsHTML
-    +'<tr><td class="sl-sub"><b>TOTAL</b></td><td class="sl-mk"><b>'+esc(calc.totalText)+'</b></td><td class="sl-mx"><b>'+d.totalMax+'</b></td></tr>'
+    +'<tr><td class="sl-sub"><b>TOTAL</b></td><td class="sl-mk"><b>'+esc(totalText)+'</b></td><td class="sl-mx"><b>'+myTotalMax+'</b></td></tr>'
     +'</tbody></table>'
-    +'<div class="sl-foot"><span><b>PER (%):</b> '+esc(calc.pctText==='FAIL'?'':calc.pctText)+'</span><span><b>RESULT:</b> '+esc(result)+'</span><span'+(attRed?' style="background:'+RED+';padding:0 4px"':'')+'><b>ATT.:</b> '+esc(String(st.present))+'/'+esc(String(st.working))+'</span></div>'
+    +'<div class="sl-foot"><span><b>PER (%):</b> '+esc(pctText==='FAIL'?'':pctText)+'</span><span><b>RESULT:</b> '+esc(result)+'</span><span'+(attRed?' style="background:'+RED+';padding:0 4px"':'')+'><b>ATT.:</b> '+esc(String(st.present))+'/'+esc(String(st.working))+'</span></div>'
     +'<div class="sl-sign"><b>Teacher\'s Signature:</b></div>'
     +'</div>'
 }
