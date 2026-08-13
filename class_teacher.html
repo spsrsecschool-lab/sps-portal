@@ -2255,17 +2255,23 @@ async function loadAssessMarks(){
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att. Days</th><th style="text-align:center">Att. %</th></tr></thead><tbody>'
 
   const fullMax=uniqueSubs.reduce((t,m)=>t+subMax(m.subject_id),0)   // denominator = ALL subjects
+  const rnd=v=>Math.round(v)
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
-    let total=0,hasAbsent=false
+    let total=0,hasAbsent=false,hasMissing=false,failCount=0
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
-      if(mk?.is_absent)hasAbsent=true
-      else if(mk?.marks_obtained!=null){total+=parseFloat(mk.marks_obtained)}
+      if(mk?.is_absent){hasAbsent=true;return}
+      if(!mk||mk.marks_obtained==null){hasMissing=true;return}
+      const raw=parseFloat(mk.marks_obtained)
+      total+=rnd(raw)
+      if(raw<subPass(m.subject_id))failCount++
     })
-    // % is out of the FULL marks of all subjects (not just attempted). Absent
-    // students get no total/% at all.
-    const pct=!hasAbsent&&fullMax>0?Math.round(total/fullMax*100):null
+    // Rules (same as marksheet): absent OR any unentered mark → no total/%;
+    // failing any subject → total only, no %; otherwise total + %.
+    const blocked=hasAbsent||hasMissing
+    const showTotal=!blocked
+    const pct=(!blocked&&failCount===0&&fullMax>0)?Math.round(total/fullMax*100):null
     const attInfo=attMap[s.enrollment_id]||{}
     const attPct=attInfo.working>0?Math.round(attInfo.present/attInfo.working*100):null
 
@@ -2278,10 +2284,11 @@ async function loadAssessMarks(){
       const pass=subPass(m.subject_id)
       if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
       if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';return}
-      const fail=parseFloat(mk.marks_obtained)<pass
-      html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+mk.marks_obtained+'</td>'
+      const raw=parseFloat(mk.marks_obtained)
+      const fail=raw<pass
+      html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+rnd(raw)+'</td>'
     })
-    html+='<td style="text-align:center;font-weight:700">'+(hasAbsent?'—':total)+'</td>'
+    html+='<td style="text-align:center;font-weight:700">'+(showTotal?total:'—')+'</td>'
     html+='<td class="'+(pct!==null&&pct<33?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+(pct!==null?pct+'%':'—')+'</td>'
     html+='<td style="text-align:center;font-family:var(--mono)">'+(attInfo.working>0?attInfo.present+'/'+attInfo.working:'—')+'</td>'
     html+='<td class="'+(attPct!==null&&attPct<75?'cell-low-att':'')+'" style="text-align:center;font-weight:700">'+(attPct!==null?attPct+'%':'—')+'</td>'
