@@ -2183,6 +2183,13 @@ async function loadAssessMarks(){
     marksMap[m.enrollment_id][m.subject_id]=m
   })
 
+  // Per-student subject combination (11th/12th electives). If a student has rows
+  // in student_subjects, only THOSE subjects count toward their total/%/missing
+  // check; other class subjects (e.g. the elective they didn't take) are ignored.
+  const{data:ssubs}= eids.length ? await sb.from('student_subjects').select('enrollment_id,subject_id').in('enrollment_id',eids) : {data:[]}
+  const subjSetMap={}; (ssubs||[]).forEach(r=>{(subjSetMap[r.enrollment_id]=subjSetMap[r.enrollment_id]||new Set()).add(r.subject_id)})
+  const subjectsFor=eid=>{const set=subjSetMap[eid]; return (set&&set.size)?uniqueSubs.filter(m=>set.has(m.subject_id)):uniqueSubs}
+
   // Attendance is counted from session start up to and INCLUDING the assessment's
   // end date (falls back to the start date if no end date is set).
   const cutoffDate=assess?.end_date||assess?.commencement_date||null
@@ -2254,12 +2261,14 @@ async function loadAssessMarks(){
   })
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att. Days</th><th style="text-align:center">Att. %</th></tr></thead><tbody>'
 
-  const fullMax=uniqueSubs.reduce((t,m)=>t+subMax(m.subject_id),0)   // denominator = ALL subjects
   const rnd=v=>Math.round(v)
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
+    const mySubs=subjectsFor(s.enrollment_id)               // only this student's subjects
+    const mySet=new Set(mySubs.map(m=>m.subject_id))
+    const myMax=mySubs.reduce((t,m)=>t+subMax(m.subject_id),0)
     let total=0,hasAbsent=false,hasMissing=false,failCount=0
-    uniqueSubs.forEach(m=>{
+    mySubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
       if(mk?.is_absent){hasAbsent=true;return}
       if(!mk||mk.marks_obtained==null){hasMissing=true;return}
@@ -2268,10 +2277,11 @@ async function loadAssessMarks(){
       if(raw<subPass(m.subject_id))failCount++
     })
     // Rules (same as marksheet): absent OR any unentered mark → no total/%;
-    // failing any subject → total only, no %; otherwise total + %.
+    // failing any subject → total only, no %; otherwise total + %. % is out of
+    // this student's own subjects.
     const blocked=hasAbsent||hasMissing
     const showTotal=!blocked
-    const pct=(!blocked&&failCount===0&&fullMax>0)?Math.round(total/fullMax*100):null
+    const pct=(!blocked&&failCount===0&&myMax>0)?Math.round(total/myMax*100):null
     const attInfo=attMap[s.enrollment_id]||{}
     const attPct=attInfo.working>0?Math.round(attInfo.present/attInfo.working*100):null
 
@@ -2280,6 +2290,8 @@ async function loadAssessMarks(){
     html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
     html+='<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     uniqueSubs.forEach(m=>{
+      // Subject not in this student's combination → blank, not counted.
+      if(!mySet.has(m.subject_id)){html+='<td style="text-align:center;color:var(--ink-faint);background:#F7F7F9"></td>';return}
       const mk=sMarks[m.subject_id]
       const pass=subPass(m.subject_id)
       if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
