@@ -1258,7 +1258,11 @@ function renderDashboard(){
   const todayColl=getTodayTotal();
   const totalDue=active.reduce((s,stu)=>s+getTotalDues(stu).total,0);
   const defCount=active.filter(s=>getTotalDues(s).total>0).length;
-  const pendingReadm=active.filter(s=>s.sno==null||s.sno==='').length;
+  // Awaiting re-admission = active, not relieved, and no S.No yet — same
+  // definition as the Admin portal's Re-admission tab (which loads only active,
+  // non-relieved enrollments). Without the status/relieved guard this count
+  // would also include relieved/inactive students and disagree with Admin.
+  const pendingReadm=active.filter(s=>s.status==='active' && !s.relieved && (s.sno==null||s.sno==='')).length;
   const relievedArr=active.filter(s=>s.relieved);
   const relievedCount=relievedArr.length;
   const relievedDue=relievedArr.reduce((s,stu)=>s+getTotalDues(stu).total,0);
@@ -1928,22 +1932,27 @@ async function _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks
       const afterApril=(now.getMonth()>=4) || (now.getFullYear()>currentSession.split('-')[0]*1);
       if(afterApril){
         for(const stu of activeSiblings){
-          // Recompute dues after this bundle's rows just saved.
-          const dues=getTotalDues(stu);
+          const dues=getTotalDues(stu);          // computed from stale payments (pre-bundle)
           const aprilMt=monthlyTuitionForMonth(stu,0);         // April index
-          // Combine already-loaded payments + the rows just inserted in this bundle.
-          const inThisBundleApril=(txnEntries||[]).filter(e=>e.enrollment_id===stu.enrollment_id&&e.month==='April').reduce((s,e)=>s+(e.tuition||0),0);
+          // Amounts paid IN THIS bundle (txnEntries carry .total + .month), which
+          // aren't in the loaded `payments` array yet.
+          const inThisBundleApril=(txnEntries||[]).filter(e=>e.enrollment_id===stu.enrollment_id&&e.month==='April').reduce((s,e)=>s+(e.total||0),0);
+          const annualPaidThisBundle=(txnEntries||[]).filter(e=>e.enrollment_id===stu.enrollment_id&&e.month===HEAD_ANNUAL).reduce((s,e)=>s+(e.total||0),0);
           const aprilPaid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month==='April').reduce((s,p)=>s+(p.tuition||0),0)+inThisBundleApril;
           const aprilWaived=getWaivedAmount(stu,'April');
           const aprilCovered=Math.max(0,aprilMt-aprilWaived-aprilPaid)<=0;
           if(!aprilCovered)continue;
-          if(dues.annualDue<=0)continue;
+          // Only the annual STILL unpaid after this bundle rolls forward. Without
+          // subtracting what was just paid, a bundle that paid the annual would
+          // wrongly re-insert it AND add it to Prev Balance (double-count).
+          const annualRemaining=Math.max(0,(dues.annualDue||0)-annualPaidThisBundle);
+          if(annualRemaining<=0)continue;
           const cur=parseFloat(stu.prevBalance)||0;
-          await setPrevBalance(stu.enrollment_id,cur+dues.annualDue);
-          await addLedgerEntry(stu.enrollment_id,datetime.slice(0,10),'Unpaid Annual carry-forward',dues.annualDue,bundleID);
-          // Record a zero-amount allocation line marking the annual as satisfied
-          // via carry-forward. Ties into this bundle so it shows in the ledger.
-          await sb.from('payment_allocations').insert({payment_id:bundleID,enrollment_id:stu.enrollment_id,head:HEAD_ANNUAL,amount:dues.annualDue,payment_date:datetime.slice(0,10)});
+          await setPrevBalance(stu.enrollment_id,cur+annualRemaining);
+          await addLedgerEntry(stu.enrollment_id,datetime.slice(0,10),'Unpaid Annual carry-forward',annualRemaining,bundleID);
+          // Mark the (remaining) annual as satisfied via carry-forward so the
+          // month shows settled while the debt lives in Prev Balance.
+          await sb.from('payment_allocations').insert({payment_id:bundleID,enrollment_id:stu.enrollment_id,head:HEAD_ANNUAL,amount:annualRemaining,payment_date:datetime.slice(0,10)});
         }
       }
     }catch(carryErr){ console.warn('[carry-forward] skipped:',carryErr) }
@@ -2851,7 +2860,9 @@ function readmissionList(){
   const cls=$('readmClass').value;
   const q=($('readmSearch').value||'').trim().toLowerCase();
   const filt=$('readmFilter').value||'pending';
-  let list=[...students];
+  // Only active, non-relieved enrollments are eligible for re-admission — same
+  // population the Admin Re-admission tab loads, so the counts agree.
+  let list=students.filter(s=>s.status==='active' && !s.relieved);
   if(cls) list=list.filter(s=>s.cls===cls);
   if(filt==='pending') list=list.filter(s=>s.sno==null||s.sno==='');
   if(filt==='done')    list=list.filter(s=>s.sno!=null&&s.sno!=='');
