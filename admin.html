@@ -746,8 +746,8 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="fg" style="max-width:220px"><label>Filter by Teacher</label><select id="mapTeacherFilter" onchange="loadMapping()"><option value="">All Teachers</option></select></div>
       </div>
       <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>Class</th><th>Section</th><th>Subject</th><th>Teacher</th><th>Class Teacher?</th><th></th></tr></thead>
-        <tbody id="mappingBody"><tr><td colspan="6"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+        <thead><tr><th>Class</th><th>Section</th><th>Subject</th><th>Teacher</th><th>Periods</th><th>Class Teacher?</th><th></th></tr></thead>
+        <tbody id="mappingBody"><tr><td colspan="7"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table></div></div>
     </div>
 
@@ -3360,6 +3360,23 @@ async function loadMapping(){
   _mappingRaw=data||[]
   const{data:ct}=await sb.from('class_teacher_map').select('section_id,teachers(full_name)').eq('session_id',SESS?.session_id||'')
   const ctF={}; ct?.forEach(r=>{ctF[r.section_id]=r.teachers?.full_name||''})
+  // Periods assigned to each mapping (section+subject+teacher), from the
+  // timetable. Each slot carries a name ("1st Period") and a sort_order so we
+  // can arrange chips 1st on top … 7th last.
+  const{data:tEntries}=await sb.from('timetable_entries')
+    .select('section_id,subject_id,teacher_id,slot_id,time_slots(name,sort_order)')
+    .eq('session_id',SESS?.session_id||'')
+  const periodsByKey={}
+  ;(tEntries||[]).forEach(e=>{
+    const key=e.section_id+'|'+e.subject_id+'|'+e.teacher_id
+    const arr=periodsByKey[key]=periodsByKey[key]||[]
+    if(!arr.some(x=>x.slot_id===e.slot_id)) arr.push({slot_id:e.slot_id,name:e.time_slots?.name||'?',sort:e.time_slots?.sort_order??999})
+  })
+  const periodChips=(r)=>{
+    const arr=(periodsByKey[r.section_id+'|'+r.subject_id+'|'+r.teacher_id]||[]).slice().sort((a,b)=>a.sort-b.sort)
+    if(!arr.length)return '<span style="color:var(--ink-faint);font-size:11px">—</span>'
+    return '<div style="display:flex;flex-wrap:wrap;gap:4px">'+arr.map(p=>'<span style="display:inline-block;background:var(--lav-100);color:var(--indigo-dark);border-radius:10px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">'+esc(p.name)+'</span>').join('')+'</div>'
+  }
   const fcls=$('mapClassFilter')?.value||''
   const fsec=$('mapSectionFilter')?.value||''
   const ftch=$('mapTeacherFilter')?.value||''
@@ -3389,6 +3406,7 @@ async function loadMapping(){
       '<td>'+esc(r.class_sections?.name||'—')+'</td>'+
       '<td>'+esc(r.subjects?.name||'—')+'</td>'+
       '<td>'+esc(r.teachers?.full_name||'—')+'</td>'+
+      '<td>'+periodChips(r)+'</td>'+
       '<td>'+esc(ctF[r.section_id]||'—')+'</td>'+
       '<td style="display:flex;gap:5px">'+
         '<button class="btn btn-ghost btn-xs" data-mid="'+mid+'" onclick="editMapping(this.dataset.mid)">Edit</button>'+
@@ -4046,7 +4064,7 @@ async function loadMarksTable(){
 
   // Students in this class (+ section if chosen)
   let sq=sb.from('student_enrollments')
-    .select('enrollment_id,roll_no,students(full_name,father_name)')
+    .select('enrollment_id,roll_no,is_new_admission,students(full_name,father_name,admission_date)')
     .eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').eq('relieved',false)
   if(secId)sq=sq.eq('section_id',secId)
   const{data:studs}=await sq.order('roll_no')
@@ -4070,6 +4088,26 @@ async function loadMarksTable(){
 
   const{data:marks}=await sb.from('marks').select('*').in('enrollment_id',eids).eq('assessment_id',assessId)
   const marksMap={}; (marks||[]).forEach(m=>{if(!marksMap[m.enrollment_id])marksMap[m.enrollment_id]={};marksMap[m.enrollment_id][m.subject_id]=m})
+
+  // Attendance up to the assessment end date (same basis as the class-teacher
+  // view): monthly (Previous Attendance) overrides daily for its period.
+  const attTo=assess?.end_date||assess?.commencement_date||new Date().toISOString().slice(0,10)
+  let classStart=SESS?.start_date||null
+  try{const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS.session_id).eq('class_id',classId).maybeSingle();if(cs?.start_date)classStart=cs.start_date}catch(e){}
+  const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
+  const[{data:hols},{data:attRows},{data:monthly}]=await Promise.all([
+    sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
+    sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
+    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo)
+  ])
+  const holSet=new Set((hols||[]).map(h=>h.date))
+  const monthPeriods={}, presentMap={}
+  ;(monthly||[]).forEach(mr=>{(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});presentMap[mr.enrollment_id]=(presentMap[mr.enrollment_id]||0)+(mr.present_count||0)})
+  const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
+  ;(attRows||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1})
+  const wdCache={}
+  const wdFor=adm=>{const k=adm||'_';if(wdCache[k]!=null)return wdCache[k];let start=attFrom;if(adm&&adm>attTo)return(wdCache[k]=0);if(adm&&adm>attFrom)start=adm;let n=0;const c=new Date(start+'T12:00:00'),e=new Date(attTo+'T12:00:00');while(c<=e){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)}return(wdCache[k]=n)}
+  const attMap={}; studs.forEach(s=>{const adm=(s.is_new_admission&&s.students?.admission_date)?s.students.admission_date:null; attMap[s.enrollment_id]={present:presentMap[s.enrollment_id]||0, working:wdFor(adm)}})
 
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table class="msheet" style="min-width:800px"><thead><tr>'
@@ -4135,7 +4173,11 @@ async function loadReadmission(){
     .select('enrollment_id,class_id,s_no,readmission_date,students!inner(full_name,father_name,family_code),classes(name),class_sections(name)')
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
   if(error){emp(el,'Error: '+error.message);return}
-  _readmStudents=(data||[]).map(e=>({
+  // De-duplicate by enrollment_id: an embedded join can occasionally return the
+  // same enrollment more than once, which would inflate the count vs the
+  // dashboard's exact count of active enrollments.
+  const seen=new Set()
+  _readmStudents=(data||[]).filter(e=>{if(seen.has(e.enrollment_id))return false;seen.add(e.enrollment_id);return true}).map(e=>({
     enrollment_id:e.enrollment_id, class_id:e.class_id,
     name:e.students?.full_name||'?', father:e.students?.father_name||'',
     familyCode:e.students?.family_code||'', sno:e.s_no,
@@ -4728,7 +4770,6 @@ function buildSlipHTML(st, rules){
   // RESULT: PASS only if all-pass non-absent; FAIL only if overall <33%; else blank.
   let result=''
   if(eligible) result='PASS'
-  else if(!anyAbsent && failCount>0===false && pct<33 && allEntered) result='FAIL'
   else if(!anyAbsent && pct<33 && allEntered) result='FAIL'
   const attRed=rules.r7 && st.working>0 && st.present < 0.33*st.working
 
