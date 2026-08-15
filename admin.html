@@ -949,6 +949,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="fg" style="max-width:220px"><label>Name</label><input id="hg_label" placeholder="e.g. Summer Holidays"></div>
           <div class="fg" style="max-width:170px"><label>From</label><input type="date" id="hg_from"></div>
           <div class="fg" style="max-width:170px"><label>To</label><input type="date" id="hg_to"></div>
+          <div class="fg" style="max-width:200px"><label>Applies to</label><select id="hg_scope"><option value="both">Both (staff off too)</option><option value="student">Students only (staff present)</option></select></div>
           <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;padding-bottom:8px"><input type="checkbox" id="hg_skipSun" checked style="width:15px;height:15px;accent-color:var(--indigo)"> Skip Sundays</label>
           <button class="btn btn-dark" onclick="addHolidayGroup()">Add Holiday Group</button>
         </div>
@@ -2417,11 +2418,11 @@ function openAddTeacherModal(){
 async function editTeacher(id){
   const t=ALL_TEACHERS.find(t=>t.teacher_id===id);if(!t)return
   openModal('Edit — '+t.full_name,
-    '<input type="hidden" id="tc_id" value="'+t.teacher_id+'"><div class="form-row"><div class="fg"><label>Full Name</label><input id="tc_name" value="'+esc(t.full_name||'')+'"></div><div class="fg"><label>Employee Code</label><input id="tc_code" inputmode="numeric" value="'+esc(t.employee_code||'')+'"></div></div><div class="form-row"><div class="fg"><label>Designation</label><input id="tc_desig" value="'+esc(t.designation||'')+'"></div><div class="fg"><label>Phone</label><input id="tc_phone" inputmode="numeric" value="'+esc(t.phone||'')+'"></div></div><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Base Salary (₹/month) <span style="font-weight:400;color:var(--ink-faint);font-size:11px">· admin-only, not shown to the teacher</span></label><input id="tc_salary" inputmode="numeric" placeholder="e.g. 15000" value=""></div></div><div style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700"><input type="checkbox" id="tc_mother" onchange="toggleMotherFields()" style="width:16px;height:16px;accent-color:var(--ink)"> Mother teacher? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(owns a class, teaches all subjects)</span></label><div id="tc_mother_fields" style="display:none;margin-top:12px"><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Class *</label><select id="tc_mother_class" onchange="loadMotherSections()"><option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="fg"><label>Section *</label><select id="tc_mother_section"><option value="">Select class first</option></select></div></div></div></div>',
+    '<input type="hidden" id="tc_id" value="'+t.teacher_id+'"><div class="form-row"><div class="fg"><label>Full Name</label><input id="tc_name" value="'+esc(t.full_name||'')+'"></div><div class="fg"><label>Employee Code</label><input id="tc_code" inputmode="numeric" value="'+esc(t.employee_code||'')+'"></div></div><div class="form-row"><div class="fg"><label>Designation</label><input id="tc_desig" value="'+esc(t.designation||'')+'"></div><div class="fg"><label>Phone</label><input id="tc_phone" inputmode="numeric" value="'+esc(t.phone||'')+'"></div></div><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Base Salary (₹/month) <span style="font-weight:400;color:var(--ink-faint);font-size:11px">· admin-only, not shown to the teacher</span></label><input id="tc_salary" inputmode="numeric" placeholder="e.g. 15000" value=""></div><div class="fg"><label>Joining Date <span style="font-weight:400;color:var(--ink-faint);font-size:11px">· no absences counted before this</span></label><input type="date" id="tc_joining" value=""></div></div><div style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700"><input type="checkbox" id="tc_mother" onchange="toggleMotherFields()" style="width:16px;height:16px;accent-color:var(--ink)"> Mother teacher? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(owns a class, teaches all subjects)</span></label><div id="tc_mother_fields" style="display:none;margin-top:12px"><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Class *</label><select id="tc_mother_class" onchange="loadMotherSections()"><option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="fg"><label>Section *</label><select id="tc_mother_section"><option value="">Select class first</option></select></div></div></div></div>',
     '<button class="btn btn-dark" onclick="updateTeacher()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 
   // Fetch base salary directly (not carried in the lightweight teacher list).
-  try{const{data:sal}=await sb.from('teachers').select('base_salary').eq('teacher_id',id).maybeSingle();const sf=$('tc_salary');if(sf&&sal&&sal.base_salary!=null)sf.value=sal.base_salary}catch(e){}
+  try{const{data:sal}=await sb.from('teachers').select('base_salary,joining_date').eq('teacher_id',id).maybeSingle();const sf=$('tc_salary');if(sf&&sal&&sal.base_salary!=null)sf.value=sal.base_salary;const jf=$('tc_joining');if(jf&&sal&&sal.joining_date)jf.value=sal.joining_date}catch(e){}
 
   // Pre-fill mother teacher status
   const{data:mm}=await sb.from('mother_teacher_map').select('class_id,section_id').eq('teacher_id',id).eq('session_id',SESS?.session_id||'').maybeSingle()
@@ -2442,7 +2443,7 @@ async function saveTeacher(){const name=$('tc_name')?.value?.trim(),code=$('tc_c
     if(me){toast('Teacher saved but mother mapping failed: '+me.message,'error');closeModal();await loadGlobals();loadStaff();return}
   }
   toast('Teacher saved — create Supabase auth account now','success');closeModal();await loadGlobals();loadStaff()}
-async function updateTeacher(){const id=$('tc_id')?.value;const salRaw=$('tc_salary')?.value?.trim();const base_salary=salRaw===''||salRaw==null?0:(parseFloat(salRaw)||0);const{error}=await sb.from('teachers').update({full_name:$('tc_name')?.value?.trim(),employee_code:$('tc_code')?.value?.trim(),designation:$('tc_desig')?.value?.trim()||null,phone:$('tc_phone')?.value?.trim()||null,base_salary}).eq('teacher_id',id);if(error){toast('Failed: '+error.message,'error');return}
+async function updateTeacher(){const id=$('tc_id')?.value;const salRaw=$('tc_salary')?.value?.trim();const base_salary=salRaw===''||salRaw==null?0:(parseFloat(salRaw)||0);const joining_date=$('tc_joining')?.value||null;const{error}=await sb.from('teachers').update({full_name:$('tc_name')?.value?.trim(),employee_code:$('tc_code')?.value?.trim(),designation:$('tc_desig')?.value?.trim()||null,phone:$('tc_phone')?.value?.trim()||null,base_salary,joining_date}).eq('teacher_id',id);if(error){toast('Failed: '+error.message,'error');return}
   // Apply mother teacher mapping
   const isMother=$('tc_mother')?.checked
   const mc=$('tc_mother_class')?.value,ms=$('tc_mother_section')?.value
@@ -4941,10 +4942,12 @@ async function renderCalendar(){
   let listHtml=''
   Object.keys(named).sort().forEach(lb=>{
     const arr=named[lb]
-    listHtml+='<span class="map-tag" style="background:var(--danger-soft);color:var(--danger)"><b>'+esc(lb)+'</b> — '+arr.length+' day'+(arr.length!==1?'s':'')+' this month <button onclick="removeHolidayGroup(\''+esc(lb.replace(/'/g,"\\'"))+'\')" title="Remove the whole group" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:4px;font-size:14px;line-height:1">×</button></span>'
+    const studentOnly=arr.every(h=>(h.applies_to||'both')==='student')
+    listHtml+='<span class="map-tag" style="background:var(--danger-soft);color:var(--danger)"><b>'+esc(lb)+'</b> — '+arr.length+' day'+(arr.length!==1?'s':'')+' this month'+(studentOnly?' <span style="font-weight:700;opacity:.75">· students only</span>':'')+' <button onclick="removeHolidayGroup(\''+esc(lb.replace(/'/g,"\\'"))+'\')" title="Remove the whole group" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:4px;font-size:14px;line-height:1">×</button></span>'
   })
   singles.sort((a,b)=>a.date.localeCompare(b.date)).forEach(h=>{
-    listHtml+='<span class="map-tag" style="background:var(--danger-soft);color:var(--danger)">'+fmtD(h.date)+' <button onclick="removeHoliday(\''+h.holiday_id+'\')" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:4px;font-size:14px;line-height:1">×</button></span>'
+    const so=(h.applies_to||'both')==='student'
+    listHtml+='<span class="map-tag" style="background:var(--danger-soft);color:var(--danger)">'+fmtD(h.date)+(so?' <span style="font-weight:700;opacity:.75">· students only</span>':'')+' <button onclick="removeHoliday(\''+h.holiday_id+'\')" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:4px;font-size:14px;line-height:1">×</button></span>'
   })
   $('holidayList').innerHTML=listHtml?'<div class="map-tags">'+listHtml+'</div>':''
 }
@@ -4953,6 +4956,7 @@ async function addHolidayGroup(){
   const label=$('hg_label')?.value?.trim()
   const from=$('hg_from')?.value, to=$('hg_to')?.value
   const skipSun=$('hg_skipSun')?.checked!==false
+  const scope=$('hg_scope')?.value||'both'
   if(!label){toast('Give the holiday group a name','error');return}
   if(!from||!to){toast('Pick both From and To dates','error');return}
   if(new Date(to)<new Date(from)){toast('To date cannot be before From date','error');return}
@@ -4965,7 +4969,7 @@ async function addHolidayGroup(){
     if(skipSun && d.getDay()===0) continue
     const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
     if(have.has(ds)) continue
-    rows.push({date:ds,label,session_id:SESS?.session_id||''})
+    rows.push({date:ds,label,session_id:SESS?.session_id||'',applies_to:scope})
   }
   if(!rows.length){toast('No new days to add in that range (already holidays or all Sundays)','error');return}
   const{error}=await sb.from('holidays').insert(rows)
@@ -5014,7 +5018,7 @@ async function renderWorkingDaysSummary(){
     el.innerHTML='<div style="color:var(--danger);font-size:12.5px">Couldn\'t load the working-days summary. '+esc(e?.message||'')+'</div>'
   }
 }
-async function toggleHoliday(date,isHol){if(isHol){const h=(await sb.from('holidays').select('*').eq('date',date).eq('session_id',SESS?.session_id||'').maybeSingle()).data;if(h)await removeHoliday(h.holiday_id);return};const lbl=prompt('Mark '+fmtD(date)+' as holiday. Label (optional):');if(lbl===null)return;const{error}=await sb.from('holidays').insert({date,label:lbl.trim()||null,session_id:SESS?.session_id||''});if(error){toast('Failed: '+error.message,'error');return};toast('Holiday added','success');renderCalendar()}
+async function toggleHoliday(date,isHol){if(isHol){const h=(await sb.from('holidays').select('*').eq('date',date).eq('session_id',SESS?.session_id||'').maybeSingle()).data;if(h)await removeHoliday(h.holiday_id);return};const lbl=prompt('Mark '+fmtD(date)+' as holiday. Label (optional):');if(lbl===null)return;const both=confirm('OK = staff are also off (Both).\nCancel = students only (staff present as normal).');const{error}=await sb.from('holidays').insert({date,label:lbl.trim()||null,session_id:SESS?.session_id||'',applies_to:both?'both':'student'});if(error){toast('Failed: '+error.message,'error');return};toast('Holiday added','success');renderCalendar()}
 async function removeHoliday(id){await sb.from('holidays').delete().eq('holiday_id',id);toast('Holiday removed','success');renderCalendar()}
 // Remove an entire named holiday group (all its days across the session).
 async function removeHolidayGroup(label){
@@ -5210,7 +5214,7 @@ async function downloadAttSample(){
 // ═══════════ STAFF ATTENDANCE (biometric CSV upload) ═══════════
 let _saParsed=null
 let _saTeachersByCode=null
-let _saDefaults=null, _saScheds={}, _saOffDates=new Set(), _saWeeklyOff=new Set(), _saThreshOverrides=[]
+let _saDefaults=null, _saScheds={}, _saOffDates=new Set(), _saWeeklyOff=new Set(), _saThreshOverrides=[], _saStaffHolidays=new Set()
 
 // ═══════════ SALARY DEDUCTION ENGINE ═══════════
 // Pure computation for one teacher / one month, given their day statuses.
@@ -5250,15 +5254,34 @@ function computeMonthlyDeduction(yearMonth, baseSalary, dayRows){
 // Returns a map teacher_id → {ym → result} for callers that want to notify.
 async function recomputeDeductions(months){
   await loadStaffAttRules()
-  const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name,base_salary,is_active')
-  const byTeacher={}
+  const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name,base_salary,joining_date,is_active')
+  const byTeacher={}; const flagged=[]
+  const tName={}; (tchs||[]).forEach(t=>tName[t.teacher_id]=t.full_name)
   for(const ym of months){
     const [y,mo]=ym.split('-').map(Number)
     const from=ym+'-01', to=ym+'-'+String(new Date(y,mo,0).getDate()).padStart(2,'0')
-    const{data:att}=await sb.from('teacher_attendance').select('teacher_id,date,status').gte('date',from).lte('date',to)
-    const attByT={}; (att||[]).forEach(r=>{(attByT[r.teacher_id]=attByT[r.teacher_id]||[]).push(r)})
+    const{data:att}=await sb.from('teacher_attendance').select('teacher_id,date,status,time_in,time_out').gte('date',from).lte('date',to)
+    const joinBy={}; (tchs||[]).forEach(t=>{joinBy[t.teacher_id]=t.joining_date||null})
+    const attByT={}, missedByT={}
+    ;(att||[]).forEach(r=>{
+      const j=joinBy[r.teacher_id]
+      if(j && r.date < j) return           // no absences/deduction before joining
+      // Missed punch = a day with exactly one of in/out (incomplete). Off/Absent
+      // days (neither punch) are NOT missed punches.
+      const hasIn=!!r.time_in, hasOut=!!r.time_out
+      if((hasIn||hasOut) && !(hasIn&&hasOut) && r.status!=='Off' && r.status!=='Absent'){
+        (missedByT[r.teacher_id]=missedByT[r.teacher_id]||[]).push({date:r.date,time_in:r.time_in,time_out:r.time_out,status:r.status})
+      }
+      ;(attByT[r.teacher_id]=attByT[r.teacher_id]||[]).push(r)
+    })
     const upserts=[]
     ;(tchs||[]).forEach(t=>{
+      // Skip teachers with any missed punch this month — flag for manual entry
+      // instead of computing a deduction on incomplete data.
+      if(missedByT[t.teacher_id] && missedByT[t.teacher_id].length){
+        flagged.push({teacher_id:t.teacher_id, name:t.full_name, year_month:ym, days:missedByT[t.teacher_id]})
+        return
+      }
       const res=computeMonthlyDeduction(ym, t.base_salary, attByT[t.teacher_id]||[])
       upserts.push({teacher_id:t.teacher_id, year_month:ym, amount:res.amount,
         full_absents:res.full_absents, half_days:res.half_days, late_count:res.late_count,
@@ -5271,6 +5294,7 @@ async function recomputeDeductions(months){
       if(error)console.warn('[deductions] upsert failed for',ym,error.message)
     }
   }
+  byTeacher._flagged=flagged
   return byTeacher
 }
 // Distinct 'YYYY-MM' months spanned by a from/to date range.
@@ -5340,32 +5364,87 @@ function dedDetail(bkStr,name){
 async function recomputeDeductionsCard(){
   const ym=$('ded_month')?.value; if(!ym)return
   toast('Recomputing '+ym+'…','info')
-  try{ await recomputeDeductions([ym]); toast('Deductions recomputed','success'); loadDeductionsData() }
+  try{ const r=await recomputeDeductions([ym]); toast('Deductions recomputed','success'); loadDeductionsData(); showFlaggedBanner(r._flagged) }
   catch(e){ toast('Recompute failed: '+e.message,'error') }
 }
 // One-time backfill: recompute every month that has any attendance on record.
 async function backfillAllDeductions(){
   toast('Finding months with attendance…','info')
-  // Get the date span of teacher_attendance, then compute all months in it.
   const{data:lo}=await sb.from('teacher_attendance').select('date').order('date',{ascending:true}).limit(1)
   const{data:hi}=await sb.from('teacher_attendance').select('date').order('date',{ascending:false}).limit(1)
   const from=lo?.[0]?.date, to=hi?.[0]?.date
   if(!from||!to){toast('No attendance found to backfill','error');return}
   const months=monthsInRange(from,to)
   toast('Backfilling '+months.length+' month(s)…','info')
-  try{ await recomputeDeductions(months); toast('Backfill complete ✓','success'); loadDeductionsData() }
+  try{ const r=await recomputeDeductions(months); toast('Backfill complete ✓','success'); loadDeductionsData(); showFlaggedBanner(r._flagged) }
   catch(e){ toast('Backfill failed: '+e.message,'error') }
+}
+// Banner + opener for teachers skipped due to missed punches.
+function showFlaggedBanner(flagged){
+  const wrap=$('ded_table'); if(!wrap)return
+  if(!flagged||!flagged.length){ const b=$('ded_flag_banner'); if(b)b.remove(); return }
+  window._flaggedMissed=flagged
+  const n=flagged.length
+  let b=$('ded_flag_banner')
+  const html='<div id="ded_flag_banner" class="card" style="margin-bottom:12px;border:1.5px solid #E5883B;background:#FFF6EC">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    +'<div style="font-size:13px;font-weight:700;color:#8A4B00">⚠ '+n+' teacher-month(s) skipped — missed punches need a manual time before their deduction can be computed.</div>'
+    +'<button class="btn btn-dark btn-sm" onclick="openMissedPunchFixer()">Fix missed punches</button></div></div>'
+  if(b)b.outerHTML=html; else wrap.insertAdjacentHTML('beforebegin',html)
+}
+function openMissedPunchFixer(){ missedPunchFixer(window._flaggedMissed||[]) }
+// Modal: every flagged day with editable in/out; save all → recompute.
+function missedPunchFixer(flagged){
+  if(!flagged||!flagged.length){toast('Nothing to fix','info');return}
+  let rowsHtml=''
+  flagged.forEach((f,fi)=>{
+    f.days.forEach((d,di)=>{
+      const idp='mp_'+fi+'_'+di
+      rowsHtml+='<tr data-teacher="'+esc(f.teacher_id)+'" data-date="'+d.date+'" data-ym="'+f.year_month+'">'
+        +'<td style="text-align:left;white-space:nowrap">'+esc(f.name)+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'+new Date(d.date+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})+'</td>'
+        +'<td style="text-align:center"><input type="time" id="'+idp+'_in" value="'+(d.time_in?String(d.time_in).slice(0,5):'')+'" style="width:110px"></td>'
+        +'<td style="text-align:center"><input type="time" id="'+idp+'_out" value="'+(d.time_out?String(d.time_out).slice(0,5):'')+'" style="width:110px"></td></tr>'
+    })
+  })
+  openModal('Fix missed punches',
+    '<p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Enter the missing time for each day. Days you complete are recomputed; a day left with only one time stays flagged.</p>'
+    +'<div style="overflow-x:auto;max-height:55vh"><table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">Teacher</th><th>Date</th><th>In</th><th>Out</th></tr></thead><tbody id="mpBody">'+rowsHtml+'</tbody></table></div>',
+    '<button class="btn btn-dark" onclick="saveMissedPunches()">Save all &amp; recompute</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveMissedPunches(){
+  await loadStaffAttRules()
+  const trs=[...document.querySelectorAll('#mpBody tr')]
+  const upserts=[]; const months=new Set()
+  trs.forEach(tr=>{
+    const tid=tr.getAttribute('data-teacher'), date=tr.getAttribute('data-date'), ym=tr.getAttribute('data-ym')
+    const inp=tr.querySelectorAll('input')
+    const tin=inp[0].value||null, tout=inp[1].value||null
+    // Only write days now complete (both times) — partial stays flagged.
+    if(tin&&tout){
+      const status=resolveDay(date,{tin,tout},thresholdsFor(tid,date)).status
+      upserts.push({teacher_id:tid,date,status,time_in:tin,time_out:tout,uploaded_by:SPS.admin?.admin_id||'admin',uploaded_at:new Date().toISOString()})
+      months.add(ym)
+    }
+  })
+  if(!upserts.length){toast('Enter both in and out for at least one day','error');return}
+  const{error}=await sb.from('teacher_attendance').upsert(upserts,{onConflict:'teacher_id,date'})
+  if(error){toast('Save failed: '+error.message,'error');return}
+  closeModal()
+  toast('Saved '+upserts.length+' day(s) · recomputing…','success')
+  try{ const r=await recomputeDeductions([...months]); loadDeductionsData(); showFlaggedBanner(r._flagged) }catch(e){ console.warn(e) }
 }
 
 // Load the current late/off rules from the DB into the module globals.
 // Called on page open, and again right before any import/recalculate so the
 // newest settings always apply.
 async function loadStaffAttRules(){
-  const[{data:def},{data:scheds},{data:offs},{data:ovr}]=await Promise.all([
+  const[{data:def},{data:scheds},{data:offs},{data:ovr},{data:hols}]=await Promise.all([
     sb.from('attendance_settings').select('*').eq('id',1).maybeSingle(),
     sb.from('teacher_schedules').select('*'),
     sb.from('staff_off_days').select('date'),
-    sb.from('attendance_threshold_overrides').select('*').then(r=>r,()=>({data:[]}))
+    sb.from('attendance_threshold_overrides').select('*').then(r=>r,()=>({data:[]})),
+    sb.from('holidays').select('date,applies_to').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
   ])
   _saDefaults=def||{default_shift_start:'07:20',default_shift_end:'13:15',default_late_after:'07:30',weekly_off_days:[0]}
   // Salary-rule defaults (in case columns are freshly added / null).
@@ -5379,6 +5458,9 @@ async function loadStaffAttRules(){
   _saOffDates=new Set((offs||[]).map(o=>o.date))
   _saWeeklyOff=new Set(_saDefaults.weekly_off_days||[])
   _saThreshOverrides=ovr||[]
+  // Holidays that apply to STAFF too ('both'). 'student'-only holidays do NOT
+  // make staff off — they're expected in as normal.
+  _saStaffHolidays=new Set((hols||[]).filter(h=>(h.applies_to||'both')==='both').map(h=>h.date))
 }
 // Resolve the effective thresholds for a teacher on a date, most-specific-first:
 //   teacher+date > teacher+weekday > all+date > all+weekday > per-teacher schedule > global.
@@ -5417,7 +5499,7 @@ function thresholdsFor(teacherId, dateStr){
 
 async function initStaffAtt(){
   openSaSub('sa-menu')   // always land on the card menu
-  const{data:tchs}=await sb.from('teachers').select('teacher_id,employee_code,full_name,is_active')
+  const{data:tchs}=await sb.from('teachers').select('teacher_id,employee_code,full_name,joining_date,is_active')
   _saTeachersByCode={}
   ;(tchs||[]).forEach(t=>{ if(t.employee_code!=null) _saTeachersByCode[String(t.employee_code).trim()]=t })
   await loadStaffAttRules()
@@ -5696,7 +5778,7 @@ async function recalcStaffAtt(){
   if(!from||!to){toast('Set the period start and end dates first','error');return}
   await loadStaffAttRules()
 
-  const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name').eq('is_active',true)
+  const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name,joining_date').eq('is_active',true)
   if(!tchs?.length){toast('No active teachers','error');return}
 
   // Fetch existing rows in PAGES. PostgREST caps a plain select at 1000 rows,
@@ -5723,6 +5805,11 @@ async function recalcStaffAtt(){
   const records=[]
   tchs.forEach(t=>{
     dates.forEach(date=>{
+      // Before the teacher joined → Off (never absent, no deduction).
+      if(t.joining_date && date < t.joining_date){
+        records.push({teacher_id:t.teacher_id, date, status:'Off', time_in:null, time_out:null, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
+        return
+      }
       const stored=byKey[t.teacher_id+'|'+date]
       // Only treat it as a punch day if there is at least one real time.
       const punch=(stored&&(stored.tin||stored.tout))?stored:null
@@ -5754,6 +5841,7 @@ function lateAfterFor(teacherId){
 // Is this date an admin-decided off day (recurring weekly-off OR specific date)?
 function isAdminOff(dateStr){
   if(_saOffDates&&_saOffDates.has(dateStr))return true
+  if(_saStaffHolidays&&_saStaffHolidays.has(dateStr))return true   // 'both'-scope holidays
   const d=new Date(dateStr+'T12:00:00')
   return !isNaN(d)&&_saWeeklyOff&&_saWeeklyOff.has(d.getDay())
 }
@@ -6002,6 +6090,10 @@ async function commitStaffAtt(){
     // offs and absences get rows too (the raw punch file only lists days with
     // activity, so they'd otherwise be missing entirely).
     dates.forEach(date=>{
+      if(t.joining_date && date < t.joining_date){
+        records.push({teacher_id:t.teacher_id, date, status:'Off', time_in:null, time_out:null, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
+        return
+      }
       const res=resolveDay(date, r.days[date], thresholdsFor(t.teacher_id,date))
       records.push({teacher_id:t.teacher_id, date, status:res.status, time_in:res.time_in, time_out:res.time_out, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
     })
@@ -6034,6 +6126,12 @@ async function commitStaffAtt(){
     let dedBy={}
     try{ dedBy = await recomputeDeductions(monthsInRange(from,to)) }catch(e){ console.warn('deduction recompute after upload',e) }
     if($('sa_notify')?.checked!==false){ notifyDeductions(dedBy, monthsInRange(from,to)) }
+    // Offer to enter any missed punches right after upload.
+    const fl=dedBy?._flagged||[]
+    if(fl.length){
+      window._flaggedMissed=fl
+      setTimeout(()=>{ if(confirm(fl.length+' teacher-month(s) have missed punches (only one of in/out). Enter the missing times now?')) missedPunchFixer(fl) }, 400)
+    }
   }
   // Notify staff (broadcast) only if the "Notify staff" checkbox is ticked.
   if(inserted>0){
@@ -6065,6 +6163,7 @@ async function notifyDeductions(dedBy, months){
   try{
     const now=new Date().toISOString(); const rows=[]
     Object.entries(dedBy||{}).forEach(([tid,byYm])=>{
+      if(tid==='_flagged'||!byYm||typeof byYm!=='object')return
       months.forEach(ym=>{
         const r=byYm[ym]
         if(r && r.amount>0){
