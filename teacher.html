@@ -820,6 +820,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <div id="dashGreeting" style="margin-bottom:20px">
         <div id="greetingText" style="font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-.01em"></div>
         <div id="greetingSub" style="font-size:13px;color:var(--ink-soft);margin-top:4px"></div>
+        <div id="salaryDeductChip" style="display:none;margin-top:12px"></div>
       </div>
 
       <div id="dashBanner" style="display:none;background:#355C7D;border-radius:var(--radius-lg);padding:26px 30px;margin-bottom:20px;position:relative;overflow:hidden;color:#fff">
@@ -996,6 +997,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
           </button>
         </div>
       </div>
+      <div id="dedHistory"></div>
       <div id="myAttResult"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Select a date range and click Load.</div></div>
     </div>
 
@@ -1209,6 +1211,33 @@ function toggleSidebar(){
 }
 function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
 
+// Current-month salary deduction chip (amount only — the teacher never sees
+// their base salary). Non-dismissable; refreshes each month automatically.
+async function loadSalaryDeductChip(){
+  const box=$('salaryDeductChip'); if(!box||!TEACHER)return
+  const now=new Date(); const ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')
+  try{
+    const{data}=await sb.from('salary_deductions').select('amount').eq('teacher_id',TEACHER.teacher_id).eq('year_month',ym).maybeSingle()
+    const amt=data?.amount||0
+    if(amt>0){
+      const monthName=now.toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+      box.style.display='block'
+      box.innerHTML='<span style="display:inline-flex;align-items:center;gap:8px;background:#FCE7EA;color:#B5122B;border:1px solid #E5556B;border-radius:999px;padding:7px 15px;font-size:13px;font-weight:800">'
+        +'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+        +'\u2212\u20b9'+Number(amt).toLocaleString('en-IN')+' salary deduction \u00b7 '+esc(monthName)+'</span>'
+    } else { box.style.display='none' }
+  }catch(e){ box.style.display='none' }
+}
+async function loadDeductionHistory(){
+  const box=$('dedHistory'); if(!box||!TEACHER)return
+  const{data}=await sb.from('salary_deductions').select('year_month,amount,full_absents,half_days,late_count').eq('teacher_id',TEACHER.teacher_id).order('year_month',{ascending:false})
+  const rows=(data||[]).filter(r=>r.amount>0||r.full_absents>0||r.half_days>0||r.late_count>0)
+  if(!rows.length){box.innerHTML='';return}
+  box.innerHTML='<div class="card" style="margin-bottom:18px"><h3 style="margin-top:0;font-size:14px">Salary Deductions by Month</h3>'
+    +'<div style="overflow-x:auto"><table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">Month</th><th style="text-align:center">Absents</th><th style="text-align:center">Half Days</th><th style="text-align:center">Lates</th><th style="text-align:right">Deducted</th></tr></thead><tbody>'
+    +rows.map(r=>{const ml=new Date(r.year_month+'-01T12:00:00').toLocaleDateString('en-IN',{month:'short',year:'numeric'});return '<tr><td style="text-align:left;font-weight:600">'+esc(ml)+'</td><td style="text-align:center">'+(r.full_absents||0)+'</td><td style="text-align:center">'+(r.half_days||0)+'</td><td style="text-align:center">'+(r.late_count||0)+'</td><td style="text-align:right;font-weight:800;color:'+(r.amount>0?'#B5122B':'var(--ink-faint)')+'">'+(r.amount>0?'\u2212\u20b9'+Number(r.amount).toLocaleString('en-IN'):'\u20b90')+'</td></tr>'}).join('')
+    +'</tbody></table></div></div>'
+}
 function goTo(id,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
@@ -1223,7 +1252,7 @@ function goTo(id,el){
   if(id==='messages'){ showMsgView(window._forceInbox?'inbox':'compose'); window._forceInbox=false }
   if(id==='profile')loadProfile()
   if(id==='critical')loadCriticalStudents()
-  if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t}
+  if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t;loadDeductionHistory()}
 }
 
 
@@ -1569,6 +1598,7 @@ async function renderDashboard(){
     if(gtEl)gtEl.textContent=greet+', '+firstName+' 👋'
     if(gsEl)gsEl.textContent=new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
   }
+  loadSalaryDeductChip()
   // Assignments card
   const el=$('dashAssignments')
   if(!MY_MAPPINGS.length){emp(el,'No class assignments for this session.');return}
