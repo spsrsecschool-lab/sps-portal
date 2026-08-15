@@ -1022,7 +1022,18 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="ic" style="background:linear-gradient(135deg,#5B4FE8,#4A3FD6)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
           <h4>Attendance Settings</h4><p>Default shift timings, per-teacher schedules, late thresholds, weekly offs and extra off-days</p>
         </div>
+        <div class="menu-card" onclick="openSaSub('sa-deductions');loadDeductionsCard()">
+          <div class="ic" style="background:linear-gradient(135deg,#E0524E,#C4302B)"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <h4>Salary Deductions</h4><p>Monthly deductions per teacher from attendance rules — filter, review and recompute</p>
+        </div>
       </div>
+    </div>
+
+    <!-- SALARY DEDUCTIONS -->
+    <div id="sa-deductions" style="display:none">
+      <button class="back-btn" onclick="openSaSub('sa-menu')">&#8592; Back</button>
+      <div class="page-head"><div><h2>Salary Deductions</h2><p>Computed from attendance + rules. Recompute after editing attendance or rules.</p></div></div>
+      <div id="deductionsContent"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
     <!-- SETTINGS -->
@@ -1038,10 +1049,27 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="fg"><label>Shift End</label><input type="time" id="def_shift_end" value="13:15"></div>
             <div class="fg"><label>Late after</label><input type="time" id="def_late_after" value="07:30"></div>
           </div>
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg"><label>Half-day if in-time after</label><input type="time" id="def_hd_late" value="09:30"></div>
+            <div class="fg"><label>Half-day if out-time before</label><input type="time" id="def_hd_early" value="11:30"></div>
+          </div>
           <div style="margin-top:4px"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:8px">Recurring Weekly Off Days</label>
             <div id="weeklyOffDays" style="display:flex;gap:8px;flex-wrap:wrap"></div>
           </div>
           <button class="btn btn-dark btn-sm" style="margin-top:16px" onclick="saveAttDefaults()">Save Defaults</button>
+        </div>
+
+        <!-- Salary deduction rules -->
+        <div class="card" style="max-width:640px;margin-bottom:18px">
+          <h3>Salary Deduction Rules</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">How attendance turns into salary deductions. Per-day rate = base salary ÷ days in the month.</p>
+          <div class="form-row">
+            <div class="fg"><label>Paid leaves per month (full days)</label><input type="number" step="0.5" id="def_paid_leaves" value="1"></div>
+            <div class="fg"><label>Lates per 1-day deduction</label><input type="number" step="1" id="def_lates_per" value="3"></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px;font-weight:600;margin-bottom:8px"><input type="checkbox" id="def_late_early_full" style="width:15px;height:15px;accent-color:var(--danger)"> Late arrival + early leave on the same day counts as a full-day absent</label>
+          <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px;font-weight:600"><input type="checkbox" id="def_lates_carry" style="width:15px;height:15px;accent-color:var(--indigo)"> Leftover lates carry into next month (default: reset each month)</label>
+          <button class="btn btn-dark btn-sm" style="margin-top:16px" onclick="saveSalaryRules()">Save Salary Rules</button>
         </div>
 
         <!-- Per-teacher schedules -->
@@ -1061,6 +1089,27 @@ tbody tr:hover td{background:var(--lav-50)}
             <button class="btn btn-dark btn-sm" style="align-self:flex-end" onclick="addStaffOffDay()">Add</button>
           </div>
           <div id="offDaysList"></div>
+        </div>
+
+        <!-- Threshold overrides (per teacher / day / period) -->
+        <div class="card" style="max-width:760px;margin-top:18px">
+          <h3>Threshold Overrides</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Different late / half-day cutoffs for a specific weekday (e.g. Saturdays leave early), a date range (e.g. exam week), and/or one teacher. Leave a field blank to keep the normal cutoff. Most specific rule wins.</p>
+          <div class="form-row" style="margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg"><label>Teacher</label><select id="ov_teacher"><option value="">All teachers</option></select></div>
+            <div class="fg"><label>Weekday</label><select id="ov_weekday"><option value="">Any</option><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select></div>
+            <div class="fg"><label>From date</label><input type="date" id="ov_from"></div>
+            <div class="fg"><label>To date</label><input type="date" id="ov_to"></div>
+          </div>
+          <div class="form-row" style="margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg"><label>Late after</label><input type="time" id="ov_late"></div>
+            <div class="fg"><label>Half-day if in after</label><input type="time" id="ov_hdlate"></div>
+            <div class="fg"><label>Half-day if out before</label><input type="time" id="ov_hdearly"></div>
+            <div class="fg"><label>Label</label><input id="ov_label" placeholder="e.g. Saturday early"></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="ov_isoff" style="width:15px;height:15px;accent-color:var(--ink)"> Treat this as an OFF day (no attendance / no deduction)</label>
+          <button class="btn btn-dark btn-sm" onclick="addThresholdOverride()">Add Override</button>
+          <div id="ovList" style="margin-top:14px"></div>
         </div>
     </div>
 
@@ -2368,8 +2417,11 @@ function openAddTeacherModal(){
 async function editTeacher(id){
   const t=ALL_TEACHERS.find(t=>t.teacher_id===id);if(!t)return
   openModal('Edit — '+t.full_name,
-    '<input type="hidden" id="tc_id" value="'+t.teacher_id+'"><div class="form-row"><div class="fg"><label>Full Name</label><input id="tc_name" value="'+esc(t.full_name||'')+'"></div><div class="fg"><label>Employee Code</label><input id="tc_code" inputmode="numeric" value="'+esc(t.employee_code||'')+'"></div></div><div class="form-row"><div class="fg"><label>Designation</label><input id="tc_desig" value="'+esc(t.designation||'')+'"></div><div class="fg"><label>Phone</label><input id="tc_phone" inputmode="numeric" value="'+esc(t.phone||'')+'"></div></div><div style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700"><input type="checkbox" id="tc_mother" onchange="toggleMotherFields()" style="width:16px;height:16px;accent-color:var(--ink)"> Mother teacher? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(owns a class, teaches all subjects)</span></label><div id="tc_mother_fields" style="display:none;margin-top:12px"><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Class *</label><select id="tc_mother_class" onchange="loadMotherSections()"><option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="fg"><label>Section *</label><select id="tc_mother_section"><option value="">Select class first</option></select></div></div></div></div>',
+    '<input type="hidden" id="tc_id" value="'+t.teacher_id+'"><div class="form-row"><div class="fg"><label>Full Name</label><input id="tc_name" value="'+esc(t.full_name||'')+'"></div><div class="fg"><label>Employee Code</label><input id="tc_code" inputmode="numeric" value="'+esc(t.employee_code||'')+'"></div></div><div class="form-row"><div class="fg"><label>Designation</label><input id="tc_desig" value="'+esc(t.designation||'')+'"></div><div class="fg"><label>Phone</label><input id="tc_phone" inputmode="numeric" value="'+esc(t.phone||'')+'"></div></div><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Base Salary (₹/month) <span style="font-weight:400;color:var(--ink-faint);font-size:11px">· admin-only, not shown to the teacher</span></label><input id="tc_salary" inputmode="numeric" placeholder="e.g. 15000" value=""></div></div><div style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700"><input type="checkbox" id="tc_mother" onchange="toggleMotherFields()" style="width:16px;height:16px;accent-color:var(--ink)"> Mother teacher? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(owns a class, teaches all subjects)</span></label><div id="tc_mother_fields" style="display:none;margin-top:12px"><div class="form-row" style="margin-bottom:0"><div class="fg"><label>Class *</label><select id="tc_mother_class" onchange="loadMotherSections()"><option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="fg"><label>Section *</label><select id="tc_mother_section"><option value="">Select class first</option></select></div></div></div></div>',
     '<button class="btn btn-dark" onclick="updateTeacher()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+
+  // Fetch base salary directly (not carried in the lightweight teacher list).
+  try{const{data:sal}=await sb.from('teachers').select('base_salary').eq('teacher_id',id).maybeSingle();const sf=$('tc_salary');if(sf&&sal&&sal.base_salary!=null)sf.value=sal.base_salary}catch(e){}
 
   // Pre-fill mother teacher status
   const{data:mm}=await sb.from('mother_teacher_map').select('class_id,section_id').eq('teacher_id',id).eq('session_id',SESS?.session_id||'').maybeSingle()
@@ -2390,7 +2442,7 @@ async function saveTeacher(){const name=$('tc_name')?.value?.trim(),code=$('tc_c
     if(me){toast('Teacher saved but mother mapping failed: '+me.message,'error');closeModal();await loadGlobals();loadStaff();return}
   }
   toast('Teacher saved — create Supabase auth account now','success');closeModal();await loadGlobals();loadStaff()}
-async function updateTeacher(){const id=$('tc_id')?.value;const{error}=await sb.from('teachers').update({full_name:$('tc_name')?.value?.trim(),employee_code:$('tc_code')?.value?.trim(),designation:$('tc_desig')?.value?.trim()||null,phone:$('tc_phone')?.value?.trim()||null}).eq('teacher_id',id);if(error){toast('Failed: '+error.message,'error');return}
+async function updateTeacher(){const id=$('tc_id')?.value;const salRaw=$('tc_salary')?.value?.trim();const base_salary=salRaw===''||salRaw==null?0:(parseFloat(salRaw)||0);const{error}=await sb.from('teachers').update({full_name:$('tc_name')?.value?.trim(),employee_code:$('tc_code')?.value?.trim(),designation:$('tc_desig')?.value?.trim()||null,phone:$('tc_phone')?.value?.trim()||null,base_salary}).eq('teacher_id',id);if(error){toast('Failed: '+error.message,'error');return}
   // Apply mother teacher mapping
   const isMother=$('tc_mother')?.checked
   const mc=$('tc_mother_class')?.value,ms=$('tc_mother_section')?.value
@@ -5158,21 +5210,195 @@ async function downloadAttSample(){
 // ═══════════ STAFF ATTENDANCE (biometric CSV upload) ═══════════
 let _saParsed=null
 let _saTeachersByCode=null
-let _saDefaults=null, _saScheds={}, _saOffDates=new Set(), _saWeeklyOff=new Set()
+let _saDefaults=null, _saScheds={}, _saOffDates=new Set(), _saWeeklyOff=new Set(), _saThreshOverrides=[]
+
+// ═══════════ SALARY DEDUCTION ENGINE ═══════════
+// Pure computation for one teacher / one month, given their day statuses.
+// Rules (all editable in Attendance Settings):
+//   • leave units = full absents + half days×0.5; subtract the monthly paid-leave
+//     credit (default 1 full day); remainder × per-day rate = absence deduction.
+//   • lates: floor(lateCount / latesPerDeduction) × per-day rate (separate tally).
+//   • per-day rate = base salary ÷ actual days in that month.
+function computeMonthlyDeduction(yearMonth, baseSalary, dayRows){
+  const [y,mo]=yearMonth.split('-').map(Number)
+  const daysInMonth=new Date(y,mo,0).getDate()
+  const perDay = daysInMonth>0 ? (Number(baseSalary||0)/daysInMonth) : 0
+  const paidCredit = Number(_saDefaults?.paid_leaves_per_month ?? 1)
+  const latesPer   = Number(_saDefaults?.lates_per_deduction || 3)
+  let fullAbsents=0, halfDays=0, lateCount=0
+  const days=[]
+  ;(dayRows||[]).forEach(r=>{
+    if(r.status==='Absent'){fullAbsents++; days.push({date:r.date,status:'Absent'})}
+    else if(r.status==='Half Day'){halfDays++; days.push({date:r.date,status:'Half Day'})}
+    else if(r.status==='Late'){lateCount++; days.push({date:r.date,status:'Late'})}
+  })
+  const leaveUnits = fullAbsents + halfDays*0.5
+  const deductibleUnits = Math.max(0, leaveUnits - paidCredit)
+  const lateGroups = latesPer>0 ? Math.floor(lateCount/latesPer) : 0
+  const absenceDeduction = deductibleUnits * perDay
+  const lateDeduction    = lateGroups * perDay
+  const amount = Math.round(absenceDeduction + lateDeduction)
+  return {
+    amount, full_absents:fullAbsents, half_days:halfDays, late_count:lateCount,
+    paid_leave:paidCredit, per_day_rate:Math.round(perDay),
+    breakdown:{ daysInMonth, perDay:Math.round(perDay), leaveUnits, paidCredit,
+      deductibleUnits, lateGroups, latesPer,
+      absenceDeduction:Math.round(absenceDeduction), lateDeduction:Math.round(lateDeduction), days }
+  }
+}
+// Recompute + persist salary_deductions for the given months (['YYYY-MM',...]).
+// Returns a map teacher_id → {ym → result} for callers that want to notify.
+async function recomputeDeductions(months){
+  await loadStaffAttRules()
+  const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name,base_salary,is_active')
+  const byTeacher={}
+  for(const ym of months){
+    const [y,mo]=ym.split('-').map(Number)
+    const from=ym+'-01', to=ym+'-'+String(new Date(y,mo,0).getDate()).padStart(2,'0')
+    const{data:att}=await sb.from('teacher_attendance').select('teacher_id,date,status').gte('date',from).lte('date',to)
+    const attByT={}; (att||[]).forEach(r=>{(attByT[r.teacher_id]=attByT[r.teacher_id]||[]).push(r)})
+    const upserts=[]
+    ;(tchs||[]).forEach(t=>{
+      const res=computeMonthlyDeduction(ym, t.base_salary, attByT[t.teacher_id]||[])
+      upserts.push({teacher_id:t.teacher_id, year_month:ym, amount:res.amount,
+        full_absents:res.full_absents, half_days:res.half_days, late_count:res.late_count,
+        paid_leave:res.paid_leave, per_day_rate:res.per_day_rate, breakdown:res.breakdown,
+        updated_at:new Date().toISOString()})
+      ;(byTeacher[t.teacher_id]=byTeacher[t.teacher_id]||{})[ym]={name:t.full_name,...res}
+    })
+    if(upserts.length){
+      const{error}=await sb.from('salary_deductions').upsert(upserts,{onConflict:'teacher_id,year_month'})
+      if(error)console.warn('[deductions] upsert failed for',ym,error.message)
+    }
+  }
+  return byTeacher
+}
+// Distinct 'YYYY-MM' months spanned by a from/to date range.
+function monthsInRange(from,to){
+  const set=new Set(); let d=new Date(from+'T12:00:00'); const e=new Date(to+'T12:00:00')
+  while(d<=e){ set.add(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); d.setMonth(d.getMonth()+1); d.setDate(1) }
+  return [...set]
+}
+// ── Admin Salary Deductions card ─────────────────────────────────────────────
+let _dedRows=[]
+async function loadDeductionsCard(){
+  const el=$('deductionsContent'); if(!el)return
+  const now=new Date(); const thisYM=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')
+  el.innerHTML='<div class="card" style="margin-bottom:14px"><div class="form-row" style="margin-bottom:0;align-items:flex-end;flex-wrap:wrap">'
+    +'<div class="fg"><label>Month</label><input type="month" id="ded_month" value="'+thisYM+'"></div>'
+    +'<div class="fg"><label>Search teacher</label><input id="ded_search" placeholder="name…" oninput="renderDeductions()"></div>'
+    +'<div class="fg"><label>Show</label><select id="ded_filter" onchange="renderDeductions()"><option value="all">All teachers</option><option value="nonzero">Only with deductions</option></select></div>'
+    +'<button class="btn btn-soft" onclick="loadDeductionsData()">Load</button>'
+    +'<button class="btn btn-dark" onclick="recomputeDeductionsCard()">↻ Recompute this month</button>'
+    +'</div></div><div id="ded_table"></div>'
+  loadDeductionsData()
+}
+async function loadDeductionsData(){
+  const ym=$('ded_month')?.value; if(!ym)return
+  const wrap=$('ded_table'); if(wrap)wrap.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const[{data:ded},{data:tchs}]=await Promise.all([
+    sb.from('salary_deductions').select('*').eq('year_month',ym),
+    sb.from('teachers').select('teacher_id,full_name,is_active').eq('is_active',true)
+  ])
+  const dMap={}; (ded||[]).forEach(d=>dMap[d.teacher_id]=d)
+  _dedRows=(tchs||[]).map(t=>{const d=dMap[t.teacher_id]||{}; return {
+    name:t.full_name, amount:d.amount||0, full_absents:d.full_absents||0, half_days:d.half_days||0,
+    late_count:d.late_count||0, per_day_rate:d.per_day_rate||0, breakdown:d.breakdown||null,
+    computed:!!dMap[t.teacher_id]
+  }}).sort((a,b)=>b.amount-a.amount)
+  renderDeductions()
+}
+function renderDeductions(){
+  const wrap=$('ded_table'); if(!wrap)return
+  const s=($('ded_search')?.value||'').toLowerCase().trim()
+  const filt=$('ded_filter')?.value||'all'
+  let rows=_dedRows.filter(r=>!s||r.name.toLowerCase().includes(s))
+  if(filt==='nonzero')rows=rows.filter(r=>r.amount>0)
+  const total=rows.reduce((t,r)=>t+r.amount,0)
+  const anyComputed=_dedRows.some(r=>r.computed)
+  if(!anyComputed){wrap.innerHTML='<div class="card"><div style="padding:16px;color:var(--ink-soft);font-size:13px">No deductions computed for this month yet. Set base salaries, then press <b>Recompute this month</b>.</div></div>';return}
+  wrap.innerHTML='<div class="card" style="overflow-x:auto"><div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">Total deducted (filtered): <b style="color:var(--danger)">−₹'+total.toLocaleString('en-IN')+'</b></div>'
+    +'<table><thead><tr><th>Teacher</th><th style="text-align:center">Absents</th><th style="text-align:center">Half Days</th><th style="text-align:center">Lates</th><th style="text-align:center">Per-day ₹</th><th style="text-align:right">Deduction</th><th></th></tr></thead><tbody>'
+    +rows.map((r,i)=>'<tr><td style="font-weight:600;white-space:nowrap">'+esc(r.name)+'</td>'
+      +'<td style="text-align:center">'+r.full_absents+'</td><td style="text-align:center">'+r.half_days+'</td><td style="text-align:center">'+r.late_count+'</td>'
+      +'<td style="text-align:center;font-family:var(--mono)">'+(r.per_day_rate||'—')+'</td>'
+      +'<td style="text-align:right;font-weight:800;color:'+(r.amount>0?'var(--danger)':'var(--ink-faint)')+'">'+(r.amount>0?'−₹'+r.amount.toLocaleString('en-IN'):'₹0')+'</td>'
+      +'<td>'+(r.breakdown?'<button class="btn btn-ghost btn-xs" onclick=\'dedDetail('+JSON.stringify(JSON.stringify(r.breakdown))+","+JSON.stringify(r.name)+')\'>Detail</button>':'')+'</td></tr>').join('')
+    +'</tbody></table></div>'
+}
+function dedDetail(bkStr,name){
+  let bk; try{bk=JSON.parse(bkStr)}catch(e){return}
+  const dayRows=(bk.days||[]).map(d=>'<tr><td>'+esc(d.date)+'</td><td>'+esc(d.status)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:var(--ink-faint)">No absent/half/late days.</td></tr>'
+  openModal('Deduction detail — '+name,
+    '<div style="font-size:13px;line-height:1.7">Days in month: <b>'+bk.daysInMonth+'</b> · Per-day: <b>₹'+bk.perDay+'</b><br>'
+    +'Leave units: <b>'+bk.leaveUnits+'</b> − paid credit <b>'+bk.paidCredit+'</b> = deductible <b>'+bk.deductibleUnits+'</b> → <b>₹'+bk.absenceDeduction+'</b><br>'
+    +'Lates: <b>'+(bk.days||[]).filter(d=>d.status==='Late').length+'</b> ÷ '+bk.latesPer+' = <b>'+bk.lateGroups+'</b> group(s) → <b>₹'+bk.lateDeduction+'</b></div>'
+    +'<table style="margin-top:12px;width:100%"><thead><tr><th>Date</th><th>Status</th></tr></thead><tbody>'+dayRows+'</tbody></table>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
+}
+async function recomputeDeductionsCard(){
+  const ym=$('ded_month')?.value; if(!ym)return
+  toast('Recomputing '+ym+'…','info')
+  try{ await recomputeDeductions([ym]); toast('Deductions recomputed','success'); loadDeductionsData() }
+  catch(e){ toast('Recompute failed: '+e.message,'error') }
+}
 
 // Load the current late/off rules from the DB into the module globals.
 // Called on page open, and again right before any import/recalculate so the
 // newest settings always apply.
 async function loadStaffAttRules(){
-  const[{data:def},{data:scheds},{data:offs}]=await Promise.all([
+  const[{data:def},{data:scheds},{data:offs},{data:ovr}]=await Promise.all([
     sb.from('attendance_settings').select('*').eq('id',1).maybeSingle(),
     sb.from('teacher_schedules').select('*'),
-    sb.from('staff_off_days').select('date')
+    sb.from('staff_off_days').select('date'),
+    sb.from('attendance_threshold_overrides').select('*').then(r=>r,()=>({data:[]}))
   ])
   _saDefaults=def||{default_shift_start:'07:20',default_shift_end:'13:15',default_late_after:'07:30',weekly_off_days:[0]}
+  // Salary-rule defaults (in case columns are freshly added / null).
+  _saDefaults.half_day_late_after   = _saDefaults.half_day_late_after   || '09:30'
+  _saDefaults.half_day_early_before = _saDefaults.half_day_early_before || '11:30'
+  _saDefaults.paid_leaves_per_month = (_saDefaults.paid_leaves_per_month!=null)?_saDefaults.paid_leaves_per_month:1
+  _saDefaults.lates_per_deduction   = _saDefaults.lates_per_deduction   || 3
+  _saDefaults.late_early_full_day   = !!_saDefaults.late_early_full_day
+  _saDefaults.lates_carry_over      = !!_saDefaults.lates_carry_over
   _saScheds={}; (scheds||[]).forEach(s=>_saScheds[s.teacher_id]=s)
   _saOffDates=new Set((offs||[]).map(o=>o.date))
   _saWeeklyOff=new Set(_saDefaults.weekly_off_days||[])
+  _saThreshOverrides=ovr||[]
+}
+// Resolve the effective thresholds for a teacher on a date, most-specific-first:
+//   teacher+date > teacher+weekday > all+date > all+weekday > per-teacher schedule > global.
+function thresholdsFor(teacherId, dateStr){
+  const d=new Date(dateStr+'T12:00:00'); const wd=isNaN(d)?null:d.getDay()
+  const sched=_saScheds[teacherId]||{}
+  let lateAfter=(sched.late_after||_saDefaults.default_late_after||'07:30')
+  let hdLate=(sched.half_day_late_after||_saDefaults.half_day_late_after)
+  let hdEarly=(sched.half_day_early_before||_saDefaults.half_day_early_before)
+  let isOff=false
+  // Rank overrides so the most specific one wins.
+  const rank=o=>{
+    let r=0
+    if(o.teacher_id)r+=2; if(o.teacher_id===null||o.teacher_id===undefined)r+=0
+    const dateMatch=(o.from_date||o.to_date)
+    if(dateMatch)r+=1
+    return r
+  }
+  ;(_saThreshOverrides||[])
+    .filter(o=>{
+      if(o.teacher_id && o.teacher_id!==teacherId)return false
+      if(o.weekday!=null && o.weekday!==wd)return false
+      if(o.from_date && dateStr<o.from_date)return false
+      if(o.to_date && dateStr>o.to_date)return false
+      return (o.weekday!=null)||o.from_date||o.to_date  // must scope by weekday or date
+    })
+    .sort((a,b)=>rank(a)-rank(b))   // apply least→most specific so most specific overwrites
+    .forEach(o=>{
+      if(o.is_off)isOff=true
+      if(o.late_after)lateAfter=o.late_after
+      if(o.half_day_late_after)hdLate=o.half_day_late_after
+      if(o.half_day_early_before)hdEarly=o.half_day_early_before
+    })
+  return {lateAfter:String(lateAfter).slice(0,5), hdLate:hdLate?String(hdLate).slice(0,5):null, hdEarly:hdEarly?String(hdEarly).slice(0,5):null, isOff, lateEarlyFull:_saDefaults.late_early_full_day}
 }
 
 async function initStaffAtt(){
@@ -5243,6 +5469,45 @@ function svKind(status){
   return null
 }
 
+// Edit one teacher's attendance for one day: in/out time (incl. adding a missed
+// punch) and an optional forced status. Recomputes that month's deductions.
+async function editAttDay(teacherId, date){
+  const t=(_svTeachers||[]).find(x=>x.teacher_id===teacherId)
+  const rec=(_svRows||[]).find(r=>r.teacher_id===teacherId&&r.date===date)||{}
+  const tin=rec.time_in?String(rec.time_in).slice(0,5):''
+  const tout=rec.time_out?String(rec.time_out).slice(0,5):''
+  const cur=rec.status||''
+  const opt=(v,lbl)=>'<option value="'+v+'"'+(cur===v?' selected':'')+'>'+lbl+'</option>'
+  openModal('Edit attendance — '+(t?.full_name||teacherId)+' · '+fmtD(date),
+    '<input type="hidden" id="ea_tid" value="'+esc(teacherId)+'"><input type="hidden" id="ea_date" value="'+date+'">'
+    +'<div class="form-row"><div class="fg"><label>In time</label><input type="time" id="ea_in" value="'+tin+'"></div>'
+    +'<div class="fg"><label>Out time</label><input type="time" id="ea_out" value="'+tout+'"></div></div>'
+    +'<div class="form-row" style="margin-bottom:0"><div class="fg"><label>Status</label><select id="ea_status">'
+    +'<option value="__auto">Auto (derive from times &amp; rules)</option>'
+    +opt('Present','Present')+opt('Late','Late')+opt('Half Day','Half Day')+opt('Absent','Absent')+opt('Off','Off')
+    +'</select></div></div>'
+    +'<div style="font-size:11px;color:var(--ink-faint);margin-top:8px">Add a missed punch by typing the time. "Auto" re-applies the late/half-day rules for this teacher &amp; day; a specific status overrides them.</div>',
+    '<button class="btn btn-dark" onclick="saveAttDay()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveAttDay(){
+  const teacherId=$('ea_tid')?.value, date=$('ea_date')?.value
+  const tin=$('ea_in')?.value||null, tout=$('ea_out')?.value||null
+  const sel=$('ea_status')?.value
+  await loadStaffAttRules()
+  let status
+  if(sel==='__auto'){
+    const punch=(tin||tout)?{tin,tout}:null
+    status=resolveDay(date, punch, thresholdsFor(teacherId,date)).status
+  } else status=sel
+  const row={teacher_id:teacherId, date, status, time_in:tin, time_out:tout, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()}
+  const{error}=await sb.from('teacher_attendance').upsert(row,{onConflict:'teacher_id,date'})
+  if(error){toast('Save failed: '+error.message,'error');return}
+  closeModal()
+  toast('Saved · recomputing deductions…','success')
+  const ym=date.slice(0,7)
+  try{await recomputeDeductions([ym])}catch(e){console.warn('recompute after edit',e)}
+  loadStaffRegister()
+}
 function renderStaffRegister(){
   const el=$('svRegister'); if(!el)return
   if(!_svDates.length){emp(el,'Pick a period and click Load.');return}
@@ -5298,7 +5563,7 @@ function renderStaffRegister(){
       else if(k==='a'){ch='A';cls='m-a';a++}
       else if(k==='o'){ch='—';cls='m-o';o++}
       else if(isAdminOff(d)){ch='—';cls='m-o'}
-      cells+='<td class="sa-dcell '+cls+'" title="'+esc(tip)+'">'+ch+'</td>'
+      cells+='<td class="sa-dcell '+cls+'" title="'+esc(tip)+'" style="cursor:pointer" onclick="editAttDay(\''+esc(t.teacher_id)+'\',\''+d+'\')">'+ch+'</td>'
     })
     html+='<tr><td class="sa-name"><button class="sa-name-btn" onclick="showTeacherAttDetail(\''+esc(t.teacher_id)+'\')">'+esc(t.full_name||'?')+'</button>'
       +'<div style="font-size:9.5px;color:var(--ink-faint);font-weight:500">'+esc(t.employee_code||'—')+'</div></td>'
@@ -5395,7 +5660,7 @@ function exportStaffRegister(){
 
 // Card-menu navigation for the Staff Attendance page.
 function openSaSub(id){
-  ;['sa-menu','sa-settings','sa-upload','sa-view'].forEach(s=>{const el=$(s);if(el)el.style.display='none'})
+  ;['sa-menu','sa-settings','sa-upload','sa-view','sa-deductions'].forEach(s=>{const el=$(s);if(el)el.style.display='none'})
   const el=$(id); if(el)el.style.display='block'
   // The settings view needs its data loaded when opened.
   if(id==='sa-settings')loadAttendanceSettings()
@@ -5443,12 +5708,11 @@ async function recalcStaffAtt(){
   const dates=eachDate(from,to)
   const records=[]
   tchs.forEach(t=>{
-    const lateAfter=lateAfterFor(t.teacher_id)
     dates.forEach(date=>{
       const stored=byKey[t.teacher_id+'|'+date]
       // Only treat it as a punch day if there is at least one real time.
       const punch=(stored&&(stored.tin||stored.tout))?stored:null
-      const res=resolveDay(date, punch, lateAfter)
+      const res=resolveDay(date, punch, thresholdsFor(t.teacher_id,date))
       records.push({teacher_id:t.teacher_id, date, status:res.status, time_in:res.time_in, time_out:res.time_out, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
     })
   })
@@ -5685,17 +5949,23 @@ function eachDate(from,to){
 }
 
 // Decide the stored row for one teacher on one date, given that day's punches
-// (or none). Shared by the CSV import and the Recalculate action so both always
-// apply identical rules.
-function resolveDay(date, punch, lateAfter){
-  // Admin-decided off (recurring weekly-off or a specific off date) always wins.
-  if(isAdminOff(date)) return {status:'Off', time_in:punch?.tin||null, time_out:punch?.tout||null}
-  // No punch at all on a working day → absent.
+// (or none). `thr` is the resolved thresholds object from thresholdsFor().
+// Shared by CSV import and Recalculate so both apply identical rules.
+function resolveDay(date, punch, thr){
+  // Back-compat: callers used to pass a bare 'HH:MM' late string.
+  if(typeof thr==='string')thr={lateAfter:thr,hdLate:null,hdEarly:null,isOff:false,lateEarlyFull:false}
+  if(thr.isOff || isAdminOff(date)) return {status:'Off', time_in:punch?.tin||null, time_out:punch?.tout||null}
   if(!punch) return {status:'Absent', time_in:null, time_out:null}
-  // Present, promoted to Late only when there IS a real in-punch that is after
-  // this teacher's cut-off. A missed in-punch is never marked late.
+  const tin = punch.tin?String(punch.tin).slice(0,5):null
+  const tout= punch.tout?String(punch.tout).slice(0,5):null
+  const lateHalf  = tin && thr.hdLate && tin > thr.hdLate            // arrived after half-day cutoff
+  const earlyHalf = tout && thr.hdEarly && tout < thr.hdEarly        // left before half-day cutoff
+  // Optional rule: both late-past-cutoff AND early-leave same day → full absent.
+  if(lateHalf && earlyHalf && thr.lateEarlyFull) return {status:'Absent', time_in:punch.tin||null, time_out:punch.tout||null}
+  if(lateHalf || earlyHalf) return {status:'Half Day', time_in:punch.tin||null, time_out:punch.tout||null}
+  // Late (but not half) only when there is a real in-punch after the late cutoff.
   let status='Present'
-  if(punch.tin && String(punch.tin).slice(0,5) > lateAfter) status='Late'
+  if(tin && thr.lateAfter && tin > thr.lateAfter) status='Late'
   return {status, time_in:punch.tin||null, time_out:punch.tout||null}
 }
 
@@ -5712,12 +5982,11 @@ async function commitStaffAtt(){
   const records=[]
   matched.forEach(r=>{
     const t=_saTeachersByCode[r.empCode]
-    const lateAfter=lateAfterFor(t.teacher_id)
     // Walk EVERY date in the period — not just days with punches — so weekly
     // offs and absences get rows too (the raw punch file only lists days with
     // activity, so they'd otherwise be missing entirely).
     dates.forEach(date=>{
-      const res=resolveDay(date, r.days[date], lateAfter)
+      const res=resolveDay(date, r.days[date], thresholdsFor(t.teacher_id,date))
       records.push({teacher_id:t.teacher_id, date, status:res.status, time_in:res.time_in, time_out:res.time_out, uploaded_by:SPS.admin?.admin_id||'admin', uploaded_at:new Date().toISOString()})
     })
   })
@@ -6012,6 +6281,12 @@ async function loadAttendanceSettings(){
   if($('def_shift_start'))$('def_shift_start').value=hm(_attDefaults.default_shift_start)||'07:20'
   if($('def_shift_end'))$('def_shift_end').value=hm(_attDefaults.default_shift_end)||'13:15'
   if($('def_late_after'))$('def_late_after').value=hm(_attDefaults.default_late_after)||'07:30'
+  if($('def_hd_late'))$('def_hd_late').value=hm(_attDefaults.half_day_late_after)||'09:30'
+  if($('def_hd_early'))$('def_hd_early').value=hm(_attDefaults.half_day_early_before)||'11:30'
+  if($('def_paid_leaves'))$('def_paid_leaves').value=(_attDefaults.paid_leaves_per_month!=null?_attDefaults.paid_leaves_per_month:1)
+  if($('def_lates_per'))$('def_lates_per').value=(_attDefaults.lates_per_deduction||3)
+  if($('def_late_early_full'))$('def_late_early_full').checked=!!_attDefaults.late_early_full_day
+  if($('def_lates_carry'))$('def_lates_carry').checked=!!_attDefaults.lates_carry_over
 
   // Weekly-off day chips
   const woSet=new Set(_attDefaults.weekly_off_days||[])
@@ -6020,6 +6295,53 @@ async function loadAttendanceSettings(){
 
   renderTeacherScheds()
   renderStaffOffDays()
+  renderThresholdOverrides()
+}
+async function renderThresholdOverrides(){
+  // Populate teacher dropdown.
+  const sel=$('ov_teacher')
+  if(sel){const cur=sel.value;sel.innerHTML='<option value="">All teachers</option>'+ALL_TEACHERS.filter(t=>t.is_active).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||'')).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('');sel.value=cur}
+  const list=$('ovList'); if(!list)return
+  const{data:ovr}=await sb.from('attendance_threshold_overrides').select('*').order('created_at',{ascending:false})
+  if(!ovr||!ovr.length){list.innerHTML='<div style="font-size:12px;color:var(--ink-faint)">No overrides yet.</div>';return}
+  const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  const tName=id=>ALL_TEACHERS.find(t=>t.teacher_id===id)?.full_name||id
+  const hm=t=>t?String(t).slice(0,5):'—'
+  list.innerHTML='<table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left">Scope</th><th>Late</th><th>½ late</th><th>½ early</th><th></th></tr></thead><tbody>'
+    +ovr.map(o=>{
+      const scope=[o.teacher_id?esc(tName(o.teacher_id)):'All',o.weekday!=null?DOW[o.weekday]:'',(o.from_date||o.to_date)?((o.from_date||'…')+'→'+(o.to_date||'…')):'',o.is_off?'OFF':'',o.label?('· '+esc(o.label)):''].filter(Boolean).join(' · ')
+      return '<tr><td style="text-align:left">'+scope+'</td><td style="text-align:center">'+hm(o.late_after)+'</td><td style="text-align:center">'+hm(o.half_day_late_after)+'</td><td style="text-align:center">'+hm(o.half_day_early_before)+'</td>'
+        +'<td style="text-align:right"><button class="btn btn-danger btn-xs" onclick="delThresholdOverride(\''+o.override_id+'\')">Delete</button></td></tr>'
+    }).join('')+'</tbody></table>'
+}
+async function addThresholdOverride(){
+  const teacher_id=$('ov_teacher')?.value||null
+  const wdRaw=$('ov_weekday')?.value
+  const weekday=wdRaw===''?null:parseInt(wdRaw)
+  const from_date=$('ov_from')?.value||null, to_date=$('ov_to')?.value||null
+  const late_after=$('ov_late')?.value||null
+  const half_day_late_after=$('ov_hdlate')?.value||null
+  const half_day_early_before=$('ov_hdearly')?.value||null
+  const is_off=!!$('ov_isoff')?.checked
+  const label=$('ov_label')?.value?.trim()||null
+  if(weekday==null && !from_date && !to_date){toast('Pick a weekday or a date range to scope the override','error');return}
+  if(!is_off && !late_after && !half_day_late_after && !half_day_early_before){toast('Set at least one cutoff, or tick OFF','error');return}
+  const{error}=await sb.from('attendance_threshold_overrides').insert({
+    session_id:SESS?.session_id||null, teacher_id, weekday, from_date, to_date,
+    late_after, half_day_late_after, half_day_early_before, is_off, label
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Override added ✓ — recompute a month to apply','success')
+  ;['ov_from','ov_to','ov_late','ov_hdlate','ov_hdearly','ov_label'].forEach(id=>{if($(id))$(id).value=''})
+  if($('ov_isoff'))$('ov_isoff').checked=false
+  renderThresholdOverrides()
+}
+function delThresholdOverride(id){
+  confirmAct('Delete this override?','Attendance will use the normal cutoffs. Recompute affected months afterward.',async()=>{
+    const{error}=await sb.from('attendance_threshold_overrides').delete().eq('override_id',id)
+    if(error){toast('Failed: '+error.message,'error');return}
+    toast('Deleted','success'); renderThresholdOverrides()
+  })
 }
 
 function toggleWeeklyOff(i,btn){btn.classList.toggle('on')}
@@ -6031,11 +6353,26 @@ async function saveAttDefaults(){
     default_shift_start:$('def_shift_start').value||'07:20',
     default_shift_end:$('def_shift_end').value||'13:15',
     default_late_after:$('def_late_after').value||'07:30',
+    half_day_late_after:$('def_hd_late')?.value||'09:30',
+    half_day_early_before:$('def_hd_early')?.value||'11:30',
     weekly_off_days:woChips,
     updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()
   })
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Defaults saved ✓','success')
+  loadAttendanceSettings()
+}
+async function saveSalaryRules(){
+  const{error}=await sb.from('attendance_settings').upsert({
+    id:1,
+    paid_leaves_per_month:parseFloat($('def_paid_leaves')?.value)||0,
+    lates_per_deduction:parseInt($('def_lates_per')?.value)||3,
+    late_early_full_day:!!$('def_late_early_full')?.checked,
+    lates_carry_over:!!$('def_lates_carry')?.checked,
+    updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Salary rules saved ✓ — recompute a month to apply','success')
   loadAttendanceSettings()
 }
 
