@@ -364,7 +364,7 @@
   <!-- STUDENT PROFILE -->
   <div class="page" id="page-profile">
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:18px">
-      <button class="btn btn-ghost" id="profBackBtn" onclick="goTo(profileReturnPage||'students')">← Back</button>
+      <button class="btn btn-ghost" id="profBackBtn" onclick="backFromProfile()">← Back</button>
       <h2 id="prof_title" style="font-size:17px;font-weight:600;flex:1"></h2>
       <button class="btn btn-danger" id="deleteStudentBtn" style="display:none" onclick="deleteStudent()">🗑 Delete Enrollment</button>
       <button class="btn btn-ghost" id="editToggleBtn" onclick="toggleProfileEdit()">✎ Edit Profile</button>
@@ -2271,7 +2271,23 @@ function renderStudents(){
 
 function openProfileModal(eid,returnPage){
   profileReturnPage=returnPage||_getCurrentPage();
+  _profileFamilyCode=activeFamilyCode;   // remember the wallet family, if any
   goTo('profile',eid);
+}
+// Back from the profile. If we came from the Family Wallet, re-open the same
+// family (with any profile edits reflected) so an in-progress collection isn't
+// lost to a re-search.
+async function backFromProfile(){
+  const rp=profileReturnPage||'students';
+  const code=_profileFamilyCode;
+  if(rp==='counter' && code){
+    // Ensure the wallet shows the just-saved edits, then re-open the family.
+    await loadAll();
+    goTo('counter');
+    if(students.some(s=>s.familyCode===code)) selectFamily(code);
+  } else {
+    goTo(rp);
+  }
 }
 function _getCurrentPage(){
   const active=document.querySelector('.page.active');
@@ -2281,7 +2297,7 @@ function _getCurrentPage(){
 // ══════════════════════════════════════════════
 //  STUDENT PROFILE
 // ══════════════════════════════════════════════
-let profileEid=null, profileEditMode=false, profileReturnPage='students';
+let profileEid=null, profileEditMode=false, profileReturnPage='students', _profileFamilyCode=null;
 
 function renderProfile(eid){
   profileEid=eid; profileEditMode=false;
