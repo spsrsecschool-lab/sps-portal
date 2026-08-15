@@ -1857,44 +1857,60 @@ async function submitFamilyPayment(){
       const month=row.querySelector('.m-month')?.value||HEAD_PREV;
       if(eid==='FAMILY_PREV'&&p!==0){
         totalProcessed+=p;
-        txnEntries.push({enrollment_id:activeSiblings[0].enrollment_id,month:HEAD_PREV,total:p});
+        txnEntries.push({enrollment_id:activeSiblings[0].enrollment_id,month:HEAD_PREV,total:p,_type:'Prev',_fullDue:0,_name:'Family Prev Balance'});
       }else if(eid!=='FAMILY_PREV'){
-        if(t!==0){totalProcessed+=t;txnEntries.push({enrollment_id:eid,month,total:t})}
-        if(a!==0){totalProcessed+=a;txnEntries.push({enrollment_id:eid,month:HEAD_ANNUAL,total:a})}
+        const stu=activeSiblings.find(s=>s.enrollment_id===eid);
+        if(t!==0){
+          // Full tuition due for this month (before this payment) so a manual
+          // partial can be detected the same way auto-allocation does.
+          let fullDue=0;
+          if(stu){
+            const mi=MONTHS.indexOf(month);
+            const mt=mi>=0?monthlyTuitionForMonth(stu,mi):0;
+            const waived=getWaivedAmount(stu,month);
+            const paid=getMonthPayments(eid,month).reduce((s,pp)=>s+(pp.tuition||0),0);
+            fullDue=Math.max(0,mt-waived-paid);
+          }
+          totalProcessed+=t;
+          txnEntries.push({enrollment_id:eid,month,total:t,_type:'Tuition',_fullDue:fullDue,_name:stu?.name||''});
+        }
+        if(a!==0){
+          const annDue=stu?getTotalDues(stu).annualDue:0;
+          totalProcessed+=a;
+          txnEntries.push({enrollment_id:eid,month:HEAD_ANNUAL,total:a,_type:'Annual',_fullDue:annDue,_name:stu?.name||''});
+        }
       }
     });
-    await _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy);
   }else{
     autoAllocPlan.forEach(plan=>{
       if(plan.valid)return;
       totalProcessed+=plan.amt;
       txnEntries.push({enrollment_id:plan.eid,month:plan.month,total:plan.amt,_type:plan.type,_fullDue:plan.fullDue,_name:plan.name});
     });
-
-    const partials=autoAllocPlan.filter(p=>!p.valid&&p.type!=='Prev'&&p.fullDue>0&&p.amt<p.fullDue);
-    let shortfallOps=[];
-    if(partials.length>0){
-      const itemLines=partials.map(p=>`${p.type} — ${p.name} (${p.month}): paid ${fmtINR(p.amt)}, shortfall = ${fmtINR(p.fullDue-p.amt)}`);
-      const totalShortfall=partials.reduce((s,p)=>s+(p.fullDue-p.amt),0);
-      const moveToBalance=await showConfirm('Partial Payment Detected',
-        `A shortfall of ${fmtINR(totalShortfall)} remains across ${partials.length} item(s).\n\nYES → Transaction proceeds. Shortfall is moved to Family Prev Balance as a positive debt.\nNO → Transaction proceeds. Shortfall stays on the specific month/item as pending.`,
-        itemLines,'✓ Yes — Move to Prev Balance','✕ No — Keep as Partial');
-      if(moveToBalance){
-        partials.forEach(p=>{
-          const shortfall=p.fullDue-p.amt;
-          const entry=txnEntries.find(e=>e.enrollment_id===p.eid&&e.month===p.month&&e._type===p.type);
-          if(entry){ entry.total=p.fullDue; entry._shortfallNote=` [${p.month}: ${fmtINR(shortfall)} moved to Prev Balance]` }
-          shortfallOps.push({eid:p.eid,amt:shortfall,source:`Partial ${p.type}: ${p.month} (paid ${fmtINR(p.amt)}, shortfall ${fmtINR(shortfall)})`});
-        });
-        // NOTE: allocation heads are recorded at their FULL due so the month
-        // shows as settled and the shortfall lives ONLY in Prev Balance (no
-        // double-counting in dues). But the BUNDLE TOTAL must stay the actual
-        // CASH received — NOT the inflated allocation sum — so the receipt reads
-        // ₹2500, not ₹3000. So we deliberately DON'T recompute totalProcessed.
-      }
-    }
-    await _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy,shortfallOps);
   }
+
+  // Shared partial-payment handling for BOTH manual and auto: any tuition/annual
+  // line paid below its full due is a partial → offer to move the shortfall to
+  // Family Prev Balance (recorded at full due so the month reads settled and the
+  // debt lives only in Prev Balance; bundle total stays the actual cash).
+  const partials=txnEntries.filter(e=>e._type&&e._type!=='Prev'&&e._fullDue>0&&e.total>0&&e.total<e._fullDue);
+  let shortfallOps=[];
+  if(partials.length>0){
+    const itemLines=partials.map(p=>`${p._type} — ${p._name} (${p.month}): paid ${fmtINR(p.total)}, shortfall = ${fmtINR(p._fullDue-p.total)}`);
+    const totalShortfall=partials.reduce((s,p)=>s+(p._fullDue-p.total),0);
+    const moveToBalance=await showConfirm('Partial Payment Detected',
+      `A shortfall of ${fmtINR(totalShortfall)} remains across ${partials.length} item(s).\n\nYES → Transaction proceeds. Shortfall is moved to Family Prev Balance as a positive debt.\nNO → Transaction proceeds. Shortfall stays on the specific month/item as pending.`,
+      itemLines,'✓ Yes — Move to Prev Balance','✕ No — Keep as Partial');
+    if(moveToBalance){
+      partials.forEach(p=>{
+        const shortfall=p._fullDue-p.total;
+        p.total=p._fullDue;
+        p._shortfallNote=` [${p.month}: ${fmtINR(shortfall)} moved to Prev Balance]`;
+        shortfallOps.push({eid:p.enrollment_id,amt:shortfall,source:`Partial ${p._type}: ${p.month} (paid ${fmtINR(p._fullDue-shortfall)}, shortfall ${fmtINR(shortfall)})`});
+      });
+    }
+  }
+  await _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy,shortfallOps);
 }
 
 async function _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy,shortfallOps){
