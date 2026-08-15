@@ -1371,7 +1371,7 @@ function refreshFamilyDues(){
     <div class="sib-card">
       <div class="hdr">
         <div class="hdr-name">
-          <b>${esc(stu.name)}</b>${snoLabel}
+          <b onclick="openProfileModal('${stu.enrollment_id}', _getCurrentPage())" style="cursor:pointer;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px" title="View / edit profile">${esc(stu.name)}</b>${snoLabel}
           <span class="fee-rate">${fmtINR(mt)}/month${discLabel}</span>
         </div>
         <span class="pill pill-blue">${esc(stu.cls)}${stu.stream?' '+esc(stu.stream):''}</span>
