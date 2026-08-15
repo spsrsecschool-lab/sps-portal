@@ -5290,6 +5290,7 @@ async function loadDeductionsCard(){
     +'<div class="fg"><label>Show</label><select id="ded_filter" onchange="renderDeductions()"><option value="all">All teachers</option><option value="nonzero">Only with deductions</option></select></div>'
     +'<button class="btn btn-soft" onclick="loadDeductionsData()">Load</button>'
     +'<button class="btn btn-dark" onclick="recomputeDeductionsCard()">↻ Recompute this month</button>'
+    +'<button class="btn btn-soft" onclick="backfillAllDeductions()">⟳ Backfill all months</button>'
     +'</div></div><div id="ded_table"></div>'
   loadDeductionsData()
 }
@@ -5341,6 +5342,19 @@ async function recomputeDeductionsCard(){
   toast('Recomputing '+ym+'…','info')
   try{ await recomputeDeductions([ym]); toast('Deductions recomputed','success'); loadDeductionsData() }
   catch(e){ toast('Recompute failed: '+e.message,'error') }
+}
+// One-time backfill: recompute every month that has any attendance on record.
+async function backfillAllDeductions(){
+  toast('Finding months with attendance…','info')
+  // Get the date span of teacher_attendance, then compute all months in it.
+  const{data:lo}=await sb.from('teacher_attendance').select('date').order('date',{ascending:true}).limit(1)
+  const{data:hi}=await sb.from('teacher_attendance').select('date').order('date',{ascending:false}).limit(1)
+  const from=lo?.[0]?.date, to=hi?.[0]?.date
+  if(!from||!to){toast('No attendance found to backfill','error');return}
+  const months=monthsInRange(from,to)
+  toast('Backfilling '+months.length+' month(s)…','info')
+  try{ await recomputeDeductions(months); toast('Backfill complete ✓','success'); loadDeductionsData() }
+  catch(e){ toast('Backfill failed: '+e.message,'error') }
 }
 
 // Load the current late/off rules from the DB into the module globals.
@@ -5727,6 +5741,8 @@ async function recalcStaffAtt(){
   }
   if(errs)toast('Recalculated '+done+', '+errs+' batch(es) failed: '+(firstErr?.message||''),'error')
   else toast('✓ Recalculated '+done+' records with the current rules','success')
+  // Keep salary deductions in sync with the recalculated statuses.
+  try{ await recomputeDeductions(monthsInRange(from,to)) }catch(e){ console.warn('deduction recompute after recalc',e) }
 }
 
 // The "late after" time that applies to a given teacher (their override, else default).
@@ -6012,6 +6028,13 @@ async function commitStaffAtt(){
     console.error('[staffatt] first error detail:', firstErr)
   }
   else{toast('✓ Imported '+inserted+' records for '+teacherIds.length+' teachers','success')}
+  // Recompute salary deductions for the affected months, then notify each
+  // teacher of their deduction (amount only — never their base salary).
+  if(inserted>0){
+    let dedBy={}
+    try{ dedBy = await recomputeDeductions(monthsInRange(from,to)) }catch(e){ console.warn('deduction recompute after upload',e) }
+    if($('sa_notify')?.checked!==false){ notifyDeductions(dedBy, monthsInRange(from,to)) }
+  }
   // Notify staff (broadcast) only if the "Notify staff" checkbox is ticked.
   if(inserted>0){
     if($('sa_notify')?.checked!==false){ notifyStaffAttUpload(from,to,teacherIds) }
@@ -6036,6 +6059,25 @@ async function notifyStaffAttUpload(from,to,teacherIds){
     }
     logActivity('admin', SPS.admin?.admin_id, 'staff_attendance_upload', 'Uploaded staff attendance for '+range+' ('+(teacherIds?.length||0)+' staff)')
   }catch(e){ console.error('[staffatt] notify failed', e) }
+}
+// Message each teacher their salary deduction for the recomputed month(s).
+async function notifyDeductions(dedBy, months){
+  try{
+    const now=new Date().toISOString(); const rows=[]
+    Object.entries(dedBy||{}).forEach(([tid,byYm])=>{
+      months.forEach(ym=>{
+        const r=byYm[ym]
+        if(r && r.amount>0){
+          const mLabel=new Date(ym+'-01T12:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+          rows.push({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:tid,
+            subject:'Salary deduction — '+mLabel,
+            body:'Based on the latest attendance, ₹'+Number(r.amount).toLocaleString('en-IN')+' has been deducted from your salary for '+mLabel+'. You can see the running total on your dashboard.',
+            message_type:'broadcast',sent_at:now})
+        }
+      })
+    })
+    for(let i=0;i<rows.length;i+=200){ await sb.from('messages').insert(rows.slice(i,i+200)) }
+  }catch(e){ console.error('[deductions] notify failed', e) }
 }
 function parseAttCsv(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=async ev=>{const lines=ev.target.result.split('\n').map(l=>l.trim()).filter(Boolean);const headers=lines[0].split(',').map(h=>h.replace(/"/g,'').trim());const dateCols=headers.slice(3).map(h=>h.replace(/^d_/,'').trim());const valid=[],errors=[];lines.slice(1).forEach((line,i)=>{const vals=line.split(',').map(v=>v.replace(/"/g,'').trim());const roll=vals[0],sid=vals[1];if(!roll&&!sid){errors.push({row:i+2,issue:'Missing roll_no and student_id'});return};dateCols.forEach((date,j)=>{const status=vals[3+j]?.toUpperCase();if(!status)return;if(!['P','A','L','H'].includes(status)){errors.push({row:i+2,issue:'Invalid status "'+status+'" for '+date});return};// Normalise date: handle DD/MM/YYYY (Excel Indian locale) → YYYY-MM-DD
 let normDate=date
