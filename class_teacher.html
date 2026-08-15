@@ -277,7 +277,6 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
       Student Dues
     </div>
-    <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Teacher Handbook</div>
     <div class="sb-item" onclick="goTo('examfees',this)">
       <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Exam Fee Collection
@@ -357,11 +356,6 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     </div>
 
     <!-- DAILY ATTENDANCE -->
-    <div class="page" id="page-handbook">
-      <div class="page-head"><div><h2>Teacher Handbook</h2><p>Staff handbook &amp; declaration</p></div></div>
-      <div id="hbHost"></div>
-    </div>
-
     <div class="page" id="page-daily">
       <div class="page-head"><div><h2>Daily Attendance</h2><p>Select date and mark attendance for your class</p></div></div>
       <div class="card" style="margin-bottom:18px">
@@ -630,157 +624,7 @@ async function showDeductionDetail(ym){
     +'<div style="overflow-x:auto"><table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">Date</th><th style="text-align:center">Status</th><th style="text-align:center">In</th><th style="text-align:center">Out</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
   openModal('Salary deduction · '+monthName, body, '<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
 }
-// ═══════════ TEACHER HANDBOOK (portal-side) ═══════════
-// Requires globals: sb, TEACHER, $, esc, goTo, openModal/closeModal not required.
-let _hbSections=[], _hbAcks={}, _hbIdx=0, _hbSignedOff=false, _hbLang='en';
-async function loadHandbook(){
-  const host=$('hbHost'); if(!host||!TEACHER)return;
-  host.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint,#999)">Loading…</div>';
-  const[{data:secs},{data:acks},{data:so}]=await Promise.all([
-    sb.from('handbook_sections').select('*').eq('is_active',true).order('sort_order'),
-    sb.from('handbook_acks').select('*').eq('teacher_id',TEACHER.teacher_id),
-    sb.from('handbook_signoffs').select('*').eq('teacher_id',TEACHER.teacher_id).maybeSingle().then(r=>r,()=>({data:null}))
-  ]);
-  _hbSections=secs||[];
-  _hbAcks={}; (acks||[]).forEach(a=>_hbAcks[a.section_id]=a.version);
-  _hbSignedOff=!!(so&&so.data);
-  const rules=_hbSections.filter(s=>s.kind==='rule');
-  // "Fully signed" = signed off AND ticked the CURRENT version of every rule.
-  const upToDate=_hbSignedOff && rules.every(r=>_hbAcks[r.section_id]===r.version);
-  if(upToDate){ renderHandbookFull(); }
-  else { _hbIdx=firstUnackedIndex(); renderHandbookFlow(); }
-}
-function hbFlowPages(){
-  // intro, then rules in order, then declaration
-  const intro=_hbSections.filter(s=>s.kind==='intro');
-  const rules=_hbSections.filter(s=>s.kind==='rule');
-  const decl=_hbSections.filter(s=>s.kind==='declaration');
-  return [...intro, ...rules, ...decl];
-}
-function firstUnackedIndex(){
-  const pages=hbFlowPages();
-  for(let i=0;i<pages.length;i++){
-    const p=pages[i];
-    if(p.kind==='rule' && _hbAcks[p.section_id]!==p.version) return i;
-  }
-  return 0; // all rules ticked → start at intro (they still need to sign)
-}
-function hbLangToggle(){
-  return '<div style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:10px">'
-    +'<button class="btn btn-ghost btn-xs" onclick="hbSetLang(\'en\')" style="'+(_hbLang==='en'?'background:var(--ink,#111);color:#fff':'')+'">English</button>'
-    +'<button class="btn btn-ghost btn-xs" onclick="hbSetLang(\'hi\')" style="'+(_hbLang==='hi'?'background:var(--ink,#111);color:#fff':'')+'">हिंदी</button></div>';
-}
-function hbSetLang(l){ _hbLang=l; renderHandbookFlow(); }
-function renderHandbookFlow(){
-  const host=$('hbHost'); if(!host)return;
-  const pages=hbFlowPages(); if(!pages.length){host.innerHTML='<div class="card">The handbook has not been set up yet. Please check back later.</div>';return}
-  if(_hbIdx<0)_hbIdx=0; if(_hbIdx>=pages.length)_hbIdx=pages.length-1;
-  const p=pages[_hbIdx];
-  const total=pages.length, pos=_hbIdx+1;
-  const isRule=p.kind==='rule', isDecl=p.kind==='declaration', isIntro=p.kind==='intro';
-  const title=(_hbLang==='hi'?(p.title_hi||p.title_en):(p.title_en||p.title_hi))||'';
-  let bodyEn=p.body_en||'', bodyHi=p.body_hi||'';
-  if(isDecl){ const nm=esc(TEACHER.full_name||''); bodyEn=bodyEn.replace(/\{name\}/g,nm); bodyHi=bodyHi.replace(/\{name\}/g,nm); }
-  const ticked=isRule && _hbAcks[p.section_id]===p.version;
-
-  // progress bar
-  const pct=Math.round(pos/total*100);
-  let h='<div style="max-width:760px;margin:0 auto">';
-  h+='<div style="height:6px;background:var(--line,#eee);border-radius:99px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:var(--accent,#2563eb);transition:width .2s"></div></div>';
-  h+='<div style="font-size:11px;color:var(--ink-faint,#999);margin-bottom:14px">Page '+pos+' of '+total+(p.section_no?(' · '+esc(p.section_no)):'')+'</div>';
-
-  // nav buttons (top)
-  h+='<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:16px">';
-  h+='<button class="btn btn-ghost btn-sm" onclick="hbPrev()" '+(_hbIdx===0?'disabled style="opacity:.4"':'')+'>← Back</button>';
-  if(isDecl){
-    h+='<button class="btn btn-dark btn-sm" id="hbFinishBtn" onclick="hbFinish()" disabled style="opacity:.5">Sign &amp; Finish</button>';
-  }else{
-    const canNext = !isRule || ticked;
-    h+='<button class="btn btn-dark btn-sm" id="hbNextBtn" onclick="hbNext()" '+(canNext?'':'disabled style="opacity:.5"')+'>Next →</button>';
-  }
-  h+='</div>';
-
-  h+=hbLangToggle();
-  h+='<div class="card" style="padding:22px">';
-  if(title)h+='<div style="font-weight:800;font-size:16px;margin-bottom:12px;color:var(--accent,#2563eb)">'+esc(title)+'</div>';
-  const showBody=(txt)=>'<div style="white-space:pre-wrap;line-height:1.7;font-size:14px;margin-bottom:12px">'+esc(txt)+'</div>';
-  if(_hbLang==='hi'){ h+=showBody(bodyHi||bodyEn); }
-  else { h+=showBody(bodyEn||bodyHi); }
-
-  if(isRule){
-    h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid '+(ticked?'#16a34a':'var(--line,#e5e5e5)')+';border-radius:10px;padding:12px 14px;margin-top:6px">'
-      +'<input type="checkbox" '+(ticked?'checked':'')+' onchange="hbTick(\''+p.section_id+'\','+p.version+',this.checked)" style="width:18px;height:18px;margin-top:1px;accent-color:#16a34a">'
-      +'<span style="font-size:13px;font-weight:600">I have read and understood this point. / मैंने इस बिंदु को पढ़ और समझ लिया है।</span></label>';
-  }
-  if(isDecl){
-    h+='<div style="font-size:12.5px;color:var(--ink-soft,#666);margin:10px 0 4px">Name: <b>'+esc(TEACHER.full_name||'')+'</b>'+(TEACHER.designation?(' · '+esc(TEACHER.designation)):'')+' · Date: <b>'+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})+'</b></div>';
-    h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid var(--line,#e5e5e5);border-radius:10px;padding:12px 14px;margin-top:8px">'
-      +'<input type="checkbox" id="hbDeclChk" onchange="hbDeclToggle(this.checked)" style="width:18px;height:18px;margin-top:1px;accent-color:#16a34a">'
-      +'<span style="font-size:13px;font-weight:600">I agree to abide by all the rules above. / मैं उपर्युक्त सभी नियमों का पालन करने हेतु सहमत हूं।</span></label>';
-  }
-  h+='</div></div>';
-  host.innerHTML=h;
-}
-function hbPrev(){ if(_hbIdx>0){_hbIdx--; renderHandbookFlow();} }
-function hbNext(){
-  const pages=hbFlowPages(); const p=pages[_hbIdx];
-  if(p.kind==='rule' && _hbAcks[p.section_id]!==p.version) return; // guard
-  if(_hbIdx<pages.length-1){_hbIdx++; renderHandbookFlow();}
-}
-async function hbTick(sectionId,version,checked){
-  if(checked){
-    _hbAcks[sectionId]=version;
-    await sb.from('handbook_acks').upsert({teacher_id:TEACHER.teacher_id,section_id:sectionId,version,ticked_at:new Date().toISOString()},{onConflict:'teacher_id,section_id'});
-  }else{
-    delete _hbAcks[sectionId];
-    await sb.from('handbook_acks').delete().eq('teacher_id',TEACHER.teacher_id).eq('section_id',sectionId);
-  }
-  // enable/disable Next without full re-render jump
-  const btn=$('hbNextBtn'); if(btn){ if(checked){btn.disabled=false;btn.style.opacity='';}else{btn.disabled=true;btn.style.opacity='.5';} }
-  const lbl=btn?btn.closest('.card'):null;
-}
-function hbDeclToggle(checked){
-  const btn=$('hbFinishBtn'); if(!btn)return;
-  const rules=_hbSections.filter(s=>s.kind==='rule');
-  const allTicked=rules.every(r=>_hbAcks[r.section_id]===r.version);
-  if(checked&&allTicked){btn.disabled=false;btn.style.opacity='';}
-  else {btn.disabled=true;btn.style.opacity='.5'; if(checked&&!allTicked){ /* jump back to first unticked */ } }
-}
-async function hbFinish(){
-  const rules=_hbSections.filter(s=>s.kind==='rule');
-  const missing=rules.filter(r=>_hbAcks[r.section_id]!==r.version);
-  if(missing.length){ _hbIdx=firstUnackedIndex(); renderHandbookFlow(); return; }
-  await sb.from('handbook_signoffs').upsert({teacher_id:TEACHER.teacher_id,signed_at:new Date().toISOString(),signed_name:TEACHER.full_name||null},{onConflict:'teacher_id'});
-  _hbSignedOff=true;
-  renderHandbookFull(true);
-}
-function renderHandbookFull(justSigned){
-  const host=$('hbHost'); if(!host)return;
-  const pages=hbFlowPages();
-  let h='<div style="max-width:820px;margin:0 auto">';
-  if(justSigned){ h+='<div style="background:#EAF7EE;border:1px solid #16a34a;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:700;color:#137a37;margin-bottom:14px">✓ Thank you — your declaration has been recorded. You can read the full handbook below anytime.</div>'; }
-  h+=hbLangToggle();
-  h+='<div class="card" style="padding:24px">';
-  pages.forEach(p=>{
-    if(p.kind==='declaration')return; // don't show the sign box in read mode
-    const title=(_hbLang==='hi'?(p.title_hi||p.title_en):(p.title_en||p.title_hi))||'';
-    let body=_hbLang==='hi'?(p.body_hi||p.body_en):(p.body_en||p.body_hi);
-    if(p.kind==='intro'){
-      if(title)h+='<h2 style="font-size:20px;margin:0 0 10px">'+esc(title)+'</h2>';
-      h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;color:var(--ink-soft,#555);margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line,#eee)">'+esc(body||'')+'</div>';
-      return;
-    }
-    h+='<div style="margin-bottom:16px">';
-    h+='<div style="font-weight:700;font-size:13px;color:var(--accent,#2563eb);margin-bottom:3px">'+esc([p.section_no,title].filter(Boolean).join(' · '))+'</div>';
-    h+='<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px">'+esc(body||'')+'</div>';
-    h+='</div>';
-  });
-  h+='</div></div>';
-  host.innerHTML=h;
-}
-
 function goTo(id,el){
-  if(id==='handbook')loadHandbook();
   _currentTab=id
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
