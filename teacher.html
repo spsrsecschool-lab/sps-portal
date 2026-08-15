@@ -1212,21 +1212,61 @@ function toggleSidebar(){
 function closeMobileSidebar(){$('sidebar')?.classList.remove('show');$('scrim')?.classList.remove('show')}
 
 // Current-month salary deduction chip (amount only — the teacher never sees
-// their base salary). Non-dismissable; refreshes each month automatically.
+// their base salary). Non-dismissable; refreshes each month + on realtime change.
+let _dedSub=null
 async function loadSalaryDeductChip(){
   const box=$('salaryDeductChip'); if(!box||!TEACHER)return
   const now=new Date(); const ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')
+  subscribeDeductions()
   try{
     const{data}=await sb.from('salary_deductions').select('amount').eq('teacher_id',TEACHER.teacher_id).eq('year_month',ym).maybeSingle()
     const amt=data?.amount||0
     if(amt>0){
       const monthName=now.toLocaleDateString('en-IN',{month:'long',year:'numeric'})
       box.style.display='block'
-      box.innerHTML='<span style="display:inline-flex;align-items:center;gap:8px;background:#FCE7EA;color:#B5122B;border:1px solid #E5556B;border-radius:999px;padding:7px 15px;font-size:13px;font-weight:800">'
-        +'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="5" y1="12" x2="19" y2="12"/></svg>'
-        +'\u2212\u20b9'+Number(amt).toLocaleString('en-IN')+' salary deduction \u00b7 '+esc(monthName)+'</span>'
+      box.innerHTML='<span onclick="showDeductionDetail(\''+ym+'\')" style="cursor:pointer;display:inline-flex;align-items:center;gap:9px;background:#FCE7EA;color:#B5122B;border:1px solid #E5556B;border-radius:999px;padding:7px 16px 7px 8px;font-size:13px;font-weight:800" title="Tap for details">'
+        +'<span style="display:inline-flex;width:19px;height:19px;border-radius:50%;background:#B5122B;color:#fff;align-items:center;justify-content:center;font-weight:900;font-size:13px;line-height:1">!</span>'
+        +'\u20b9'+Number(amt).toLocaleString('en-IN')+' salary deduction \u00b7 '+esc(monthName)
+        +'<span style="font-weight:600;opacity:.7;font-size:11px">— tap for details</span></span>'
     } else { box.style.display='none' }
   }catch(e){ box.style.display='none' }
+}
+// Realtime: refresh chip + history the moment the admin recomputes this teacher.
+function subscribeDeductions(){
+  if(_dedSub||!TEACHER)return
+  try{
+    _dedSub=sb.channel('sal_ded_'+TEACHER.teacher_id)
+      .on('postgres_changes',{event:'*',schema:'public',table:'salary_deductions',filter:'teacher_id=eq.'+TEACHER.teacher_id},
+        ()=>{loadSalaryDeductChip();loadDeductionHistory&&loadDeductionHistory()})
+      .subscribe()
+  }catch(e){ console.warn('deduction realtime subscribe failed',e) }
+}
+// Detail modal — how the deduction was calculated + the offending days with times.
+async function showDeductionDetail(ym){
+  const monthName=new Date(ym+'-01T12:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+  const[y,mo]=ym.split('-').map(Number)
+  const from=ym+'-01', to=ym+'-'+String(new Date(y,mo,0).getDate()).padStart(2,'0')
+  const[dedR,attR]=await Promise.all([
+    sb.from('salary_deductions').select('*').eq('teacher_id',TEACHER.teacher_id).eq('year_month',ym).maybeSingle().then(r=>r,()=>({data:null})),
+    sb.from('teacher_attendance').select('date,status,time_in,time_out').eq('teacher_id',TEACHER.teacher_id).gte('date',from).lte('date',to).order('date').then(r=>r,()=>({data:[]}))
+  ])
+  const ded=dedR?.data, att=attR?.data||[]
+  const bk=ded?.breakdown||{}
+  const offend=att.filter(r=>r.status==='Absent'||r.status==='Half Day'||r.status==='Late')
+  const hm=t=>t?String(t).slice(0,5):'—'
+  const rowsHtml=offend.length?offend.map(r=>{
+    const dd=new Date(r.date+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',weekday:'short'})
+    const color=r.status==='Absent'?'#B5122B':'#8A5A00'
+    return '<tr><td style="text-align:left">'+esc(dd)+'</td><td style="text-align:center;font-weight:700;color:'+color+'">'+esc(r.status)+'</td><td style="text-align:center;font-family:var(--mono,monospace)">'+hm(r.time_in)+'</td><td style="text-align:center;font-family:var(--mono,monospace)">'+hm(r.time_out)+'</td></tr>'
+  }).join(''):'<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);padding:12px">No absences, half-days or lates recorded.</td></tr>'
+  const body='<div style="font-size:13px;line-height:1.7;background:#FAFAFB;border-radius:10px;padding:12px 14px;margin-bottom:12px">'
+    +'<div style="font-weight:800;color:#B5122B;font-size:16px;margin-bottom:6px">Total deducted: \u20b9'+Number(ded?.amount||0).toLocaleString('en-IN')+'</div>'
+    +'Full absents: <b>'+(ded?.full_absents||0)+'</b> · Half days: <b>'+(ded?.half_days||0)+'</b> · Lates: <b>'+(ded?.late_count||0)+'</b><br>'
+    +(bk.leaveUnits!=null?('Leave units <b>'+bk.leaveUnits+'</b> − '+bk.paidCredit+' paid = <b>'+bk.deductibleUnits+'</b> day(s) → \u20b9'+(bk.absenceDeduction||0)+'<br>'):'')
+    +(bk.lateGroups!=null?('Lates \u00f7 '+bk.latesPer+' = <b>'+bk.lateGroups+'</b> group(s) → \u20b9'+(bk.lateDeduction||0)+(bk.perDay!=null?(' · per-day \u20b9'+bk.perDay):'')):'')
+    +'</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">Date</th><th style="text-align:center">Status</th><th style="text-align:center">In</th><th style="text-align:center">Out</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
+  openModal('Salary deduction · '+monthName, body, '<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
 }
 async function loadDeductionHistory(){
   const box=$('dedHistory'); if(!box||!TEACHER)return
