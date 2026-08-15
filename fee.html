@@ -285,6 +285,10 @@
               <label style="color:var(--accent);font-weight:600;">Allocation Priority (This Transaction)</label>
               <select id="c_allocPriority" style="border-color:var(--accent)"></select>
             </div>
+            <div class="form-group">
+              <label style="color:var(--accent);font-weight:600;">Collect tuition till</label>
+              <select id="c_tuitionTill" style="border-color:var(--accent)" onchange="runFamilyAutoAllocate()"></select>
+            </div>
           </div>
           <div class="form-group">
             <label style="color:var(--accent);font-weight:600;">Total Cash Received (₹)</label>
@@ -1337,6 +1341,13 @@ function selectFamily(fCode){
   $('c_totalCash').value='';
   populateAllocPriorityDropdown('c_allocPriority', globalAllocPriority);
   $('c_allocPriority').onchange=()=>runFamilyAutoAllocate();
+  // "Collect tuition till" — all session months; default = current ongoing month.
+  const tillSel=$('c_tuitionTill');
+  if(tillSel){
+    const am=activeMonthsFor();
+    const defMonth=am[am.length-1]||MONTHS[MONTHS.length-1];
+    tillSel.innerHTML=MONTHS.map(m=>`<option value="${m}"${m===defMonth?' selected':''}>${esc(m)}</option>`).join('');
+  }
   refreshFamilyDues();
   switchCounterMode(counterMode);
   renderFamilyTxns();
@@ -1625,7 +1636,15 @@ function runFamilyAutoAllocate(){
   const priorityRaw=$('c_allocPriority').value||globalAllocPriority;
   const wholeSession=/_FULL$/.test(priorityRaw);
   const priority=wholeSession?priorityRaw.replace(/_FULL$/,''):priorityRaw;
-  const activeMonths=wholeSession?MONTHS.slice():activeMonthsFor();
+  let activeMonths=wholeSession?MONTHS.slice():activeMonthsFor();
+  // "Collect tuition till" caps (or, for advance months, extends) the tuition
+  // window to end at the chosen month. Cash left after that month flows to the
+  // rest of the plan (prev balance / annual) per the selected priority.
+  const tillMonth=$('c_tuitionTill')?.value;
+  if(tillMonth){
+    const tillIdx=MONTHS.indexOf(tillMonth);
+    if(tillIdx>=0) activeMonths=MONTHS.slice(0,tillIdx+1);
+  }
   const skipped=[];
 
   function shouldAcceptTuition(mt,due,availCash,famAnnDue,famPrevDue){
