@@ -2029,7 +2029,7 @@ function renderFamilyTxns(){
       <td class="mono" style="font-size:11px">${esc(b.id)}</td>
       <td class="mono">${fmtDate(b.datetime)}</td>
       <td style="font-size:12px">${esc(stuNames)}</td>
-      <td class="mono" style="color:var(--green);font-weight:600">${fmtINR(b.total)}${b.toPrev>0?`<div style="font-size:9.5px;color:var(--warn);font-weight:600">+${fmtINR(b.toPrev)} to prev bal</div>`:''}</td>
+      <td class="mono" style="color:var(--green);font-weight:600">${fmtINR(b.total)}${b.toPrev>0?`<div style="font-size:9.5px;color:var(--red);font-weight:600">+${fmtINR(b.toPrev)} to prev bal</div>`:''}</td>
       <td onclick="event.stopPropagation()"><button class="btn btn-danger btn-sm" onclick="deleteBundle('${esc(b.id)}',true)">🗑 Bundle</button></td>
       <td onclick="event.stopPropagation();toggleBundleRows('fb${bi}')"><span class="bundle-toggle-btn" id="toggle_fb${bi}">▶</span></td>
     </tr>`;
