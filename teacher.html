@@ -1362,7 +1362,7 @@ function renderHandbookFlow(){
   }
   h+='</div>';
 
-  if(!isRuleGroup)h+=hbLangToggle();
+  h+=hbLangToggle();
 
   if(isIntro){
     const s=p.section;
@@ -1374,17 +1374,16 @@ function renderHandbookFlow(){
     h+='</div>';
   }
   else if(isRuleGroup){
+    const groupHeading=(_hbLang==='hi'?(p.group.heading_hi||p.group.heading_en):(p.group.heading_en||p.group.heading_hi))||('Section '+p.group.major);
     h+='<div class="card" style="padding:22px">';
-    h+='<div style="font-weight:800;font-size:17px;margin-bottom:4px;color:var(--accent,#2563eb)">'+esc(p.group.heading_en||('Section '+p.group.major))+'</div>';
-    if(p.group.heading_hi)h+='<div style="font-weight:600;font-size:14px;margin-bottom:18px;color:var(--ink-soft,#666)">'+esc(p.group.heading_hi)+'</div>';
-    else h+='<div style="margin-bottom:18px"></div>';
+    h+='<div style="font-weight:800;font-size:17px;margin-bottom:18px;color:var(--accent,#2563eb)">'+esc(groupHeading)+'</div>';
     p.group.rules.forEach((r,i)=>{
       const no=r.section_no||'';
+      const body=_hbLang==='hi'?(r.body_hi||r.body_en):(r.body_en||r.body_hi);
       const ticked=_hbAcks[r.section_id]===r.version;
       h+='<div style="margin-bottom:20px;padding-bottom:18px;'+(i<p.group.rules.length-1?'border-bottom:1px solid var(--line,#eee)':'')+'">';
-      h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;margin-bottom:6px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(r.body_en||'')+'</div>';
-      if(r.body_hi)h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;color:var(--ink-soft,#555);margin-bottom:10px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(r.body_hi)+'</div>';
-      h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid '+(ticked?'#16a34a':'var(--line,#e5e5e5)')+';border-radius:10px;padding:12px 14px;margin-top:8px">'
+      h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;margin-bottom:10px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(body||'')+'</div>';
+      h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid '+(ticked?'#16a34a':'var(--line,#e5e5e5)')+';border-radius:10px;padding:12px 14px">'
         +'<input type="checkbox" '+(ticked?'checked':'')+' onchange="hbTick(\''+r.section_id+'\','+r.version+',this.checked)" style="width:18px;height:18px;margin-top:1px;accent-color:#16a34a">'
         +'<span style="font-size:13px;font-weight:600">I have read and understood this point. / मैंने इस बिंदु को पढ़ और समझ लिया है।</span></label>';
       h+='</div>';
@@ -1466,15 +1465,14 @@ function renderHandbookFull(justSigned){
       return;
     }
     if(p.kind==='rulegroup'){
+      const groupHeading=(_hbLang==='hi'?(p.group.heading_hi||p.group.heading_en):(p.group.heading_en||p.group.heading_hi))||('Section '+p.group.major);
       h+='<div style="margin-bottom:22px">';
-      h+='<div style="font-weight:800;font-size:15px;color:var(--accent,#2563eb);margin-bottom:2px">'+esc(p.group.heading_en||('Section '+p.group.major))+'</div>';
-      if(p.group.heading_hi)h+='<div style="font-weight:600;font-size:13px;color:var(--ink-soft,#666);margin-bottom:12px">'+esc(p.group.heading_hi)+'</div>';
-      else h+='<div style="margin-bottom:12px"></div>';
+      h+='<div style="font-weight:800;font-size:15px;color:var(--accent,#2563eb);margin-bottom:12px">'+esc(groupHeading)+'</div>';
       p.group.rules.forEach(r=>{
         const no=r.section_no||'';
+        const body=_hbLang==='hi'?(r.body_hi||r.body_en):(r.body_en||r.body_hi);
         h+='<div style="margin-bottom:14px">';
-        h+='<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px;margin-bottom:3px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(r.body_en||'')+'</div>';
-        if(r.body_hi)h+='<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px;color:var(--ink-soft,#555)"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(r.body_hi)+'</div>';
+        h+='<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(body||'')+'</div>';
         h+='</div>';
       });
       h+='</div>';
