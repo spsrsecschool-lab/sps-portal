@@ -1511,7 +1511,8 @@ function renderHandbookFull(justSigned){
 }
 
 function goTo(id,el){
-  if(id==='handbook')loadHandbook();
+  if(id==='handbook')loadHandbook()
+  if(id==='dashboard')checkUnreadMessages()
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
   if(pg){pg.style.animation='none';void pg.offsetHeight;pg.style.animation='';pg.classList.add('active')}
@@ -1748,6 +1749,13 @@ function rerenderMessages(){
   const unreadTotal=threads.reduce((s,th)=>s+th.unread,0)
   if($('msgBadge')){$('msgBadge').textContent=unreadTotal;$('msgBadge').style.display=unreadTotal>0?'flex':'none'}
   if($('msgDot'))$('msgDot').style.display=unreadTotal>0?'block':'none'
+  {
+    const pill=$('unreadPill'),ptxt=$('unreadPillText')
+    if(pill){
+      if(unreadTotal>0){pill.style.display='flex';if(ptxt)ptxt.textContent='You have '+unreadTotal+' unread message'+(unreadTotal>1?'s':'')}
+      else{pill.style.display='none'}
+    }
+  }
 }
 initNotifications()
 
@@ -3108,6 +3116,16 @@ async function loadMessages(){
   $('msgBadge').textContent=unreadTotal;$('msgBadge').style.display=unreadTotal>0?'flex':'none'
   $('msgDot').style.display=unreadTotal>0?'block':'none'
   $('statMsgs').textContent=unreadTotal
+  // Keep the dashboard pill in sync with the SAME count the inbox just
+  // computed — previously only checkUnreadMessages() touched this pill, so it
+  // could go stale relative to what the Messages page actually showed.
+  {
+    const pill=$('unreadPill'),ptxt=$('unreadPillText')
+    if(pill){
+      if(unreadTotal>0){pill.style.display='flex';if(ptxt)ptxt.textContent='You have '+unreadTotal+' unread message'+(unreadTotal>1?'s':'')}
+      else{pill.style.display='none'}
+    }
+  }
   window._msgThreads=threads
   if(!threads.length){if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No messages yet.</div>';return}
   const nm=id=>nameMap[id]||id
