@@ -1911,8 +1911,10 @@ async function renderDashboard(){
 
   let pending=0
   const dueItems=[]   // one per pending assignment × assessment
+  let anyOpenAssessment=false   // true only if at least one currently-open assessment applies to this teacher
   MY_MAPPINGS.forEach(map=>{
     dueAssessmentsFor(map.class_id).forEach(a=>{
+      anyOpenAssessment=true
       if(!submittedKeys.has(subKey(a.assessment_id,map.subject_id,map.section_id))){
         pending++
         dueItems.push({name:a.name,deadline:a.submission_deadline,cls:(map.classes?.name||'?')+'-'+(map.class_sections?.name||'?'),subj:map.subjects?.name||'?'})
@@ -1932,17 +1934,23 @@ async function renderDashboard(){
     dueItems.forEach(it=>{ if(!seen.has(it.name)){seen.add(it.name);byAssess.push(it)} })
     $('bannerSub').innerHTML=byAssess.map(a=>'<div style="margin-top:3px"><b>'+esc(a.name)+'</b> — '+esc(fmtDL(a.deadline))+'</div>').join('')
   }else{
-    const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
-    const dayIdx=new Date().getDate()%allClearMsgs.length
-    {
-      $('dashBanner').style.display='none'
-      const ac=$('dashAllClear')
-      if(ac){
+    $('dashBanner').style.display='none'
+    const ac=$('dashAllClear')
+    if(ac){
+      if(anyOpenAssessment){
+        // There genuinely is/was something to submit this cycle, and it's all in — celebrate.
+        const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
+        const dayIdx=new Date().getDate()%allClearMsgs.length
         ac.style.display='block'
         ac.innerHTML='<div style="background:var(--success-soft);border:1px solid var(--success);border-radius:var(--radius-lg);padding:18px 22px;display:flex;align-items:center;gap:14px">'
           +'<div style="width:36px;height:36px;border-radius:10px;background:var(--success);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox=\"0 0 24 24\" style=\"width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.5\"><polyline points=\"20 6 9 17 4 12\"/></svg></div>'
           +'<div style=\"font-size:14px;font-weight:600;color:var(--success)\">'+allClearMsgs[dayIdx]+'</div>'
           +'</div>'
+      }else{
+        // No open assessment currently applies — nothing was actually cleared,
+        // so don't congratulate. Just show nothing.
+        ac.style.display='none'
+        ac.innerHTML=''
       }
     }
   }
