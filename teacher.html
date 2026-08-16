@@ -1511,8 +1511,7 @@ function renderHandbookFull(justSigned){
 }
 
 function goTo(id,el){
-  if(id==='handbook')loadHandbook()
-  if(id==='dashboard')checkUnreadMessages()
+  if(id==='handbook')loadHandbook();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
   if(pg){pg.style.animation='none';void pg.offsetHeight;pg.style.animation='';pg.classList.add('active')}
@@ -1749,13 +1748,6 @@ function rerenderMessages(){
   const unreadTotal=threads.reduce((s,th)=>s+th.unread,0)
   if($('msgBadge')){$('msgBadge').textContent=unreadTotal;$('msgBadge').style.display=unreadTotal>0?'flex':'none'}
   if($('msgDot'))$('msgDot').style.display=unreadTotal>0?'block':'none'
-  {
-    const pill=$('unreadPill'),ptxt=$('unreadPillText')
-    if(pill){
-      if(unreadTotal>0){pill.style.display='flex';if(ptxt)ptxt.textContent='You have '+unreadTotal+' unread message'+(unreadTotal>1?'s':'')}
-      else{pill.style.display='none'}
-    }
-  }
 }
 initNotifications()
 
@@ -1919,10 +1911,8 @@ async function renderDashboard(){
 
   let pending=0
   const dueItems=[]   // one per pending assignment × assessment
-  let anyOpenAssessment=false   // true only if at least one currently-open assessment applies to this teacher
   MY_MAPPINGS.forEach(map=>{
     dueAssessmentsFor(map.class_id).forEach(a=>{
-      anyOpenAssessment=true
       if(!submittedKeys.has(subKey(a.assessment_id,map.subject_id,map.section_id))){
         pending++
         dueItems.push({name:a.name,deadline:a.submission_deadline,cls:(map.classes?.name||'?')+'-'+(map.class_sections?.name||'?'),subj:map.subjects?.name||'?'})
@@ -1942,23 +1932,17 @@ async function renderDashboard(){
     dueItems.forEach(it=>{ if(!seen.has(it.name)){seen.add(it.name);byAssess.push(it)} })
     $('bannerSub').innerHTML=byAssess.map(a=>'<div style="margin-top:3px"><b>'+esc(a.name)+'</b> — '+esc(fmtDL(a.deadline))+'</div>').join('')
   }else{
-    $('dashBanner').style.display='none'
-    const ac=$('dashAllClear')
-    if(ac){
-      if(anyOpenAssessment){
-        // There genuinely is/was something to submit this cycle, and it's all in — celebrate.
-        const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
-        const dayIdx=new Date().getDate()%allClearMsgs.length
+    const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
+    const dayIdx=new Date().getDate()%allClearMsgs.length
+    {
+      $('dashBanner').style.display='none'
+      const ac=$('dashAllClear')
+      if(ac){
         ac.style.display='block'
         ac.innerHTML='<div style="background:var(--success-soft);border:1px solid var(--success);border-radius:var(--radius-lg);padding:18px 22px;display:flex;align-items:center;gap:14px">'
           +'<div style="width:36px;height:36px;border-radius:10px;background:var(--success);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox=\"0 0 24 24\" style=\"width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.5\"><polyline points=\"20 6 9 17 4 12\"/></svg></div>'
           +'<div style=\"font-size:14px;font-weight:600;color:var(--success)\">'+allClearMsgs[dayIdx]+'</div>'
           +'</div>'
-      }else{
-        // No open assessment currently applies — nothing was actually cleared,
-        // so don't congratulate. Just show nothing.
-        ac.style.display='none'
-        ac.innerHTML=''
       }
     }
   }
@@ -3116,16 +3100,6 @@ async function loadMessages(){
   $('msgBadge').textContent=unreadTotal;$('msgBadge').style.display=unreadTotal>0?'flex':'none'
   $('msgDot').style.display=unreadTotal>0?'block':'none'
   $('statMsgs').textContent=unreadTotal
-  // Keep the dashboard pill in sync with the SAME count the inbox just
-  // computed — previously only checkUnreadMessages() touched this pill, so it
-  // could go stale relative to what the Messages page actually showed.
-  {
-    const pill=$('unreadPill'),ptxt=$('unreadPillText')
-    if(pill){
-      if(unreadTotal>0){pill.style.display='flex';if(ptxt)ptxt.textContent='You have '+unreadTotal+' unread message'+(unreadTotal>1?'s':'')}
-      else{pill.style.display='none'}
-    }
-  }
   window._msgThreads=threads
   if(!threads.length){if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No messages yet.</div>';return}
   const nm=id=>nameMap[id]||id
@@ -3213,21 +3187,9 @@ async function openThread(idx){
   const rb=$('msgReplyBar');if(rb)rb.style.display='block'
   const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.read_at).map(m=>m.message_id)
   if(unreadIds.length){
-    const{data:updated,error}=await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unreadIds).select('message_id')
-    if(error){
-      // This is the real bug to look for: if this fires, the DB update is
-      // being rejected (almost always an RLS policy not allowing teachers to
-      // UPDATE rows where they're the recipient) — the badge will never clear
-      // no matter how many times a thread is opened, because read_at never
-      // actually changes in the database.
-      console.error('[messages] mark-as-read FAILED — check RLS UPDATE policy on messages:',error)
-      toast('Could not mark messages as read (permission issue) — contact admin','error')
-    } else if(!updated || updated.length < unreadIds.length){
-      console.warn('[messages] mark-as-read only updated',updated?.length||0,'of',unreadIds.length,'rows — likely an RLS policy silently blocking some rows')
-    } else {
-      thread.unread=0
-      document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
-    }
+    await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unreadIds)
+    thread.unread=0
+    document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
     try{checkUnreadMessages()}catch(e){}
   }
 }
@@ -3239,10 +3201,7 @@ async function openThread(idx){
 
 async function checkUnreadMessages(){
   if(!TEACHER)return
-  // Broadcasts are excluded — they're shown as dismissible banners, not in the
-  // Messages inbox/threads, so counting them here made the badge stay lit even
-  // after the teacher had read every actual message.
-  const{data:unreadData}=await sb.from('messages').select('message_id').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).neq('message_type','broadcast').is('read_at',null)
+  const{data:unreadData}=await sb.from('messages').select('message_id').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).is('read_at',null)
   const count=unreadData?.length||0
   if($('msgBadge')){$('msgBadge').textContent=count;$('msgBadge').style.display=count>0?'flex':'none'}
   if($('msgDot'))$('msgDot').style.display=count>0?'block':'none'
