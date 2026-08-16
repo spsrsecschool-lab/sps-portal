@@ -1328,6 +1328,8 @@ function hbFlowPages(){
 }
 function firstUnackedIndex(){
   const pages=hbFlowPages();
+  const hasAnyAck=Object.keys(_hbAcks).length>0;
+  if(!hasAnyAck)return 0; // brand-new teacher, nothing ticked yet — always start at the intro
   for(let i=0;i<pages.length;i++){
     const p=pages[i];
     if(p.kind==='rulegroup' && p.group.rules.some(r=>_hbAcks[r.section_id]!==r.version)) return i;
