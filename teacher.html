@@ -1073,7 +1073,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 
     <!-- MY PROFILE -->
     <div class="page" id="page-handbook">
-      <div class="page-head"><div><h2>Teacher Handbook</h2><p>Staff handbook &amp; declaration</p></div></div>
+      <div class="page-head"><div><p>Staff handbook &amp; declaration</p></div></div>
       <div id="hbHost"></div>
     </div>
 
@@ -1119,7 +1119,8 @@ let _isClassView=false
 
 const TITLES={
   dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks & Assessment',
-  critical:'Critical Students',myattendance:'My Attendance',messages:'Messages',profile:'My Profile'
+  critical:'Critical Students',myattendance:'My Attendance',messages:'Messages',profile:'My Profile',
+  handbook:'Teacher Handbook'
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1350,7 +1351,7 @@ function renderHandbookFlow(){
   const pct=Math.round(pos/total*100);
   let h='<div style="max-width:760px;margin:0 auto">';
   h+='<div style="height:6px;background:var(--line,#eee);border-radius:99px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:var(--accent,#2563eb);transition:width .2s"></div></div>';
-  h+='<div style="font-size:11px;color:var(--ink-faint,#999);margin-bottom:14px">Page '+pos+' of '+total+(isRuleGroup?(' · Section '+esc(p.group.no)):'')+'</div>';
+  h+='<div style="font-size:11px;color:var(--ink-faint,#999);margin-bottom:14px">Page '+pos+' of '+total+'</div>';
 
   h+='<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:16px">';
   h+='<button class="btn btn-ghost btn-sm" onclick="hbPrev()" '+(_hbIdx===0?'disabled style="opacity:.4"':'')+'>← Back</button>';
