@@ -3209,7 +3209,10 @@ async function openThread(idx){
 
 async function checkUnreadMessages(){
   if(!TEACHER)return
-  const{data:unreadData}=await sb.from('messages').select('message_id').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).is('read_at',null)
+  // Broadcasts are excluded — they're shown as dismissible banners, not in the
+  // Messages inbox/threads, so counting them here made the badge stay lit even
+  // after the teacher had read every actual message.
+  const{data:unreadData}=await sb.from('messages').select('message_id').eq('recipient_type','teacher').eq('recipient_id',TEACHER.teacher_id).neq('message_type','broadcast').is('read_at',null)
   const count=unreadData?.length||0
   if($('msgBadge')){$('msgBadge').textContent=count;$('msgBadge').style.display=count>0?'flex':'none'}
   if($('msgDot'))$('msgDot').style.display=count>0?'block':'none'
