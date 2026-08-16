@@ -3213,9 +3213,21 @@ async function openThread(idx){
   const rb=$('msgReplyBar');if(rb)rb.style.display='block'
   const unreadIds=thread.messages.filter(m=>!(m.sender_type==='teacher'&&m.sender_id===TEACHER.teacher_id)&&!m.read_at).map(m=>m.message_id)
   if(unreadIds.length){
-    await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unreadIds)
-    thread.unread=0
-    document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
+    const{data:updated,error}=await sb.from('messages').update({read_at:new Date().toISOString()}).in('message_id',unreadIds).select('message_id')
+    if(error){
+      // This is the real bug to look for: if this fires, the DB update is
+      // being rejected (almost always an RLS policy not allowing teachers to
+      // UPDATE rows where they're the recipient) — the badge will never clear
+      // no matter how many times a thread is opened, because read_at never
+      // actually changes in the database.
+      console.error('[messages] mark-as-read FAILED — check RLS UPDATE policy on messages:',error)
+      toast('Could not mark messages as read (permission issue) — contact admin','error')
+    } else if(!updated || updated.length < unreadIds.length){
+      console.warn('[messages] mark-as-read only updated',updated?.length||0,'of',unreadIds.length,'rows — likely an RLS policy silently blocking some rows')
+    } else {
+      thread.unread=0
+      document.querySelectorAll('.msg-thread-item[data-idx="'+idx+'"]').forEach(el=>el.classList.remove('unread'))
+    }
     try{checkUnreadMessages()}catch(e){}
   }
 }
