@@ -1305,14 +1305,17 @@ async function loadHandbook(){
   else { _hbViewMode='flow'; _hbIdx=firstUnackedIndex(); renderHandbookFlow(); }
 }
 function groupedRulePages(){
-  const rules=_hbSections.filter(s=>s.kind==='rule');
-  const groups=[]; const byNo=new Map();
+  const rules=_hbSections.filter(s=>s.kind==='rule').slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  const groups=[]; const byMajor=new Map();
   rules.forEach(r=>{
-    const gNo=r.section_no||'—';
-    if(!byNo.has(gNo)){ byNo.set(gNo,{no:gNo,rules:[]}); groups.push(byNo.get(gNo)); }
-    byNo.get(gNo).rules.push(r);
+    // "1.1" -> major "1". Groups by the number BEFORE the first dot, so 1.1/1.2/1.3 all land together.
+    const major=(String(r.section_no||'').match(/^(\d+)/)||['',''])[1]||'—';
+    if(!byMajor.has(major)){
+      byMajor.set(major,{major,heading_en:(r.title_en||'').trim(),heading_hi:(r.title_hi||'').trim(),rules:[]});
+      groups.push(byMajor.get(major));
+    }
+    byMajor.get(major).rules.push(r);
   });
-  groups.forEach(g=>{ g.rules.forEach((r,i)=>{ r._displayNo=g.no+'.'+(i+1); }); });
   return groups;
 }
 function hbFlowPages(){
@@ -1359,7 +1362,7 @@ function renderHandbookFlow(){
   }
   h+='</div>';
 
-  h+=hbLangToggle();
+  if(!isRuleGroup)h+=hbLangToggle();
 
   if(isIntro){
     const s=p.section;
@@ -1372,16 +1375,16 @@ function renderHandbookFlow(){
   }
   else if(isRuleGroup){
     h+='<div class="card" style="padding:22px">';
-    h+='<div style="font-weight:800;font-size:16px;margin-bottom:16px;color:var(--accent,#2563eb)">Section '+esc(p.group.no)+'</div>';
+    h+='<div style="font-weight:800;font-size:17px;margin-bottom:4px;color:var(--accent,#2563eb)">'+esc(p.group.heading_en||('Section '+p.group.major))+'</div>';
+    if(p.group.heading_hi)h+='<div style="font-weight:600;font-size:14px;margin-bottom:18px;color:var(--ink-soft,#666)">'+esc(p.group.heading_hi)+'</div>';
+    else h+='<div style="margin-bottom:18px"></div>';
     p.group.rules.forEach((r,i)=>{
-      const no=r._displayNo;
-      const title=(_hbLang==='hi'?(r.title_hi||r.title_en):(r.title_en||r.title_hi))||'';
-      const body=_hbLang==='hi'?(r.body_hi||r.body_en):(r.body_en||r.body_hi);
+      const no=r.section_no||'';
       const ticked=_hbAcks[r.section_id]===r.version;
-      h+='<div style="margin-bottom:18px;padding-bottom:16px;'+(i<p.group.rules.length-1?'border-bottom:1px solid var(--line,#eee)':'')+'">';
-      h+='<div style="font-weight:700;font-size:14px;margin-bottom:6px"><span style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</span>'+esc(title)+'</div>';
-      h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;margin-bottom:10px">'+esc(body||'')+'</div>';
-      h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid '+(ticked?'#16a34a':'var(--line,#e5e5e5)')+';border-radius:10px;padding:12px 14px">'
+      h+='<div style="margin-bottom:20px;padding-bottom:18px;'+(i<p.group.rules.length-1?'border-bottom:1px solid var(--line,#eee)':'')+'">';
+      h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;margin-bottom:6px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(r.body_en||'')+'</div>';
+      if(r.body_hi)h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;color:var(--ink-soft,#555);margin-bottom:10px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(r.body_hi)+'</div>';
+      h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid '+(ticked?'#16a34a':'var(--line,#e5e5e5)')+';border-radius:10px;padding:12px 14px;margin-top:8px">'
         +'<input type="checkbox" '+(ticked?'checked':'')+' onchange="hbTick(\''+r.section_id+'\','+r.version+',this.checked)" style="width:18px;height:18px;margin-top:1px;accent-color:#16a34a">'
         +'<span style="font-size:13px;font-weight:600">I have read and understood this point. / मैंने इस बिंदु को पढ़ और समझ लिया है।</span></label>';
       h+='</div>';
@@ -1464,13 +1467,14 @@ function renderHandbookFull(justSigned){
     }
     if(p.kind==='rulegroup'){
       h+='<div style="margin-bottom:22px">';
-      h+='<div style="font-weight:800;font-size:14px;color:var(--accent,#2563eb);margin-bottom:10px">Section '+esc(p.group.no)+'</div>';
+      h+='<div style="font-weight:800;font-size:15px;color:var(--accent,#2563eb);margin-bottom:2px">'+esc(p.group.heading_en||('Section '+p.group.major))+'</div>';
+      if(p.group.heading_hi)h+='<div style="font-weight:600;font-size:13px;color:var(--ink-soft,#666);margin-bottom:12px">'+esc(p.group.heading_hi)+'</div>';
+      else h+='<div style="margin-bottom:12px"></div>';
       p.group.rules.forEach(r=>{
-        const title=(_hbLang==='hi'?(r.title_hi||r.title_en):(r.title_en||r.title_hi))||'';
-        const body=_hbLang==='hi'?(r.body_hi||r.body_en):(r.body_en||r.body_hi);
+        const no=r.section_no||'';
         h+='<div style="margin-bottom:14px">';
-        h+='<div style="font-weight:700;font-size:13px;margin-bottom:3px"><span style="color:var(--accent,#2563eb);margin-right:6px">'+esc(r._displayNo)+'</span>'+esc(title)+'</div>';
-        h+='<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px">'+esc(body||'')+'</div>';
+        h+='<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px;margin-bottom:3px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(r.body_en||'')+'</div>';
+        if(r.body_hi)h+='<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px;color:var(--ink-soft,#555)"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(r.body_hi)+'</div>';
         h+='</div>';
       });
       h+='</div>';
