@@ -3961,6 +3961,54 @@ async function openSubmissionStatus(){
   if(!_currentAssess)return;const a=_currentAssess
   openSub('assessments','sub-assess-status');const el=$('assessStatusContent')
   el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="loading-row"><div class="spinner"></div></div>'
+
+  // Once an assessment's end date (or start date if no end date) has passed,
+  // Class & Subject Mapping may have since changed (reassigned teachers,
+  // renamed subjects, etc). Recomputing status against the CURRENT mapping at
+  // that point wrongly flags teachers who already submitted, and loses the
+  // record of who actually did. So for closed assessments we build the view
+  // purely from marks_lock_state — the real record of who locked what —
+  // instead of joining against live mapping.
+  const cutoff=a.end_date||a.commencement_date
+  const isClosed = !!cutoff && cutoff < today()
+
+  const{data:lockRows}=await sb.from('marks_lock_state').select('teacher_id,subject_id,section_id,is_locked').eq('assessment_id',a.assessment_id)
+
+  if(isClosed){
+    if(!lockRows?.length){el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="empty-state"><p>This assessment is closed and no submissions were recorded.</p></div>';return}
+    const teacherIds=[...new Set(lockRows.map(r=>r.teacher_id))]
+    const subjectIds=[...new Set(lockRows.map(r=>r.subject_id))]
+    const sectionIds=[...new Set(lockRows.map(r=>r.section_id))]
+    const[{data:tchs},{data:subs},{data:secs}]=await Promise.all([
+      teacherIds.length?sb.from('teachers').select('teacher_id,full_name').in('teacher_id',teacherIds):Promise.resolve({data:[]}),
+      subjectIds.length?sb.from('subjects').select('subject_id,name').in('subject_id',subjectIds):Promise.resolve({data:[]}),
+      sectionIds.length?sb.from('class_sections').select('section_id,name,class_id').in('section_id',sectionIds):Promise.resolve({data:[]})
+    ])
+    const tName={};(tchs||[]).forEach(t=>tName[t.teacher_id]=t.full_name)
+    const sName={};(subs||[]).forEach(s=>sName[s.subject_id]=s.name)
+    const secInfo={};(secs||[]).forEach(s=>secInfo[s.section_id]=s)
+    const clsIds=[...new Set(Object.values(secInfo).map(s=>s.class_id).filter(Boolean))]
+    const{data:clsRows}=clsIds.length?await sb.from('classes').select('class_id,name').in('class_id',clsIds):{data:[]}
+    const cName={};(clsRows||[]).forEach(c=>cName[c.class_id]=c.name)
+
+    const byTeacher={}
+    lockRows.forEach(r=>{
+      if(!byTeacher[r.teacher_id])byTeacher[r.teacher_id]={name:tName[r.teacher_id]||'—',rows:[]}
+      const sec=secInfo[r.section_id]||{}
+      byTeacher[r.teacher_id].rows.push({
+        cls:cName[sec.class_id]||'—', sec:sec.name||'—', subj:sName[r.subject_id]||'—', locked:!!r.is_locked
+      })
+    })
+    const pill2=locked=>locked?'<span class="pill pill-success">Submitted &amp; Locked</span>':'<span class="pill pill-warn">Submitted (unlocked for correction)</span>'
+    const table='<div class="card"><div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This assessment closed on '+fmtD(cutoff)+'. Showing the historical submission record — later changes to Class &amp; Subject Mapping do not affect this view.</div><div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Section</th><th>Subject</th><th>Status</th></tr></thead><tbody>'
+      +Object.values(byTeacher).map(t=>t.rows.map((r,i)=>'<tr>'+(i===0?'<td rowspan="'+t.rows.length+'" style="font-weight:700;vertical-align:top">'+esc(t.name)+'</td>':'')+'<td>'+esc(r.cls)+'</td><td>'+esc(r.sec)+'</td><td>'+esc(r.subj)+'</td><td>'+pill2(r.locked)+'</td></tr>').join('')).join('')
+      +'</tbody></table></div></div>'
+    el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div>'+table
+    return
+  }
+
+  // Assessment still open — compute live against the current mapping so
+  // pending reminders keep working while marks entry is still in progress.
   const{data:acRows}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',a.assessment_id)
   const classIds=(acRows||[]).map(r=>r.class_id)
   if(!classIds.length){el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
@@ -3983,15 +4031,11 @@ async function openSubmissionStatus(){
   const entered={}  // key: subject_id + '_' + section_id → Set(enrollment_id)
   marks.forEach(m=>{ const sec=enrSection[m.enrollment_id]; if(!sec)return; const k=m.subject_id+'_'+sec; (entered[k]=entered[k]||new Set()).add(m.enrollment_id) })
 
-  const{data:lockRows}=await sb.from('marks_lock_state').select('teacher_id,subject_id,section_id,is_locked').eq('assessment_id',a.assessment_id)
   const lockMap={};lockRows?.forEach(m=>{lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]=m.is_locked})
 
   // Compute status per mapping row + tally pending per teacher.
   const pendingByTeacher={}  // teacher_id → {name, pending:count}
   const byTeacher={}
-  // Submission is decided purely by marks lock state: a subject counts as
-  // submitted only once the teacher has locked it. Anything not locked is
-  // pending, regardless of how many marks were entered.
   maps.forEach(m=>{
     if(!byTeacher[m.teacher_id])byTeacher[m.teacher_id]={name:m.teachers?.full_name||'—',rows:[]}
     const total=secCount[m.section_id]||0
