@@ -768,7 +768,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       My Attendance
     </div>
-    <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Code of Conduct &amp; Declaration</div>
+    <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Teacher Handbook</div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Profile
@@ -1073,6 +1073,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 
     <!-- MY PROFILE -->
     <div class="page" id="page-handbook">
+      <div class="page-head"><div><h2>Teacher Handbook</h2><p>Staff handbook &amp; declaration</p></div></div>
       <div id="hbHost"></div>
     </div>
 
@@ -1118,8 +1119,7 @@ let _isClassView=false
 
 const TITLES={
   dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks & Assessment',
-  critical:'Critical Students',myattendance:'My Attendance',messages:'Messages',profile:'My Profile',
-  handbook:'Code of Conduct & Declaration'
+  critical:'Critical Students',myattendance:'My Attendance',messages:'Messages',profile:'My Profile'
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1284,228 +1284,168 @@ async function loadDeductionHistory(){
     +rows.map(r=>{const ml=new Date(r.year_month+'-01T12:00:00').toLocaleDateString('en-IN',{month:'short',year:'numeric'});return '<tr><td style="text-align:left;font-weight:600">'+esc(ml)+'</td><td style="text-align:center">'+(r.full_absents||0)+'</td><td style="text-align:center">'+(r.half_days||0)+'</td><td style="text-align:center">'+(r.late_count||0)+'</td><td style="text-align:right;font-weight:800;color:'+(r.amount>0?'#B5122B':'var(--ink-faint)')+'">'+(r.amount>0?'\u2212\u20b9'+Number(r.amount).toLocaleString('en-IN'):'\u20b90')+'</td></tr>'}).join('')
     +'</tbody></table></div></div>'
 }
-// ═══════════ TEACHER HANDBOOK (portal-side) ═══════════
-// Requires globals: sb, TEACHER, $, esc, goTo, openModal/closeModal not required.
-let _hbSections=[], _hbAcks={}, _hbIdx=0, _hbSignedOff=false, _hbLang='en', _hbViewMode='flow', _hbSignoffData=null;
+// ═══════════ TEACHER HANDBOOK v2 (portal-side, section-wise) ═══════════
+// Requires: sb, TEACHER, $, esc.
+let _hbSecs=[], _hbRules={}, _hbMeta=null, _hbAcks={}, _hbSignedOff=false, _hbLang='en', _hbIdx=0, _hbTickState={};
 async function loadHandbook(){
   const host=$('hbHost'); if(!host||!TEACHER)return;
   host.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint,#999)">Loading…</div>';
-  const[secsRes,acksRes,soRes]=await Promise.all([
-    sb.from('handbook_sections').select('*').eq('is_active',true).order('sort_order'),
-    sb.from('handbook_acks').select('*').eq('teacher_id',TEACHER.teacher_id),
+  const[{data:secs},{data:rules},{data:meta},{data:acks},{data:so}]=await Promise.all([
+    sb.from('handbook_sections_v2').select('*').eq('is_active',true).order('sort_order'),
+    sb.from('handbook_rules').select('*').eq('is_active',true).order('sort_order'),
+    sb.from('handbook_meta').select('*').eq('id',1).maybeSingle().then(r=>r,()=>({data:null})),
+    sb.from('handbook_acks_v2').select('*').eq('teacher_id',TEACHER.teacher_id),
     sb.from('handbook_signoffs').select('*').eq('teacher_id',TEACHER.teacher_id).maybeSingle().then(r=>r,()=>({data:null}))
   ]);
-  _hbSections=secsRes.data||[];
-  _hbAcks={}; (acksRes.data||[]).forEach(a=>_hbAcks[a.section_id]=a.version);
-  _hbSignoffData=(soRes&&soRes.data)||null;
-  _hbSignedOff=!!_hbSignoffData;
-  const rules=_hbSections.filter(s=>s.kind==='rule');
-  // "Fully signed" = signed off AND ticked the CURRENT version of every rule.
-  const upToDate=_hbSignedOff && rules.every(r=>_hbAcks[r.section_id]===r.version);
-  if(upToDate){ _hbViewMode='full'; renderHandbookFull(); }
-  else { _hbViewMode='flow'; _hbIdx=firstUnackedIndex(); renderHandbookFlow(); }
+  _hbSecs=secs||[];
+  _hbRules={}; (rules||[]).forEach(r=>{(_hbRules[r.section_id]=_hbRules[r.section_id]||[]).push(r)});
+  _hbMeta=(meta&&meta.data!==undefined)?meta.data:meta; if(_hbMeta&&_hbMeta.data)_hbMeta=_hbMeta.data;
+  _hbAcks={}; (acks||[]).forEach(a=>_hbAcks[a.section_id]=a.version);
+  _hbSignedOff=!!(so&&(so.id||so.teacher_id));
+  const upToDate=_hbSignedOff && _hbSecs.every(s=>_hbAcks[s.section_id]===s.version);
+  if(upToDate){ renderHandbookFull(); }
+  else { _hbIdx=firstUnackedPage(); renderHandbookFlow(); }
 }
-function groupedRulePages(){
-  const rules=_hbSections.filter(s=>s.kind==='rule').slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-  const groups=[]; const byMajor=new Map();
-  rules.forEach(r=>{
-    // "1.1" -> major "1". Groups by the number BEFORE the first dot, so 1.1/1.2/1.3 all land together.
-    const major=(String(r.section_no||'').match(/^(\d+)/)||['',''])[1]||'—';
-    if(!byMajor.has(major)){
-      byMajor.set(major,{major,heading_en:(r.title_en||'').trim(),heading_hi:(r.title_hi||'').trim(),rules:[]});
-      groups.push(byMajor.get(major));
-    }
-    byMajor.get(major).rules.push(r);
-  });
-  return groups;
+// Pages: [intro, ...sections, declaration]
+function hbPages(){
+  const pages=[{kind:'intro'}];
+  _hbSecs.forEach(s=>pages.push({kind:'section',sec:s}));
+  pages.push({kind:'declaration'});
+  return pages;
 }
-function hbFlowPages(){
-  // intro pages, then one page per grouped section, then declaration
-  const intro=_hbSections.filter(s=>s.kind==='intro').map(s=>({kind:'intro',section:s}));
-  const groups=groupedRulePages().map(g=>({kind:'rulegroup',group:g}));
-  const decl=_hbSections.filter(s=>s.kind==='declaration').map(s=>({kind:'declaration',section:s}));
-  return [...intro, ...groups, ...decl];
-}
-function firstUnackedIndex(){
-  const pages=hbFlowPages();
-  const hasAnyAck=Object.keys(_hbAcks).length>0;
-  if(!hasAnyAck)return 0; // brand-new teacher, nothing ticked yet — always start at the intro
+function firstUnackedPage(){
+  const pages=hbPages();
   for(let i=0;i<pages.length;i++){
-    const p=pages[i];
-    if(p.kind==='rulegroup' && p.group.rules.some(r=>_hbAcks[r.section_id]!==r.version)) return i;
+    if(pages[i].kind==='section'){ const s=pages[i].sec; if(_hbAcks[s.section_id]!==s.version) return i; }
   }
-  return 0; // all rules ticked → start at intro (they still need to sign)
+  return 0;
 }
 function hbLangToggle(){
   return '<div style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:10px">'
     +'<button class="btn btn-ghost btn-xs" onclick="hbSetLang(\'en\')" style="'+(_hbLang==='en'?'background:var(--ink,#111);color:#fff':'')+'">English</button>'
     +'<button class="btn btn-ghost btn-xs" onclick="hbSetLang(\'hi\')" style="'+(_hbLang==='hi'?'background:var(--ink,#111);color:#fff':'')+'">हिंदी</button></div>';
 }
-function hbSetLang(l){ _hbLang=l; if(_hbViewMode==='full')renderHandbookFull(); else renderHandbookFlow(); }
+function hbSetLang(l){ _hbLang=l; renderHandbookFlow(); }
+function hbT(en,hi){ return _hbLang==='hi'?(hi||en||''):(en||hi||''); }
 function renderHandbookFlow(){
   const host=$('hbHost'); if(!host)return;
-  const pages=hbFlowPages(); if(!pages.length){host.innerHTML='<div class="card">The handbook has not been set up yet. Please check back later.</div>';return}
+  const pages=hbPages();
   if(_hbIdx<0)_hbIdx=0; if(_hbIdx>=pages.length)_hbIdx=pages.length-1;
-  const p=pages[_hbIdx];
-  const total=pages.length, pos=_hbIdx+1;
-  const isRuleGroup=p.kind==='rulegroup', isDecl=p.kind==='declaration', isIntro=p.kind==='intro';
-
+  const page=pages[_hbIdx], pos=_hbIdx+1, total=pages.length;
   const pct=Math.round(pos/total*100);
-  let h='<div style="max-width:760px;margin:0 auto">';
+  let h='<div style="max-width:820px;margin:0 auto">';
   h+='<div style="height:6px;background:var(--line,#eee);border-radius:99px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:var(--accent,#2563eb);transition:width .2s"></div></div>';
   h+='<div style="font-size:11px;color:var(--ink-faint,#999);margin-bottom:14px">Page '+pos+' of '+total+'</div>';
 
+  // top nav
+  const canAdvance = hbPageComplete(page);
   h+='<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:16px">';
   h+='<button class="btn btn-ghost btn-sm" onclick="hbPrev()" '+(_hbIdx===0?'disabled style="opacity:.4"':'')+'>← Back</button>';
-  if(isDecl){
-    h+='<button class="btn btn-dark btn-sm" id="hbFinishBtn" onclick="hbFinish()" disabled style="opacity:.5">Sign &amp; Finish</button>';
+  if(page.kind==='declaration'){
+    h+='<button class="btn btn-dark btn-sm" id="hbFinishBtn" onclick="hbFinish()" '+(canAdvance?'':'disabled style="opacity:.5"')+'>Sign &amp; Finish</button>';
   }else{
-    const canNext = !isRuleGroup || p.group.rules.every(r=>_hbAcks[r.section_id]===r.version);
-    h+='<button class="btn btn-dark btn-sm" id="hbNextBtn" onclick="hbNext()" '+(canNext?'':'disabled style="opacity:.5"')+'>Next →</button>';
+    h+='<button class="btn btn-dark btn-sm" id="hbNextBtn" onclick="hbNext()" '+(canAdvance?'':'disabled style="opacity:.5"')+'>Next →</button>';
   }
   h+='</div>';
-
   h+=hbLangToggle();
 
-  if(isIntro){
-    const s=p.section;
-    const title=(_hbLang==='hi'?(s.title_hi||s.title_en):(s.title_en||s.title_hi))||'';
-    const body=_hbLang==='hi'?(s.body_hi||s.body_en):(s.body_en||s.body_hi);
-    h+='<div class="card" style="padding:22px">';
-    if(title)h+='<div style="font-weight:800;font-size:16px;margin-bottom:12px;color:var(--accent,#2563eb)">'+esc(title)+'</div>';
-    h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:14px;margin-bottom:12px">'+esc(body||'')+'</div>';
+  if(page.kind==='intro'){
+    h+='<div class="card" style="padding:24px">';
+    const t=hbT(_hbMeta?.intro_title_en,_hbMeta?.intro_title_hi)||'Teacher Handbook';
+    h+='<h2 style="margin:0 0 12px;font-size:20px">'+esc(t)+'</h2>';
+    h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:14px">'+esc(hbT(_hbMeta?.intro_body_en,_hbMeta?.intro_body_hi))+'</div>';
     h+='</div>';
   }
-  else if(isRuleGroup){
-    const groupHeading=(_hbLang==='hi'?(p.group.heading_hi||p.group.heading_en):(p.group.heading_en||p.group.heading_hi))||('Section '+p.group.major);
+  else if(page.kind==='section'){
+    const s=page.sec; const rules=(_hbRules[s.section_id]||[]);
+    const secTitle=[s.section_no?('Section '+s.section_no):'',hbT(s.title_en,s.title_hi)].filter(Boolean).join(' — ');
+    const already=_hbAcks[s.section_id]===s.version;
     h+='<div class="card" style="padding:22px">';
-    h+='<div style="font-weight:800;font-size:17px;margin-bottom:18px;color:var(--accent,#2563eb)">'+esc(groupHeading)+'</div>';
-    p.group.rules.forEach((r,i)=>{
-      const no=r.section_no||'';
-      const body=_hbLang==='hi'?(r.body_hi||r.body_en):(r.body_en||r.body_hi);
-      const ticked=_hbAcks[r.section_id]===r.version;
-      h+='<div style="margin-bottom:20px;padding-bottom:18px;'+(i<p.group.rules.length-1?'border-bottom:1px solid var(--line,#eee)':'')+'">';
-      h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;margin-bottom:10px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(body||'')+'</div>';
-      h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid '+(ticked?'#16a34a':'var(--line,#e5e5e5)')+';border-radius:10px;padding:12px 14px">'
-        +'<input type="checkbox" '+(ticked?'checked':'')+' onchange="hbTick(\''+r.section_id+'\','+r.version+',this.checked)" style="width:18px;height:18px;margin-top:1px;accent-color:#16a34a">'
-        +'<span style="font-size:13px;font-weight:600">I have read and understood this point. / मैंने इस बिंदु को पढ़ और समझ लिया है।</span></label>';
-      h+='</div>';
+    h+='<div style="font-weight:800;font-size:17px;margin-bottom:4px;color:var(--accent,#2563eb)">'+esc(secTitle)+'</div>';
+    h+='<div style="font-size:11.5px;color:var(--ink-faint,#999);margin-bottom:16px">Tick every point to continue. / जारी रखने के लिए प्रत्येक बिंदु पर टिक करें।</div>';
+    rules.forEach(r=>{
+      const key=r.rule_id; const checked = already || _hbTickState[key];
+      h+='<div style="border:1px solid var(--line,#eee);border-radius:10px;padding:12px 14px;margin-bottom:10px">';
+      h+='<div style="display:flex;gap:10px;align-items:flex-start">';
+      h+='<span style="font-weight:800;font-family:var(--mono,monospace);color:var(--accent,#2563eb);min-width:38px">'+esc(r.rule_no||'')+'</span>';
+      h+='<div style="flex:1;min-width:0"><div style="white-space:pre-wrap;line-height:1.6;font-size:13.5px;margin-bottom:8px">'+esc(hbT(r.body_en,r.body_hi))+'</div>';
+      h+='<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600;color:'+(checked?'#16a34a':'var(--ink-soft,#666)')+'">'
+        +'<input type="checkbox" class="hb-rule-chk" data-rule="'+key+'" '+(checked?'checked':'')+' onchange="hbRuleTick(\''+key+'\',this.checked)" style="width:16px;height:16px;accent-color:#16a34a"> Read &amp; understood / पढ़ और समझ लिया</label>';
+      h+='</div></div></div>';
     });
     h+='</div>';
   }
-  else if(isDecl){
-    const s=p.section;
-    const nm=esc(TEACHER.full_name||'');
-    const title=(_hbLang==='hi'?(s.title_hi||s.title_en):(s.title_en||s.title_hi))||'';
-    let body=(_hbLang==='hi'?(s.body_hi||s.body_en):(s.body_en||s.body_hi))||'';
-    body=body.replace(/\{name\}/g,nm);
+  else if(page.kind==='declaration'){
     h+='<div class="card" style="padding:22px">';
-    if(title)h+='<div style="font-weight:800;font-size:16px;margin-bottom:12px;color:var(--accent,#2563eb)">'+esc(title)+'</div>';
+    const t=hbT(_hbMeta?.decl_title_en,_hbMeta?.decl_title_hi)||'Declaration';
+    let body=hbT(_hbMeta?.decl_body_en,_hbMeta?.decl_body_hi)||'';
+    body=body.replace(/\{name\}/g, TEACHER.full_name||'');
+    h+='<div style="font-weight:800;font-size:17px;margin-bottom:12px;color:var(--accent,#2563eb)">'+esc(t)+'</div>';
     h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:14px;margin-bottom:12px">'+esc(body)+'</div>';
-    h+='<div style="font-size:12.5px;color:var(--ink-soft,#666);margin:10px 0 4px">Name: <b>'+nm+'</b>'+(TEACHER.designation?(' · '+esc(TEACHER.designation)):'')+' · Date: <b>'+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})+'</b></div>';
-    h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid var(--line,#e5e5e5);border-radius:10px;padding:12px 14px;margin-top:8px">'
-      +'<input type="checkbox" id="hbDeclChk" onchange="hbDeclToggle(this.checked)" style="width:18px;height:18px;margin-top:1px;accent-color:#16a34a">'
+    h+='<div style="font-size:12.5px;color:var(--ink-soft,#666);margin:8px 0">Name: <b>'+esc(TEACHER.full_name||'')+'</b>'+(TEACHER.designation?(' · '+esc(TEACHER.designation)):'')+' · Date: <b>'+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})+'</b></div>';
+    h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid var(--line,#e5e5e5);border-radius:10px;padding:12px 14px;margin-top:6px">'
+      +'<input type="checkbox" id="hbDeclChk" '+(_hbTickState.__decl?'checked':'')+' onchange="hbDeclTick(this.checked)" style="width:18px;height:18px;margin-top:1px;accent-color:#16a34a">'
       +'<span style="font-size:13px;font-weight:600">I agree to abide by all the rules above. / मैं उपर्युक्त सभी नियमों का पालन करने हेतु सहमत हूं।</span></label>';
     h+='</div>';
   }
   h+='</div>';
   host.innerHTML=h;
 }
+function hbPageComplete(page){
+  if(page.kind==='section'){
+    const s=page.sec; if(_hbAcks[s.section_id]===s.version) return true;
+    const rules=(_hbRules[s.section_id]||[]);
+    return rules.length>0 && rules.every(r=>_hbTickState[r.rule_id]);
+  }
+  if(page.kind==='declaration'){
+    return _hbSecs.every(s=>_hbAcks[s.section_id]===s.version) && !!_hbTickState.__decl;
+  }
+  return true; // intro
+}
+function hbRefreshBtn(){
+  const page=hbPages()[_hbIdx];
+  const ok=hbPageComplete(page);
+  const b=$('hbNextBtn')||$('hbFinishBtn');
+  if(b){ b.disabled=!ok; b.style.opacity=ok?'':'.5'; }
+}
+function hbRuleTick(ruleId,checked){ _hbTickState[ruleId]=checked; hbRefreshBtn(); }
+function hbDeclTick(checked){ _hbTickState.__decl=checked; hbRefreshBtn(); }
 function hbPrev(){ if(_hbIdx>0){_hbIdx--; renderHandbookFlow();} }
-function hbNext(){
-  const pages=hbFlowPages(); const p=pages[_hbIdx];
-  if(p.kind==='rulegroup' && !p.group.rules.every(r=>_hbAcks[r.section_id]===r.version)) return; // guard
-  if(_hbIdx<pages.length-1){_hbIdx++; renderHandbookFlow();}
-}
-async function hbTick(sectionId,version,checked){
-  if(checked){
-    _hbAcks[sectionId]=version;
-    await sb.from('handbook_acks').upsert({teacher_id:TEACHER.teacher_id,section_id:sectionId,version,ticked_at:new Date().toISOString()},{onConflict:'teacher_id,section_id'});
-  }else{
-    delete _hbAcks[sectionId];
-    await sb.from('handbook_acks').delete().eq('teacher_id',TEACHER.teacher_id).eq('section_id',sectionId);
+async function hbNext(){
+  const page=hbPages()[_hbIdx];
+  if(!hbPageComplete(page))return;
+  if(page.kind==='section' && _hbAcks[page.sec.section_id]!==page.sec.version){
+    // Persist the section acknowledgement (whole section, current version).
+    const s=page.sec;
+    _hbAcks[s.section_id]=s.version;
+    await sb.from('handbook_acks_v2').upsert({teacher_id:TEACHER.teacher_id,section_id:s.section_id,version:s.version,ticked_at:new Date().toISOString()},{onConflict:'teacher_id,section_id'});
   }
-  // enable/disable Next only once every rule in the CURRENT group is ticked
-  const pages=hbFlowPages(); const p=pages[_hbIdx];
-  const btn=$('hbNextBtn');
-  if(btn && p && p.kind==='rulegroup'){
-    const allTicked=p.group.rules.every(r=>_hbAcks[r.section_id]===r.version);
-    if(allTicked){btn.disabled=false;btn.style.opacity='';}
-    else{btn.disabled=true;btn.style.opacity='.5';}
-  }
-}
-function hbDeclToggle(checked){
-  const btn=$('hbFinishBtn'); if(!btn)return;
-  const rules=_hbSections.filter(s=>s.kind==='rule');
-  const allTicked=rules.every(r=>_hbAcks[r.section_id]===r.version);
-  if(checked&&allTicked){btn.disabled=false;btn.style.opacity='';}
-  else {btn.disabled=true;btn.style.opacity='.5'; if(checked&&!allTicked){ /* jump back to first unticked */ } }
+  if(_hbIdx<hbPages().length-1){_hbIdx++; renderHandbookFlow();}
 }
 async function hbFinish(){
-  const rules=_hbSections.filter(s=>s.kind==='rule');
-  const missing=rules.filter(r=>_hbAcks[r.section_id]!==r.version);
-  if(missing.length){ _hbIdx=firstUnackedIndex(); renderHandbookFlow(); return; }
-  const signedAt=new Date().toISOString();
-  await sb.from('handbook_signoffs').upsert({teacher_id:TEACHER.teacher_id,signed_at:signedAt,signed_name:TEACHER.full_name||null},{onConflict:'teacher_id'});
+  const page=hbPages()[_hbIdx];
+  if(!hbPageComplete(page)){ _hbIdx=firstUnackedPage(); renderHandbookFlow(); return; }
+  await sb.from('handbook_signoffs').upsert({teacher_id:TEACHER.teacher_id,signed_at:new Date().toISOString(),signed_name:TEACHER.full_name||null},{onConflict:'teacher_id'});
   _hbSignedOff=true;
-  _hbSignoffData={teacher_id:TEACHER.teacher_id,signed_at:signedAt,signed_name:TEACHER.full_name||null};
   renderHandbookFull(true);
 }
 function renderHandbookFull(justSigned){
   const host=$('hbHost'); if(!host)return;
-  _hbViewMode='full';
-  const pages=hbFlowPages();
   let h='<div style="max-width:820px;margin:0 auto">';
   if(justSigned){ h+='<div style="background:#EAF7EE;border:1px solid #16a34a;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:700;color:#137a37;margin-bottom:14px">✓ Thank you — your declaration has been recorded. You can read the full handbook below anytime.</div>'; }
   h+=hbLangToggle();
   h+='<div class="card" style="padding:24px">';
-  pages.forEach(p=>{
-    if(p.kind==='declaration')return; // handled separately below, after all sections
-    if(p.kind==='intro'){
-      const s=p.section;
-      const title=(_hbLang==='hi'?(s.title_hi||s.title_en):(s.title_en||s.title_hi))||'';
-      const body=_hbLang==='hi'?(s.body_hi||s.body_en):(s.body_en||s.body_hi);
-      if(title)h+='<h2 style="font-size:20px;margin:0 0 10px">'+esc(title)+'</h2>';
-      h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;color:var(--ink-soft,#555);margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line,#eee)">'+esc(body||'')+'</div>';
-      return;
-    }
-    if(p.kind==='rulegroup'){
-      const groupHeading=(_hbLang==='hi'?(p.group.heading_hi||p.group.heading_en):(p.group.heading_en||p.group.heading_hi))||('Section '+p.group.major);
-      h+='<div style="margin-bottom:22px">';
-      h+='<div style="font-weight:800;font-size:15px;color:var(--accent,#2563eb);margin-bottom:12px">'+esc(groupHeading)+'</div>';
-      p.group.rules.forEach(r=>{
-        const no=r.section_no||'';
-        const body=_hbLang==='hi'?(r.body_hi||r.body_en):(r.body_en||r.body_hi);
-        h+='<div style="margin-bottom:14px">';
-        h+='<div style="white-space:pre-wrap;line-height:1.65;font-size:13.5px"><b style="color:var(--accent,#2563eb);margin-right:6px">'+esc(no)+'</b>'+esc(body||'')+'</div>';
-        h+='</div>';
-      });
-      h+='</div>';
-    }
+  const it=hbT(_hbMeta?.intro_title_en,_hbMeta?.intro_title_hi);
+  if(it)h+='<h2 style="margin:0 0 8px;font-size:20px">'+esc(it)+'</h2>';
+  h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13px;color:var(--ink-soft,#555);margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line,#eee)">'+esc(hbT(_hbMeta?.intro_body_en,_hbMeta?.intro_body_hi))+'</div>';
+  _hbSecs.forEach(s=>{
+    const secTitle=[s.section_no?('Section '+s.section_no):'',hbT(s.title_en,s.title_hi)].filter(Boolean).join(' — ');
+    h+='<div style="font-weight:800;font-size:15px;margin:16px 0 8px;color:var(--accent,#2563eb)">'+esc(secTitle)+'</div>';
+    (_hbRules[s.section_id]||[]).forEach(r=>{
+      h+='<div style="display:flex;gap:10px;margin-bottom:8px"><span style="font-weight:800;font-family:var(--mono,monospace);color:var(--accent,#2563eb);min-width:38px">'+esc(r.rule_no||'')+'</span>'
+        +'<div style="white-space:pre-wrap;line-height:1.6;font-size:13.5px">'+esc(hbT(r.body_en,r.body_hi))+'</div></div>';
+    });
   });
-
-  // Declaration — shown read-only at the end, with a signed & verified badge.
-  const declPage=pages.find(p=>p.kind==='declaration');
-  if(declPage){
-    const s=declPage.section;
-    const nm=esc(TEACHER.full_name||'');
-    const title=(_hbLang==='hi'?(s.title_hi||s.title_en):(s.title_en||s.title_hi))||'';
-    let body=(_hbLang==='hi'?(s.body_hi||s.body_en):(s.body_en||s.body_hi))||'';
-    body=body.replace(/\{name\}/g,nm);
-    const signedAt=_hbSignoffData?.signed_at;
-    const signedDate=signedAt?new Date(signedAt).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}):'';
-    const signedTime=signedAt?new Date(signedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'';
-    h+='<div style="margin-top:8px;padding-top:18px;border-top:1px solid var(--line,#eee)">';
-    if(title)h+='<div style="font-weight:800;font-size:15px;margin-bottom:10px;color:var(--accent,#2563eb)">'+esc(title)+'</div>';
-    h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;margin-bottom:14px">'+esc(body)+'</div>';
-    h+='<div style="display:flex;align-items:center;gap:10px;background:#EAF7EE;border:1px solid #16a34a;border-radius:10px;padding:12px 16px">'
-      +'<span style="display:inline-flex;width:24px;height:24px;border-radius:50%;background:#16a34a;color:#fff;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:#fff;fill:none;stroke-width:3"><polyline points="20 6 9 17 4 12"/></svg></span>'
-      +'<div><div style="font-weight:800;font-size:13.5px;color:#137a37">Signed &amp; Verified</div>'
-      +'<div style="font-size:12px;color:#137a37;opacity:.85">'+nm+(TEACHER.designation?(' · '+esc(TEACHER.designation)):'')+(signedDate?(' · '+signedDate+(signedTime?', '+signedTime:'')):'')+'</div></div>'
-      +'</div>';
-    h+='</div>';
-  }
-
   h+='</div></div>';
   host.innerHTML=h;
 }
