@@ -1286,7 +1286,7 @@ async function loadDeductionHistory(){
 }
 // ═══════════ TEACHER HANDBOOK v2 (portal-side, section-wise) ═══════════
 // Requires: sb, TEACHER, $, esc.
-let _hbSecs=[], _hbRules={}, _hbMeta=null, _hbAcks={}, _hbSignedOff=false, _hbLang='en', _hbIdx=0, _hbTickState={};
+let _hbSecs=[], _hbRules={}, _hbMeta=null, _hbAcks={}, _hbSignedOff=false, _hbLang='en', _hbIdx=0, _hbTickState={}, _hbFullView=false;
 async function loadHandbook(){
   const host=$('hbHost'); if(!host||!TEACHER)return;
   host.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint,#999)">Loading…</div>';
@@ -1326,9 +1326,10 @@ function hbLangToggle(){
     +'<button class="btn btn-ghost btn-xs" onclick="hbSetLang(\'en\')" style="'+(_hbLang==='en'?'background:var(--ink,#111);color:#fff':'')+'">English</button>'
     +'<button class="btn btn-ghost btn-xs" onclick="hbSetLang(\'hi\')" style="'+(_hbLang==='hi'?'background:var(--ink,#111);color:#fff':'')+'">हिंदी</button></div>';
 }
-function hbSetLang(l){ _hbLang=l; renderHandbookFlow(); }
+function hbSetLang(l){ _hbLang=l; if(_hbFullView) renderHandbookFull(); else renderHandbookFlow(); }
 function hbT(en,hi){ return _hbLang==='hi'?(hi||en||''):(en||hi||''); }
 function renderHandbookFlow(){
+  _hbFullView=false;
   const host=$('hbHost'); if(!host)return;
   const pages=hbPages();
   if(_hbIdx<0)_hbIdx=0; if(_hbIdx>=pages.length)_hbIdx=pages.length-1;
@@ -1437,6 +1438,7 @@ async function hbFinish(){
   renderHandbookFull(true);
 }
 function renderHandbookFull(justSigned){
+  _hbFullView=true;
   const host=$('hbHost'); if(!host)return;
   let h='<div style="max-width:820px;margin:0 auto">';
   if(justSigned){ h+='<div style="background:#EAF7EE;border:1px solid #16a34a;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:700;color:#137a37;margin-bottom:14px">✓ Thank you — your declaration has been recorded. You can read the full code of conduct below anytime.</div>'; }
