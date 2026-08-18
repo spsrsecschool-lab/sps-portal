@@ -1119,7 +1119,7 @@ let _isClassView=false
 
 const TITLES={
   dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks & Assessment',
-  critical:'Critical Students',myattendance:'My Attendance',messages:'Messages',profile:'My Profile'
+  critical:'Critical Students',myattendance:'My Attendance',handbook:'Code of Conduct',messages:'Messages',profile:'My Profile'
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1410,7 +1410,12 @@ function hbRefreshBtn(){
   const b=$('hbNextBtn')||$('hbFinishBtn');
   if(b){ b.disabled=!ok; b.style.opacity=ok?'':'.5'; }
 }
-function hbRuleTick(ruleId,checked){ _hbTickState[ruleId]=checked; renderHandbookFlow(); }
+function hbRuleTick(ruleId,checked){
+  _hbTickState[ruleId]=checked;
+  var el=document.querySelector('[data-rule="'+ruleId+'"]');
+  if(el){var lbl=el.closest('label');if(lbl){lbl.style.background=checked?'#EAF7EE':'var(--surface2,#f7f7f9)';lbl.style.borderColor=checked?'#16a34a':'var(--line,#e5e5e5)';lbl.style.color=checked?'#137a37':'var(--ink-soft,#444)';}}
+  hbRefreshBtn();
+}
 function hbDeclTick(checked){ _hbTickState.__decl=checked; hbRefreshBtn(); }
 function hbPrev(){ if(_hbIdx>0){_hbIdx--; renderHandbookFlow();} }
 async function hbNext(){
@@ -1448,6 +1453,15 @@ function renderHandbookFull(justSigned){
         +'<div style="white-space:pre-wrap;line-height:1.6;font-size:13.5px">'+esc(hbT(r.body_en,r.body_hi))+'</div></div>';
     });
   });
+  // Declaration section
+  const dt=hbT(_hbMeta?.decl_title_en,_hbMeta?.decl_title_hi)||'Declaration';
+  let db=hbT(_hbMeta?.decl_body_en,_hbMeta?.decl_body_hi)||'';
+  db=db.replace(/\{name\}/g, TEACHER.full_name||'');
+  h+='<div style="font-weight:800;font-size:15px;margin:20px 0 8px;color:var(--accent,#2563eb)">'+esc(dt)+'</div>';
+  h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13.5px;margin-bottom:12px">'+esc(db)+'</div>';
+  h+='<div style="background:#EAF7EE;border:1.5px solid #16a34a;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:10px;margin-top:8px">'
+    +'<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#16a34a"/><path d="M6 10.5l2.5 2.5L14 7.5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    +'<span style="font-size:13.5px;font-weight:700;color:#137a37">Signed and Verified / हस्ताक्षरित और सत्यापित</span></div>';
   h+='</div></div>';
   host.innerHTML=h;
 }
