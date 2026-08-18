@@ -1414,6 +1414,18 @@ tbody tr:hover td{background:var(--lav-50)}
             <button class="btn btn-soft" style="align-self:flex-end" onclick="loadSubstitutionSheet()">Load Schedule</button>
           </div>
         </div>
+
+        <!-- Mark who is unavailable today so they're kept out of every substitute list -->
+        <div class="card" style="margin-bottom:18px">
+          <label style="font-weight:700;font-size:13px">Unavailable teachers today <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px">— kept out of all substitute dropdowns for the selected date</span></label>
+          <div class="form-row" style="margin:10px 0 0;align-items:flex-end;flex-wrap:wrap">
+            <div class="fg" style="min-width:180px"><label>Teacher</label><select id="unav_teacher"><option value="">Select teacher</option></select></div>
+            <div class="fg" style="max-width:190px"><label>Availability</label><select id="unav_type" onchange="document.getElementById('unav_timeWrap').style.display=this.value==='all'?'none':''"><option value="all">Away all day</option><option value="leaves">Leaves at…</option><option value="arrives">Arrives at…</option></select></div>
+            <div class="fg" id="unav_timeWrap" style="display:none;max-width:150px"><label>Time</label><input type="time" id="unav_time"></div>
+            <button class="btn btn-soft" onclick="addUnavailable()">Add</button>
+          </div>
+          <div id="unavList" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
         <div id="subSheet"></div>
         <div id="subSaveRow" style="display:none;margin-top:16px">
           <button class="btn btn-dark" onclick="saveSubstitutions()"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Save &amp; Send Notifications</button>
@@ -6993,6 +7005,52 @@ async function loadTeacherTimetable(){
   renderTTGrid(el,entries,'teacher')
 }
 
+// Teachers marked unavailable for a given date (persisted per-date in this
+// browser so it survives reloads while you assign substitutions).
+// Shape: { teacherId: {type:'all'|'leaves'|'arrives', time:'HH:MM'|null} }
+function _unavKey(date){ return 'sps_unavail_'+(date||$('sub_date')?.value||''); }
+function getUnavailable(date){
+  try{ return JSON.parse(localStorage.getItem(_unavKey(date))||'{}'); }catch(e){ return {}; }
+}
+function setUnavailable(date,obj){ try{ localStorage.setItem(_unavKey(date),JSON.stringify(obj)); }catch(e){} }
+function addUnavailable(){
+  const date=$('sub_date')?.value; if(!date){toast('Pick a date first','error');return}
+  const tid=$('unav_teacher')?.value; if(!tid){toast('Pick a teacher','error');return}
+  const type=$('unav_type')?.value||'all';
+  const time=(type==='all')?null:($('unav_time')?.value||null);
+  if(type!=='all'&&!time){toast('Enter the time','error');return}
+  const m=getUnavailable(date); m[tid]={type,time}; setUnavailable(date,m);
+  if($('unav_teacher'))$('unav_teacher').value=''; if($('unav_time'))$('unav_time').value='';
+  renderUnavailable();
+  if($('subSheet')&&$('subSheet').innerHTML.trim())loadSubstitutionSheet(); // refresh dropdowns
+}
+function removeUnavailable(tid){
+  const date=$('sub_date')?.value; const m=getUnavailable(date); delete m[tid]; setUnavailable(date,m);
+  renderUnavailable();
+  if($('subSheet')&&$('subSheet').innerHTML.trim())loadSubstitutionSheet();
+}
+function renderUnavailable(){
+  const box=$('unavList'); if(!box)return;
+  const date=$('sub_date')?.value; const m=getUnavailable(date);
+  const ids=Object.keys(m);
+  if(!ids.length){ box.innerHTML='<span style="font-size:12px;color:var(--ink-faint)">No one marked unavailable for this date.</span>'; return; }
+  box.innerHTML=ids.map(tid=>{
+    const t=ALL_TEACHERS.find(x=>x.teacher_id===tid); const u=m[tid];
+    const lbl=u.type==='all'?'away all day':(u.type==='leaves'?('leaves '+u.time):('arrives '+u.time));
+    return '<span style="display:inline-flex;align-items:center;gap:7px;background:#FCE7EA;color:#B5122B;border:1px solid #E5556B;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700">'
+      +esc(t?.full_name||tid)+' <span style="font-weight:500;opacity:.85">· '+esc(lbl)+'</span>'
+      +'<button onclick="removeUnavailable(\''+tid+'\')" style="background:none;border:none;color:inherit;cursor:pointer;font-size:15px;line-height:1;padding:0">×</button></span>';
+  }).join('');
+}
+// Is a teacher available to cover a slot that STARTS at startHHMM?
+function _availForSlot(tid, unavMap, startHHMM){
+  const u=unavMap[tid]; if(!u)return true;
+  if(u.type==='all')return false;
+  const st=(startHHMM||'').slice(0,5);
+  if(u.type==='leaves')return st < u.time;      // gone from u.time onward
+  if(u.type==='arrives')return st >= u.time;     // not here before u.time
+  return true;
+}
 async function loadSubstitutionSheet(){
   const teacherId=$('sub_teacher')?.value,date=$('sub_date')?.value,el=$('subSheet')
   if(!el)return;ldg(el);const saveRow=$('subSaveRow');if(saveRow)saveRow.style.display='none'
@@ -7017,19 +7075,23 @@ async function loadSubstitutionSheet(){
     sb.from('timetable_entries').select('slot_id,teacher_id,days').eq('roster_id',roster.roster_id).in('slot_id',slotIds),
     sb.from('adjustments').select('slot_id,teacher_id,days').in('slot_id',slotIds).then(r=>r,()=>({data:[]})),
     sb.from('substitutions').select('slot_id,substitute_teacher_id').eq('date',date).in('slot_id',slotIds).then(r=>r,()=>({data:[]})),
-    sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
+    sb.from('mother_teacher_map').select('teacher_id').then(r=>r,()=>({data:[]}))
   ])
   // Mother teachers own their class all day and can't cover substitutions.
+  // Match by the mother_teacher_map (any session) OR a "mother" designation.
   const motherSet=new Set((mothers||[]).map(m=>m.teacher_id))
+  ALL_TEACHERS.forEach(t=>{ if(/mother/i.test(t.designation||'')) motherSet.add(t.teacher_id) })
   const busyBySlot={}
   const mark=(slot,tid)=>{if(!tid)return;(busyBySlot[slot]=busyBySlot[slot]||new Set()).add(tid)}
   ;(busyAll||[]).filter(b=>(b.days||[]).includes(dow)).forEach(b=>mark(b.slot_id,b.teacher_id))
   ;(adjAll||[]).filter(a=>(a.days||[]).includes(dow)).forEach(a=>mark(a.slot_id,a.teacher_id))
   ;(subAll||[]).forEach(s=>mark(s.slot_id,s.substitute_teacher_id))
+  const unavMap=getUnavailable(date)
   el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute</th></tr></thead><tbody>'+
     _subData.map(e=>{
       const busy=busyBySlot[e.slot_id]||new Set()
-      const free=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!motherSet.has(t.teacher_id)&&!busy.has(t.teacher_id))
+      const st=(e.time_slots?.start_time||'').slice(0,5)
+      const free=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!motherSet.has(t.teacher_id)&&!busy.has(t.teacher_id)&&_availForSlot(t.teacher_id,unavMap,st))
       return '<tr><td style="font-weight:700">'+esc(e.time_slots?.name||'—')+'</td>'
         +'<td class="mono" style="font-size:11px">'+(e.time_slots?.start_time||'').slice(0,5)+'–'+(e.time_slots?.end_time||'').slice(0,5)+'</td>'
         +'<td>'+esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||'—'))+'</td>'
@@ -7513,6 +7575,8 @@ async function loadTimetable(){
   loadRosters()
   $('tt_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
   $('sub_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  if($('unav_teacher'))$('unav_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  renderUnavailable&&renderUnavailable()
   $('tt_cls').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   if($('sub_date'))$('sub_date').value=today()
   // Adjustment tab
