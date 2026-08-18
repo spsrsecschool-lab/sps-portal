@@ -413,6 +413,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       My Attendance
     </div>
+    <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Teacher Handbook</div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>
       My Profile
@@ -488,6 +489,11 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     </div>
 
     <!-- DAILY ATTENDANCE -->
+    <div class="page" id="page-handbook">
+      <div class="page-head"><div><h2>Teacher Handbook</h2><p>Staff handbook &amp; declaration</p></div></div>
+      <div id="hbHost"></div>
+    </div>
+
     <div class="page" id="page-daily">
       <div class="page-head"><div><h2>Daily Attendance</h2><p>Select date and mark attendance for your class</p></div></div>
       <div class="card" style="margin-bottom:18px">
@@ -926,7 +932,174 @@ async function loadDeductionHistory(){
     +rows.map(r=>{const ml=new Date(r.year_month+'-01T12:00:00').toLocaleDateString('en-IN',{month:'short',year:'numeric'});return '<tr><td style="text-align:left;font-weight:600">'+esc(ml)+'</td><td style="text-align:center">'+(r.full_absents||0)+'</td><td style="text-align:center">'+(r.half_days||0)+'</td><td style="text-align:center">'+(r.late_count||0)+'</td><td style="text-align:right;font-weight:800;color:'+(r.amount>0?'#B5122B':'var(--ink-faint)')+'">'+(r.amount>0?'\u2212\u20b9'+Number(r.amount).toLocaleString('en-IN'):'\u20b90')+'</td></tr>'}).join('')
     +'</tbody></table></div></div>'
 }
+// ═══════════ TEACHER HANDBOOK v2 (portal-side, section-wise) ═══════════
+// Requires: sb, TEACHER, $, esc.
+let _hbSecs=[], _hbRules={}, _hbMeta=null, _hbAcks={}, _hbSignedOff=false, _hbLang='en', _hbIdx=0, _hbTickState={};
+async function loadHandbook(){
+  const host=$('hbHost'); if(!host||!TEACHER)return;
+  host.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint,#999)">Loading…</div>';
+  const[{data:secs},{data:rules},{data:meta},{data:acks},{data:so}]=await Promise.all([
+    sb.from('handbook_sections_v2').select('*').eq('is_active',true).order('sort_order'),
+    sb.from('handbook_rules').select('*').eq('is_active',true).order('sort_order'),
+    sb.from('handbook_meta').select('*').eq('id',1).maybeSingle().then(r=>r,()=>({data:null})),
+    sb.from('handbook_acks_v2').select('*').eq('teacher_id',TEACHER.teacher_id),
+    sb.from('handbook_signoffs').select('*').eq('teacher_id',TEACHER.teacher_id).maybeSingle().then(r=>r,()=>({data:null}))
+  ]);
+  _hbSecs=secs||[];
+  _hbRules={}; (rules||[]).forEach(r=>{(_hbRules[r.section_id]=_hbRules[r.section_id]||[]).push(r)});
+  _hbMeta=(meta&&meta.data!==undefined)?meta.data:meta; if(_hbMeta&&_hbMeta.data)_hbMeta=_hbMeta.data;
+  _hbAcks={}; (acks||[]).forEach(a=>_hbAcks[a.section_id]=a.version);
+  _hbSignedOff=!!(so&&(so.id||so.teacher_id));
+  const upToDate=_hbSignedOff && _hbSecs.every(s=>_hbAcks[s.section_id]===s.version);
+  if(upToDate){ renderHandbookFull(); }
+  else { _hbIdx=firstUnackedPage(); renderHandbookFlow(); }
+}
+// Pages: [intro, ...sections, declaration]
+function hbPages(){
+  const pages=[{kind:'intro'}];
+  _hbSecs.forEach(s=>pages.push({kind:'section',sec:s}));
+  pages.push({kind:'declaration'});
+  return pages;
+}
+function firstUnackedPage(){
+  const pages=hbPages();
+  for(let i=0;i<pages.length;i++){
+    if(pages[i].kind==='section'){ const s=pages[i].sec; if(_hbAcks[s.section_id]!==s.version) return i; }
+  }
+  return 0;
+}
+function hbLangToggle(){
+  return '<div style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:10px">'
+    +'<button class="btn btn-ghost btn-xs" onclick="hbSetLang(\'en\')" style="'+(_hbLang==='en'?'background:var(--ink,#111);color:#fff':'')+'">English</button>'
+    +'<button class="btn btn-ghost btn-xs" onclick="hbSetLang(\'hi\')" style="'+(_hbLang==='hi'?'background:var(--ink,#111);color:#fff':'')+'">हिंदी</button></div>';
+}
+function hbSetLang(l){ _hbLang=l; renderHandbookFlow(); }
+function hbT(en,hi){ return _hbLang==='hi'?(hi||en||''):(en||hi||''); }
+function renderHandbookFlow(){
+  const host=$('hbHost'); if(!host)return;
+  const pages=hbPages();
+  if(_hbIdx<0)_hbIdx=0; if(_hbIdx>=pages.length)_hbIdx=pages.length-1;
+  const page=pages[_hbIdx], pos=_hbIdx+1, total=pages.length;
+  const pct=Math.round(pos/total*100);
+  let h='<div style="max-width:820px;margin:0 auto">';
+  h+='<div style="height:6px;background:var(--line,#eee);border-radius:99px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:var(--accent,#2563eb);transition:width .2s"></div></div>';
+  h+='<div style="font-size:11px;color:var(--ink-faint,#999);margin-bottom:14px">Page '+pos+' of '+total+'</div>';
+
+  // top nav
+  const canAdvance = hbPageComplete(page);
+  h+='<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:16px">';
+  h+='<button class="btn btn-ghost btn-sm" onclick="hbPrev()" '+(_hbIdx===0?'disabled style="opacity:.4"':'')+'>← Back</button>';
+  if(page.kind==='declaration'){
+    h+='<button class="btn btn-dark btn-sm" id="hbFinishBtn" onclick="hbFinish()" '+(canAdvance?'':'disabled style="opacity:.5"')+'>Sign &amp; Finish</button>';
+  }else{
+    h+='<button class="btn btn-dark btn-sm" id="hbNextBtn" onclick="hbNext()" '+(canAdvance?'':'disabled style="opacity:.5"')+'>Next →</button>';
+  }
+  h+='</div>';
+  h+=hbLangToggle();
+
+  if(page.kind==='intro'){
+    h+='<div class="card" style="padding:24px">';
+    const t=hbT(_hbMeta?.intro_title_en,_hbMeta?.intro_title_hi)||'Teacher Handbook';
+    h+='<h2 style="margin:0 0 12px;font-size:20px">'+esc(t)+'</h2>';
+    h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:14px">'+esc(hbT(_hbMeta?.intro_body_en,_hbMeta?.intro_body_hi))+'</div>';
+    h+='</div>';
+  }
+  else if(page.kind==='section'){
+    const s=page.sec; const rules=(_hbRules[s.section_id]||[]);
+    const secTitle=[s.section_no?('Section '+s.section_no):'',hbT(s.title_en,s.title_hi)].filter(Boolean).join(' — ');
+    const already=_hbAcks[s.section_id]===s.version;
+    h+='<div class="card" style="padding:22px">';
+    h+='<div style="font-weight:800;font-size:17px;margin-bottom:4px;color:var(--accent,#2563eb)">'+esc(secTitle)+'</div>';
+    h+='<div style="font-size:11.5px;color:var(--ink-faint,#999);margin-bottom:16px">Tick every point to continue. / जारी रखने के लिए प्रत्येक बिंदु पर टिक करें।</div>';
+    rules.forEach(r=>{
+      const key=r.rule_id; const checked = already || _hbTickState[key];
+      h+='<div style="border:1px solid var(--line,#eee);border-radius:10px;padding:12px 14px;margin-bottom:10px">';
+      h+='<div style="display:flex;gap:10px;align-items:flex-start">';
+      h+='<span style="font-weight:800;font-family:var(--mono,monospace);color:var(--accent,#2563eb);min-width:38px">'+esc(r.rule_no||'')+'</span>';
+      h+='<div style="flex:1;min-width:0"><div style="white-space:pre-wrap;line-height:1.6;font-size:13.5px;margin-bottom:8px">'+esc(hbT(r.body_en,r.body_hi))+'</div>';
+      h+='<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600;color:'+(checked?'#16a34a':'var(--ink-soft,#666)')+'">'
+        +'<input type="checkbox" class="hb-rule-chk" data-rule="'+key+'" '+(checked?'checked':'')+' onchange="hbRuleTick(\''+key+'\',this.checked)" style="width:16px;height:16px;accent-color:#16a34a"> Read &amp; understood / पढ़ और समझ लिया</label>';
+      h+='</div></div></div>';
+    });
+    h+='</div>';
+  }
+  else if(page.kind==='declaration'){
+    h+='<div class="card" style="padding:22px">';
+    const t=hbT(_hbMeta?.decl_title_en,_hbMeta?.decl_title_hi)||'Declaration';
+    let body=hbT(_hbMeta?.decl_body_en,_hbMeta?.decl_body_hi)||'';
+    body=body.replace(/\{name\}/g, TEACHER.full_name||'');
+    h+='<div style="font-weight:800;font-size:17px;margin-bottom:12px;color:var(--accent,#2563eb)">'+esc(t)+'</div>';
+    h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:14px;margin-bottom:12px">'+esc(body)+'</div>';
+    h+='<div style="font-size:12.5px;color:var(--ink-soft,#666);margin:8px 0">Name: <b>'+esc(TEACHER.full_name||'')+'</b>'+(TEACHER.designation?(' · '+esc(TEACHER.designation)):'')+' · Date: <b>'+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})+'</b></div>';
+    h+='<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;background:var(--surface2,#f7f7f9);border:1.5px solid var(--line,#e5e5e5);border-radius:10px;padding:12px 14px;margin-top:6px">'
+      +'<input type="checkbox" id="hbDeclChk" '+(_hbTickState.__decl?'checked':'')+' onchange="hbDeclTick(this.checked)" style="width:18px;height:18px;margin-top:1px;accent-color:#16a34a">'
+      +'<span style="font-size:13px;font-weight:600">I agree to abide by all the rules above. / मैं उपर्युक्त सभी नियमों का पालन करने हेतु सहमत हूं।</span></label>';
+    h+='</div>';
+  }
+  h+='</div>';
+  host.innerHTML=h;
+}
+function hbPageComplete(page){
+  if(page.kind==='section'){
+    const s=page.sec; if(_hbAcks[s.section_id]===s.version) return true;
+    const rules=(_hbRules[s.section_id]||[]);
+    return rules.length>0 && rules.every(r=>_hbTickState[r.rule_id]);
+  }
+  if(page.kind==='declaration'){
+    return _hbSecs.every(s=>_hbAcks[s.section_id]===s.version) && !!_hbTickState.__decl;
+  }
+  return true; // intro
+}
+function hbRefreshBtn(){
+  const page=hbPages()[_hbIdx];
+  const ok=hbPageComplete(page);
+  const b=$('hbNextBtn')||$('hbFinishBtn');
+  if(b){ b.disabled=!ok; b.style.opacity=ok?'':'.5'; }
+}
+function hbRuleTick(ruleId,checked){ _hbTickState[ruleId]=checked; hbRefreshBtn(); }
+function hbDeclTick(checked){ _hbTickState.__decl=checked; hbRefreshBtn(); }
+function hbPrev(){ if(_hbIdx>0){_hbIdx--; renderHandbookFlow();} }
+async function hbNext(){
+  const page=hbPages()[_hbIdx];
+  if(!hbPageComplete(page))return;
+  if(page.kind==='section' && _hbAcks[page.sec.section_id]!==page.sec.version){
+    // Persist the section acknowledgement (whole section, current version).
+    const s=page.sec;
+    _hbAcks[s.section_id]=s.version;
+    await sb.from('handbook_acks_v2').upsert({teacher_id:TEACHER.teacher_id,section_id:s.section_id,version:s.version,ticked_at:new Date().toISOString()},{onConflict:'teacher_id,section_id'});
+  }
+  if(_hbIdx<hbPages().length-1){_hbIdx++; renderHandbookFlow();}
+}
+async function hbFinish(){
+  const page=hbPages()[_hbIdx];
+  if(!hbPageComplete(page)){ _hbIdx=firstUnackedPage(); renderHandbookFlow(); return; }
+  await sb.from('handbook_signoffs').upsert({teacher_id:TEACHER.teacher_id,signed_at:new Date().toISOString(),signed_name:TEACHER.full_name||null},{onConflict:'teacher_id'});
+  _hbSignedOff=true;
+  renderHandbookFull(true);
+}
+function renderHandbookFull(justSigned){
+  const host=$('hbHost'); if(!host)return;
+  let h='<div style="max-width:820px;margin:0 auto">';
+  if(justSigned){ h+='<div style="background:#EAF7EE;border:1px solid #16a34a;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:700;color:#137a37;margin-bottom:14px">✓ Thank you — your declaration has been recorded. You can read the full handbook below anytime.</div>'; }
+  h+=hbLangToggle();
+  h+='<div class="card" style="padding:24px">';
+  const it=hbT(_hbMeta?.intro_title_en,_hbMeta?.intro_title_hi);
+  if(it)h+='<h2 style="margin:0 0 8px;font-size:20px">'+esc(it)+'</h2>';
+  h+='<div style="white-space:pre-wrap;line-height:1.7;font-size:13px;color:var(--ink-soft,#555);margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line,#eee)">'+esc(hbT(_hbMeta?.intro_body_en,_hbMeta?.intro_body_hi))+'</div>';
+  _hbSecs.forEach(s=>{
+    const secTitle=[s.section_no?('Section '+s.section_no):'',hbT(s.title_en,s.title_hi)].filter(Boolean).join(' — ');
+    h+='<div style="font-weight:800;font-size:15px;margin:16px 0 8px;color:var(--accent,#2563eb)">'+esc(secTitle)+'</div>';
+    (_hbRules[s.section_id]||[]).forEach(r=>{
+      h+='<div style="display:flex;gap:10px;margin-bottom:8px"><span style="font-weight:800;font-family:var(--mono,monospace);color:var(--accent,#2563eb);min-width:38px">'+esc(r.rule_no||'')+'</span>'
+        +'<div style="white-space:pre-wrap;line-height:1.6;font-size:13.5px">'+esc(hbT(r.body_en,r.body_hi))+'</div></div>';
+    });
+  });
+  h+='</div></div>';
+  host.innerHTML=h;
+}
+
 function goTo(id,el){
+  if(id==='handbook')loadHandbook();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
   if(pg){pg.style.animation='none';void pg.offsetHeight;pg.style.animation='';pg.classList.add('active')}
