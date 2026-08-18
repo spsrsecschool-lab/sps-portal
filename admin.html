@@ -1761,8 +1761,8 @@ function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
 const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',settings:'Settings',requests:'Access Requests'}
-// ═══════════ TEACHER DECLARATION (admin) ═══════════
-let _decSections=[]
+// ═══════════ TEACHER DECLARATION (admin) — section → rules ═══════════
+let _decSecs=[], _decRules={}, _decMeta=null
 async function loadDeclarationAdmin(){ decSwitch('edit') }
 function decSwitch(tab){
   const e=$('decEditWrap'), s=$('decSignedWrap')
@@ -1772,82 +1772,135 @@ function decSwitch(tab){
 }
 async function loadDecEdit(){
   const wrap=$('decEditWrap'); wrap.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const{data}=await sb.from('handbook_sections').select('*').eq('is_active',true).order('sort_order')
-  _decSections=data||[]
-  const intro=_decSections.find(s=>s.kind==='intro')
-  const decl=_decSections.find(s=>s.kind==='declaration')
-  const rules=_decSections.filter(s=>s.kind==='rule')
-  const card=(s,label)=>{
-    const t=[s.section_no,s.title_en].filter(Boolean).join(' · ')
-    return '<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">'
-      +'<div style="min-width:0"><div style="font-size:11px;color:var(--ink-faint);font-weight:700;text-transform:uppercase;letter-spacing:.05em">'+esc(label)+' · v'+(s.version||1)+'</div>'
-      +'<div style="font-weight:700;margin:2px 0">'+esc(t||'(untitled)')+'</div>'
-      +'<div style="font-size:12.5px;color:var(--ink-soft);white-space:pre-wrap;max-height:60px;overflow:hidden">'+esc((s.body_en||'').slice(0,180))+((s.body_en||'').length>180?'…':'')+'</div></div>'
-      +'<div style="display:flex;gap:4px;flex-shrink:0">'
-      +(s.kind==='rule'?'<button class="btn btn-ghost btn-xs" onclick="decMove(\''+s.section_id+'\',-1)" title="Move up">↑</button><button class="btn btn-ghost btn-xs" onclick="decMove(\''+s.section_id+'\',1)" title="Move down">↓</button>':'')
-      +'<button class="btn btn-soft btn-xs" onclick="openDecEditor(\''+s.section_id+'\')">Edit</button>'
-      +(s.kind==='rule'?'<button class="btn btn-danger btn-xs" onclick="decDelete(\''+s.section_id+'\')">Delete</button>':'')
-      +'</div></div></div>'
-  }
-  let html='<div style="max-width:820px">'
-  html+='<div style="background:#FFF9EC;border:1px solid #E9C46A;border-radius:8px;padding:10px 12px;font-size:12px;color:#8A5A00;margin-bottom:14px">Editing a rule\u2019s text bumps its version, so teachers who already signed will be asked to re-tick <b>only</b> the changed rule and sign again. Unchanged rules stay ticked.</div>'
-  html+=intro?card(intro,'Intro page'):'<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-soft)">No intro page yet.</span><button class="btn btn-soft btn-xs" onclick="openDecEditor(null,\'intro\')">Add intro</button></div></div>'
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px"><h3 style="margin:0">Rules ('+rules.length+')</h3><button class="btn btn-dark btn-sm" onclick="openDecEditor(null,\'rule\')">+ Add Rule</button></div>'
-  html+=rules.length?rules.map(s=>card(s,'Rule')).join(''):'<div style="color:var(--ink-faint);font-size:13px;padding:8px">No rules yet.</div>'
-  html+='<div style="margin-top:16px"></div>'
-  html+=decl?card(decl,'Declaration page'):'<div class="card"><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-soft)">No declaration page yet.</span><button class="btn btn-soft btn-xs" onclick="openDecEditor(null,\'declaration\')">Add declaration</button></div></div>'
-  html+='</div>'
-  wrap.innerHTML=html
+  const[{data:secs},{data:rules},{data:meta}]=await Promise.all([
+    sb.from('handbook_sections_v2').select('*').eq('is_active',true).order('sort_order'),
+    sb.from('handbook_rules').select('*').eq('is_active',true).order('sort_order'),
+    sb.from('handbook_meta').select('*').eq('id',1).maybeSingle().then(r=>r,()=>({data:null}))
+  ])
+  _decSecs=secs||[]; _decRules={}; (rules||[]).forEach(r=>{(_decRules[r.section_id]=_decRules[r.section_id]||[]).push(r)})
+  _decMeta=meta||null
+  let h='<div style="max-width:860px">'
+  h+='<div style="background:#FFF9EC;border:1px solid #E9C46A;border-radius:8px;padding:10px 12px;font-size:12px;color:#8A5A00;margin-bottom:14px">Editing a section or any of its rules bumps that section\u2019s version, so teachers who already signed re-tick that whole section and sign again. Other sections stay ticked.</div>'
+  // Intro + Declaration
+  h+='<div class="card" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center"><div><b>Intro page</b><div style="font-size:12px;color:var(--ink-soft)">'+esc((_decMeta?.intro_title_en)||'(not set)')+'</div></div><button class="btn btn-soft btn-xs" onclick="openDecMeta(\'intro\')">Edit</button></div>'
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px"><h3 style="margin:0">Sections ('+_decSecs.length+')</h3><button class="btn btn-dark btn-sm" onclick="openDecSection(null)">+ Add Section</button></div>'
+  if(!_decSecs.length)h+='<div style="color:var(--ink-faint);font-size:13px;padding:8px">No sections yet.</div>'
+  _decSecs.forEach((s,i)=>{
+    const rules=_decRules[s.section_id]||[]
+    h+='<div class="card" style="margin-bottom:12px">'
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px">'
+    h+='<div><div style="font-size:11px;color:var(--ink-faint);font-weight:700">SECTION '+esc(s.section_no||'')+' · v'+(s.version||1)+'</div><div style="font-weight:800">'+esc(s.title_en||'(untitled)')+'</div><div style="font-size:12px;color:var(--ink-soft)">'+esc(s.title_hi||'')+'</div></div>'
+    h+='<div style="display:flex;gap:4px;flex-shrink:0">'
+      +'<button class="btn btn-ghost btn-xs" onclick="decSecMove(\''+s.section_id+'\',-1)">↑</button>'
+      +'<button class="btn btn-ghost btn-xs" onclick="decSecMove(\''+s.section_id+'\',1)">↓</button>'
+      +'<button class="btn btn-soft btn-xs" onclick="openDecSection(\''+s.section_id+'\')">Edit</button>'
+      +'<button class="btn btn-danger btn-xs" onclick="decSecDelete(\''+s.section_id+'\')">Delete</button></div>'
+    h+='</div>'
+    rules.forEach(r=>{
+      h+='<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:1px dashed var(--line)">'
+      h+='<div style="min-width:0"><span style="font-weight:800;font-family:var(--mono);color:var(--accent)">'+esc(r.rule_no||'')+'</span> <span style="font-size:12.5px">'+esc((r.body_en||'').slice(0,140))+((r.body_en||'').length>140?'…':'')+'</span></div>'
+      h+='<div style="display:flex;gap:3px;flex-shrink:0"><button class="btn btn-ghost btn-xs" onclick="decRuleMove(\''+r.rule_id+'\',\''+s.section_id+'\',-1)">↑</button><button class="btn btn-ghost btn-xs" onclick="decRuleMove(\''+r.rule_id+'\',\''+s.section_id+'\',1)">↓</button><button class="btn btn-soft btn-xs" onclick="openDecRule(\''+s.section_id+'\',\''+r.rule_id+'\')">Edit</button><button class="btn btn-danger btn-xs" onclick="decRuleDelete(\''+r.rule_id+'\',\''+s.section_id+'\')">×</button></div>'
+      h+='</div>'
+    })
+    h+='<button class="btn btn-soft btn-xs" style="margin-top:8px" onclick="openDecRule(\''+s.section_id+'\',null)">+ Add rule to this section</button>'
+    h+='</div>'
+  })
+  h+='<div style="margin-top:16px"></div>'
+  h+='<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><b>Declaration page</b><div style="font-size:12px;color:var(--ink-soft)">'+esc((_decMeta?.decl_title_en)||'(not set)')+'</div></div><button class="btn btn-soft btn-xs" onclick="openDecMeta(\'decl\')">Edit</button></div>'
+  h+='</div>'
+  wrap.innerHTML=h
 }
-function openDecEditor(id, kind){
-  const s=id?_decSections.find(x=>x.section_id===id):null
-  const k=s?s.kind:(kind||'rule')
-  const label=k==='intro'?'Intro Page':k==='declaration'?'Declaration Page':'Rule'
-  openModal((s?'Edit ':'Add ')+label,
-    '<input type="hidden" id="dec_id" value="'+(id||'')+'"><input type="hidden" id="dec_kind" value="'+k+'">'
-    +(k==='rule'?'<div class="fg"><label>Section number (optional, e.g. 2.4)</label><input id="dec_no" value="'+esc(s?.section_no||'')+'"></div>':'')
-    +'<div class="form-row"><div class="fg"><label>Title (English)</label><input id="dec_ten" value="'+esc(s?.title_en||'')+'"></div><div class="fg"><label>Title (Hindi)</label><input id="dec_thi" value="'+esc(s?.title_hi||'')+'"></div></div>'
-    +'<div class="fg"><label>Body (English)</label><textarea id="dec_ben" rows="5" style="width:100%">'+esc(s?.body_en||'')+'</textarea></div>'
-    +'<div class="fg" style="margin-bottom:0"><label>Body (Hindi)</label><textarea id="dec_bhi" rows="5" style="width:100%">'+esc(s?.body_hi||'')+'</textarea></div>',
+function _bumpSecVersion(section_id){
+  const s=_decSecs.find(x=>x.section_id===section_id); const v=(s?.version||1)+1
+  return sb.from('handbook_sections_v2').update({version:v,updated_at:new Date().toISOString()}).eq('section_id',section_id)
+}
+// ---- Section add/edit ----
+function openDecSection(id){
+  const s=id?_decSecs.find(x=>x.section_id===id):null
+  openModal((s?'Edit ':'Add ')+'Section',
+    '<input type="hidden" id="ds_id" value="'+(id||'')+'">'
+    +'<div class="fg"><label>Section number (e.g. 1, 2, 7A)</label><input id="ds_no" value="'+esc(s?.section_no||'')+'"></div>'
+    +'<div class="form-row" style="margin-bottom:0"><div class="fg"><label>Title (English)</label><input id="ds_ten" value="'+esc(s?.title_en||'')+'"></div><div class="fg"><label>Title (Hindi)</label><input id="ds_thi" value="'+esc(s?.title_hi||'')+'"></div></div>',
     '<button class="btn btn-dark" onclick="saveDecSection()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 async function saveDecSection(){
-  const id=$('dec_id').value||null, kind=$('dec_kind').value
-  const rec={ kind, section_no:$('dec_no')?.value?.trim()||null,
-    title_en:$('dec_ten').value.trim()||null, title_hi:$('dec_thi').value.trim()||null,
-    body_en:$('dec_ben').value.trim()||null, body_hi:$('dec_bhi').value.trim()||null,
-    updated_at:new Date().toISOString() }
+  const id=$('ds_id').value||null
+  const rec={section_no:$('ds_no').value.trim()||null,title_en:$('ds_ten').value.trim()||null,title_hi:$('ds_thi').value.trim()||null,updated_at:new Date().toISOString()}
   if(id){
-    const prev=_decSections.find(x=>x.section_id===id)
-    // Bump version only if the actual text changed (so unchanged rules stay ticked).
-    const changed=prev && (prev.body_en!==rec.body_en||prev.body_hi!==rec.body_hi||prev.title_en!==rec.title_en||prev.title_hi!==rec.title_hi)
-    if(changed) rec.version=(prev.version||1)+1
-    const{error}=await sb.from('handbook_sections').update(rec).eq('section_id',id)
-    if(error){toast('Failed: '+error.message,'error');return}
+    const prev=_decSecs.find(x=>x.section_id===id)
+    if(prev&&(prev.title_en!==rec.title_en||prev.title_hi!==rec.title_hi||prev.section_no!==rec.section_no)) rec.version=(prev.version||1)+1
+    const{error}=await sb.from('handbook_sections_v2').update(rec).eq('section_id',id); if(error){toast('Failed: '+error.message,'error');return}
   }else{
-    // New rule → place at end; intro/declaration get fixed sentinel orders.
-    let so=kind==='intro'?0:(kind==='declaration'?999999:( (_decSections.filter(s=>s.kind==='rule').reduce((m,s)=>Math.max(m,s.sort_order||0),0))+10 ))
-    rec.sort_order=so; rec.version=1; rec.is_active=true
-    const{error}=await sb.from('handbook_sections').insert(rec)
-    if(error){toast('Failed: '+error.message,'error');return}
+    rec.sort_order=(_decSecs.reduce((m,s)=>Math.max(m,s.sort_order||0),0))+10; rec.version=1; rec.is_active=true
+    const{error}=await sb.from('handbook_sections_v2').insert(rec); if(error){toast('Failed: '+error.message,'error');return}
   }
   toast('Saved','success'); closeModal(); loadDecEdit()
 }
-async function decMove(id,dir){
-  const rules=_decSections.filter(s=>s.kind==='rule').sort((a,b)=>a.sort_order-b.sort_order)
-  const i=rules.findIndex(s=>s.section_id===id); if(i<0)return
-  const j=i+dir; if(j<0||j>=rules.length)return
-  const a=rules[i], b=rules[j]
-  await sb.from('handbook_sections').update({sort_order:b.sort_order}).eq('section_id',a.section_id)
-  await sb.from('handbook_sections').update({sort_order:a.sort_order}).eq('section_id',b.section_id)
-  loadDecEdit()
+async function decSecMove(id,dir){
+  const arr=_decSecs.slice().sort((a,b)=>a.sort_order-b.sort_order); const i=arr.findIndex(s=>s.section_id===id); const j=i+dir
+  if(j<0||j>=arr.length)return; const a=arr[i],b=arr[j]
+  await sb.from('handbook_sections_v2').update({sort_order:b.sort_order}).eq('section_id',a.section_id)
+  await sb.from('handbook_sections_v2').update({sort_order:a.sort_order}).eq('section_id',b.section_id); loadDecEdit()
 }
-function decDelete(id){
-  confirmAct('Delete this rule?','It will be removed from the handbook. Teachers\u2019 existing signatures remain.',async()=>{
-    const{error}=await sb.from('handbook_sections').update({is_active:false}).eq('section_id',id)
-    if(error){toast('Failed: '+error.message,'error');return}
+function decSecDelete(id){
+  confirmAct('Delete this whole section?','All its rules are removed from the handbook. Existing signatures remain.',async()=>{
+    await sb.from('handbook_sections_v2').update({is_active:false}).eq('section_id',id)
+    await sb.from('handbook_rules').update({is_active:false}).eq('section_id',id)
     toast('Deleted','success'); loadDecEdit()
   })
+}
+// ---- Rule add/edit ----
+function openDecRule(section_id, rule_id){
+  const r=rule_id?(_decRules[section_id]||[]).find(x=>x.rule_id===rule_id):null
+  openModal((r?'Edit ':'Add ')+'Rule',
+    '<input type="hidden" id="dr_id" value="'+(rule_id||'')+'"><input type="hidden" id="dr_sec" value="'+section_id+'">'
+    +'<div class="fg"><label>Rule number (e.g. 1.1)</label><input id="dr_no" value="'+esc(r?.rule_no||'')+'"></div>'
+    +'<div class="fg"><label>Body (English)</label><textarea id="dr_ben" rows="4" style="width:100%">'+esc(r?.body_en||'')+'</textarea></div>'
+    +'<div class="fg" style="margin-bottom:0"><label>Body (Hindi)</label><textarea id="dr_bhi" rows="4" style="width:100%">'+esc(r?.body_hi||'')+'</textarea></div>',
+    '<button class="btn btn-dark" onclick="saveDecRule()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveDecRule(){
+  const id=$('dr_id').value||null, section_id=$('dr_sec').value
+  const rec={section_id,rule_no:$('dr_no').value.trim()||null,body_en:$('dr_ben').value.trim()||null,body_hi:$('dr_bhi').value.trim()||null,updated_at:new Date().toISOString()}
+  if(id){ const{error}=await sb.from('handbook_rules').update(rec).eq('rule_id',id); if(error){toast('Failed: '+error.message,'error');return} }
+  else{
+    rec.sort_order=((_decRules[section_id]||[]).reduce((m,r)=>Math.max(m,r.sort_order||0),0))+10; rec.is_active=true
+    const{error}=await sb.from('handbook_rules').insert(rec); if(error){toast('Failed: '+error.message,'error');return}
+  }
+  await _bumpSecVersion(section_id)   // any rule change re-triggers that section
+  toast('Saved','success'); closeModal(); loadDecEdit()
+}
+async function decRuleMove(rule_id,section_id,dir){
+  const arr=(_decRules[section_id]||[]).slice().sort((a,b)=>a.sort_order-b.sort_order); const i=arr.findIndex(r=>r.rule_id===rule_id); const j=i+dir
+  if(j<0||j>=arr.length)return; const a=arr[i],b=arr[j]
+  await sb.from('handbook_rules').update({sort_order:b.sort_order}).eq('rule_id',a.rule_id)
+  await sb.from('handbook_rules').update({sort_order:a.sort_order}).eq('rule_id',b.rule_id); loadDecEdit()
+}
+function decRuleDelete(rule_id,section_id){
+  confirmAct('Delete this rule?','It is removed from the section.',async()=>{
+    await sb.from('handbook_rules').update({is_active:false}).eq('rule_id',rule_id)
+    await _bumpSecVersion(section_id)
+    toast('Deleted','success'); loadDecEdit()
+  })
+}
+// ---- Intro / Declaration meta ----
+function openDecMeta(which){
+  const m=_decMeta||{}
+  const isIntro=which==='intro'
+  openModal(isIntro?'Edit Intro Page':'Edit Declaration Page',
+    '<input type="hidden" id="dm_which" value="'+which+'">'
+    +'<div class="form-row"><div class="fg"><label>Title (English)</label><input id="dm_ten" value="'+esc(isIntro?(m.intro_title_en||''):(m.decl_title_en||''))+'"></div><div class="fg"><label>Title (Hindi)</label><input id="dm_thi" value="'+esc(isIntro?(m.intro_title_hi||''):(m.decl_title_hi||''))+'"></div></div>'
+    +'<div class="fg"><label>Body (English)'+(isIntro?'':' — use {name} for the teacher\u2019s name')+'</label><textarea id="dm_ben" rows="6" style="width:100%">'+esc(isIntro?(m.intro_body_en||''):(m.decl_body_en||''))+'</textarea></div>'
+    +'<div class="fg" style="margin-bottom:0"><label>Body (Hindi)'+(isIntro?'':' — {name} allowed')+'</label><textarea id="dm_bhi" rows="6" style="width:100%">'+esc(isIntro?(m.intro_body_hi||''):(m.decl_body_hi||''))+'</textarea></div>',
+    '<button class="btn btn-dark" onclick="saveDecMeta()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveDecMeta(){
+  const which=$('dm_which').value, isIntro=which==='intro'
+  const rec={id:1,updated_at:new Date().toISOString()}
+  if(isIntro){ rec.intro_title_en=$('dm_ten').value.trim()||null; rec.intro_title_hi=$('dm_thi').value.trim()||null; rec.intro_body_en=$('dm_ben').value.trim()||null; rec.intro_body_hi=$('dm_bhi').value.trim()||null }
+  else{ rec.decl_title_en=$('dm_ten').value.trim()||null; rec.decl_title_hi=$('dm_thi').value.trim()||null; rec.decl_body_en=$('dm_ben').value.trim()||null; rec.decl_body_hi=$('dm_bhi').value.trim()||null }
+  const{error}=await sb.from('handbook_meta').upsert(rec,{onConflict:'id'}); if(error){toast('Failed: '+error.message,'error');return}
+  toast('Saved','success'); closeModal(); loadDecEdit()
 }
 async function loadDecSigned(){
   const wrap=$('decSignedWrap'); wrap.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
@@ -3961,54 +4014,6 @@ async function openSubmissionStatus(){
   if(!_currentAssess)return;const a=_currentAssess
   openSub('assessments','sub-assess-status');const el=$('assessStatusContent')
   el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="loading-row"><div class="spinner"></div></div>'
-
-  // Once an assessment's end date (or start date if no end date) has passed,
-  // Class & Subject Mapping may have since changed (reassigned teachers,
-  // renamed subjects, etc). Recomputing status against the CURRENT mapping at
-  // that point wrongly flags teachers who already submitted, and loses the
-  // record of who actually did. So for closed assessments we build the view
-  // purely from marks_lock_state — the real record of who locked what —
-  // instead of joining against live mapping.
-  const cutoff=a.end_date||a.commencement_date
-  const isClosed = !!cutoff && cutoff < today()
-
-  const{data:lockRows}=await sb.from('marks_lock_state').select('teacher_id,subject_id,section_id,is_locked').eq('assessment_id',a.assessment_id)
-
-  if(isClosed){
-    if(!lockRows?.length){el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="empty-state"><p>This assessment is closed and no submissions were recorded.</p></div>';return}
-    const teacherIds=[...new Set(lockRows.map(r=>r.teacher_id))]
-    const subjectIds=[...new Set(lockRows.map(r=>r.subject_id))]
-    const sectionIds=[...new Set(lockRows.map(r=>r.section_id))]
-    const[{data:tchs},{data:subs},{data:secs}]=await Promise.all([
-      teacherIds.length?sb.from('teachers').select('teacher_id,full_name').in('teacher_id',teacherIds):Promise.resolve({data:[]}),
-      subjectIds.length?sb.from('subjects').select('subject_id,name').in('subject_id',subjectIds):Promise.resolve({data:[]}),
-      sectionIds.length?sb.from('class_sections').select('section_id,name,class_id').in('section_id',sectionIds):Promise.resolve({data:[]})
-    ])
-    const tName={};(tchs||[]).forEach(t=>tName[t.teacher_id]=t.full_name)
-    const sName={};(subs||[]).forEach(s=>sName[s.subject_id]=s.name)
-    const secInfo={};(secs||[]).forEach(s=>secInfo[s.section_id]=s)
-    const clsIds=[...new Set(Object.values(secInfo).map(s=>s.class_id).filter(Boolean))]
-    const{data:clsRows}=clsIds.length?await sb.from('classes').select('class_id,name').in('class_id',clsIds):{data:[]}
-    const cName={};(clsRows||[]).forEach(c=>cName[c.class_id]=c.name)
-
-    const byTeacher={}
-    lockRows.forEach(r=>{
-      if(!byTeacher[r.teacher_id])byTeacher[r.teacher_id]={name:tName[r.teacher_id]||'—',rows:[]}
-      const sec=secInfo[r.section_id]||{}
-      byTeacher[r.teacher_id].rows.push({
-        cls:cName[sec.class_id]||'—', sec:sec.name||'—', subj:sName[r.subject_id]||'—', locked:!!r.is_locked
-      })
-    })
-    const pill2=locked=>locked?'<span class="pill pill-success">Submitted &amp; Locked</span>':'<span class="pill pill-warn">Submitted (unlocked for correction)</span>'
-    const table='<div class="card"><div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This assessment closed on '+fmtD(cutoff)+'. Showing the historical submission record — later changes to Class &amp; Subject Mapping do not affect this view.</div><div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Section</th><th>Subject</th><th>Status</th></tr></thead><tbody>'
-      +Object.values(byTeacher).map(t=>t.rows.map((r,i)=>'<tr>'+(i===0?'<td rowspan="'+t.rows.length+'" style="font-weight:700;vertical-align:top">'+esc(t.name)+'</td>':'')+'<td>'+esc(r.cls)+'</td><td>'+esc(r.sec)+'</td><td>'+esc(r.subj)+'</td><td>'+pill2(r.locked)+'</td></tr>').join('')).join('')
-      +'</tbody></table></div></div>'
-    el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div>'+table
-    return
-  }
-
-  // Assessment still open — compute live against the current mapping so
-  // pending reminders keep working while marks entry is still in progress.
   const{data:acRows}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',a.assessment_id)
   const classIds=(acRows||[]).map(r=>r.class_id)
   if(!classIds.length){el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
@@ -4031,11 +4036,15 @@ async function openSubmissionStatus(){
   const entered={}  // key: subject_id + '_' + section_id → Set(enrollment_id)
   marks.forEach(m=>{ const sec=enrSection[m.enrollment_id]; if(!sec)return; const k=m.subject_id+'_'+sec; (entered[k]=entered[k]||new Set()).add(m.enrollment_id) })
 
+  const{data:lockRows}=await sb.from('marks_lock_state').select('teacher_id,subject_id,section_id,is_locked').eq('assessment_id',a.assessment_id)
   const lockMap={};lockRows?.forEach(m=>{lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]=m.is_locked})
 
   // Compute status per mapping row + tally pending per teacher.
   const pendingByTeacher={}  // teacher_id → {name, pending:count}
   const byTeacher={}
+  // Submission is decided purely by marks lock state: a subject counts as
+  // submitted only once the teacher has locked it. Anything not locked is
+  // pending, regardless of how many marks were entered.
   maps.forEach(m=>{
     if(!byTeacher[m.teacher_id])byTeacher[m.teacher_id]={name:m.teachers?.full_name||'—',rows:[]}
     const total=secCount[m.section_id]||0
