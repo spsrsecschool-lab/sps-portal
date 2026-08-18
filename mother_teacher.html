@@ -952,7 +952,8 @@ async function loadHandbook(){
   _hbSignedOff=!!(so&&(so.id||so.teacher_id));
   const upToDate=_hbSignedOff && _hbSecs.every(s=>_hbAcks[s.section_id]===s.version);
   if(upToDate){ renderHandbookFull(); }
-  else { _hbIdx=firstUnackedPage(); renderHandbookFlow(); }
+  else if(_hbSignedOff){ _hbIdx=firstUnackedPage(); renderHandbookFlow(); }  // re-ack: jump to changed section
+  else { _hbIdx=0; renderHandbookFlow(); }  // first time: start at the intro page
 }
 // Pages: [intro, ...sections, declaration]
 function hbPages(){
