@@ -7010,12 +7010,22 @@ async function loadSubstitutionSheet(){
   if(!dayEntries.length){emp(el,'No schedule for this teacher on '+dow+'.');return}
   _subData=dayEntries.sort((a,b)=>(a.time_slots?.sort_order||0)-(b.time_slots?.sort_order||0))
   const slotIds=_subData.map(e=>e.slot_id)
-  const{data:busyAll}=await sb.from('timetable_entries').select('slot_id,teacher_id').eq('roster_id',roster.roster_id).in('slot_id',slotIds)
+  // A teacher is "not free" in a slot if, on that weekday, they already have:
+  //  (1) a regular timetable entry, (2) a standing adjustment, or on that DATE
+  //  (3) an existing substitute assignment — in that same slot.
+  const[{data:busyAll},{data:adjAll},{data:subAll}]=await Promise.all([
+    sb.from('timetable_entries').select('slot_id,teacher_id,days').eq('roster_id',roster.roster_id).in('slot_id',slotIds),
+    sb.from('adjustments').select('slot_id,teacher_id,days').in('slot_id',slotIds).then(r=>r,()=>({data:[]})),
+    sb.from('substitutions').select('slot_id,substitute_teacher_id').eq('date',date).in('slot_id',slotIds).then(r=>r,()=>({data:[]}))
+  ])
   const busyBySlot={}
-  ;(busyAll||[]).filter(b=>(b.days||[]).includes(dow)).forEach(b=>{if(!busyBySlot[b.slot_id])busyBySlot[b.slot_id]=[];busyBySlot[b.slot_id].push(b.teacher_id)})
+  const mark=(slot,tid)=>{if(!tid)return;(busyBySlot[slot]=busyBySlot[slot]||new Set()).add(tid)}
+  ;(busyAll||[]).filter(b=>(b.days||[]).includes(dow)).forEach(b=>mark(b.slot_id,b.teacher_id))
+  ;(adjAll||[]).filter(a=>(a.days||[]).includes(dow)).forEach(a=>mark(a.slot_id,a.teacher_id))
+  ;(subAll||[]).forEach(s=>mark(s.slot_id,s.substitute_teacher_id))
   el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute</th></tr></thead><tbody>'+
     _subData.map(e=>{
-      const busy=new Set(busyBySlot[e.slot_id]||[])
+      const busy=busyBySlot[e.slot_id]||new Set()
       const free=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!busy.has(t.teacher_id))
       return '<tr><td style="font-weight:700">'+esc(e.time_slots?.name||'—')+'</td>'
         +'<td class="mono" style="font-size:11px">'+(e.time_slots?.start_time||'').slice(0,5)+'–'+(e.time_slots?.end_time||'').slice(0,5)+'</td>'
