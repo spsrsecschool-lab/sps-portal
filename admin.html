@@ -7053,11 +7053,24 @@ async function saveSubstitutions(){
   const{error}=await sb.from('substitutions').upsert(rows,{onConflict:'date,entry_id'})
   if(error){toast('Failed: '+error.message,'error');return}
   const absentT=ALL_TEACHERS.find(t=>t.teacher_id===teacherId)
+  let notifiedCount=0
   if(notify.length){
-    const msgs=notify.map(n=>({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:n.teacherId,subject:'Substitution Duty — '+date,body:'You are assigned substitute on '+date+'.\nSlot: '+n.slot+' | Class: '+n.cls+' | Subject: '+n.subj+'\nCovering for: '+(absentT?.full_name||'—'),message_type:'substitution_notice',sent_at:new Date().toISOString()}))
-    await sb.from('messages').insert(msgs)
+    const dLabel=new Date(date+'T12:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+    const msgs=notify.map(n=>({sender_type:'admin',sender_id:SPS.admin?.admin_id,recipient_type:'teacher',recipient_id:n.teacherId,
+      subject:'Substitution Duty — '+dLabel,
+      body:'You have been assigned a substitution.\n\nDate: '+dLabel+'\nPeriod: '+(n.slot||'—')+'\nClass: '+(n.cls||'—')+'\nSubject: '+(n.subj||'—')+'\nCovering for: '+(absentT?.full_name||'—')+'\n\nPlease report to the assigned class for this period.',
+      message_type:'substitution_notice',sent_at:new Date().toISOString()}))
+    const{error:msgErr}=await sb.from('messages').insert(msgs)
+    if(msgErr){ toast('Saved, but notifications failed: '+msgErr.message,'error') }
+    else {
+      notifiedCount=msgs.length
+      // Mark those substitution rows as notified.
+      const notifiedEntryIds=[]
+      document.querySelectorAll('.sub_sel').forEach(sel=>{ if(sel.value) notifiedEntryIds.push(sel.dataset.entryId) })
+      if(notifiedEntryIds.length){ try{ await sb.from('substitutions').update({notification_sent:true}).eq('date',date).in('entry_id',notifiedEntryIds) }catch(e){} }
+    }
   }
-  toast('Substitutions saved'+(notify.length?' & '+notify.length+' notified':''),'success')
+  toast('Substitutions saved'+(notifiedCount?' & '+notifiedCount+' teacher'+(notifiedCount>1?'s':'')+' notified':''),'success')
 }
 
 
