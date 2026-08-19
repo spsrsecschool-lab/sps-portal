@@ -1645,28 +1645,7 @@ function runFamilyAutoAllocate(){
     const tillIdx=MONTHS.indexOf(tillMonth);
     if(tillIdx>=0) activeMonths=MONTHS.slice(0,tillIdx+1);
   }
-  const skipped=[];
 
-  function shouldAcceptTuition(mt,due,availCash,famAnnDue,famPrevDue){
-    if(availCash>=due) return true;
-    const shortfall=due-availCash;
-    const withinThreshold=(mt>=1000&&shortfall<=500)||(mt<1000&&shortfall<=300);
-    if(withinThreshold) return true;
-    if(famAnnDue===0&&famPrevDue<=0) return true;
-    return false;
-  }
-
-  // Family-scoped tuition allocation — lockstep across siblings.
-  //
-  // Rule: for each month, the allocator needs enough cash to fully cover THAT
-  // MONTH for EVERY active sibling before it moves to the next month. If a
-  // month can't be covered for all, no one gets a partial tuition allocation
-  // for it — the remaining cash falls out of tuition allocation and lands on
-  // Previous Balance instead (handled later by allocPrev).
-  //
-  // Small shortfalls stay within the historical acceptance threshold: if the
-  // family's total tuition shortfall for a month is within threshold AND the
-  // family has no annual/prev dues, we accept it as "close enough."
   function allocTuition(){
     for(const m of activeMonths){
       if(cash<=0)return;
@@ -1680,21 +1659,7 @@ function runFamilyAutoAllocate(){
       });
       const owed=rows.filter(r=>r.due>0);
       if(!owed.length)continue;                          // month already covered for everyone
-      const monthTotal=owed.reduce((s,r)=>s+r.due,0);
-      // Threshold check for the family-scale month total.
-      const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
-      const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
-      const largestMt=Math.max(...owed.map(r=>r.mt));
-      const shortfall=monthTotal-cash;
-      const withinThreshold=(largestMt>=1000&&shortfall<=500)||(largestMt<1000&&shortfall<=300);
-      const acceptShort=(shortfall<=0)||(withinThreshold&&famAnnDue===0&&famPrevDue<=0);
-      if(!acceptShort){
-        // Not enough for THIS month across everyone — halt and let the
-        // remaining cash flow into Previous Balance downstream.
-        skipped.push(`${m} — needs ${fmtINR(monthTotal)}, only ${fmtINR(cash)} left`);
-        return;
-      }
-      // Cover this month for all owed siblings.
+      // Cover this month for all owed siblings (partial OK — remainder flows to Prev Balance).
       owed.forEach(({stu,due})=>{
         const pay=Math.min(cash,due);
         autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
@@ -1737,13 +1702,9 @@ function runFamilyAutoAllocate(){
         const wv=getWaivedAmount(stu,m);
         const due=Math.max(0,mt-wv-paid);
         if(due<=0)return;
-        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
-        const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
-        if(shouldAcceptTuition(mt,due,cash,famAnnDue,famPrevDue)){
-          const pay=Math.min(cash,due);
-          autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
-          cash-=pay;
-        }else{ skipped.push(`${stu.name} — ${m}`) }
+        const pay=Math.min(cash,due);
+        autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
+        cash-=pay;
       });
       if(cash<=0)return;
       const annDue=getTotalDues(stu).annualDue;
@@ -1763,13 +1724,9 @@ function runFamilyAutoAllocate(){
         const wv=getWaivedAmount(stu,m);
         const due=Math.max(0,mt-wv-paid);
         if(due<=0)return;
-        const famAnnDue=activeSiblings.reduce((s,x)=>s+getTotalDues(x).annualDue,0);
-        const famPrevDue=getFamilyPrevBalance(activeFamilyCode);
-        if(shouldAcceptTuition(mt,due,cash,famAnnDue,famPrevDue)){
-          const pay=Math.min(cash,due);
-          autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
-          cash-=pay;
-        }else{ skipped.push(`${stu.name} — ${m}`) }
+        const pay=Math.min(cash,due);
+        autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
+        cash-=pay;
       });
     });
   }
@@ -1802,7 +1759,6 @@ function runFamilyAutoAllocate(){
       <span>${esc(p.name)} — <span style="color:var(--muted)">${esc(p.month)}</span>${shortfallNote}</span>
       <b style="color:${isPartial?'var(--yellow)':'var(--green)'}">${fmtINR(p.amt)}</b></div>`;
   });
-  if(skipped.length) html+=`<div style="color:var(--yellow);margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">⚠ Skipped (shortfall too large):<br>${skipped.map(s=>`&nbsp;• ${esc(s)}`).join('<br>')}</div>`;
   if(partialItems.length) html+=`<div style="color:var(--accent);margin-top:6px;font-size:10px;">ℹ You will be asked what to do with the ${partialItems.length} partial payment(s) before saving.</div>`;
   html+='</div>';
   previewBox.innerHTML=html;
