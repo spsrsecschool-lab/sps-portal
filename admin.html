@@ -5743,7 +5743,15 @@ function svKind(status){
   if(status==='Late'||status==='L')return 'l'
   if(status==='Off'||status==='Holiday'||status==='WO')return 'o'
   if(status==='Absent'||status==='A')return 'a'
+  if(status==='Half Day')return 'l'
   return null
+}
+function svEffective(rec,date,teacherId){
+  if(rec && svKind(rec.status)) return rec.status;
+  if(rec && (rec.time_in||rec.time_out)){
+    return resolveDay(date,{tin:rec.time_in,tout:rec.time_out},thresholdsFor(teacherId,date)).status;
+  }
+  return rec?.status||null;
 }
 
 // Edit one teacher's attendance for one day: in/out time (incl. adding a missed
@@ -5802,7 +5810,7 @@ function renderStaffRegister(){
   // ── Overall stats
   let tp=0,tl=0,ta=0,to_=0
   teachers.forEach(t=>_svDates.forEach(d=>{
-    const k=svKind(byKey[t.teacher_id+'|'+d]?.status)
+    const k=svKind(svEffective(byKey[t.teacher_id+'|'+d],d,t.teacher_id))
     if(k==='p')tp++;else if(k==='l')tl++;else if(k==='a')ta++;else if(k==='o')to_++
   }))
   const workedCells=tp+tl+ta
@@ -5830,10 +5838,11 @@ function renderStaffRegister(){
     let cells=''
     _svDates.forEach(d=>{
       const rec=byKey[t.teacher_id+'|'+d]
-      const k=svKind(rec?.status)
+      const effSt=svEffective(rec,d,t.teacher_id)
+      const k=svKind(effSt)
       const tin=rec?.time_in?String(rec.time_in).slice(0,5):''
       const tout=rec?.time_out?String(rec.time_out).slice(0,5):''
-      const tip=fmtD(d)+(k?' · '+rec.status:' · no record')+(tin?' · in '+tin:'')+(tout?' · out '+tout:'')
+      const tip=fmtD(d)+(k?' · '+effSt:' · no record')+(tin?' · in '+tin:'')+(tout?' · out '+tout:'')
       let ch='·', cls='m-none'
       if(k==='p'){ch='P';cls='m-p';p++}
       else if(k==='l'){ch='L';cls='m-l';l++}
@@ -5852,7 +5861,7 @@ function renderStaffRegister(){
   // ── Per-day totals
   html+='<tr style="background:var(--lav-100);font-weight:800"><td class="sa-name" style="background:var(--lav-100)">Present that day</td>'
   _svDates.forEach(d=>{
-    const n=teachers.filter(t=>{const k=svKind(byKey[t.teacher_id+'|'+d]?.status);return k==='p'||k==='l'}).length
+    const n=teachers.filter(t=>{const k=svKind(svEffective(byKey[t.teacher_id+'|'+d],d,t.teacher_id));return k==='p'||k==='l'}).length
     html+='<td class="sa-dcell" style="background:var(--lav-100)">'+(n||'')+'</td>'
   })
   html+='<td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td></tr>'
@@ -5878,7 +5887,7 @@ function showTeacherAttDetail(tid){
   let body='<div style="max-height:60vh;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
     +'<thead><tr>'+['Date','Day','Status','In','Out','Hours'].map(h=>'<th style="position:sticky;top:0;background:var(--lav-100);padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft)">'+h+'</th>').join('')+'</tr></thead><tbody>'
   _svDates.forEach(d=>{
-    const r=byDate[d], k=svKind(r?.status)
+    const r=byDate[d], effSt=svEffective(r,d,tid), k=svKind(effSt)
     if(k==='p')p++;else if(k==='l')l++;else if(k==='a')a++;else if(k==='o')o++
     const tin=r?.time_in?String(r.time_in).slice(0,5):null
     const tout=r?.time_out?String(r.time_out).slice(0,5):null
@@ -5919,12 +5928,12 @@ function exportStaffRegister(){
   teachers.forEach(t=>{
     let p=0,l=0,a=0,o=0
     const cells=_svDates.map(d=>{
-      const r=byKey[t.teacher_id+'|'+d], k=svKind(r?.status)
+      const r=byKey[t.teacher_id+'|'+d], effSt=svEffective(r,d,t.teacher_id), k=svKind(effSt)
       if(k==='p')p++;else if(k==='l')l++;else if(k==='a')a++;else if(k==='o')o++
       if(!r)return ''
       const tin=r.time_in?String(r.time_in).slice(0,5):''
       const tout=r.time_out?String(r.time_out).slice(0,5):''
-      return r.status+(tin||tout?' '+tin+'-'+tout:'')
+      return (effSt||'')+(tin||tout?' '+tin+'-'+tout:'')
     })
     csv.push([t.employee_code||'',t.full_name||'',...cells,p,l,a,o].map(esc2).join(','))
   })
