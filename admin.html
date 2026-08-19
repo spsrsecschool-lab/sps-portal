@@ -1408,28 +1408,25 @@ tbody tr:hover td{background:var(--lav-50)}
       <!-- SUBSTITUTION -->
       <div id="ttTab-sub" style="display:none">
         <div class="card" style="margin-bottom:18px">
-          <div class="form-row" style="margin-bottom:0">
-            <div class="fg"><label>Absent Teacher</label><select id="sub_teacher"><option value="">Select teacher</option></select></div>
-            <div class="fg"><label>Date</label><input type="date" id="sub_date"></div>
-            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadSubstitutionSheet()">Load Schedule</button>
+          <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap">
+            <div class="fg" style="max-width:200px"><label>Date</label><input type="date" id="sub_date" onchange="onSubDateChange()"></div>
           </div>
-        </div>
-
-        <!-- Mark who is unavailable today so they're kept out of every substitute list -->
-        <div class="card" style="margin-bottom:18px">
-          <label style="font-weight:700;font-size:13px">Unavailable teachers today <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px">— kept out of all substitute dropdowns for the selected date</span></label>
-          <div class="form-row" style="margin:10px 0 0;align-items:flex-end;flex-wrap:wrap">
-            <div class="fg" style="min-width:180px"><label>Teacher</label><select id="unav_teacher"><option value="">Select teacher</option></select></div>
-            <div class="fg" style="max-width:190px"><label>Availability</label><select id="unav_type" onchange="document.getElementById('unav_timeWrap').style.display=this.value==='all'?'none':''"><option value="all">Away all day</option><option value="leaves">Leaves at…</option><option value="arrives">Arrives at…</option></select></div>
-            <div class="fg" id="unav_timeWrap" style="display:none;max-width:150px"><label>Time</label><input type="time" id="unav_time"></div>
-            <button class="btn btn-soft" onclick="addUnavailable()">Add</button>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+            <label style="font-weight:700;font-size:13px">Mark Unavailable Teachers <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px">— then click a teacher below to assign substitutes</span></label>
+            <div class="form-row" style="margin:10px 0 0;align-items:flex-end;flex-wrap:wrap">
+              <div class="fg" style="min-width:180px"><label>Teacher</label><select id="unav_teacher"><option value="">Select teacher</option></select></div>
+              <div class="fg" style="max-width:190px"><label>Availability</label><select id="unav_type" onchange="document.getElementById('unav_timeWrap').style.display=this.value==='all'?'none':''"><option value="all">Away all day</option><option value="leaves">Leaves at…</option><option value="arrives">Arrives at…</option></select></div>
+              <div class="fg" id="unav_timeWrap" style="display:none;max-width:150px"><label>Time</label><input type="time" id="unav_time"></div>
+              <button class="btn btn-soft" onclick="addUnavailable()">Add</button>
+            </div>
+            <div id="unavList" style="margin-top:14px"></div>
           </div>
-          <div id="unavList" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px"></div>
         </div>
         <div id="subSheet"></div>
         <div id="subSaveRow" style="display:none;margin-top:16px">
           <button class="btn btn-dark" onclick="saveSubstitutions()"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Save &amp; Send Notifications</button>
         </div>
+        <div id="subSummary" style="margin-top:18px"></div>
       </div>
 
       <!-- ADJUSTMENT -->
@@ -1582,6 +1579,7 @@ function subscribeTodayPanel(){
     .on('postgres_changes',{event:'*',schema:'public',table:'activity_log'},bump)
     .on('postgres_changes',{event:'*',schema:'public',table:'student_enrollments'},bump)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},bump)
+    .on('postgres_changes',{event:'*',schema:'public',table:'substitutions'},bump)
     .subscribe((s)=>console.log('[RT] Today panel channel:',s))
 }
 
@@ -2270,8 +2268,11 @@ async function renderTodayPanel(){
   }else{html+='<p style="font-size:12px;color:var(--ink-faint)">—</p>'}
   html+='</div></div>'
 
-  // Recent activity feed — a live glance of what's happening across the school:
-  // logged actions (admin/AI/teacher), teacher↔admin messages, and new admissions.
+  // Live class snapshot — who is teaching where right now
+  const liveH=await buildLiveClassSnapshot(iso,isSunday||isHoliday)
+  if(liveH) html+=liveH
+
+  // Recent activity feed
   const feed=await buildRecentFeed()
   html+='<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Recent activity</div>'
   if(feed.length){
@@ -2280,6 +2281,81 @@ async function renderTodayPanel(){
   html+='</div>'
 
   el.innerHTML=html
+  scheduleLiveRefresh()
+}
+
+let _liveRefreshTimer=null
+function scheduleLiveRefresh(){
+  clearTimeout(_liveRefreshTimer)
+  const now=new Date(),s=60-now.getSeconds()
+  _liveRefreshTimer=setTimeout(()=>{
+    if($('page-dashboard')?.classList.contains('active'))renderTodayPanel()
+  },(s+1)*1000)
+}
+async function buildLiveClassSnapshot(iso,off){
+  if(off)return ''
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(iso+'T12:00:00').getDay()]
+  if(dow==='Sun')return ''
+  const roster=await getActiveRoster()
+  if(!roster)return ''
+  const[{data:slots},{data:entries},{data:adjs},{data:subs}]=await Promise.all([
+    sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order'),
+    sb.from('timetable_entries').select('entry_id,slot_id,teacher_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name),teachers(full_name)').eq('roster_id',roster.roster_id),
+    sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name)').then(r=>r,()=>({data:[]})),
+    sb.from('substitutions').select('entry_id,substitute_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]}))
+  ])
+  if(!slots?.length||!entries?.length)return ''
+  const now=new Date()
+  const nowHM=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')
+  let curSlot=null,nextSlot=null
+  for(const s of slots){
+    const st=(s.start_time||'').slice(0,5),et=(s.end_time||'').slice(0,5)
+    if(nowHM>=st&&nowHM<et){curSlot=s;break}
+    if(nowHM<st&&!nextSlot)nextSlot=s
+  }
+  const displaySlot=curSlot||nextSlot||slots[slots.length-1]
+  const isNow=!!curSlot
+  const isPast=!curSlot&&!nextSlot
+  const label=isNow?'Current Period: '+displaySlot.name:(isPast?'Last Period (school over): '+displaySlot.name:'Next Period: '+displaySlot.name)
+  const timeLabel=(displaySlot.start_time||'').slice(0,5)+'–'+(displaySlot.end_time||'').slice(0,5)
+  const dayEntries=(entries||[]).filter(e=>(e.days||[]).includes(dow)&&e.slot_id===displaySlot.slot_id)
+  if(!dayEntries.length)return ''
+  const subMap={};(subs||[]).forEach(s=>{subMap[s.entry_id]=s})
+  const adjMap={};(adjs||[]).filter(a=>(a.days||[]).includes(dow)&&a.slot_id===displaySlot.slot_id).forEach(a=>{
+    const k=a.class_id+'_'+a.section_id;adjMap[k]=a
+  })
+  let h='<div style="margin-top:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--ink-soft)">'+esc(label)+'</div>'
+    +'<span class="mono" style="font-size:11px;color:var(--ink-faint)">'+esc(timeLabel)+'</span>'
+    +(isNow?'<span style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--indigo);background:var(--white);border:1px solid var(--indigo-100);padding:2px 7px;border-radius:999px">Live</span>':'')
+    +'</div>'
+  h+='<div style="max-height:320px;overflow-y:auto"><table style="width:100%;font-size:12.5px"><thead><tr>'
+    +'<th style="text-align:left">Class</th><th style="text-align:left">Subject</th><th style="text-align:left">Teacher</th><th style="text-align:left">Status</th></tr></thead><tbody>'
+  dayEntries.sort((a,b)=>{
+    const an=a.classes?.name||'',bn=b.classes?.name||''
+    return an.localeCompare(bn,undefined,{numeric:true})||(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'')
+  }).forEach(e=>{
+    const sub=subMap[e.entry_id]
+    const adjK=e.class_id+'_'+e.section_id
+    const adj=adjMap[adjK]
+    let teacherName=e.teachers?.full_name||'—'
+    let status=''
+    if(sub&&sub.substitute_teacher_id){
+      teacherName=sub.teachers?.full_name||'Substitute'
+      status='<span style="font-size:10px;font-weight:700;color:#fff;background:#C9344D;padding:2px 6px;border-radius:4px">SUB</span>'
+    }else if(sub&&!sub.substitute_teacher_id){
+      status='<span style="font-size:10px;font-weight:700;color:#fff;background:var(--warn,#E8A23D);padding:2px 6px;border-radius:4px">UNASSIGNED</span>'
+    }else if(adj){
+      teacherName=adj.teachers?.full_name||teacherName
+      status='<span style="font-size:10px;font-weight:700;color:#fff;background:var(--indigo);padding:2px 6px;border-radius:4px">ADJ</span>'
+    }
+    h+='<tr><td style="font-weight:600">'+esc((e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'))+'</td>'
+      +'<td>'+esc(e.subjects?.name||'—')+'</td>'
+      +'<td style="font-weight:600">'+esc(teacherName)+'</td>'
+      +'<td>'+status+'</td></tr>'
+  })
+  h+='</tbody></table></div></div>'
+  return h
 }
 
 // Build a merged, most-recent-first feed from several live sources.
@@ -7043,25 +7119,46 @@ function addUnavailable(){
   const m=getUnavailable(date); m[tid]={type,time}; setUnavailable(date,m);
   if($('unav_teacher'))$('unav_teacher').value=''; if($('unav_time'))$('unav_time').value='';
   renderUnavailable();
-  if($('subSheet')&&$('subSheet').innerHTML.trim())loadSubstitutionSheet(); // refresh dropdowns
+  if(_subActiveTeacher&&$('subSheet')&&$('subSheet').innerHTML.trim())loadSubstitutionSheet(_subActiveTeacher);
 }
 function removeUnavailable(tid){
   const date=$('sub_date')?.value; const m=getUnavailable(date); delete m[tid]; setUnavailable(date,m);
+  if(_subActiveTeacher===tid){_subActiveTeacher=null;const el=$('subSheet');if(el)el.innerHTML='';const sr=$('subSaveRow');if(sr)sr.style.display='none';}
   renderUnavailable();
-  if($('subSheet')&&$('subSheet').innerHTML.trim())loadSubstitutionSheet();
+  if(_subActiveTeacher&&$('subSheet')&&$('subSheet').innerHTML.trim())loadSubstitutionSheet(_subActiveTeacher);
 }
 function renderUnavailable(){
   const box=$('unavList'); if(!box)return;
   const date=$('sub_date')?.value; const m=getUnavailable(date);
   const ids=Object.keys(m);
-  if(!ids.length){ box.innerHTML='<span style="font-size:12px;color:var(--ink-faint)">No one marked unavailable for this date.</span>'; return; }
+  if(!ids.length){ box.innerHTML='<span style="font-size:12px;color:var(--ink-faint)">No one marked unavailable for this date. Add teachers above to begin.</span>'; return; }
   box.innerHTML=ids.map(tid=>{
     const t=ALL_TEACHERS.find(x=>x.teacher_id===tid); const u=m[tid];
-    const lbl=u.type==='all'?'away all day':(u.type==='leaves'?('leaves '+u.time):('arrives '+u.time));
-    return '<span style="display:inline-flex;align-items:center;gap:7px;background:#FCE7EA;color:#B5122B;border:1px solid #E5556B;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700">'
-      +esc(t?.full_name||tid)+' <span style="font-weight:500;opacity:.85">· '+esc(lbl)+'</span>'
-      +'<button onclick="removeUnavailable(\''+tid+'\')" style="background:none;border:none;color:inherit;cursor:pointer;font-size:15px;line-height:1;padding:0">×</button></span>';
+    const lbl=u.type==='all'?'Away all day':(u.type==='leaves'?('Leaves at '+u.time):('Arrives at '+u.time));
+    const active=_subActiveTeacher===tid;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:'+(active?'var(--indigo-100)':'#FCE7EA')+';border:1.5px solid '+(active?'var(--indigo)':'#E5556B')+';border-radius:10px;padding:10px 14px;margin-bottom:6px">'
+      +'<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">'
+      +'<div style="width:34px;height:34px;border-radius:8px;background:'+(active?'var(--indigo)':'#C9344D')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-weight:800;font-size:13px">'+esc((t?.full_name||'?')[0])+'</div>'
+      +'<div style="min-width:0"><div style="font-weight:700;font-size:13px;color:var(--ink)">'+esc(t?.full_name||tid)+'</div>'
+      +'<div style="font-size:11.5px;color:var(--ink-soft)">'+esc(lbl)+'</div></div></div>'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
+      +'<button class="btn btn-sm '+(active?'btn-dark':'btn-soft')+'" onclick="loadSubForTeacher(\''+tid+'\')">'+( active?'Schedule Loaded':'Load Schedule')+'</button>'
+      +'<button onclick="removeUnavailable(\''+tid+'\')" style="background:none;border:none;color:#C9344D;cursor:pointer;font-size:17px;line-height:1;padding:2px" title="Remove">×</button>'
+      +'</div></div>';
   }).join('');
+}
+let _subActiveTeacher=null;
+function loadSubForTeacher(tid){
+  _subActiveTeacher=tid;
+  renderUnavailable();
+  loadSubstitutionSheet(tid);
+}
+function onSubDateChange(){
+  _subActiveTeacher=null;
+  const el=$('subSheet');if(el)el.innerHTML='';
+  const sr=$('subSaveRow');if(sr)sr.style.display='none';
+  renderUnavailable();
+  loadSubSummary();
 }
 // Is a teacher available to cover a slot that STARTS at startHHMM?
 function _availForSlot(tid, unavMap, startHHMM){
@@ -7072,10 +7169,10 @@ function _availForSlot(tid, unavMap, startHHMM){
   if(u.type==='arrives')return st >= u.time;     // not here before u.time
   return true;
 }
-async function loadSubstitutionSheet(){
-  const teacherId=$('sub_teacher')?.value,date=$('sub_date')?.value,el=$('subSheet')
+async function loadSubstitutionSheet(teacherIdArg){
+  const teacherId=teacherIdArg||_subActiveTeacher,date=$('sub_date')?.value,el=$('subSheet')
   if(!el)return;ldg(el);const saveRow=$('subSaveRow');if(saveRow)saveRow.style.display='none'
-  if(!teacherId||!date){emp(el,'Select a teacher and date');return}
+  if(!teacherId||!date){emp(el,'Mark a teacher as unavailable and click "Load Schedule"');return}
   const roster=await getActiveRoster()
   if(!roster){emp(el,'No active roster.');return}
   _subRoster=roster
@@ -7108,17 +7205,21 @@ async function loadSubstitutionSheet(){
   ;(adjAll||[]).filter(a=>(a.days||[]).includes(dow)).forEach(a=>mark(a.slot_id,a.teacher_id))
   ;(subAll||[]).forEach(s=>mark(s.slot_id,s.substitute_teacher_id))
   const unavMap=getUnavailable(date)
-  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute</th></tr></thead><tbody>'+
+  const{data:existingSubs}=await sb.from('substitutions').select('entry_id,substitute_teacher_id').eq('date',date).eq('absent_teacher_id',teacherId)
+  const existMap={};(existingSubs||[]).forEach(s=>{existMap[s.entry_id]=s.substitute_teacher_id})
+  const tName=esc(ALL_TEACHERS.find(t=>t.teacher_id===teacherId)?.full_name||'Teacher')
+  el.innerHTML='<div class="card"><h3 style="margin-top:0">Schedule for '+tName+'</h3><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute</th></tr></thead><tbody>'+
     _subData.map(e=>{
       const busy=busyBySlot[e.slot_id]||new Set()
       const st=(e.time_slots?.start_time||'').slice(0,5)
-      const free=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!motherSet.has(t.teacher_id)&&!busy.has(t.teacher_id)&&_availForSlot(t.teacher_id,unavMap,st))
+      const cur=existMap[e.entry_id]||''
+      const free=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!motherSet.has(t.teacher_id)&&(!busy.has(t.teacher_id)||t.teacher_id===cur)&&_availForSlot(t.teacher_id,unavMap,st))
       return '<tr><td style="font-weight:700">'+esc(e.time_slots?.name||'—')+'</td>'
         +'<td class="mono" style="font-size:11px">'+(e.time_slots?.start_time||'').slice(0,5)+'–'+(e.time_slots?.end_time||'').slice(0,5)+'</td>'
         +'<td>'+esc((e.classes?.name||'—')+'-'+(e.class_sections?.name||'—'))+'</td>'
         +'<td>'+esc(e.subjects?.name||'—')+'</td>'
         +'<td><select class="sub_sel" data-entry-id="'+e.entry_id+'" style="font-family:var(--font);font-size:12px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);width:100%">'
-        +'<option value="">— Unassigned —</option>'+free.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+        +'<option value="">— Unassigned —</option>'+free.map(t=>'<option value="'+t.teacher_id+'"'+(t.teacher_id===cur?' selected':'')+'>'+esc(t.full_name)+'</option>').join('')
         +'</select></td></tr>'
     }).join('')
     +'</tbody></table></div><p style="font-size:11.5px;color:var(--ink-soft);margin-top:10px">Only teachers free during each slot are shown.</p></div>'
@@ -7126,7 +7227,7 @@ async function loadSubstitutionSheet(){
 }
 
 async function saveSubstitutions(){
-  const teacherId=$('sub_teacher')?.value,date=$('sub_date')?.value
+  const teacherId=_subActiveTeacher,date=$('sub_date')?.value
   if(!teacherId||!date||!_subRoster){toast('Missing data','error');return}
   const rows=[],notify=[]
   document.querySelectorAll('.sub_sel').forEach(sel=>{
@@ -7157,8 +7258,49 @@ async function saveSubstitutions(){
     }
   }
   toast('Substitutions saved'+(notifiedCount?' & '+notifiedCount+' teacher'+(notifiedCount>1?'s':'')+' notified':''),'success')
+  loadSubSummary()
 }
 
+
+async function loadSubSummary(){
+  const el=$('subSummary');if(!el)return;
+  const date=$('sub_date')?.value;if(!date){el.innerHTML='';return}
+  const{data:subs,error}=await sb.from('substitutions')
+    .select('date,absent_teacher_id,substitute_teacher_id,slot_id,entry_id')
+    .eq('date',date)
+  if(error||!subs?.length){el.innerHTML='';return}
+  const entryIds=[...new Set(subs.map(s=>s.entry_id).filter(Boolean))]
+  const slotIds=[...new Set(subs.map(s=>s.slot_id).filter(Boolean))]
+  const[{data:entries},{data:slots}]=await Promise.all([
+    entryIds.length?sb.from('timetable_entries').select('entry_id,classes(name),class_sections(name),subjects(name)').in('entry_id',entryIds):Promise.resolve({data:[]}),
+    slotIds.length?sb.from('time_slots').select('slot_id,name,start_time,end_time,sort_order').in('slot_id',slotIds):Promise.resolve({data:[]})
+  ])
+  const entryMap={};(entries||[]).forEach(e=>entryMap[e.entry_id]=e)
+  const slotMap={};(slots||[]).forEach(s=>slotMap[s.slot_id]=s)
+  const grouped={};
+  subs.forEach(r=>{const k=r.absent_teacher_id;if(!grouped[k])grouped[k]=[];grouped[k].push(r)})
+  let h='<div class="card"><h3 style="margin-top:0">Substitutions for '+new Date(date+'T12:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})+'</h3>';
+  Object.keys(grouped).forEach(tid=>{
+    const t=ALL_TEACHERS.find(x=>x.teacher_id===tid);
+    const rows=grouped[tid].sort((a,b)=>(slotMap[a.slot_id]?.sort_order||0)-(slotMap[b.slot_id]?.sort_order||0));
+    h+='<div style="margin-bottom:16px"><div style="font-weight:700;font-size:13px;color:#B5122B;margin-bottom:6px;display:flex;align-items:center;gap:8px">'
+      +'<span style="width:24px;height:24px;border-radius:6px;background:#C9344D;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:11px">'+esc((t?.full_name||'?')[0])+'</span>'
+      +esc(t?.full_name||tid)+' <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px">— absent</span></div>'
+      +'<div class="table-wrap"><table style="font-size:12.5px"><thead><tr><th>Period</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute</th></tr></thead><tbody>';
+    rows.forEach(r=>{
+      const sl=slotMap[r.slot_id]||{};const en=entryMap[r.entry_id]||{};
+      const sub=r.substitute_teacher_id?ALL_TEACHERS.find(x=>x.teacher_id===r.substitute_teacher_id):null;
+      h+='<tr><td style="font-weight:700">'+esc(sl.name||'—')+'</td>'
+        +'<td class="mono" style="font-size:11px">'+(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5)+'</td>'
+        +'<td>'+esc((en.classes?.name||'?')+'-'+(en.class_sections?.name||'?'))+'</td>'
+        +'<td>'+esc(en.subjects?.name||'—')+'</td>'
+        +'<td style="font-weight:600;color:'+(sub?'var(--grn,#216F40)':'var(--warn,#E8A23D)')+'">'+esc(sub?.full_name||'Unassigned')+'</td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+  });
+  h+='</div>';
+  el.innerHTML=h;
+}
 
 // ═══════════════════════════════════════════════════════════
 // REQUESTS SYSTEM
@@ -7595,11 +7737,11 @@ async function setTeacherLogin(teacherId, oldUsername){
 async function loadTimetable(){
   loadRosters()
   $('tt_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
-  $('sub_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
   if($('unav_teacher'))$('unav_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
-  renderUnavailable&&renderUnavailable()
   $('tt_cls').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   if($('sub_date'))$('sub_date').value=today()
+  renderUnavailable&&renderUnavailable()
+  loadSubSummary()
   // Adjustment tab
   if($('adj_teacher'))$('adj_teacher').innerHTML='<option value="">Select teacher</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
   if($('adj_class'))$('adj_class').innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
