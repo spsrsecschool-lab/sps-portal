@@ -2334,13 +2334,13 @@ async function buildLiveClassSnapshot(iso,off){
   const adjMap={};(adjs||[]).filter(a=>(a.days||[]).includes(dow)&&a.slot_id===displaySlot.slot_id).forEach(a=>{
     const k=a.class_id+'_'+a.section_id;adjMap[k]=a
   })
-  let h='<div style="margin-top:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
-    +'<div style="font-size:12px;font-weight:700;color:var(--ink-soft)">'+esc(label)+'</div>'
+  let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+    +(isNow?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22C55E;box-shadow:0 0 6px #22C55E;flex-shrink:0"></span>':'')
+    +'<span style="font-size:12px;font-weight:700;color:var(--ink-soft)">'+esc(label)+'</span>'
     +'<span class="mono" style="font-size:11px;color:var(--ink-faint)">'+esc(timeLabel)+'</span>'
-    +(isNow?'<span style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--indigo);background:var(--white);border:1px solid var(--indigo-100);padding:2px 7px;border-radius:999px">Live</span>':'')
     +'</div>'
-  h+='<div style="max-height:320px;overflow-y:auto"><table style="width:100%;font-size:12.5px"><thead><tr>'
-    +'<th style="text-align:left">Class</th><th style="text-align:left">Subject</th><th style="text-align:left">Teacher</th><th style="text-align:left">Status</th></tr></thead><tbody>'
+  h+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
   dayEntries.sort((a,b)=>{
     const an=a.classes?.name||'',bn=b.classes?.name||''
     return an.localeCompare(bn,undefined,{numeric:true})||(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'')
@@ -2349,22 +2349,26 @@ async function buildLiveClassSnapshot(iso,off){
     const adjK=e.class_id+'_'+e.section_id
     const adj=adjMap[adjK]
     let teacherName=e.teachers?.full_name||'—'
-    let status=''
+    let badge='',borderCol='var(--line)',bgCol='var(--bg)'
     if(sub&&sub.substitute_teacher_id){
       teacherName=sub.teachers?.full_name||'Substitute'
-      status='<span style="font-size:10px;font-weight:700;color:#fff;background:#C9344D;padding:2px 6px;border-radius:4px">SUB</span>'
+      badge='<span style="font-size:8px;font-weight:800;color:#fff;background:#C9344D;padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">SUB</span>'
+      borderCol='#C9344D40';bgCol='#C9344D08'
     }else if(sub&&!sub.substitute_teacher_id){
-      status='<span style="font-size:10px;font-weight:700;color:#fff;background:var(--warn,#E8A23D);padding:2px 6px;border-radius:4px">UNASSIGNED</span>'
+      badge='<span style="font-size:8px;font-weight:800;color:#fff;background:var(--warn,#E8A23D);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">!</span>'
+      borderCol='#E8A23D40';bgCol='#E8A23D08'
     }else if(adj){
       teacherName=adj.teachers?.full_name||teacherName
-      status='<span style="font-size:10px;font-weight:700;color:#fff;background:var(--indigo);padding:2px 6px;border-radius:4px">ADJ</span>'
+      badge='<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span>'
+      borderCol='var(--indigo-100,#6366F140)';bgCol='#6366F108'
     }
-    h+='<tr><td style="font-weight:600">'+esc((e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'))+'</td>'
-      +'<td>'+esc(e.subjects?.name||'—')+'</td>'
-      +'<td style="font-weight:600">'+esc(teacherName)+'</td>'
-      +'<td>'+status+'</td></tr>'
+    h+='<div style="border:1px solid '+borderCol+';background:'+bgCol+';border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc((e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'))+badge+'</div>'
+      +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(teacherName)+'</div>'
+      +'<div style="font-size:10px;color:var(--ink-faint);margin-top:1px">'+esc(e.subjects?.name||'')+'</div>'
+      +'</div>'
   })
-  h+='</tbody></table></div></div>'
+  h+='</div></div>'
   return h
 }
 
