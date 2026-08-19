@@ -1658,9 +1658,10 @@ function runFamilyAutoAllocate(){
         return {stu,mt,due};
       });
       const owed=rows.filter(r=>r.due>0);
-      if(!owed.length)continue;                          // month already covered for everyone
-      // Cover this month for all owed siblings (partial OK — remainder flows to Prev Balance).
+      if(!owed.length)continue;
+      owed.sort((a,b)=>a.due-b.due);
       owed.forEach(({stu,due})=>{
+        if(cash<=0)return;
         const pay=Math.min(cash,due);
         autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:pay,fullDue:due});
         cash-=pay;
@@ -1693,7 +1694,12 @@ function runFamilyAutoAllocate(){
   }
 
   function allocPerStudentTA(){
-    activeSiblings.forEach(stu=>{
+    const sorted=[...activeSiblings].sort((a,b)=>{
+      const aT=activeMonths.reduce((s,m)=>{const mt=monthlyTuitionForMonth(a,MONTHS.indexOf(m)),pd=getMonthPayments(a.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0),wv=getWaivedAmount(a,m);return s+Math.max(0,mt-wv-pd)},0);
+      const bT=activeMonths.reduce((s,m)=>{const mt=monthlyTuitionForMonth(b,MONTHS.indexOf(m)),pd=getMonthPayments(b.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0),wv=getWaivedAmount(b,m);return s+Math.max(0,mt-wv-pd)},0);
+      return aT-bT;
+    });
+    sorted.forEach(stu=>{
       if(cash<=0)return;
       activeMonths.forEach(m=>{
         if(cash<=0)return;
@@ -1713,7 +1719,12 @@ function runFamilyAutoAllocate(){
   }
 
   function allocPerStudentAT(){
-    activeSiblings.forEach(stu=>{
+    const sorted=[...activeSiblings].sort((a,b)=>{
+      const aT=activeMonths.reduce((s,m)=>{const mt=monthlyTuitionForMonth(a,MONTHS.indexOf(m)),pd=getMonthPayments(a.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0),wv=getWaivedAmount(a,m);return s+Math.max(0,mt-wv-pd)},0);
+      const bT=activeMonths.reduce((s,m)=>{const mt=monthlyTuitionForMonth(b,MONTHS.indexOf(m)),pd=getMonthPayments(b.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0),wv=getWaivedAmount(b,m);return s+Math.max(0,mt-wv-pd)},0);
+      return aT-bT;
+    });
+    sorted.forEach(stu=>{
       if(cash<=0)return;
       const annDue=getTotalDues(stu).annualDue;
       if(annDue>0){const pay=Math.min(cash,annDue);autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:pay,fullDue:annDue});cash-=pay}
@@ -1745,6 +1756,7 @@ function runFamilyAutoAllocate(){
     default:      allocTuition();allocAnnual();allocPrev();
   }
 
+  autoAllocPlan=autoAllocPlan.filter(p=>p.amt>0);
   autoAllocPlan.push({valid:true});
   const partialItems=autoAllocPlan.filter(p=>!p.valid&&p.type!=='Prev'&&p.fullDue>0&&p.amt<p.fullDue);
 
