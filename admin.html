@@ -2231,6 +2231,7 @@ async function renderTodayPanel(){
     return
   }
 
+  // ── Stat cards ──
   html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0 4px">'
     +stat('Students Present',presentTotal+' / '+marked, pctPresent+'% of marked'+(marked<totalStudents?' · '+(totalStudents-marked)+' unmarked':''), pctPresent>=75?'var(--grn,#216F40)':'var(--warn,#E8A23D)')
     +stat('Absent',A,'students today','#C0392B')
@@ -2239,46 +2240,55 @@ async function renderTodayPanel(){
     +stat('New Admissions',newAdmToday,'today')
     +'</div>'
 
-  // Class-wise table
-  html+='<div class="today-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">'
-  html+='<div><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Class-wise attendance</div>'
+  // ── Live class snapshot — prominent section ──
+  const liveH=await buildLiveClassSnapshot(iso,isSunday||isHoliday)
+  if(liveH) html+=liveH
+
+  // ── Attendance details: class-wise + not-marked in a 2-col grid ──
+  html+='<style>@media(max-width:600px){.today-2col{grid-template-columns:1fr!important}}</style>'
+  html+='<div class="today-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">'
+
+  // Left: class-wise attendance
+  html+='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:12px 14px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Class-wise Attendance</div>'
   if(sections.length){
-    html+='<div style="max-height:280px;overflow-y:auto"><table style="width:100%;font-size:12.5px"><thead><tr>'
-      +'<th style="text-align:left">Class</th><th style="text-align:center">Present</th><th style="text-align:center">Total</th><th style="text-align:center">%</th></tr></thead><tbody>'
+    html+='<div style="max-height:260px;overflow-y:auto"><table style="width:100%;font-size:12px"><thead><tr>'
+      +'<th style="text-align:left;padding:4px 6px">Class</th><th style="text-align:center;padding:4px 6px">Present</th><th style="text-align:center;padding:4px 6px">Total</th><th style="text-align:center;padding:4px 6px">%</th></tr></thead><tbody>'
     sections.forEach(s=>{
       const pc=s.marked?Math.round(s.present/s.marked*100):null
       const col=s.marked===0?'var(--ink-faint)':(pc>=75?'var(--grn,#216F40)':'var(--warn,#E8A23D)')
-      html+='<tr><td style="font-weight:600">'+esc(s.cls)+'-'+esc(s.sec)+'</td>'
-        +'<td style="text-align:center;font-family:var(--mono)">'+(s.marked?s.present:'—')+'</td>'
-        +'<td style="text-align:center;font-family:var(--mono)">'+s.total+'</td>'
-        +'<td style="text-align:center;font-weight:700;color:'+col+'">'+(s.marked?pc+'%':'—')+'</td></tr>'
+      html+='<tr><td style="font-weight:600;padding:3px 6px">'+esc(s.cls)+'-'+esc(s.sec)+'</td>'
+        +'<td style="text-align:center;font-family:var(--mono);padding:3px 6px">'+(s.marked?s.present:'—')+'</td>'
+        +'<td style="text-align:center;font-family:var(--mono);padding:3px 6px">'+s.total+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:'+col+';padding:3px 6px">'+(s.marked?pc+'%':'—')+'</td></tr>'
     })
     html+='</tbody></table></div>'
   }else{html+='<p style="font-size:12px;color:var(--ink-faint)">No classes with students yet.</p>'}
   html+='</div>'
 
-  // Not-yet-marked panel
-  html+='<div><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Attendance not marked yet</div>'
+  // Right: not-yet-marked + recent activity
+  html+='<div style="display:flex;flex-direction:column;gap:14px">'
+  html+='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:12px 14px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Attendance Not Marked</div>'
   if(notMarked.length){
-    html+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
-      +notMarked.map(s=>'<span style="background:var(--warn-soft);color:#B77A1E;border:1px solid var(--warn);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600">'+esc(s.cls)+'-'+esc(s.sec)+'</span>').join('')
-      +'</div><div style="font-size:11px;color:var(--ink-faint);margin-top:8px">'+notMarked.length+' of '+sections.length+' sections pending.</div>'
+    html+='<div style="display:flex;flex-wrap:wrap;gap:5px">'
+      +notMarked.map(s=>'<span style="background:var(--warn-soft);color:#B77A1E;border:1px solid var(--warn);border-radius:6px;padding:4px 9px;font-size:11px;font-weight:600">'+esc(s.cls)+'-'+esc(s.sec)+'</span>').join('')
+      +'</div><div style="font-size:11px;color:var(--ink-faint);margin-top:6px">'+notMarked.length+' of '+sections.length+' sections pending.</div>'
   }else if(sections.length){
-    html+='<div style="background:var(--grn-100);border:1px solid var(--grn);border-radius:10px;padding:12px;font-size:12.5px;color:var(--grn,#216F40);font-weight:600">✓ All sections have marked attendance today.</div>'
+    html+='<div style="background:var(--grn-100);border:1px solid var(--grn);border-radius:8px;padding:10px;font-size:12px;color:var(--grn,#216F40);font-weight:600">All sections have marked attendance.</div>'
   }else{html+='<p style="font-size:12px;color:var(--ink-faint)">—</p>'}
-  html+='</div></div>'
-
-  // Live class snapshot — who is teaching where right now
-  const liveH=await buildLiveClassSnapshot(iso,isSunday||isHoliday)
-  if(liveH) html+=liveH
+  html+='</div>'
 
   // Recent activity feed
   const feed=await buildRecentFeed()
-  html+='<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Recent activity</div>'
+  html+='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:12px 14px;flex:1">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Recent Activity</div>'
   if(feed.length){
+    html+='<div style="max-height:200px;overflow-y:auto">'
     html+=feed.map(a=>'<div class="log-row"><div class="log-dot" style="background:'+a.color+'"></div><div><div class="txt">'+(a.who?'<b>'+esc(a.who)+'</b> ':'')+esc(a.text)+'</div><div class="ts">'+rel(a.t)+'</div></div></div>').join('')
+    html+='</div>'
   }else{html+='<p style="font-size:12px;color:var(--ink-faint)">No recent activity yet.</p>'}
-  html+='</div>'
+  html+='</div></div></div>'
 
   el.innerHTML=html
   scheduleLiveRefresh()
