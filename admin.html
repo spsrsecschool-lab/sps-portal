@@ -6712,15 +6712,19 @@ function renderTeacherScheds(){
   if(!teachers.length){el.innerHTML='<div style="color:var(--ink-faint);font-size:12.5px">No active teachers.</div>';return}
   const hm=t=>t?String(t).slice(0,5):''
   const dph=hm(_attDefaults.default_shift_start), dph2=hm(_attDefaults.default_shift_end), dpl=hm(_attDefaults.default_late_after)
-  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Shift Start</th><th>Shift End</th><th>Late After</th><th></th></tr></thead><tbody>'
+  const dphl=hm(_attDefaults.half_day_late_after), dphe=hm(_attDefaults.half_day_early_before)
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Shift Start</th><th>Shift End</th><th>Late After</th><th>½ Day Late After</th><th>½ Day Early Before</th><th></th></tr></thead><tbody>'
     +teachers.map(t=>{
       const s=_teacherScheds[t.teacher_id]||{}
       const custom=!!_teacherScheds[t.teacher_id]
+      const inp='style="font-family:var(--mono);font-size:12px;padding:5px 7px;border:1.5px solid var(--line);border-radius:7px;background:var(--lav-50)"'
       return '<tr data-tid="'+esc(t.teacher_id)+'">'
         +'<td style="font-weight:600">'+esc(t.full_name)+(custom?' <span class="pill pill-grn" style="font-size:9px">custom</span>':'')+'</td>'
-        +'<td><input type="time" class="ts-in ts-start" value="'+hm(s.shift_start)+'" placeholder="'+dph+'" style="font-family:var(--mono);font-size:12px;padding:5px 7px;border:1.5px solid var(--line);border-radius:7px;background:var(--lav-50)"></td>'
-        +'<td><input type="time" class="ts-in ts-end" value="'+hm(s.shift_end)+'" placeholder="'+dph2+'" style="font-family:var(--mono);font-size:12px;padding:5px 7px;border:1.5px solid var(--line);border-radius:7px;background:var(--lav-50)"></td>'
-        +'<td><input type="time" class="ts-in ts-late" value="'+hm(s.late_after)+'" placeholder="'+dpl+'" style="font-family:var(--mono);font-size:12px;padding:5px 7px;border:1.5px solid var(--line);border-radius:7px;background:var(--lav-50)"></td>'
+        +'<td><input type="time" class="ts-in ts-start" value="'+hm(s.shift_start)+'" placeholder="'+dph+'" '+inp+'></td>'
+        +'<td><input type="time" class="ts-in ts-end" value="'+hm(s.shift_end)+'" placeholder="'+dph2+'" '+inp+'></td>'
+        +'<td><input type="time" class="ts-in ts-late" value="'+hm(s.late_after)+'" placeholder="'+dpl+'" '+inp+'></td>'
+        +'<td><input type="time" class="ts-in ts-hdlate" value="'+hm(s.half_day_late_after)+'" placeholder="'+dphl+'" '+inp+'></td>'
+        +'<td><input type="time" class="ts-in ts-hdearly" value="'+hm(s.half_day_early_before)+'" placeholder="'+dphe+'" '+inp+'></td>'
         +'<td style="display:flex;gap:6px"><button class="btn btn-dark btn-xs" onclick="saveTeacherSched(this,\''+esc(t.teacher_id)+'\')">Save</button>'
           +(custom?'<button class="btn btn-ghost btn-xs" onclick="clearTeacherSched(\''+esc(t.teacher_id)+'\')">Reset</button>':'')+'</td>'
         +'</tr>'
@@ -6731,9 +6735,8 @@ function renderTeacherScheds(){
 async function saveTeacherSched(btn,tid){
   const row=btn.closest('tr')
   const g=cls=>{const v=row.querySelector('.'+cls)?.value;return v||null}
-  const rec={teacher_id:tid,shift_start:g('ts-start'),shift_end:g('ts-end'),late_after:g('ts-late'),updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()}
-  // If all three blank, treat as "use default" → delete any existing row.
-  if(!rec.shift_start&&!rec.shift_end&&!rec.late_after){
+  const rec={teacher_id:tid,shift_start:g('ts-start'),shift_end:g('ts-end'),late_after:g('ts-late'),half_day_late_after:g('ts-hdlate'),half_day_early_before:g('ts-hdearly'),updated_by:SPS.admin?.admin_id,updated_at:new Date().toISOString()}
+  if(!rec.shift_start&&!rec.shift_end&&!rec.late_after&&!rec.half_day_late_after&&!rec.half_day_early_before){
     await sb.from('teacher_schedules').delete().eq('teacher_id',tid)
     delete _teacherScheds[tid]
     toast('Using default schedule','success');renderTeacherScheds();return
