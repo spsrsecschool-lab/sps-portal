@@ -5747,7 +5747,6 @@ function svKind(status){
   return null
 }
 function svEffective(rec,date,teacherId){
-  if(rec && svKind(rec.status)) return rec.status;
   if(rec && (rec.time_in||rec.time_out)){
     return resolveDay(date,{tin:rec.time_in,tout:rec.time_out},thresholdsFor(teacherId,date)).status;
   }
