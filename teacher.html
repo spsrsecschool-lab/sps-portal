@@ -452,7 +452,10 @@
     #main{margin-left:0}
     .content{padding:16px}
     .menu-board{grid-template-columns:1fr 1fr}
-    .grid-3,.grid-4{grid-template-columns:1fr}
+    .grid-3{grid-template-columns:1fr}
+    .grid-4{grid-template-columns:repeat(2,1fr)}
+    .grid-4 .stat-card .val{font-size:20px}
+    .grid-4 .stat-card{padding:12px 14px;gap:4px}
     .topbar{padding:0 14px;gap:10px}
     .user-chip .uname,.user-chip .urole{display:none}
     .user-chip{padding:5px}
@@ -849,6 +852,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
         <div class="stat-card"><span class="lbl">My Classes</span><span class="val" id="statClasses">—</span><span class="sub">Active assignments</span></div>
         <div class="stat-card"><span class="lbl">Critical Students</span><span class="val" id="statCrit">—</span><span class="sub">Failing in your subjects</span></div>
       </div>
+      <div id="dashLiveSchedule" style="margin-bottom:18px"></div>
       <div class="grid-2">
         <div class="card"><h3>My Assignments</h3><div id="dashAssignments"><div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div></div></div>
         <div class="card"><h3>Recent Activity</h3><div id="dashActivity"><div style="text-align:center;padding:20px;color:var(--ink-faint)">Loading…</div></div></div>
@@ -1754,6 +1758,7 @@ SPS.ready().then(async()=>{
   subscribeActivity(TEACHER.teacher_id)
   subscribeMarksLock(TEACHER.teacher_id)
   subscribeTimetable(TEACHER.teacher_id)
+  subscribeSubstitutions(TEACHER.teacher_id)
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
 
   // Populate subject dropdowns
@@ -1890,19 +1895,21 @@ async function renderDashboard(){
     dueItems.forEach(it=>{ if(!seen.has(it.name)){seen.add(it.name);byAssess.push(it)} })
     $('bannerSub').innerHTML=byAssess.map(a=>'<div style="margin-top:3px"><b>'+esc(a.name)+'</b> — '+esc(fmtDL(a.deadline))+'</div>').join('')
   }else{
-    const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀', 'All done here! Everything submitted and ready for the next assessment. 🚀', 'Clear dashboard today. Keep up the great work! 💪', "Marks all in — your students' progress is fully recorded. 📝", 'No outstanding submissions. A well-organised week! ✨', 'All caught up! The admin team appreciates your timely submissions. 👏']
-    const dayIdx=new Date().getDate()%allClearMsgs.length
-    {
-      $('dashBanner').style.display='none'
-      const ac=$('dashAllClear')
-      if(ac){
-        ac.style.display='block'
-        ac.innerHTML='<div style="background:var(--success-soft);border:1px solid var(--success);border-radius:var(--radius-lg);padding:18px 22px;display:flex;align-items:center;gap:14px">'
-          +'<div style="width:36px;height:36px;border-radius:10px;background:var(--success);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox=\"0 0 24 24\" style=\"width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.5\"><polyline points=\"20 6 9 17 4 12\"/></svg></div>'
-          +'<div style=\"font-size:14px;font-weight:600;color:var(--success)\">'+allClearMsgs[dayIdx]+'</div>'
-          +'</div>'
-      }
-    }
+    $('dashBanner').style.display='none'
+    const ac=$('dashAllClear')
+    // Only show "all caught up" when there are currently unlocked assessments
+    // that the teacher has completed. If no assessments are unlocked at all
+    // (all past/ended), hide the banner entirely.
+    const hasUnlockedAssessments=ALL_ASSESSMENTS.some(a=>a.is_marks_unlocked)
+    if(ac && hasUnlockedAssessments){
+      const allClearMsgs=["You're all caught up! Great work keeping marks up to date. 🎉", "Nothing pending today — your students' records are complete. ✅", 'All submissions in. A great day to review performance trends. 📊', 'Marks are fully up to date. Your class is well tracked. 🌟', 'No pending marks — take a moment to check your critical students. 👀']
+      const dayIdx=new Date().getDate()%allClearMsgs.length
+      ac.style.display='block'
+      ac.innerHTML='<div style="background:var(--success-soft);border:1px solid var(--success);border-radius:var(--radius-lg);padding:18px 22px;display:flex;align-items:center;gap:14px">'
+        +'<div style="width:36px;height:36px;border-radius:10px;background:var(--success);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox=\"0 0 24 24\" style=\"width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.5\"><polyline points=\"20 6 9 17 4 12\"/></svg></div>'
+        +'<div style=\"font-size:14px;font-weight:600;color:var(--success)\">'+allClearMsgs[dayIdx]+'</div>'
+        +'</div>'
+    }else if(ac){ ac.style.display='none' }
   }
 
   // Assignments list
@@ -1913,33 +1920,187 @@ async function renderDashboard(){
   }).join('')
   el.innerHTML=rows||'<p style="font-size:12.5px;color:var(--ink-faint)">No assignments.</p>'
 
-  // Activity feed — combines admin actions (activity_log) + recent marks
-  const actEl=$('dashActivity')
+  // Live schedule + activity feed
+  renderLiveSchedule()
   await renderActivityFeed()
 }
 
 async function renderActivityFeed(){
   const actEl=$('dashActivity')
   if(!actEl||!TEACHER)return
-  // Admin action log (realtime, auto-trimmed to 10)
-  const{data:logs}=await sb.from('activity_log').select('*')
-    .eq('user_type','teacher').eq('user_id',TEACHER.teacher_id)
-    .order('created_at',{ascending:false}).limit(10)
-  // Recent marks submissions
-  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id,assessments(name),subjects(name)').eq('entered_by',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(15)
+  const today=new Date().toISOString().slice(0,10)
   const events=[]
-  ;(logs||[]).forEach(l=>events.push({ts:l.created_at,label:l.message,sub:'Admin',type:'admin',icon:l.action_type}))
+
+  // Own marks submissions (deduped by assessment+subject)
+  const{data:recent}=await sb.from('marks').select('entered_at,assessment_id,subject_id,assessments(name),subjects(name)').eq('entered_by',TEACHER.teacher_id).order('entered_at',{ascending:false}).limit(15)
   const seen=new Set()
   ;(recent||[]).forEach(m=>{
     const key=m.assessment_id+'_'+m.subject_id+'_'+Math.floor(new Date(m.entered_at).getTime()/600000)
     if(seen.has(key))return;seen.add(key)
     events.push({ts:m.entered_at,label:'You entered marks for '+(m.assessments?.name||'assessment'),sub:m.subjects?.name||'',type:'marks'})
   })
+
+  // Substitutions assigned to this teacher (today and recent)
+  try{
+    const{data:subs}=await sb.from('substitutions')
+      .select('date,slot_id,entry_id,substitute_teacher_id,teachers:substitute_teacher_id(full_name),timetable_entries!inner(classes(name),class_sections(name),subjects(name),teachers(full_name)),time_slots:slot_id(name)')
+      .or('substitute_teacher_id.eq.'+TEACHER.teacher_id+',timetable_entries.teacher_id.eq.'+TEACHER.teacher_id)
+      .gte('date',new Date(Date.now()-7*86400000).toISOString().slice(0,10))
+      .order('date',{ascending:false})
+      .limit(10)
+    ;(subs||[]).forEach(s=>{
+      if(s.substitute_teacher_id===TEACHER.teacher_id){
+        const cls=(s.timetable_entries?.classes?.name||'?')+'-'+(s.timetable_entries?.class_sections?.name||'?')
+        const subj=s.timetable_entries?.subjects?.name||''
+        const slot=s.time_slots?.name||''
+        const orig=s.timetable_entries?.teachers?.full_name||'a teacher'
+        events.push({ts:s.date+'T08:00:00',label:'You are substituting for '+orig+' in '+cls+(slot?' ('+slot+')':''),sub:subj,type:'sub'})
+      }else{
+        const cls=(s.timetable_entries?.classes?.name||'?')+'-'+(s.timetable_entries?.class_sections?.name||'?')
+        const slot=s.time_slots?.name||''
+        const sub=s.teachers?.full_name||'a substitute'
+        events.push({ts:s.date+'T08:00:00',label:sub+' is covering your '+cls+(slot?' ('+slot+')':''),sub:'',type:'sub'})
+      }
+    })
+  }catch(e){console.warn('[activity] subs fetch failed',e)}
+
+  // Important admin actions ABOUT this teacher (skip marks-related ones to avoid duplicates)
+  const{data:logs}=await sb.from('activity_log').select('*')
+    .eq('user_type','teacher').eq('user_id',TEACHER.teacher_id)
+    .order('created_at',{ascending:false}).limit(10)
+  ;(logs||[]).forEach(l=>{
+    const msg=(l.message||'').toLowerCase()
+    if(msg.includes('entered marks')||msg.includes('mark attendance'))return
+    events.push({ts:l.created_at,label:l.message,sub:'',type:'admin'})
+  })
+
   events.sort((a,b)=>new Date(b.ts)-new Date(a.ts))
   const top=events.slice(0,10)
   if(!top.length){actEl.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-faint);font-size:12.5px">No recent activity.</div>';return}
-  const dotColor=e=>e.type==='admin'?'var(--warn)':'var(--indigo)'
-  actEl.innerHTML=top.map(e=>'<div class="log-row"><div class="log-dot" style="background:'+dotColor(e)+'"></div><div><div class="txt">'+esc(e.label)+'</div><div class="ts">'+esc(e.sub||'')+(e.sub?' · ':'')+rel(e.ts)+'</div></div></div>').join('')
+  const dotColor=e=>e.type==='sub'?'#C9344D':e.type==='marks'?'var(--indigo)':'var(--warn)'
+  actEl.innerHTML=top.map(e=>'<div class="log-row"><div class="log-dot" style="background:'+dotColor(e)+'"></div><div><div class="txt">'+esc(e.label)+'</div><div class="ts">'+(e.sub?esc(e.sub)+' · ':'')+rel(e.ts)+'</div></div></div>').join('')
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LIVE SCHEDULE (dashboard widget)
+// ═══════════════════════════════════════════════════════════════
+let _liveSchedTimer=null
+async function renderLiveSchedule(){
+  const el=$('dashLiveSchedule')
+  if(!el||!TEACHER||!SESS)return
+  const iso=new Date().toISOString().slice(0,10)
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()]
+  if(dow==='Sun'){el.innerHTML='';return}
+
+  const roster=await getActiveRoster()
+  if(!roster){el.innerHTML='';return}
+
+  const[{data:slots},{data:entries},{data:adjs},{data:subs}]=await Promise.all([
+    sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order'),
+    sb.from('timetable_entries').select('slot_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name)').eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id),
+    sb.from('adjustments').select('slot_id,class_id,section_id,days,classes(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id).then(r=>r,()=>({data:[]})),
+    sb.from('substitutions').select('entry_id,substitute_teacher_id,slot_id,timetable_entries!inner(teacher_id,classes(name),class_sections(name),subjects(name)),time_slots:slot_id(name,start_time,end_time,sort_order)').eq('date',iso).then(r=>r,()=>({data:[]}))
+  ])
+  if(!slots?.length){el.innerHTML='';return}
+
+  // Build per-slot schedule
+  const slotMap={}
+  ;(slots||[]).forEach(s=>{slotMap[s.slot_id]=s})
+
+  const schedule=[]
+  // Regular teaching entries for today
+  ;(entries||[]).forEach(e=>{
+    if(!(e.days||[]).includes(dow))return
+    const sl=slotMap[e.slot_id]
+    if(!sl)return
+    schedule.push({sort:sl.sort_order||0,slot:sl.name,time:(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5),cls:(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'),subj:e.subjects?.name||'',tag:'',slot_id:sl.slot_id})
+  })
+
+  // Adjustments for today
+  ;(adjs||[]).forEach(a=>{
+    if(!(a.days||[]).includes(dow))return
+    const sl=slotMap[a.slot_id]
+    if(!sl)return
+    schedule.push({sort:sl.sort_order||0,slot:sl.name,time:(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5),cls:(a.classes?.name||'?')+'-'+(a.class_sections?.name||'?'),subj:'',tag:'ADJ',slot_id:sl.slot_id})
+  })
+
+  // Substitutions: where I'm substituting for someone
+  ;(subs||[]).forEach(s=>{
+    if(s.substitute_teacher_id!==TEACHER.teacher_id)return
+    const sl=s.time_slots||slotMap[s.slot_id]
+    if(!sl)return
+    const already=schedule.some(x=>x.slot_id===s.slot_id&&x.cls===((s.timetable_entries?.classes?.name||'?')+'-'+(s.timetable_entries?.class_sections?.name||'?')))
+    if(already)return
+    schedule.push({sort:sl.sort_order||0,slot:sl.name,time:(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5),cls:(s.timetable_entries?.classes?.name||'?')+'-'+(s.timetable_entries?.class_sections?.name||'?'),subj:s.timetable_entries?.subjects?.name||'',tag:'SUB',slot_id:s.slot_id})
+  })
+
+  // Check if I'm absent: any sub where original teacher is me
+  const myAbsentSlots=new Set()
+  ;(subs||[]).forEach(s=>{
+    if(s.timetable_entries?.teacher_id===TEACHER.teacher_id)myAbsentSlots.add(s.slot_id)
+  })
+  // Remove my regular entries where I've been substituted
+  const filtered=schedule.filter(s=>!myAbsentSlots.has(s.slot_id)||s.tag==='SUB')
+
+  if(!filtered.length){el.innerHTML='';return}
+  filtered.sort((a,b)=>a.sort-b.sort)
+
+  // Determine current period
+  const nowHM=String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0')
+  let curIdx=-1,nextIdx=-1
+  filtered.forEach((s,i)=>{
+    const[st,et]=s.time.split('–')
+    if(nowHM>=st&&nowHM<et&&curIdx<0)curIdx=i
+    if(nowHM<st&&nextIdx<0)nextIdx=i
+  })
+  const isPast=curIdx<0&&nextIdx<0
+
+  let h='<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+  if(curIdx>=0)h+='<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22C55E;box-shadow:0 0 6px #22C55E;flex-shrink:0"></span>'
+  h+='<h3 style="margin:0;font-size:14px">'+(isPast?'Today\'s Schedule (completed)':'Today\'s Schedule')+'</h3></div>'
+  h+='<div style="display:flex;flex-direction:column;gap:4px">'
+  filtered.forEach((s,i)=>{
+    const isCur=i===curIdx
+    const isNext=i===nextIdx&&curIdx<0
+    const isPastSlot=curIdx>=0?i<curIdx:isPast
+    let bg='var(--white)',border='var(--line)',opacity=isPastSlot?'0.5':'1'
+    if(isCur){bg='var(--indigo-100,#EEF2FF)';border='var(--indigo,#5B4FE8)'}
+    else if(isNext){bg='var(--lav-50,#f7f7fb)';border='var(--indigo-100,#C7D2FE)'}
+    let tagHtml=''
+    if(s.tag==='SUB')tagHtml='<span style="font-size:9px;font-weight:800;color:#fff;background:#C9344D;padding:1px 5px;border-radius:3px;margin-left:6px">SUB</span>'
+    else if(s.tag==='ADJ')tagHtml='<span style="font-size:9px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 5px;border-radius:3px;margin-left:6px">ADJ</span>'
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid '+border+';background:'+bg+';border-radius:8px;opacity:'+opacity+'">'
+      +'<div style="min-width:50px;font-size:11px;font-weight:700;color:var(--ink-soft)">'+esc(s.slot)+'</div>'
+      +'<div class="mono" style="font-size:10px;color:var(--ink-faint);min-width:70px">'+esc(s.time)+'</div>'
+      +'<div style="font-size:12.5px;font-weight:700;color:var(--ink)">'+esc(s.cls)+tagHtml+'</div>'
+      +'<div style="font-size:11.5px;color:var(--ink-soft);margin-left:auto">'+esc(s.subj)+'</div>'
+    if(isCur)h+='<span style="font-size:8px;font-weight:800;color:var(--indigo);background:var(--white);border:1px solid var(--indigo);padding:1px 6px;border-radius:999px;letter-spacing:.04em">NOW</span>'
+    h+='</div>'
+  })
+  h+='</div></div>'
+  el.innerHTML=h
+
+  // Auto-refresh at next minute boundary
+  clearTimeout(_liveSchedTimer)
+  const s=60-new Date().getSeconds()
+  _liveSchedTimer=setTimeout(()=>{
+    if($('page-dashboard')?.classList.contains('active'))renderLiveSchedule()
+  },(s+1)*1000)
+}
+
+function subscribeSubstitutions(teacherId){
+  if(!teacherId)return
+  sb.channel('subs_teacher_'+teacherId)
+    .on('postgres_changes',{event:'*',schema:'public',table:'substitutions'},payload=>{
+      renderLiveSchedule()
+      renderActivityFeed()
+    }).subscribe()
+  sb.channel('adj_teacher_'+teacherId)
+    .on('postgres_changes',{event:'*',schema:'public',table:'adjustments'},payload=>{
+      const row=payload.new||payload.old||{}
+      if(row.teacher_id&&row.teacher_id!==teacherId)return
+      renderLiveSchedule()
+    }).subscribe()
 }
 
 // ═══════════════════════════════════════════════════════════════
