@@ -859,7 +859,7 @@ const $=id=>document.getElementById(id)
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtD(s){if(!s)return '—';try{const d=s.includes('T')||s.includes('Z')?new Date(s):new Date(s+'T12:00:00');if(isNaN(d))return '—';return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return '—'}}
 function rel(s){if(!s)return '—';try{const d=new Date(s);if(isNaN(d.getTime()))return '—';const diff=Date.now()-d.getTime();if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';if(diff<604800000)return Math.floor(diff/86400000)+'d ago';return fmtD(s)}catch{return '—'}}
-function today(){return new Date().toISOString().slice(0,10)}
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function initials(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
 function ldg(el,msg='Loading…'){if(el)el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">'+msg+'</div>'}
 function emp(el,msg){if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint);font-size:13px">'+esc(msg)+'</div>'}
@@ -1135,7 +1135,7 @@ function goTo(id,el){
   if(id==='examfees')loadExamFeeDropdown()
   if(id==='messages'){ showMsgView(window._forceInbox?'inbox':'compose'); window._forceInbox=false }
   if(id==='marks')loadMarksSection()
-  if(id==='myattendance'){const now=new Date();const first=new Date(now.getFullYear(),now.getMonth(),1);if($('att_from')&&!$('att_from').value)$('att_from').value=first.toISOString().slice(0,10);if($('att_to')&&!$('att_to').value)$('att_to').value=today();loadMyAttendance();loadDeductionHistory()}
+  if(id==='myattendance'){const now=new Date();const first=new Date(now.getFullYear(),now.getMonth(),1);const _fiso=first.getFullYear()+'-'+String(first.getMonth()+1).padStart(2,'0')+'-'+String(first.getDate()).padStart(2,'0');if($('att_from')&&!$('att_from').value)$('att_from').value=_fiso;if($('att_to')&&!$('att_to').value)$('att_to').value=today();loadMyAttendance();loadDeductionHistory()}
   if(id==='profile')loadProfile()
 }
 
@@ -2491,7 +2491,7 @@ async function loadAssessMarks(){
     let workingDays=0
     const cur=new Date(sessStart)
     const end=new Date(attToStr)
-    while(cur<=end){const dow=cur.getDay();if(dow!==0&&!holSet.has(cur.toISOString().slice(0,10)))workingDays++;cur.setDate(cur.getDate()+1)}
+    while(cur<=end){const dow=cur.getDay();const _cd=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');if(dow!==0&&!holSet.has(_cd))workingDays++;cur.setDate(cur.getDate()+1)}
     // Get attendance per student
     const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
     const byStudent={}
@@ -3252,7 +3252,7 @@ async function loadViewMarks(){
     const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
     const holSet=new Set((hols||[]).map(h=>h.date))
     let workingDays=0;const cur=new Date(sessStart),end=new Date(attToStr)
-    while(cur<=end){const dow=cur.getDay();if(dow!==0&&!holSet.has(cur.toISOString().slice(0,10)))workingDays++;cur.setDate(cur.getDate()+1)}
+    while(cur<=end){const dow=cur.getDay();const _cd=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');if(dow!==0&&!holSet.has(_cd))workingDays++;cur.setDate(cur.getDate()+1)}
     const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
     const byStu={}
     let _mp={}
