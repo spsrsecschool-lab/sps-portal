@@ -1724,7 +1724,7 @@ async function loadStudentSections(classId){
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
-const today=()=>new Date().toISOString().slice(0,10)
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 const ini=(n='')=>n.trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?'
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 const fmtD=d=>d?new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—'
@@ -1934,7 +1934,7 @@ const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,stu
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
 async function initAdmission(){
-  const ad=$('adm_admdate');if(ad&&!ad.value)ad.value=new Date().toISOString().slice(0,10)  // default to today
+  const ad=$('adm_admdate');if(ad&&!ad.value)ad.value=today()
   await refreshAdmSnoPlaceholder()
   await loadAdmFathers()
 }
@@ -2140,7 +2140,7 @@ async function renderDashboard(){
 // ═══════════ TODAY AT SCHOOL ═══════════
 async function renderTodayPanel(){
   const el=$('todayPanel'); if(!el)return
-  const today=new Date(); const iso=today.toISOString().slice(0,10)
+  const today=new Date(); const iso=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0')
   const lbl=$('todayDateLbl'); if(lbl)lbl.textContent=today.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})
   const sid=SESS.session_id
 
@@ -4415,7 +4415,7 @@ async function loadMarksTable(){
 
   // Attendance up to the assessment end date (same basis as the class-teacher
   // view): monthly (Previous Attendance) overrides daily for its period.
-  const attTo=assess?.end_date||assess?.commencement_date||new Date().toISOString().slice(0,10)
+  const attTo=assess?.end_date||assess?.commencement_date||today()
   let classStart=SESS?.start_date||null
   try{const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS.session_id).eq('class_id',classId).maybeSingle();if(cs?.start_date)classStart=cs.start_date}catch(e){}
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
@@ -4634,7 +4634,7 @@ async function confirmRelieve(){
   const e=_relieveActive.find(x=>x.enrollment_id===eid)
   if(!e){toast('Student not found','error');return}
   const{error}=await sb.from('student_enrollments').update({
-    relieved:true, relieved_date:new Date().toISOString().slice(0,10),
+    relieved:true, relieved_date:today(),
     relieved_by:SPS.admin?.admin_id||null, relieved_reason:reason
   }).eq('enrollment_id',eid)
   if(error){toast('Failed: '+error.message,'error');return}
@@ -4802,7 +4802,7 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   // and compute working days per student (new admissions with a date start later).
   let classStart=SESS?.start_date||null
   try{const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS.session_id).eq('class_id',classId).maybeSingle();if(cs?.start_date)classStart=cs.start_date}catch(e){}
-  const attTo=aRow?.end_date||aRow?.commencement_date||new Date().toISOString().slice(0,10)
+  const attTo=aRow?.end_date||aRow?.commencement_date||today()
   const attCutoffSet=!!(aRow?.end_date||aRow?.commencement_date)   // was a date actually set?
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
   const[{data:hols},{data:att},{data:monthly}]=await Promise.all([
@@ -5842,7 +5842,7 @@ function svEffective(rec,date,teacherId){
   }
   const status=rec?.status||null;
   if(status==='Absent' || !status){
-    const today=new Date().toISOString().slice(0,10);
+    const _td=new Date();const today=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
     if(date===today){
       const sched=_saScheds[teacherId]||{};
       const shiftStart=String(sched.shift_start||_saDefaults?.default_shift_start||'07:20').slice(0,5);

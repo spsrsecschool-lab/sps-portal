@@ -1138,7 +1138,7 @@ async function logActivity(actionType,message){
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtD(s){if(!s)return '—';try{const d=s.includes('T')||s.includes('Z')?new Date(s):new Date(s+'T12:00:00');if(isNaN(d))return '—';return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return '—'}}
 function rel(s){if(!s)return '—';try{const d=new Date(s);if(isNaN(d.getTime()))return fmtD(s)||'—';const diff=Date.now()-d.getTime();if(diff<60000)return 'just now';if(diff<3600000)return Math.floor(diff/60000)+'m ago';if(diff<86400000)return Math.floor(diff/3600000)+'h ago';if(diff<604800000)return Math.floor(diff/86400000)+'d ago';return fmtD(s)}catch{return '—'}}
-function today(){return new Date().toISOString().slice(0,10)}
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function initials(name){return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
 function ldg(el){if(el)el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'}
 function emp(el,msg){if(el)el.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p>'+esc(msg)+'</p></div>'}
@@ -1928,7 +1928,7 @@ async function renderDashboard(){
 async function renderActivityFeed(){
   const actEl=$('dashActivity')
   if(!actEl||!TEACHER)return
-  const today=new Date().toISOString().slice(0,10)
+  const _d=new Date();const today=_d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')
   const events=[]
 
   // Own marks submissions (deduped by assessment+subject)
@@ -1945,7 +1945,7 @@ async function renderActivityFeed(){
     const{data:subs}=await sb.from('substitutions')
       .select('date,slot_id,entry_id,substitute_teacher_id,teachers:substitute_teacher_id(full_name),timetable_entries!inner(classes(name),class_sections(name),subjects(name),teachers(full_name)),time_slots:slot_id(name)')
       .or('substitute_teacher_id.eq.'+TEACHER.teacher_id+',timetable_entries.teacher_id.eq.'+TEACHER.teacher_id)
-      .gte('date',new Date(Date.now()-7*86400000).toISOString().slice(0,10))
+      .gte('date',(()=>{const d=new Date(Date.now()-7*86400000);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})())
       .order('date',{ascending:false})
       .limit(10)
     ;(subs||[]).forEach(s=>{
@@ -1988,8 +1988,8 @@ let _liveSchedTimer=null
 async function renderLiveSchedule(){
   const el=$('dashLiveSchedule')
   if(!el||!TEACHER||!SESS)return
-  const iso=new Date().toISOString().slice(0,10)
-  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()]
+  const _n=new Date();const iso=_n.getFullYear()+'-'+String(_n.getMonth()+1).padStart(2,'0')+'-'+String(_n.getDate()).padStart(2,'0')
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_n.getDay()]
   if(dow==='Sun'){el.innerHTML='';return}
 
   const roster=await getActiveRoster()
