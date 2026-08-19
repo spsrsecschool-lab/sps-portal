@@ -5750,7 +5750,17 @@ function svEffective(rec,date,teacherId){
   if(rec && (rec.time_in||rec.time_out)){
     return resolveDay(date,{tin:rec.time_in,tout:rec.time_out},thresholdsFor(teacherId,date)).status;
   }
-  return rec?.status||null;
+  const status=rec?.status||null;
+  if(status==='Absent' || !status){
+    const today=new Date().toISOString().slice(0,10);
+    if(date===today){
+      const sched=_saScheds[teacherId]||{};
+      const shiftStart=String(sched.shift_start||_saDefaults?.default_shift_start||'07:20').slice(0,5);
+      const now=new Date(); const nowHM=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+      if(nowHM<shiftStart) return null;
+    }
+  }
+  return status;
 }
 
 // Edit one teacher's attendance for one day: in/out time (incl. adding a missed
