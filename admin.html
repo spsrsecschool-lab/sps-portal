@@ -1194,6 +1194,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="tab-btn" onclick="switchTab('settingsTab','danger',this)">Danger Zone</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','ctcontrol',this)">Class Teacher Control</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','appearance',this)">Appearance</button>
+        <button class="tab-btn" onclick="switchTab('settingsTab','downloads',this);initDownloadCenter()">Download Center</button>
       </div>
 
       <div id="settingsTab-session">
@@ -1339,6 +1340,17 @@ tbody tr:hover td{background:var(--lav-50)}
             </button>
           </div>
         </div>
+      </div>
+
+      <div id="settingsTab-downloads" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
+          <div>
+            <h3 style="margin:0;font-size:16px">Download Center</h3>
+            <p style="font-size:12.5px;color:var(--ink-soft);margin:4px 0 0">Export school data as CSV files. Files/photos are exported as URL links only.</p>
+          </div>
+          <button class="btn btn-dark btn-sm" onclick="dlFullBackup()"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Full Backup</button>
+        </div>
+        <div id="dlCategories"></div>
       </div>
     </div>
 
@@ -8110,6 +8122,701 @@ document.addEventListener('mousedown',function(e){
   const box=$('adm_father_suggest'),inp=$('adm_father')
   if(box&&box.style.display!=='none'&&!box.contains(e.target)&&e.target!==inp)box.style.display='none'
 },{passive:true})
+
+// ═══════════ DOWNLOAD CENTER ═══════════
+let _dlInited=false
+function initDownloadCenter(){
+  if(_dlInited)return;_dlInited=true
+  const el=$('dlCategories');if(!el)return
+  const cats=[
+    {name:'Students & Families',items:[
+      {key:'student_master',label:'Student Master',desc:'Full student + enrollment data with photo URLs',sensitive:false,filters:['session','classSec','status']},
+      {key:'contact_sheet',label:'Contact Sheet',desc:'Student names, class-section, parent phone numbers',sensitive:false,filters:['classSec']},
+      {key:'family_siblings',label:'Family / Siblings',desc:'Family codes, students, sibling discount info',sensitive:false,filters:['session']},
+    ]},
+    {name:'Fees & Payments',items:[
+      {key:'payment_transactions',label:'Payment Transactions (Bundle)',desc:'Date, family, students in bundle, total, mode/remarks',sensitive:false,filters:['session','dateRange']},
+      {key:'payment_allocations',label:'Payment Allocations (Line)',desc:'Per-student per-head breakdown of each payment',sensitive:false,filters:['session','dateRange']},
+      {key:'outstanding_dues',label:'Outstanding Dues',desc:'Per-student tuition due, annual due, prev balance, total',sensitive:false,filters:['session','classSec']},
+      {key:'waivers',label:'Waivers',desc:'Student, waiver amount, head/month, remark',sensitive:false,filters:['session']},
+      {key:'collection_summary',label:'Daily/Monthly Collection Summary',desc:'Totals grouped by day and by month',sensitive:false,filters:['session','dateRange']},
+    ]},
+    {name:'Academics',items:[
+      {key:'marks',label:'Marks (per Assessment)',desc:'Class/section students x subjects, totals, %',sensitive:false,filters:['assessment','classSec']},
+      {key:'student_attendance',label:'Student Attendance Register',desc:'Class + month: per-student present/working/%',sensitive:false,filters:['classSec','month']},
+    ]},
+    {name:'Staff',items:[
+      {key:'teacher_master',label:'Teacher Master',desc:'Name, emp code, designation, phone, joining date, status',sensitive:false,filters:[]},
+      {key:'staff_attendance',label:'Staff Attendance',desc:'Teacher x date x status x in/out times',sensitive:false,filters:['dateRange']},
+      {key:'salary_deductions',label:'Salary Deductions (Monthly)',desc:'Teacher, absents, half-days, lates, amount, breakdown',sensitive:true,filters:['month']},
+    ]},
+    {name:'Structure & Config',items:[
+      {key:'cfg_classes',label:'Classes & Sections',desc:'All classes and sections for the session',sensitive:false,filters:[]},
+      {key:'cfg_subjects',label:'Subjects',desc:'Subject list',sensitive:false,filters:[]},
+      {key:'cfg_streams',label:'Streams',desc:'Stream-section assignments',sensitive:false,filters:[]},
+      {key:'cfg_fee_master',label:'Fee Master',desc:'Class-wise tuition, annual, sibling discount',sensitive:false,filters:['session']},
+      {key:'cfg_holidays',label:'Holidays',desc:'Holiday calendar for the session',sensitive:false,filters:['session']},
+      {key:'cfg_timetable',label:'Timetable (Roster/Slots/Entries)',desc:'Active roster, periods, class-teacher entries',sensitive:false,filters:[]},
+      {key:'cfg_mappings',label:'Teacher-Subject-Class Mappings',desc:'Who teaches what in which class-section',sensitive:false,filters:['session']},
+      {key:'cfg_mother_teacher',label:'Mother Teacher Map',desc:'Mother teacher assignments',sensitive:false,filters:['session']},
+    ]},
+  ]
+  let h=''
+  cats.forEach(cat=>{
+    h+='<div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">'
+      +'<div style="padding:12px 18px;background:var(--bg);border-bottom:1px solid var(--line);font-weight:700;font-size:13px;color:var(--ink-soft)">'+esc(cat.name)+'</div>'
+    cat.items.forEach(it=>{
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-bottom:1px solid var(--line);gap:12px" id="dl_row_'+it.key+'">'
+        +'<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+esc(it.label)+(it.sensitive?' <span style="font-size:10px;color:#C9344D;font-weight:700;vertical-align:middle">SENSITIVE</span>':'')+'</div><div style="font-size:11px;color:var(--ink-faint);margin-top:1px">'+esc(it.desc)+'</div></div>'
+        +'<button class="btn btn-ghost btn-sm" onclick="dlOpen(\''+it.key+'\')">Export</button>'
+        +'</div>'
+    })
+    h+='</div>'
+  })
+  el.innerHTML=h
+}
+
+const _dlMeta={
+  student_master:{label:'Student Master',table:'student_enrollments',sensitive:false},
+  contact_sheet:{label:'Contact Sheet',table:'student_enrollments',sensitive:false},
+  family_siblings:{label:'Family / Siblings',table:'student_enrollments',sensitive:false},
+  payment_transactions:{label:'Payment Transactions',table:'payments',sensitive:false},
+  payment_allocations:{label:'Payment Allocations',table:'payment_allocations',sensitive:false},
+  outstanding_dues:{label:'Outstanding Dues',table:'student_enrollments',sensitive:false},
+  waivers:{label:'Waivers',table:'fee_waivers',sensitive:false},
+  collection_summary:{label:'Collection Summary',table:'payments',sensitive:false},
+  marks:{label:'Marks',table:'marks',sensitive:false},
+  student_attendance:{label:'Student Attendance Register',table:'student_attendance',sensitive:false},
+  teacher_master:{label:'Teacher Master',table:'teachers',sensitive:false},
+  staff_attendance:{label:'Staff Attendance',table:'teacher_attendance',sensitive:false},
+  salary_deductions:{label:'Salary Deductions',table:'salary_deductions',sensitive:true},
+  cfg_classes:{label:'Classes & Sections',table:'classes',sensitive:false},
+  cfg_subjects:{label:'Subjects',table:'subjects',sensitive:false},
+  cfg_streams:{label:'Streams',table:'streams',sensitive:false},
+  cfg_fee_master:{label:'Fee Master',table:'fee_master',sensitive:false},
+  cfg_holidays:{label:'Holidays',table:'holidays',sensitive:false},
+  cfg_timetable:{label:'Timetable',table:'time_slots',sensitive:false},
+  cfg_mappings:{label:'Teacher-Subject-Class Mappings',table:'teacher_subject_class_map',sensitive:false},
+  cfg_mother_teacher:{label:'Mother Teacher Map',table:'mother_teacher_map',sensitive:false},
+}
+
+function _csvEsc(v){
+  if(v==null)return ''
+  const s=String(v)
+  if(s.indexOf(',')>=0||s.indexOf('"')>=0||s.indexOf('\n')>=0||s.indexOf('\r')>=0)
+    return '"'+s.replace(/"/g,'""')+'"'
+  return s
+}
+function _csvRow(arr){return arr.map(_csvEsc).join(',')}
+function _triggerCSV(rows,filename){
+  const bom='﻿'
+  const csv=bom+rows.join('\n')
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'})
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove()
+  setTimeout(()=>URL.revokeObjectURL(url),5000)
+}
+
+function _dlFilterHTML(key){
+  const sessOpt='<option value="'+(SESS?.session_id||'')+'">'+esc(SESS?.session_id||'—')+' (current)</option>'
+  const classOpts=ALL_CLASSES.filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  let h=''
+  const m=_dlMeta[key]
+  if(!m)return ''
+  const filters=_dlCfg[key]?.filters||[]
+  if(filters.includes('session')){
+    h+='<div class="fg" style="max-width:180px"><label>Session</label><select id="dl_f_session">'+sessOpt+'</select></div>'
+  }
+  if(filters.includes('classSec')){
+    h+='<div class="fg" style="max-width:160px"><label>Class</label><select id="dl_f_class" onchange="dlLoadSections()"><option value="">All</option>'+classOpts+'</select></div>'
+    h+='<div class="fg" style="max-width:160px"><label>Section</label><select id="dl_f_section"><option value="">All</option></select></div>'
+  }
+  if(filters.includes('status')){
+    h+='<div class="fg" style="max-width:140px"><label>Status</label><select id="dl_f_status"><option value="">All</option><option value="active" selected>Active</option><option value="relieved">Relieved</option></select></div>'
+  }
+  if(filters.includes('dateRange')){
+    const ym=today().slice(0,7)
+    h+='<div class="fg" style="max-width:150px"><label>From</label><input type="date" id="dl_f_from" value="'+ym+'-01"></div>'
+    h+='<div class="fg" style="max-width:150px"><label>To</label><input type="date" id="dl_f_to" value="'+today()+'"></div>'
+  }
+  if(filters.includes('month')){
+    h+='<div class="fg" style="max-width:160px"><label>Month</label><input type="month" id="dl_f_month" value="'+today().slice(0,7)+'"></div>'
+  }
+  if(filters.includes('assessment')){
+    h+='<div class="fg" style="max-width:220px"><label>Assessment</label><select id="dl_f_assess"><option value="">Loading…</option></select></div>'
+  }
+  return h?'<div class="form-row" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">'+h+'</div>':''
+}
+
+const _dlCfg={
+  student_master:{filters:['session','classSec','status']},
+  contact_sheet:{filters:['classSec']},
+  family_siblings:{filters:['session']},
+  payment_transactions:{filters:['session','dateRange']},
+  payment_allocations:{filters:['session','dateRange']},
+  outstanding_dues:{filters:['session','classSec']},
+  waivers:{filters:['session']},
+  collection_summary:{filters:['session','dateRange']},
+  marks:{filters:['assessment','classSec']},
+  student_attendance:{filters:['classSec','month']},
+  teacher_master:{filters:[]},
+  staff_attendance:{filters:['dateRange']},
+  salary_deductions:{filters:['month']},
+  cfg_classes:{filters:[]},cfg_subjects:{filters:[]},cfg_streams:{filters:[]},
+  cfg_fee_master:{filters:['session']},cfg_holidays:{filters:['session']},
+  cfg_timetable:{filters:[]},cfg_mappings:{filters:['session']},cfg_mother_teacher:{filters:['session']},
+}
+
+async function dlLoadSections(){
+  const sel=$('dl_f_section');if(!sel)return
+  sel.innerHTML='<option value="">All</option>'
+  const cid=$('dl_f_class')?.value;if(!cid||!SESS)return
+  const{data}=await sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  sel.innerHTML='<option value="">All</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+}
+
+function dlOpen(key){
+  const m=_dlMeta[key];if(!m)return
+  let body=_dlFilterHTML(key)
+  body+='<div style="margin-top:8px"><button class="btn btn-dark btn-sm" onclick="dlExport(\''+key+'\')"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CSV</button>'
+    +'<span id="dl_status" style="margin-left:12px;font-size:12px;color:var(--ink-faint)"></span></div>'
+  openModal(m.label+' — Export',body)
+  if(key==='marks')dlLoadAssessments()
+}
+
+async function dlLoadAssessments(){
+  const sel=$('dl_f_assess');if(!sel)return
+  const{data}=await sb.from('assessments').select('assessment_id,name').eq('session_id',SESS?.session_id||'').order('commencement_date')
+  sel.innerHTML='<option value="">Select assessment</option>'+(data||[]).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
+}
+
+async function dlExport(key){
+  const m=_dlMeta[key];if(!m)return
+  if(m.sensitive){
+    if(!confirm('This dataset contains sensitive salary information. Continue?'))return
+  }
+  const st=$('dl_status');if(st)st.textContent='Exporting…'
+  try{
+    const rows=await _dlBuild[key]()
+    if(!rows||!rows.length){if(st)st.textContent='No data found.';return}
+    const filename=key.replace(/_/g,'-')+'-'+(SESS?.session_id||'export')+'-'+today()+'.csv'
+    _triggerCSV(rows,filename)
+    if(st)st.textContent='Downloaded '+rows.length+' rows.'
+    toast('Exported '+m.label,'success')
+  }catch(e){
+    console.error('[DL]',key,e)
+    if(st)st.textContent='Error: '+e.message
+    toast('Export failed: '+e.message,'error')
+  }
+}
+
+function _dlSess(){return $('dl_f_session')?.value||SESS?.session_id||''}
+function _dlClass(){return $('dl_f_class')?.value||''}
+function _dlSec(){return $('dl_f_section')?.value||''}
+function _dlFrom(){return $('dl_f_from')?.value||''}
+function _dlTo(){return $('dl_f_to')?.value||''}
+function _dlMonth(){return $('dl_f_month')?.value||''}
+function _dlStatus(){return $('dl_f_status')?.value||''}
+
+const _dlBuild={}
+
+// ── Student Master ──
+_dlBuild.student_master=async function(){
+  const sid=_dlSess(),cid=_dlClass(),secId=_dlSec(),statusF=_dlStatus()
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,relieved_date,is_new_admission,readmission_date,tuition_override,annual_override,students(student_id,full_name,father_name,mother_name,dob,gender,phone,alt_phone,address,admission_date,family_code,photo_url,sp_aadhar_no,mother_aadhar,father_aadhar),classes(name),class_sections(name),streams(name)')
+    .eq('session_id',sid)
+  if(cid)q=q.eq('class_id',cid)
+  if(secId)q=q.eq('section_id',secId)
+  if(statusF==='active')q=q.eq('status','active').eq('relieved',false)
+  if(statusF==='relieved')q=q.eq('relieved',true)
+  const all=[];let from=0
+  while(true){
+    const{data,error}=await q.range(from,from+999).order('roll_no')
+    if(error)throw error
+    all.push(...(data||[]))
+    if(!data||data.length<1000)break
+    from+=1000
+    if(all.length>=50000){toast('Capped at 50k rows','error');break}
+  }
+  const hdr=['S.No','Roll','Student Name','Father Name','Mother Name','DOB','Gender','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Father Aadhaar','Mother Aadhaar','Photo URL']
+  const rows=[_csvRow(hdr)]
+  all.forEach(e=>{
+    const s=e.students||{}
+    rows.push(_csvRow([e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,s.gender,e.classes?.name,e.class_sections?.name,e.streams?.name,s.phone,s.alt_phone,s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,s.sp_aadhar_no,s.father_aadhar,s.mother_aadhar,s.photo_url]))
+  })
+  return rows
+}
+
+// ── Contact Sheet ──
+_dlBuild.contact_sheet=async function(){
+  const sid=SESS?.session_id||'',cid=_dlClass(),secId=_dlSec()
+  let q=sb.from('student_enrollments').select('roll_no,students(full_name,father_name,mother_name,phone,alt_phone),classes(name),class_sections(name)')
+    .eq('session_id',sid).eq('status','active').eq('relieved',false)
+  if(cid)q=q.eq('class_id',cid)
+  if(secId)q=q.eq('section_id',secId)
+  const all=[];let from=0
+  while(true){
+    const{data,error}=await q.range(from,from+999).order('roll_no')
+    if(error)throw error;all.push(...(data||[]))
+    if(!data||data.length<1000)break;from+=1000
+  }
+  const hdr=['Roll','Student Name','Father Name','Mother Name','Class','Section','Phone','Alt Phone']
+  const rows=[_csvRow(hdr)]
+  all.forEach(e=>{const s=e.students||{};rows.push(_csvRow([e.roll_no,s.full_name,s.father_name,s.mother_name,e.classes?.name,e.class_sections?.name,s.phone,s.alt_phone]))})
+  return rows
+}
+
+// ── Family / Siblings ──
+_dlBuild.family_siblings=async function(){
+  const sid=_dlSess()
+  let q=sb.from('student_enrollments').select('s_no,roll_no,students(full_name,father_name,family_code,phone),classes(name),class_sections(name)')
+    .eq('session_id',sid).eq('status','active').eq('relieved',false)
+  const all=[];let from=0
+  while(true){
+    const{data,error}=await q.range(from,from+999).order('roll_no')
+    if(error)throw error;all.push(...(data||[]))
+    if(!data||data.length<1000)break;from+=1000
+  }
+  const byFam={}
+  all.forEach(e=>{
+    const fc=e.students?.family_code||'';if(!fc)return
+    if(!byFam[fc])byFam[fc]={code:fc,father:e.students?.father_name||'',phone:e.students?.phone||'',children:[]}
+    byFam[fc].children.push({name:e.students?.full_name||'',cls:(e.classes?.name||'')+'–'+(e.class_sections?.name||''),roll:e.roll_no,sno:e.s_no})
+  })
+  const hdr=['Family Code','Father Name','Phone','Student Name','Class-Section','Roll','S.No','Sibling Count']
+  const rows=[_csvRow(hdr)]
+  Object.values(byFam).sort((a,b)=>a.code.localeCompare(b.code)).forEach(f=>{
+    f.children.forEach(c=>{rows.push(_csvRow([f.code,f.father,f.phone,c.name,c.cls,c.roll,c.sno,f.children.length]))})
+  })
+  return rows
+}
+
+// ── Payment Transactions (bundle level) ──
+_dlBuild.payment_transactions=async function(){
+  const sid=_dlSess()
+  let fromD=_dlFrom(),toD=_dlTo()
+  let q=sb.from('payments').select('payment_id,family_code,amount,payment_date,paid_at,recorded_by,remarks,allocation_strategy').eq('session_id',sid)
+  if(fromD)q=q.gte('payment_date',fromD)
+  if(toD)q=q.lte('payment_date',toD)
+  const all=[];let from=0
+  while(true){
+    const{data,error}=await q.range(from,from+999).order('payment_date',{ascending:false})
+    if(error)throw error;all.push(...(data||[]))
+    if(!data||data.length<1000)break;from+=1000
+    if(all.length>=50000)break
+  }
+  const hdr=['Payment ID','Family Code','Amount','Payment Date','Paid At','Recorded By','Remarks','Strategy']
+  const rows=[_csvRow(hdr)]
+  all.forEach(p=>{rows.push(_csvRow([p.payment_id,p.family_code,p.amount,p.payment_date,p.paid_at,p.recorded_by,p.remarks,p.allocation_strategy]))})
+  return rows
+}
+
+// ── Payment Allocations (line level) ──
+_dlBuild.payment_allocations=async function(){
+  const sid=_dlSess(),fromD=_dlFrom(),toD=_dlTo()
+  let pq=sb.from('payments').select('payment_id').eq('session_id',sid)
+  if(fromD)pq=pq.gte('payment_date',fromD)
+  if(toD)pq=pq.lte('payment_date',toD)
+  const{data:pays,error:pe}=await pq
+  if(pe)throw pe
+  if(!pays?.length)return[]
+  const pids=pays.map(p=>p.payment_id)
+  const all=[]
+  for(let i=0;i<pids.length;i+=500){
+    const chunk=pids.slice(i,i+500)
+    const{data,error}=await sb.from('payment_allocations').select('allocation_id,payment_id,enrollment_id,head,amount,payment_date').in('payment_id',chunk)
+    if(error)throw error
+    all.push(...(data||[]))
+  }
+  const eidSet=new Set(all.map(a=>a.enrollment_id).filter(Boolean))
+  const eids=[...eidSet]
+  const nameMap={}
+  for(let i=0;i<eids.length;i+=500){
+    const chunk=eids.slice(i,i+500)
+    const{data}=await sb.from('student_enrollments').select('enrollment_id,students(full_name),classes(name),class_sections(name)').in('enrollment_id',chunk)
+    ;(data||[]).forEach(e=>{nameMap[e.enrollment_id]={name:e.students?.full_name||'',cls:(e.classes?.name||'')+'–'+(e.class_sections?.name||'')}})
+  }
+  const hdr=['Allocation ID','Payment ID','Student Name','Class-Section','Head/Month','Amount','Payment Date']
+  const rows=[_csvRow(hdr)]
+  all.forEach(a=>{const nm=nameMap[a.enrollment_id]||{};rows.push(_csvRow([a.allocation_id,a.payment_id,nm.name,nm.cls,a.head,a.amount,a.payment_date]))})
+  return rows
+}
+
+// ── Outstanding Dues ──
+_dlBuild.outstanding_dues=async function(){
+  const sid=_dlSess(),cid=_dlClass(),secId=_dlSec()
+  let eq=sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,class_id,section_id,stream_id,tuition_override,annual_override,students(full_name,father_name,family_code,phone),classes(name),class_sections(name)')
+    .eq('session_id',sid).eq('status','active').eq('relieved',false)
+  if(cid)eq=eq.eq('class_id',cid)
+  if(secId)eq=eq.eq('section_id',secId)
+  const studs=[];let from=0
+  while(true){
+    const{data,error}=await eq.range(from,from+999)
+    if(error)throw error;studs.push(...(data||[]))
+    if(!data||data.length<1000)break;from+=1000
+  }
+  if(!studs.length)return[]
+  const eids=studs.map(s=>s.enrollment_id)
+  const[fmR,pbR,wvR,payR]=await Promise.all([
+    sb.from('fee_master').select('class_id,stream_id,monthly_tuition,annual_charge,sibling_discount_flat').eq('session_id',sid),
+    sb.from('previous_balances').select('enrollment_id,amount').in('enrollment_id',eids.slice(0,500)),
+    sb.from('fee_waivers').select('enrollment_id,head,amount').in('enrollment_id',eids.slice(0,500)),
+    sb.from('payment_allocations').select('enrollment_id,head,amount').in('enrollment_id',eids.slice(0,500))
+  ])
+  const pbMore=[],wvMore=[],payMore=[]
+  for(let i=500;i<eids.length;i+=500){
+    const chunk=eids.slice(i,i+500)
+    const[a,b,c]=await Promise.all([
+      sb.from('previous_balances').select('enrollment_id,amount').in('enrollment_id',chunk),
+      sb.from('fee_waivers').select('enrollment_id,head,amount').in('enrollment_id',chunk),
+      sb.from('payment_allocations').select('enrollment_id,head,amount').in('enrollment_id',chunk)
+    ])
+    pbMore.push(...(a.data||[]));wvMore.push(...(b.data||[]));payMore.push(...(c.data||[]))
+  }
+  const fm={};(fmR.data||[]).forEach(r=>{if(!fm[r.class_id])fm[r.class_id]={};fm[r.class_id][r.stream_id||'_']={tuit:+r.monthly_tuition||0,ann:+r.annual_charge||0,sib:+r.sibling_discount_flat||0}})
+  const pb={};[...(pbR.data||[]),...pbMore].forEach(r=>{pb[r.enrollment_id]=+r.amount||0})
+  const wv={};[...(wvR.data||[]),...wvMore].forEach(r=>{if(!wv[r.enrollment_id])wv[r.enrollment_id]=0;wv[r.enrollment_id]+=(+r.amount||0)})
+  const paid={};[...(payR.data||[]),...payMore].forEach(r=>{if(!paid[r.enrollment_id])paid[r.enrollment_id]=0;paid[r.enrollment_id]+=(+r.amount||0)})
+
+  const now=new Date(),curMonth=now.getMonth()
+  const tuitionMonths=curMonth>=3?curMonth-3+1:curMonth+9+1
+
+  const hdr=['S.No','Roll','Student Name','Father Name','Family Code','Class','Section','Phone','Tuition Due ('+tuitionMonths+'m)','Annual Due','Prev Balance','Waiver','Total Paid','Grand Total Due']
+  const rows=[_csvRow(hdr)]
+  studs.forEach(e=>{
+    const s=e.students||{},f=fm[e.class_id]?.[e.stream_id||'_']||fm[e.class_id]?.['_']||{tuit:0,ann:0,sib:0}
+    const tuit=e.tuition_override!=null?+e.tuition_override:f.tuit
+    const ann=e.annual_override!=null?+e.annual_override:f.ann
+    const tuitDue=tuit*tuitionMonths
+    const annDue=ann
+    const prevBal=pb[e.enrollment_id]||0
+    const waiver=wv[e.enrollment_id]||0
+    const totalPaid=paid[e.enrollment_id]||0
+    const grand=tuitDue+annDue+prevBal-waiver-totalPaid
+    rows.push(_csvRow([e.s_no,e.roll_no,s.full_name,s.father_name,s.family_code,e.classes?.name,e.class_sections?.name,s.phone,tuitDue,annDue,prevBal,waiver,totalPaid,grand]))
+  })
+  return rows
+}
+
+// ── Waivers ──
+_dlBuild.waivers=async function(){
+  const sid=_dlSess()
+  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id').eq('session_id',sid)
+  if(!enr?.length)return[]
+  const eids=enr.map(e=>e.enrollment_id)
+  const all=[]
+  for(let i=0;i<eids.length;i+=500){
+    const{data}=await sb.from('fee_waivers').select('waiver_id,enrollment_id,head,amount,remark,created_at').in('enrollment_id',eids.slice(i,i+500))
+    all.push(...(data||[]))
+  }
+  if(!all.length)return[]
+  const nameMap={}
+  for(let i=0;i<eids.length;i+=500){
+    const{data}=await sb.from('student_enrollments').select('enrollment_id,students(full_name),classes(name),class_sections(name)').in('enrollment_id',eids.slice(i,i+500))
+    ;(data||[]).forEach(e=>{nameMap[e.enrollment_id]={name:e.students?.full_name||'',cls:(e.classes?.name||'')+'–'+(e.class_sections?.name||'')}})
+  }
+  const hdr=['Waiver ID','Student Name','Class-Section','Head/Month','Amount','Remark','Created At']
+  const rows=[_csvRow(hdr)]
+  all.forEach(w=>{const nm=nameMap[w.enrollment_id]||{};rows.push(_csvRow([w.waiver_id,nm.name,nm.cls,w.head,w.amount,w.remark,w.created_at]))})
+  return rows
+}
+
+// ── Collection Summary ──
+_dlBuild.collection_summary=async function(){
+  const sid=_dlSess(),fromD=_dlFrom(),toD=_dlTo()
+  let q=sb.from('payments').select('payment_date,amount').eq('session_id',sid)
+  if(fromD)q=q.gte('payment_date',fromD)
+  if(toD)q=q.lte('payment_date',toD)
+  const all=[];let from=0
+  while(true){
+    const{data,error}=await q.range(from,from+999).order('payment_date')
+    if(error)throw error;all.push(...(data||[]))
+    if(!data||data.length<1000)break;from+=1000
+  }
+  const byDay={},byMonth={}
+  all.forEach(p=>{
+    const d=p.payment_date||'';const m=d.slice(0,7)
+    byDay[d]=(byDay[d]||0)+(+p.amount||0)
+    byMonth[m]=(byMonth[m]||0)+(+p.amount||0)
+  })
+  const hdr=['Date','Daily Total','Month','Monthly Total']
+  const rows=[_csvRow(hdr)]
+  const days=Object.keys(byDay).sort()
+  const months=Object.keys(byMonth).sort()
+  const maxLen=Math.max(days.length,months.length)
+  for(let i=0;i<maxLen;i++){
+    rows.push(_csvRow([days[i]||'',byDay[days[i]]!=null?byDay[days[i]]:'',months[i]||'',byMonth[months[i]]!=null?byMonth[months[i]]:'']))
+  }
+  return rows
+}
+
+// ── Marks (per Assessment) ──
+_dlBuild.marks=async function(){
+  const assessId=$('dl_f_assess')?.value
+  if(!assessId){toast('Select an assessment','error');throw new Error('No assessment selected')}
+  const cid=_dlClass(),secId=_dlSec(),sid=SESS?.session_id||''
+  const{data:assess}=await sb.from('assessments').select('*').eq('assessment_id',assessId).maybeSingle()
+  if(!assess)throw new Error('Assessment not found')
+  let sq=sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name,father_name),classes(name),class_sections(name)')
+    .eq('session_id',sid).eq('status','active').eq('relieved',false)
+  if(cid)sq=sq.eq('class_id',cid)
+  if(secId)sq=sq.eq('section_id',secId)
+  const studs=[];let from=0
+  while(true){
+    const{data,error}=await sq.range(from,from+999).order('roll_no')
+    if(error)throw error;studs.push(...(data||[]))
+    if(!data||data.length<1000)break;from+=1000
+  }
+  if(!studs.length)return[]
+  const eids=studs.map(s=>s.enrollment_id)
+  let mq=sb.from('teacher_subject_class_map').select('subject_id,subjects(name)')
+  if(cid)mq=mq.eq('class_id',cid)
+  mq=mq.eq('session_id',sid)
+  if(secId)mq=mq.eq('section_id',secId)
+  const{data:subMaps}=await mq
+  const subs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
+  const defMax=assess.max_marks||100,defPass=assess.pass_marks||Math.round(defMax*0.33)
+  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId)
+  const ovMap={};(ovs||[]).forEach(o=>{ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  const subMax=sid=>{const o=ovMap[sid];return(o&&o.max!=null)?o.max:defMax}
+  const marks=[]
+  for(let i=0;i<eids.length;i+=500){
+    const{data}=await sb.from('marks').select('enrollment_id,subject_id,marks_obtained,is_absent').eq('assessment_id',assessId).in('enrollment_id',eids.slice(i,i+500))
+    marks.push(...(data||[]))
+  }
+  const mMap={};marks.forEach(m=>{if(!mMap[m.enrollment_id])mMap[m.enrollment_id]={};mMap[m.enrollment_id][m.subject_id]=m})
+  const fullMax=subs.reduce((t,m)=>t+subMax(m.subject_id),0)
+  const hdr=['Roll','Student Name','Father Name','Class','Section',...subs.map(m=>(m.subjects?.name||'?')+' (Max:'+subMax(m.subject_id)+')'),'Total','Max Total','%']
+  const rows=[_csvRow(hdr)]
+  studs.forEach(e=>{
+    const sm=mMap[e.enrollment_id]||{}
+    let total=0,counted=0
+    const vals=subs.map(m=>{
+      const mk=sm[m.subject_id];if(!mk)return ''
+      if(mk.is_absent)return 'AB'
+      total+=(+mk.marks_obtained||0);counted++
+      return mk.marks_obtained
+    })
+    const pct=fullMax>0?Math.round(total/fullMax*100):0
+    rows.push(_csvRow([e.roll_no,e.students?.full_name,e.students?.father_name,e.classes?.name,e.class_sections?.name,...vals,total,fullMax,pct+'%']))
+  })
+  return rows
+}
+
+// ── Student Attendance Register ──
+_dlBuild.student_attendance=async function(){
+  const cid=_dlClass(),secId=_dlSec(),ym=_dlMonth()
+  if(!cid){toast('Select a class','error');throw new Error('Select a class')}
+  if(!ym){toast('Select a month','error');throw new Error('Select a month')}
+  const sid=SESS?.session_id||''
+  let sq=sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name),classes(name),class_sections(name)')
+    .eq('session_id',sid).eq('class_id',cid).eq('status','active').eq('relieved',false)
+  if(secId)sq=sq.eq('section_id',secId)
+  const studs=[];let from=0
+  while(true){
+    const{data,error}=await sq.range(from,from+999).order('roll_no')
+    if(error)throw error;studs.push(...(data||[]))
+    if(!data||data.length<1000)break;from+=1000
+  }
+  if(!studs.length)return[]
+  const eids=studs.map(s=>s.enrollment_id)
+  const[y,m]=ym.split('-').map(Number)
+  const daysInMonth=new Date(y,m,0).getDate()
+  const fromD=ym+'-01',toD=ym+'-'+String(daysInMonth).padStart(2,'0')
+  const{data:hols}=await sb.from('holidays').select('date').eq('session_id',sid).gte('date',fromD).lte('date',toD)
+  const holSet=new Set((hols||[]).map(h=>h.date))
+  const att=[]
+  for(let i=0;i<eids.length;i+=500){
+    const{data}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids.slice(i,i+500)).gte('date',fromD).lte('date',toD)
+    att.push(...(data||[]))
+  }
+  const aMap={};att.forEach(a=>{if(!aMap[a.enrollment_id])aMap[a.enrollment_id]={};aMap[a.enrollment_id][a.date]=a.status})
+  const dayHdrs=[]
+  for(let d=1;d<=daysInMonth;d++)dayHdrs.push(d)
+  let workingDays=0
+  for(let d=1;d<=daysInMonth;d++){
+    const dt=ym+'-'+String(d).padStart(2,'0')
+    const dow=new Date(dt+'T12:00:00').getDay()
+    if(dow!==0&&!holSet.has(dt))workingDays++
+  }
+  const hdr=['Roll','Student Name','Class','Section',...dayHdrs.map(d=>String(d)),'Present','Working Days','%']
+  const rows=[_csvRow(hdr)]
+  studs.forEach(e=>{
+    const sa=aMap[e.enrollment_id]||{}
+    let present=0
+    const vals=dayHdrs.map(d=>{
+      const dt=ym+'-'+String(d).padStart(2,'0')
+      const dow=new Date(dt+'T12:00:00').getDay()
+      if(dow===0)return 'Sun'
+      if(holSet.has(dt))return 'H'
+      const st=sa[dt]
+      if(st==='P'||st==='L'){present++;return st}
+      if(st==='A')return 'A'
+      return ''
+    })
+    const pct=workingDays>0?Math.round(present/workingDays*100):0
+    rows.push(_csvRow([e.roll_no,e.students?.full_name,e.classes?.name,e.class_sections?.name,...vals,present,workingDays,pct+'%']))
+  })
+  return rows
+}
+
+// ── Teacher Master ──
+_dlBuild.teacher_master=async function(){
+  const{data}=await sb.from('teachers').select('teacher_id,employee_code,full_name,designation,phone,username,is_active,joining_date')
+  const hdr=['Teacher ID','Employee Code','Full Name','Designation','Phone','Username','Active','Joining Date']
+  const rows=[_csvRow(hdr)]
+  ;(data||[]).forEach(t=>{rows.push(_csvRow([t.teacher_id,t.employee_code,t.full_name,t.designation,t.phone,t.username,t.is_active?'Yes':'No',t.joining_date]))})
+  return rows
+}
+
+// ── Staff Attendance ──
+_dlBuild.staff_attendance=async function(){
+  let fromD=_dlFrom(),toD=_dlTo()
+  if(!fromD&&SESS?.start_date)fromD=SESS.start_date
+  let q=sb.from('teacher_attendance').select('teacher_id,date,status,time_in,time_out')
+  if(fromD)q=q.gte('date',fromD)
+  if(toD)q=q.lte('date',toD)
+  const all=[];let from=0
+  while(true){
+    const{data,error}=await q.range(from,from+999).order('date',{ascending:false})
+    if(error)throw error;all.push(...(data||[]))
+    if(!data||data.length<1000)break;from+=1000
+    if(all.length>=50000)break
+  }
+  const tMap={};ALL_TEACHERS.forEach(t=>{tMap[t.teacher_id]=t.full_name})
+  const hdr=['Teacher Name','Teacher ID','Date','Status','Time In','Time Out']
+  const rows=[_csvRow(hdr)]
+  all.forEach(a=>{rows.push(_csvRow([tMap[a.teacher_id]||a.teacher_id,a.teacher_id,a.date,a.status,a.time_in,a.time_out]))})
+  return rows
+}
+
+// ── Salary Deductions ──
+_dlBuild.salary_deductions=async function(){
+  const ym=_dlMonth()||today().slice(0,7)
+  if(!ym){toast('Select a month','error');throw new Error('Select a month')}
+  const{data}=await sb.from('salary_deductions').select('*').eq('year_month',ym)
+  if(!data?.length)return[]
+  const{data:tchs}=await sb.from('teachers').select('teacher_id,full_name,employee_code,base_salary')
+  const tMap={};(tchs||[]).forEach(t=>{tMap[t.teacher_id]=t})
+  const hdr=['Employee Code','Teacher Name','Month','Full Absents','Half Days','Lates','Per-Day Rate','Total Deduction','Base Salary']
+  const rows=[_csvRow(hdr)]
+  ;(data||[]).forEach(d=>{
+    const t=tMap[d.teacher_id]||{}
+    rows.push(_csvRow([t.employee_code,t.full_name||d.teacher_id,d.year_month,d.full_absents,d.half_days,d.late_count,d.per_day_rate,d.amount,t.base_salary]))
+  })
+  return rows
+}
+
+// ── Structure/Config exports ──
+_dlBuild.cfg_classes=async function(){
+  const sid=SESS?.session_id||''
+  const[{data:cls},{data:secs}]=await Promise.all([
+    sb.from('classes').select('class_id,name,sort_order,is_active').order('sort_order'),
+    sb.from('class_sections').select('section_id,name,class_id,is_active,classes(name)').eq('session_id',sid).order('name')
+  ])
+  const hdr=['Class','Section','Class Sort Order','Class Active','Section Active']
+  const rows=[_csvRow(hdr)]
+  ;(secs||[]).forEach(s=>{const c=(cls||[]).find(x=>x.class_id===s.class_id);rows.push(_csvRow([s.classes?.name||c?.name,s.name,c?.sort_order,c?.is_active?'Yes':'No',s.is_active?'Yes':'No']))})
+  return rows
+}
+
+_dlBuild.cfg_subjects=async function(){
+  const{data}=await sb.from('subjects').select('subject_id,name,short_code,is_active').order('name')
+  const hdr=['Subject ID','Name','Short Code','Active']
+  const rows=[_csvRow(hdr)]
+  ;(data||[]).forEach(s=>{rows.push(_csvRow([s.subject_id,s.name,s.short_code,s.is_active?'Yes':'No']))})
+  return rows
+}
+
+_dlBuild.cfg_streams=async function(){
+  const sid=SESS?.session_id||''
+  const{data}=await sb.from('streams').select('stream_id,name,class_id,section_id,is_active,classes(name),class_sections(name)').eq('session_id',sid).order('name')
+  const hdr=['Stream','Class','Section','Active']
+  const rows=[_csvRow(hdr)]
+  ;(data||[]).forEach(s=>{rows.push(_csvRow([s.name,s.classes?.name,s.class_sections?.name,s.is_active?'Yes':'No']))})
+  return rows
+}
+
+_dlBuild.cfg_fee_master=async function(){
+  const sid=_dlSess()
+  const{data}=await sb.from('fee_master').select('fee_master_id,class_id,stream_id,monthly_tuition,annual_charge,sibling_discount_flat,classes(name),streams(name)').eq('session_id',sid)
+  const hdr=['Class','Stream','Monthly Tuition','Annual Charge','Sibling Discount']
+  const rows=[_csvRow(hdr)]
+  ;(data||[]).forEach(f=>{rows.push(_csvRow([f.classes?.name,f.streams?.name||'—',f.monthly_tuition,f.annual_charge,f.sibling_discount_flat]))})
+  return rows
+}
+
+_dlBuild.cfg_holidays=async function(){
+  const sid=_dlSess()
+  const{data}=await sb.from('holidays').select('date,label').eq('session_id',sid).order('date')
+  const hdr=['Date','Label']
+  const rows=[_csvRow(hdr)]
+  ;(data||[]).forEach(h=>{rows.push(_csvRow([h.date,h.label]))})
+  return rows
+}
+
+_dlBuild.cfg_timetable=async function(){
+  const{data:roster}=await sb.from('rosters').select('roster_id,name,is_active').eq('session_id',SESS?.session_id||'').eq('is_active',true).maybeSingle()
+  if(!roster)return[_csvRow(['No active roster'])]
+  const[{data:slots},{data:entries}]=await Promise.all([
+    sb.from('time_slots').select('slot_id,name,start_time,end_time,sort_order').eq('roster_id',roster.roster_id).order('sort_order'),
+    sb.from('timetable_entries').select('slot_id,days,classes(name),class_sections(name),subjects(name),teachers(full_name)').eq('roster_id',roster.roster_id)
+  ])
+  const slotMap={};(slots||[]).forEach(s=>{slotMap[s.slot_id]=s})
+  const hdr=['Period','Start','End','Day','Class','Section','Subject','Teacher']
+  const rows=[_csvRow(hdr)]
+  ;(entries||[]).forEach(e=>{
+    const sl=slotMap[e.slot_id]||{}
+    ;(e.days||[]).forEach(d=>{
+      rows.push(_csvRow([sl.name,sl.start_time,sl.end_time,d,e.classes?.name,e.class_sections?.name,e.subjects?.name,e.teachers?.full_name]))
+    })
+  })
+  return rows
+}
+
+_dlBuild.cfg_mappings=async function(){
+  const sid=_dlSess()
+  const{data}=await sb.from('teacher_subject_class_map').select('map_id,classes(name),class_sections(name),subjects(name),teachers(full_name),streams(name)').eq('session_id',sid)
+  const hdr=['Class','Section','Stream','Subject','Teacher']
+  const rows=[_csvRow(hdr)]
+  ;(data||[]).forEach(m=>{rows.push(_csvRow([m.classes?.name,m.class_sections?.name,m.streams?.name||'—',m.subjects?.name,m.teachers?.full_name]))})
+  return rows
+}
+
+_dlBuild.cfg_mother_teacher=async function(){
+  const sid=_dlSess()
+  const{data}=await sb.from('mother_teacher_map').select('teacher_id,class_id,section_id,teachers(full_name),classes(name),class_sections(name)').eq('session_id',sid)
+  const hdr=['Teacher','Class','Section']
+  const rows=[_csvRow(hdr)]
+  ;(data||[]).forEach(m=>{rows.push(_csvRow([m.teachers?.full_name,m.classes?.name,m.class_sections?.name]))})
+  return rows
+}
+
+// ── Full Backup ──
+async function dlFullBackup(){
+  if(!confirm('This will download all datasets as separate CSV files. Salary data will require a second confirmation. Continue?'))return
+  const keys=['student_master','contact_sheet','family_siblings','payment_transactions','payment_allocations','outstanding_dues','waivers','collection_summary','teacher_master','staff_attendance','cfg_classes','cfg_subjects','cfg_streams','cfg_fee_master','cfg_holidays','cfg_timetable','cfg_mappings','cfg_mother_teacher']
+  const sensitive=['salary_deductions']
+  toast('Starting full backup…','info')
+  for(const key of keys){
+    try{
+      const st=$('dl_status');if(st)st.textContent='Exporting '+key+'…'
+      const rows=await _dlBuild[key]()
+      if(rows&&rows.length>1){
+        _triggerCSV(rows,key.replace(/_/g,'-')+'-'+(SESS?.session_id||'export')+'-'+today()+'.csv')
+        await new Promise(r=>setTimeout(r,300))
+      }
+    }catch(e){console.warn('[backup]',key,e.message)}
+  }
+  for(const key of sensitive){
+    if(!confirm('Include salary deductions (sensitive)?'))continue
+    try{
+      const rows=await _dlBuild[key]()
+      if(rows&&rows.length>1)_triggerCSV(rows,key.replace(/_/g,'-')+'-'+(SESS?.session_id||'export')+'-'+today()+'.csv')
+    }catch(e){console.warn('[backup]',key,e.message)}
+  }
+  toast('Full backup complete','success')
+}
 
 
 </script>
