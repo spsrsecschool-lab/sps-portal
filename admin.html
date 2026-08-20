@@ -2187,7 +2187,8 @@ async function renderTodayPanel(){
     const b=bySection[e.section_id]; if(!b)return
     b.marked++; if(a.status==='P'||a.status==='L')b.present++
   })
-  const sections=Object.values(bySection).sort((x,y)=>(x.cls+x.sec).localeCompare(y.cls+y.sec))
+  const _classRank=n=>{const m={'nur':0,'nursery':0,'lkg':1,'ukg':2,'kg':1};const l=String(n).toLowerCase().trim();if(m[l]!=null)return m[l];const num=parseInt(l);return isNaN(num)?50+l.charCodeAt(0):2+num}
+  const sections=Object.values(bySection).sort((x,y)=>(_classRank(x.cls)-_classRank(y.cls))||(x.sec||'').localeCompare(y.sec||''))
   const notMarked=sections.filter(s=>s.marked===0)
 
   // Staff present / absent today
@@ -2311,11 +2312,12 @@ async function buildLiveClassSnapshot(iso,off){
   if(dow==='Sun')return ''
   const roster=await getActiveRoster()
   if(!roster)return ''
-  const[{data:slots},{data:entries},{data:adjs},{data:subs}]=await Promise.all([
+  const[{data:slots},{data:entries},{data:adjs},{data:subs},{data:tScheds}]=await Promise.all([
     sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order'),
     sb.from('timetable_entries').select('entry_id,slot_id,teacher_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name),teachers(full_name)').eq('roster_id',roster.roster_id),
     sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name)').then(r=>r,()=>({data:[]})),
-    sb.from('substitutions').select('entry_id,substitute_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]}))
+    sb.from('substitutions').select('entry_id,substitute_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]})),
+    sb.from('teacher_schedules').select('teacher_id,shift_start').then(r=>r,()=>({data:[]}))
   ])
   if(!slots?.length||!entries?.length)return ''
   const now=new Date()
@@ -2371,7 +2373,44 @@ async function buildLiveClassSnapshot(iso,off){
       +'<div style="font-size:10px;color:var(--ink-faint);margin-top:1px">'+esc(e.subjects?.name||'')+'</div>'
       +'</div>'
   })
-  h+='</div></div>'
+  h+='</div>'
+
+  // Free teachers in this period
+  const busySet=new Set()
+  const slotStart=(displaySlot.start_time||'').slice(0,5)
+  // Teachers with regular entries this slot today
+  ;(entries||[]).filter(e=>(e.days||[]).includes(dow)&&e.slot_id===displaySlot.slot_id).forEach(e=>{
+    const sub=subMap[e.entry_id]
+    if(sub&&sub.substitute_teacher_id){busySet.add(sub.substitute_teacher_id)}
+    else{busySet.add(e.teacher_id)}
+  })
+  // Teachers with adjustments this slot today
+  ;(adjs||[]).filter(a=>(a.days||[]).includes(dow)&&a.slot_id===displaySlot.slot_id).forEach(a=>busySet.add(a.teacher_id))
+  // Teachers covering substitutions this slot
+  ;(subs||[]).filter(s=>s.slot_id===displaySlot.slot_id&&s.substitute_teacher_id).forEach(s=>busySet.add(s.substitute_teacher_id))
+  // Build shift-start map
+  const schedMap={};(tScheds||[]).forEach(s=>{schedMap[s.teacher_id]=s.shift_start})
+  const defShift=(_saDefaults?.default_shift_start||'07:20').slice(0,5)
+  const free=ALL_TEACHERS.filter(t=>{
+    if(!t.is_active)return false
+    if(busySet.has(t.teacher_id))return false
+    const ss=(schedMap[t.teacher_id]||defShift).slice(0,5)
+    if(slotStart<ss)return false
+    return true
+  })
+  if(free.length){
+    h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--ink-faint);margin-bottom:6px;display:flex;align-items:center;gap:6px">'
+      +'<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>'
+      +'Free Teachers <span style="font-weight:400;color:var(--ink-faint)">('+free.length+')</span></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:4px">'
+    free.sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||'')).forEach(t=>{
+      h+='<span style="background:var(--lav-50);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--ink-soft)">'+esc(t.full_name)+'</span>'
+    })
+    h+='</div></div>'
+  }
+
+  h+='</div>'
   return h
 }
 
