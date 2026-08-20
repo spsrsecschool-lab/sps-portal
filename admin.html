@@ -1652,7 +1652,10 @@ function rerenderAdminMessages(){
 SPS.ready().then(async()=>{
   await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths(); checkPendingRequests()
   // Header clock
-  function tickClock(){const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()}
+  function tickClock(){
+    const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()
+    const pc=$('periodCountdown');if(pc&&window._periodEndMs){const rem=Math.max(0,Math.round((window._periodEndMs-Date.now())/1000));const m=Math.floor(rem/60),s=rem%60;pc.textContent=m+'m '+String(s).padStart(2,'0')+'s left';if(rem<=0){pc.textContent='Period ended';window._periodEndMs=0}}
+  }
   tickClock();setInterval(tickClock,1000)
   // Start message notifications
   initAdminNotifications()
@@ -2350,10 +2353,12 @@ async function buildLiveClassSnapshot(iso,off){
   if(isNow){
     const et=(displaySlot.end_time||'').slice(0,5)
     const [eh,em]=et.split(':').map(Number)
-    const [nh,nm]=nowHM.split(':').map(Number)
-    const diff=(eh*60+em)-(nh*60+nm)
-    if(diff>0)minsLeft='<span style="font-size:11px;font-weight:700;color:var(--indigo);background:var(--indigo-100);padding:3px 8px;border-radius:999px;margin-left:auto;white-space:nowrap">'+diff+' min left</span>'
-  }
+    const endMs=new Date();endMs.setHours(eh,em,0,0)
+    window._periodEndMs=endMs.getTime()
+    const diffS=Math.max(0,Math.round((endMs.getTime()-Date.now())/1000))
+    const dm=Math.floor(diffS/60),ds=diffS%60
+    minsLeft='<span id="periodCountdown" style="font-size:11px;font-weight:700;color:var(--indigo);background:var(--indigo-100);padding:3px 8px;border-radius:999px;margin-left:auto;white-space:nowrap">'+dm+'m '+String(ds).padStart(2,'0')+'s left</span>'
+  }else{window._periodEndMs=0}
   let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px">'
     +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
     +(isNow?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22C55E;box-shadow:0 0 6px #22C55E;flex-shrink:0"></span>':'')
