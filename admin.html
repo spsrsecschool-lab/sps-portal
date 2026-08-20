@@ -2314,6 +2314,7 @@ function scheduleLiveRefresh(){
     if($('page-dashboard')?.classList.contains('active'))renderTodayPanel()
   },(s+1)*1000)
 }
+let _liveSnap=null
 async function buildLiveClassSnapshot(iso,off){
   if(off)return ''
   const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(iso+'T12:00:00').getDay()]
@@ -2329,51 +2330,84 @@ async function buildLiveClassSnapshot(iso,off){
     sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
   ])
   const motherIds=new Set((mtRows||[]).map(r=>r.teacher_id))
+  ALL_TEACHERS.forEach(t=>{if(/mother/i.test(t.designation||''))motherIds.add(t.teacher_id)})
   if(!slots?.length||!entries?.length)return ''
-  const now=new Date()
-  const nowHM=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')
-  let curSlot=null,nextSlot=null
-  for(const s of slots){
-    const st=(s.start_time||'').slice(0,5),et=(s.end_time||'').slice(0,5)
-    if(nowHM>=st&&nowHM<et){curSlot=s;break}
-    if(nowHM<st&&!nextSlot)nextSlot=s
-  }
-  const displaySlot=curSlot||nextSlot||slots[slots.length-1]
-  const isNow=!!curSlot
-  const isPast=!curSlot&&!nextSlot
-  const label=isNow?'Current Period: '+displaySlot.name:(isPast?'Last Period (school over): '+displaySlot.name:'Next Period: '+displaySlot.name)
-  const timeLabel=(displaySlot.start_time||'').slice(0,5)+'–'+(displaySlot.end_time||'').slice(0,5)
-  const dayEntries=(entries||[]).filter(e=>(e.days||[]).includes(dow)&&e.slot_id===displaySlot.slot_id)
-  if(!dayEntries.length)return ''
+
   const subMap={};(subs||[]).forEach(s=>{subMap[s.entry_id]=s})
-  const adjMap={};(adjs||[]).filter(a=>(a.days||[]).includes(dow)&&a.slot_id===displaySlot.slot_id).forEach(a=>{
-    const k=a.class_id+'_'+a.section_id;adjMap[k]=a
+  const schedMap={};(tScheds||[]).forEach(s=>{schedMap[s.teacher_id]=s.shift_start})
+  const defShift=(_saDefaults?.default_shift_start||'07:20').slice(0,5)
+
+  // Filter slots that have timetable entries for today
+  const todaySlots=slots.filter(s=>(entries||[]).some(e=>(e.days||[]).includes(dow)&&e.slot_id===s.slot_id))
+  if(!todaySlots.length)return ''
+
+  // Find current period index
+  const nowHM=(()=>{const n=new Date();return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')})()
+  let curIdx=-1,nextIdx=-1
+  todaySlots.forEach((s,i)=>{
+    const st=(s.start_time||'').slice(0,5),et=(s.end_time||'').slice(0,5)
+    if(nowHM>=st&&nowHM<et&&curIdx<0)curIdx=i
+    if(nowHM<st&&nextIdx<0)nextIdx=i
   })
+  const defaultIdx=curIdx>=0?curIdx:(nextIdx>=0?nextIdx:todaySlots.length-1)
+
+  // Cache everything for renderSlotView
+  _liveSnap={slots:todaySlots,entries,adjs,subs,subMap,schedMap,defShift,motherIds,dow,curIdx,defaultIdx}
+
+  // Outer container
+  let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px;overflow:hidden">'
+    +'<div id="liveSnapInner" style="transition:opacity .25s ease,transform .25s ease"></div></div>'
+  // Inject then render
+  setTimeout(()=>renderSlotView(defaultIdx),0)
+  return h
+}
+
+function renderSlotView(idx,dir){
+  const d=_liveSnap;if(!d)return
+  const el=$('liveSnapInner');if(!el)return
+  if(idx<0)idx=0;if(idx>=d.slots.length)idx=d.slots.length-1
+  d.viewIdx=idx
+  const slot=d.slots[idx]
+  const isNow=idx===d.curIdx
+  const isPast=d.curIdx<0&&idx>=d.slots.length-1&&(()=>{const n=new Date(),hm=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');return hm>=(slot.end_time||'').slice(0,5)})()
+  const label=isNow?'Current Period: '+slot.name:(isPast?'Last Period (school over): '+slot.name:(idx<d.defaultIdx?slot.name+' (earlier)':idx===d.defaultIdx?'Next Period: '+slot.name:slot.name+' (upcoming)'))
+  const timeLabel=(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)
+
+  // Countdown only for the actual current period
   let minsLeft=''
   if(isNow){
-    const et=(displaySlot.end_time||'').slice(0,5)
-    const [eh,em]=et.split(':').map(Number)
+    const [eh,em]=(slot.end_time||'').slice(0,5).split(':').map(Number)
     const endMs=new Date();endMs.setHours(eh,em,0,0)
     window._periodEndMs=endMs.getTime()
     const diffS=Math.max(0,Math.round((endMs.getTime()-Date.now())/1000))
     const dm=Math.floor(diffS/60),ds=diffS%60
-    minsLeft='<span id="periodCountdown" style="font-size:11px;font-weight:700;color:var(--indigo);background:var(--indigo-100);padding:3px 8px;border-radius:999px;margin-left:auto;white-space:nowrap">'+dm+'m '+String(ds).padStart(2,'0')+'s left</span>'
+    minsLeft='<span id="periodCountdown" style="font-size:11px;font-weight:700;color:var(--indigo);background:var(--indigo-100);padding:3px 8px;border-radius:999px;white-space:nowrap">'+dm+'m '+String(ds).padStart(2,'0')+'s left</span>'
   }else{window._periodEndMs=0}
-  let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px">'
-    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+
+  // Nav arrows
+  const arrStyle='width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0'
+  const arrSvg=(path)=>'<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:var(--ink-soft);fill:none;stroke-width:2">'+path+'</svg>'
+  const prevBtn=idx>0?'<div style="'+arrStyle+'" onclick="renderSlotView('+(idx-1)+',\'prev\')">'+arrSvg('<polyline points="15 18 9 12 15 6"/>')+'</div>':'<div style="'+arrStyle+';opacity:.3;cursor:default">'+arrSvg('<polyline points="15 18 9 12 15 6"/>')+'</div>'
+  const nextBtn=idx<d.slots.length-1?'<div style="'+arrStyle+'" onclick="renderSlotView('+(idx+1)+',\'next\')">'+arrSvg('<polyline points="9 6 15 12 9 18"/>')+'</div>':'<div style="'+arrStyle+';opacity:.3;cursor:default">'+arrSvg('<polyline points="9 6 15 12 9 18"/>')+'</div>'
+
+  let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+    +prevBtn
     +(isNow?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22C55E;box-shadow:0 0 6px #22C55E;flex-shrink:0"></span>':'')
     +'<span style="font-size:12px;font-weight:700;color:var(--ink-soft)">'+esc(label)+'</span>'
     +'<span class="mono" style="font-size:11px;color:var(--ink-faint)">'+esc(timeLabel)+'</span>'
-    +minsLeft
+    +'<span style="margin-left:auto;display:flex;align-items:center;gap:6px">'+(minsLeft||'')+nextBtn+'</span>'
     +'</div>'
+
+  // Class cards
+  const dayEntries=(d.entries||[]).filter(e=>(e.days||[]).includes(d.dow)&&e.slot_id===slot.slot_id)
   h+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
   dayEntries.sort((a,b)=>{
     const an=a.classes?.name||'',bn=b.classes?.name||''
     return an.localeCompare(bn,undefined,{numeric:true})||(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'')
   }).forEach(e=>{
-    const sub=subMap[e.entry_id]
+    const sub=d.subMap[e.entry_id]
     const adjK=e.class_id+'_'+e.section_id
-    const adj=adjMap[adjK]
+    const adj=(d.adjs||[]).find(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id&&a.class_id+'_'+a.section_id===adjK)
     let teacherName=e.teachers?.full_name||'—'
     let badge='',borderCol='var(--line)',bgCol='var(--bg)'
     if(sub&&sub.substitute_teacher_id){
@@ -2396,30 +2430,19 @@ async function buildLiveClassSnapshot(iso,off){
   })
   h+='</div>'
 
-  // Free teachers in this period
+  // Free teachers
   const busySet=new Set()
-  const slotStart=(displaySlot.start_time||'').slice(0,5)
-  // Teachers with regular entries this slot today
-  ;(entries||[]).filter(e=>(e.days||[]).includes(dow)&&e.slot_id===displaySlot.slot_id).forEach(e=>{
-    const sub=subMap[e.entry_id]
-    if(sub&&sub.substitute_teacher_id){busySet.add(sub.substitute_teacher_id)}
-    else{busySet.add(e.teacher_id)}
+  const slotStart=(slot.start_time||'').slice(0,5)
+  ;(d.entries||[]).filter(e=>(e.days||[]).includes(d.dow)&&e.slot_id===slot.slot_id).forEach(e=>{
+    const sub=d.subMap[e.entry_id]
+    if(sub&&sub.substitute_teacher_id){busySet.add(sub.substitute_teacher_id)}else{busySet.add(e.teacher_id)}
   })
-  // Teachers with adjustments this slot today
-  ;(adjs||[]).filter(a=>(a.days||[]).includes(dow)&&a.slot_id===displaySlot.slot_id).forEach(a=>busySet.add(a.teacher_id))
-  // Teachers covering substitutions this slot
-  ;(subs||[]).filter(s=>s.slot_id===displaySlot.slot_id&&s.substitute_teacher_id).forEach(s=>busySet.add(s.substitute_teacher_id))
-  // Build shift-start map
-  const schedMap={};(tScheds||[]).forEach(s=>{schedMap[s.teacher_id]=s.shift_start})
-  const defShift=(_saDefaults?.default_shift_start||'07:20').slice(0,5)
-  ALL_TEACHERS.forEach(t=>{if(/mother/i.test(t.designation||''))motherIds.add(t.teacher_id)})
+  ;(d.adjs||[]).filter(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id).forEach(a=>busySet.add(a.teacher_id))
+  ;(d.subs||[]).filter(s=>s.slot_id===slot.slot_id&&s.substitute_teacher_id).forEach(s=>busySet.add(s.substitute_teacher_id))
   const free=ALL_TEACHERS.filter(t=>{
-    if(!t.is_active)return false
-    if(motherIds.has(t.teacher_id))return false
-    if(busySet.has(t.teacher_id))return false
-    const ss=(schedMap[t.teacher_id]||defShift).slice(0,5)
-    if(slotStart<ss)return false
-    return true
+    if(!t.is_active||d.motherIds.has(t.teacher_id)||busySet.has(t.teacher_id))return false
+    const ss=(d.schedMap[t.teacher_id]||d.defShift).slice(0,5)
+    return slotStart>=ss
   })
   if(free.length){
     h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
@@ -2433,8 +2456,20 @@ async function buildLiveClassSnapshot(iso,off){
     h+='</div></div>'
   }
 
-  h+='</div>'
-  return h
+  // Slide animation
+  if(dir){
+    const tx=dir==='next'?'40px':'-40px'
+    el.style.transition='none'
+    el.style.transform='translateX('+tx+')'
+    el.style.opacity='0'
+    el.innerHTML=h
+    void el.offsetHeight
+    el.style.transition='opacity .25s ease,transform .25s ease'
+    el.style.transform='translateX(0)'
+    el.style.opacity='1'
+  }else{
+    el.innerHTML=h
+  }
 }
 
 // Build a merged, most-recent-first feed from several live sources.
