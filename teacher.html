@@ -850,7 +850,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
         <div class="stat-card"><span class="lbl">Pending Marks</span><span class="val" id="statPending">—</span><span class="sub">Assessments awaiting entry</span></div>
         <div class="stat-card"><span class="lbl">Messages</span><span class="val" id="statMsgs">—</span><span class="sub">Unread messages</span></div>
         <div class="stat-card"><span class="lbl">My Classes</span><span class="val" id="statClasses">—</span><span class="sub">Active assignments</span></div>
-        <div class="stat-card"><span class="lbl">Critical Students</span><span class="val" id="statCrit">—</span><span class="sub">Failing in your subjects</span></div>
+        <div class="stat-card" style="cursor:pointer" onclick="goTo('critical',document.querySelector('.sb-item[onclick*=critical]'))"><span class="lbl">Critical Students</span><span class="val" id="statCrit">—</span><span class="sub">Failing in your subjects</span></div>
       </div>
       <div id="dashLiveSchedule" style="margin-bottom:18px"></div>
       <div class="grid-2">
@@ -1919,6 +1919,19 @@ async function renderDashboard(){
     return '<div class="sched-row"><span class="cls">'+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</span><span class="subj">'+esc(m.subjects?.name||'?')+'</span>'+(hasPending?'<span class="pill pill-warn">Marks Due</span>':'<span class="pill pill-success">Up to Date</span>')+'</div>'
   }).join('')
   el.innerHTML=rows||'<p style="font-size:12.5px;color:var(--ink-faint)">No assignments.</p>'
+
+  // Critical students count
+  try{
+    const{data:allMarks}=await sb.from('marks').select('marks_obtained,is_absent,assessment_id,student_enrollments(students(full_name))').eq('entered_by',TEACHER.teacher_id)
+    const critNames=new Set()
+    ;(allMarks||[]).forEach(m=>{
+      const a=assessById[m.assessment_id];if(!a)return
+      const pass=a.pass_marks||Math.round(a.max_marks*0.33)
+      if(!m.is_absent&&m.marks_obtained<pass){critNames.add(m.student_enrollments?.students?.full_name||'')}
+    })
+    critNames.delete('')
+    $('statCrit').textContent=critNames.size
+  }catch(e){}
 
   // Live schedule + activity feed
   renderLiveSchedule()
