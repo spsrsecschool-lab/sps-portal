@@ -2303,6 +2303,7 @@ async function renderTodayPanel(){
   html+='</div></div></div>'
 
   el.innerHTML=html
+  if(_liveSnap) renderSlotView(_liveSnap.defaultIdx)
   scheduleLiveRefresh()
 }
 
@@ -2357,8 +2358,6 @@ async function buildLiveClassSnapshot(iso,off){
   // Outer container
   let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px;overflow:hidden">'
     +'<div id="liveSnapInner" style="transition:opacity .25s ease,transform .25s ease"></div></div>'
-  // Inject then render
-  setTimeout(()=>renderSlotView(defaultIdx),0)
   return h
 }
 
