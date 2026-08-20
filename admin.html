@@ -148,6 +148,7 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .topbar-title{font-size:15px;font-weight:700;flex:1}
 .topbar-title .crumb{font-size:11.5px;color:var(--ink-faint);font-weight:500;display:block;margin-top:1px}
 .session-badge{font-size:11px;font-family:var(--mono);color:var(--indigo-dark);background:var(--indigo-100);padding:6px 12px;border-radius:999px;font-weight:700;white-space:nowrap}
+.header-clock{font-size:12px;font-family:var(--mono);color:var(--ink-soft);font-weight:600;white-space:nowrap}
 .icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
 .icon-btn svg{width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8}
 .icon-btn .dot{position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:2px solid var(--white)}
@@ -364,7 +365,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .topbar{padding:0 14px;gap:10px}.user-chip .uname,.user-chip .urole{display:none}.user-chip{padding:5px}
   .topbar-title .crumb{display:none}
   .topbar-title{font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .session-badge{display:none}.msg-shell{grid-template-columns:1fr}.form-row{flex-direction:column;align-items:stretch}
+  .session-badge{display:none}.header-clock{display:none}.msg-shell{grid-template-columns:1fr}.form-row{flex-direction:column;align-items:stretch}
   .today-2col{grid-template-columns:1fr!important}
 }
 #scrim{position:fixed;inset:0;background:rgba(34,31,53,.35);z-index:150;display:none}
@@ -520,6 +521,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-toggle" onclick="toggleSidebar()"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></div>
     <div class="topbar-title" id="pageTitle">Dashboard<span class="crumb">Admin Portal</span></div>
     <div class="session-badge" id="sessionBadge">Loading…</div>
+    <div class="header-clock" id="headerClock"></div>
     <div class="icon-btn" onclick="goTo('messages',document.querySelector('.sb-item[onclick*=messages]'))">
       <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       <span class="dot" id="notifDot" style="display:none"></span>
@@ -1649,6 +1651,9 @@ function rerenderAdminMessages(){
 
 SPS.ready().then(async()=>{
   await loadGlobals(); await loadStreamSectionMap(); renderDashboard(); populateCalMonths(); checkPendingRequests()
+  // Header clock
+  function tickClock(){const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()}
+  tickClock();setInterval(tickClock,1000)
   // Start message notifications
   initAdminNotifications()
   if(SPS.admin?.admin_id){subscribeAdminMessages(SPS.admin.admin_id);subscribeRequests();subscribeTodayPanel();console.log('[RT] Admin subscribed:',SPS.admin.admin_id);if(typeof initPushNotifications==='function')initPushNotifications(sb,'admin',SPS.admin.admin_id)}
@@ -2341,11 +2346,20 @@ async function buildLiveClassSnapshot(iso,off){
   const adjMap={};(adjs||[]).filter(a=>(a.days||[]).includes(dow)&&a.slot_id===displaySlot.slot_id).forEach(a=>{
     const k=a.class_id+'_'+a.section_id;adjMap[k]=a
   })
+  let minsLeft=''
+  if(isNow){
+    const et=(displaySlot.end_time||'').slice(0,5)
+    const [eh,em]=et.split(':').map(Number)
+    const [nh,nm]=nowHM.split(':').map(Number)
+    const diff=(eh*60+em)-(nh*60+nm)
+    if(diff>0)minsLeft='<span style="font-size:11px;font-weight:700;color:var(--indigo);background:var(--indigo-100);padding:3px 8px;border-radius:999px;margin-left:auto;white-space:nowrap">'+diff+' min left</span>'
+  }
   let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px">'
     +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
     +(isNow?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22C55E;box-shadow:0 0 6px #22C55E;flex-shrink:0"></span>':'')
     +'<span style="font-size:12px;font-weight:700;color:var(--ink-soft)">'+esc(label)+'</span>'
     +'<span class="mono" style="font-size:11px;color:var(--ink-faint)">'+esc(timeLabel)+'</span>'
+    +minsLeft
     +'</div>'
   h+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
   dayEntries.sort((a,b)=>{
