@@ -8323,7 +8323,7 @@ const _dlBuild={}
 // ── Student Master ──
 _dlBuild.student_master=async function(){
   const sid=_dlSess(),cid=_dlClass(),secId=_dlSec(),statusF=_dlStatus()
-  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,relieved_date,is_new_admission,readmission_date,tuition_override,annual_override,students(student_id,full_name,father_name,mother_name,dob,phone,alt_phone,address,admission_date,family_code,photo_url,sp_aadhar_no,mother_aadhar,father_aadhar),classes(name),class_sections(name),streams(name)')
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,relieved_date,is_new_admission,readmission_date,tuition_override,annual_override,students(student_id,full_name,father_name,mother_name,dob,phone,alt_phone,address,admission_date,family_code,photo_url,aadhar_no),classes(name),class_sections(name),streams(name)')
     .eq('session_id',sid)
   if(cid)q=q.eq('class_id',cid)
   if(secId)q=q.eq('section_id',secId)
@@ -8338,11 +8338,11 @@ _dlBuild.student_master=async function(){
     from+=1000
     if(all.length>=50000){toast('Capped at 50k rows','error');break}
   }
-  const hdr=['S.No','Roll','Student Name','Father Name','Mother Name','DOB','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Father Aadhaar','Mother Aadhaar','Photo URL']
+  const hdr=['S.No','Roll','Student Name','Father Name','Mother Name','DOB','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Photo URL']
   const rows=[_csvRow(hdr)]
   all.forEach(e=>{
     const s=e.students||{}
-    rows.push(_csvRow([e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,e.classes?.name,e.class_sections?.name,e.streams?.name,s.phone,s.alt_phone,s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,s.sp_aadhar_no,s.father_aadhar,s.mother_aadhar,s.photo_url]))
+    rows.push(_csvRow([e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,e.classes?.name,e.class_sections?.name,e.streams?.name,s.phone,s.alt_phone,s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,s.aadhar_no,s.photo_url]))
   })
   return rows
 }
