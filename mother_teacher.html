@@ -1868,7 +1868,7 @@ async function viewStudentProfile(eid){
     '<div style="margin-bottom:12px"><label style="'+lbl+'">'+f.label+'</label>'
     +(f.k==='address'
       ?'<textarea id="sp_'+f.k+'" '+(canEdit?'':' disabled')+' style="'+inp+';min-height:60px;resize:vertical">'+esc(f.val||'')+'</textarea>'
-      :'<input id="sp_'+f.k+'" '+(f.type==='date'?'type="date"':'')+' '+((canEdit&&!f.locked)?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+(f.locked?';background:var(--lav-100);color:var(--ink-soft)':'')+'">')
+      :'<input id="sp_'+f.k+'" '+(f.type==='date'?'type="date"':'')+(f.k==='aadhar_no'?' inputmode="numeric" pattern="[0-9]*"':'')+' '+((canEdit&&!f.locked)?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+(f.locked?';background:var(--lav-100);color:var(--ink-soft)':'')+'">')
     +(f.k==='admission_date'&&f.locked?'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:3px">🔒 Continuing student — attendance counts from the session start. Only new admissions can change this.</div>':'')
     +(f.k==='admission_date'&&!f.locked?'<div style="font-size:10.5px;color:var(--indigo-dark);margin-top:3px">Attendance working days are counted from this date.</div>':'')
     +'</div>'

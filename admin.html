@@ -357,7 +357,10 @@ tbody tr:hover td{background:var(--lav-50)}
 @media(max-width:760px){
   #sidebar{transform:translateX(-100%)}#sidebar.show{transform:translateX(0);box-shadow:20px 0 60px rgba(34,31,53,.25)}
   #main{margin-left:0}.content{padding:16px}
-  .grid-3,.grid-4,.grid-5,.assess-grid{grid-template-columns:1fr}
+  .grid-3,.grid-5,.assess-grid{grid-template-columns:1fr}
+  .grid-4{grid-template-columns:repeat(2,1fr)}
+  .grid-4 .stat-card{padding:12px 14px;gap:4px}
+  .grid-4 .stat-card .val{font-size:20px}
   .topbar{padding:0 14px;gap:10px}.user-chip .uname,.user-chip .urole{display:none}.user-chip{padding:5px}
   .topbar-title .crumb{display:none}
   .topbar-title{font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
