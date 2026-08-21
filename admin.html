@@ -459,6 +459,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .sa-dcell{width:30px;min-width:30px;text-align:center;padding:5px 2px;font-weight:700;font-family:var(--mono);font-size:10.5px;cursor:default}
   .m-p{background:rgba(43,182,115,.16);color:#1B7F52}
   .m-l{background:rgba(232,162,61,.20);color:#8A5A00}
+  .m-h{background:rgba(66,165,245,.18);color:#1565C0}
   .m-a{background:rgba(229,85,107,.16);color:#B5122B}
   .m-o{background:var(--lav-100);color:var(--ink-faint)}
   .m-none{color:var(--ink-faint)}
@@ -5959,7 +5960,7 @@ function svKind(status){
   if(status==='Late'||status==='L')return 'l'
   if(status==='Off'||status==='Holiday'||status==='WO')return 'o'
   if(status==='Absent'||status==='A')return 'a'
-  if(status==='Half Day')return 'l'
+  if(status==='Half Day')return 'h'
   return null
 }
 function svEffective(rec,date,teacherId){
@@ -6033,13 +6034,13 @@ function renderStaffRegister(){
   const DOW=['S','M','T','W','T','F','S']
 
   // ── Overall stats
-  let tp=0,tl=0,ta=0,to_=0
+  let tp=0,tl=0,th=0,ta=0,to_=0
   teachers.forEach(t=>_svDates.forEach(d=>{
     const k=svKind(svEffective(byKey[t.teacher_id+'|'+d],d,t.teacher_id))
-    if(k==='p')tp++;else if(k==='l')tl++;else if(k==='a')ta++;else if(k==='o')to_++
+    if(k==='p')tp++;else if(k==='l')tl++;else if(k==='h')th++;else if(k==='a')ta++;else if(k==='o')to_++
   }))
-  const workedCells=tp+tl+ta
-  const attPct=workedCells?Math.round(((tp+tl)/workedCells)*100):0
+  const workedCells=tp+tl+th+ta
+  const attPct=workedCells?Math.round(((tp+tl+th)/workedCells)*100):0
   if($('svStats'))$('svStats').innerHTML='<div class="grid-4" style="margin-bottom:16px">'
     +'<div class="stat-card"><span class="lbl">Staff</span><span class="val">'+teachers.length+'</span><span class="sub">'+_svDates.length+' days in range</span></div>'
     +'<div class="stat-card"><span class="lbl" style="color:var(--success,#2BB673)">Present</span><span class="val" style="color:var(--success,#2BB673)">'+tp+'</span><span class="sub">'+attPct+'% turnout</span></div>'
@@ -6055,11 +6056,11 @@ function renderStaffRegister(){
     const wknd=isAdminOff(d)
     html+='<th class="'+(wknd?'sa-wkend':'')+'">'+dt.getDate()+'<br><span style="font-weight:400;opacity:.6">'+DOW[dt.getDay()]+'</span></th>'
   })
-  html+='<th style="background:var(--lav-50)">P</th><th style="background:var(--lav-50)">L</th><th style="background:var(--lav-50)">A</th><th style="background:var(--lav-50)">Off</th></tr></thead><tbody>'
+  html+='<th style="background:var(--lav-50)">P</th><th style="background:var(--lav-50)">L</th><th style="background:var(--lav-50)">H</th><th style="background:var(--lav-50)">A</th><th style="background:var(--lav-50)">Off</th></tr></thead><tbody>'
 
   // ── Rows
   teachers.forEach(t=>{
-    let p=0,l=0,a=0,o=0
+    let p=0,l=0,h=0,a=0,o=0
     let cells=''
     _svDates.forEach(d=>{
       const rec=byKey[t.teacher_id+'|'+d]
@@ -6071,6 +6072,7 @@ function renderStaffRegister(){
       let ch='·', cls='m-none'
       if(k==='p'){ch='P';cls='m-p';p++}
       else if(k==='l'){ch='L';cls='m-l';l++}
+      else if(k==='h'){ch='H';cls='m-h';h++}
       else if(k==='a'){ch='A';cls='m-a';a++}
       else if(k==='o'){ch='—';cls='m-o';o++}
       else if(isAdminOff(d)){ch='—';cls='m-o'}
@@ -6080,21 +6082,22 @@ function renderStaffRegister(){
       +'<div style="font-size:9.5px;color:var(--ink-faint);font-weight:500">'+esc(t.employee_code||'—')+'</div></td>'
       +cells
       +'<td class="sa-tot" style="color:#1B7F52">'+p+'</td><td class="sa-tot" style="color:#8A5A00">'+l+'</td>'
-      +'<td class="sa-tot" style="color:#B5122B">'+a+'</td><td class="sa-tot" style="color:var(--ink-faint)">'+o+'</td></tr>'
+      +'<td class="sa-tot" style="color:#1565C0">'+h+'</td><td class="sa-tot" style="color:#B5122B">'+a+'</td><td class="sa-tot" style="color:var(--ink-faint)">'+o+'</td></tr>'
   })
 
   // ── Per-day totals
   html+='<tr style="background:var(--lav-100);font-weight:800"><td class="sa-name" style="background:var(--lav-100)">Present that day</td>'
   _svDates.forEach(d=>{
-    const n=teachers.filter(t=>{const k=svKind(svEffective(byKey[t.teacher_id+'|'+d],d,t.teacher_id));return k==='p'||k==='l'}).length
+    const n=teachers.filter(t=>{const k=svKind(svEffective(byKey[t.teacher_id+'|'+d],d,t.teacher_id));return k==='p'||k==='l'||k==='h'}).length
     html+='<td class="sa-dcell" style="background:var(--lav-100)">'+(n||'')+'</td>'
   })
-  html+='<td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td></tr>'
+  html+='<td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td><td class="sa-tot"></td></tr>'
   html+='</tbody></table></div>'
 
   html+='<div class="sa-legend" style="margin-top:14px">'
     +'<span><span class="sw" style="background:rgba(43,182,115,.5)"></span>P Present</span>'
     +'<span><span class="sw" style="background:rgba(232,162,61,.6)"></span>L Late</span>'
+    +'<span><span class="sw" style="background:rgba(66,165,245,.45)"></span>H Half Day</span>'
     +'<span><span class="sw" style="background:rgba(229,85,107,.5)"></span>A Absent</span>'
     +'<span><span class="sw" style="background:var(--lav-200,#E5E1F5)"></span>— Off</span>'
     +'<span><span class="sw" style="border:1px dashed var(--line)"></span>· No record</span>'
@@ -6111,9 +6114,10 @@ function showTeacherAttDetail(tid){
   let p=0,l=0,a=0,o=0
   let body='<div style="max-height:60vh;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
     +'<thead><tr>'+['Date','Day','Status','In','Out','Hours'].map(h=>'<th style="position:sticky;top:0;background:var(--lav-100);padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft)">'+h+'</th>').join('')+'</tr></thead><tbody>'
+  let hd=0
   _svDates.forEach(d=>{
     const r=byDate[d], effSt=svEffective(r,d,tid), k=svKind(effSt)
-    if(k==='p')p++;else if(k==='l')l++;else if(k==='a')a++;else if(k==='o')o++
+    if(k==='p')p++;else if(k==='l')l++;else if(k==='h')hd++;else if(k==='a')a++;else if(k==='o')o++
     const tin=r?.time_in?String(r.time_in).slice(0,5):null
     const tout=r?.time_out?String(r.time_out).slice(0,5):null
     let hours='—'
@@ -6121,6 +6125,7 @@ function showTeacherAttDetail(tid){
       const mins=(h2*60+m2)-(h1*60+m1); if(mins>0)hours=Math.floor(mins/60)+'h '+String(mins%60).padStart(2,'0')+'m'}
     const pill=k==='p'?'<span class="pill pill-success">Present</span>'
       :k==='l'?'<span class="pill pill-warn">Late</span>'
+      :k==='h'?'<span class="pill" style="background:rgba(66,165,245,.18);color:#1565C0">Half Day</span>'
       :k==='o'?'<span class="pill" style="background:var(--lav-100);color:var(--ink-soft)">Off</span>'
       :k==='a'?'<span class="pill pill-danger">Absent</span>'
       :'<span style="color:var(--ink-faint);font-size:11px">no record</span>'
@@ -6130,13 +6135,14 @@ function showTeacherAttDetail(tid){
       +'<td style="padding:7px 10px;font-weight:600">'+fmtD(d)+'</td>'
       +'<td style="padding:7px 10px;color:var(--ink-soft)">'+DOWL[dt.getDay()]+'</td>'
       +'<td style="padding:7px 10px">'+pill+'</td>'
-      +'<td style="padding:7px 10px;font-family:var(--mono)">'+(tin||((k==='p'||k==='l')?miss:'—'))+'</td>'
-      +'<td style="padding:7px 10px;font-family:var(--mono)">'+(tout||((k==='p'||k==='l')?miss:'—'))+'</td>'
+      +'<td style="padding:7px 10px;font-family:var(--mono)">'+(tin||((k==='p'||k==='l'||k==='h')?miss:'—'))+'</td>'
+      +'<td style="padding:7px 10px;font-family:var(--mono)">'+(tout||((k==='p'||k==='l'||k==='h')?miss:'—'))+'</td>'
       +'<td style="padding:7px 10px;font-family:var(--mono);color:var(--ink-soft)">'+hours+'</td></tr>'
   })
   body+='</tbody></table></div>'
   const head='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
     +'<span class="pill pill-success">Present '+p+'</span><span class="pill pill-warn">Late '+l+'</span>'
+    +'<span class="pill" style="background:rgba(66,165,245,.18);color:#1565C0">Half Day '+hd+'</span>'
     +'<span class="pill pill-danger">Absent '+a+'</span><span class="pill" style="background:var(--lav-100);color:var(--ink-soft)">Off '+o+'</span>'
     +'</div>'
   openModal((t.full_name||'Staff')+' — '+fmtD(_svRange.from)+' to '+fmtD(_svRange.to), head+body,
@@ -6149,18 +6155,18 @@ function exportStaffRegister(){
   const q=($('sv_search')?.value||'').toLowerCase().trim()
   const teachers=_svTeachers.filter(t=>!q||(t.full_name||'').toLowerCase().includes(q)||String(t.employee_code||'').toLowerCase().includes(q))
   const esc2=v=>'"'+String(v??'').replace(/"/g,'""')+'"'
-  let csv=[['Code','Name',..._svDates,'Present','Late','Absent','Off'].map(esc2).join(',')]
+  let csv=[['Code','Name',..._svDates,'Present','Late','Half Day','Absent','Off'].map(esc2).join(',')]
   teachers.forEach(t=>{
-    let p=0,l=0,a=0,o=0
+    let p=0,l=0,hd=0,a=0,o=0
     const cells=_svDates.map(d=>{
       const r=byKey[t.teacher_id+'|'+d], effSt=svEffective(r,d,t.teacher_id), k=svKind(effSt)
-      if(k==='p')p++;else if(k==='l')l++;else if(k==='a')a++;else if(k==='o')o++
+      if(k==='p')p++;else if(k==='l')l++;else if(k==='h')hd++;else if(k==='a')a++;else if(k==='o')o++
       if(!r)return ''
       const tin=r.time_in?String(r.time_in).slice(0,5):''
       const tout=r.time_out?String(r.time_out).slice(0,5):''
       return (effSt||'')+(tin||tout?' '+tin+'-'+tout:'')
     })
-    csv.push([t.employee_code||'',t.full_name||'',...cells,p,l,a,o].map(esc2).join(','))
+    csv.push([t.employee_code||'',t.full_name||'',...cells,p,l,hd,a,o].map(esc2).join(','))
   })
   const blob=new Blob([csv.join('\n')],{type:'text/csv;charset=utf-8'})
   const url=URL.createObjectURL(blob), link=document.createElement('a')
