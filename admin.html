@@ -460,6 +460,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .m-p{background:rgba(43,182,115,.16);color:#1B7F52}
   .m-l{background:rgba(232,162,61,.20);color:#8A5A00}
   .m-h{background:rgba(66,165,245,.18);color:#1565C0}
+  .m-hl{background:linear-gradient(135deg,rgba(232,162,61,.22) 50%,rgba(66,165,245,.22) 50%);color:#1565C0}
   .m-a{background:rgba(229,85,107,.16);color:#B5122B}
   .m-o{background:var(--lav-100);color:var(--ink-faint)}
   .m-none{color:var(--ink-faint)}
@@ -6072,7 +6073,13 @@ function renderStaffRegister(){
       let ch='·', cls='m-none'
       if(k==='p'){ch='P';cls='m-p';p++}
       else if(k==='l'){ch='L';cls='m-l';l++}
-      else if(k==='h'){ch='H';cls='m-h';h++}
+      else if(k==='h'){
+        h++
+        const thr=thresholdsFor(t.teacher_id,d)
+        const alsoLate=tin&&thr.lateAfter&&tin>thr.lateAfter
+        if(alsoLate){l++;cls='m-hl';ch='<span style="font-size:8px;line-height:1;display:flex;flex-direction:column;align-items:center"><span style="color:#8A5A00">L</span><span style="color:#1565C0">H</span></span>'}
+        else{ch='H';cls='m-h'}
+      }
       else if(k==='a'){ch='A';cls='m-a';a++}
       else if(k==='o'){ch='—';cls='m-o';o++}
       else if(isAdminOff(d)){ch='—';cls='m-o'}
@@ -6123,8 +6130,11 @@ function showTeacherAttDetail(tid){
     let hours='—'
     if(tin&&tout){const[h1,m1]=tin.split(':').map(Number),[h2,m2]=tout.split(':').map(Number)
       const mins=(h2*60+m2)-(h1*60+m1); if(mins>0)hours=Math.floor(mins/60)+'h '+String(mins%60).padStart(2,'0')+'m'}
+    let alsoLateDetail=false
+    if(k==='h'&&tin){const thr=thresholdsFor(tid,d);if(thr.lateAfter&&tin>thr.lateAfter){alsoLateDetail=true;l++}}
     const pill=k==='p'?'<span class="pill pill-success">Present</span>'
       :k==='l'?'<span class="pill pill-warn">Late</span>'
+      :k==='h'&&alsoLateDetail?'<span class="pill pill-warn" style="margin-right:4px">Late</span><span class="pill" style="background:rgba(66,165,245,.18);color:#1565C0">Half Day</span>'
       :k==='h'?'<span class="pill" style="background:rgba(66,165,245,.18);color:#1565C0">Half Day</span>'
       :k==='o'?'<span class="pill" style="background:var(--lav-100);color:var(--ink-soft)">Off</span>'
       :k==='a'?'<span class="pill pill-danger">Absent</span>'
