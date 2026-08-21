@@ -3369,14 +3369,14 @@ function downloadSampleCSV(){
   // Only full_name, father_name and class are required; every other column may be
   // blank, or omitted from the file entirely.
   const h=['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob',
-           'aadhar_no','address','admission_date','family_code','class','section','stream',
+           'aadhar_no','srn','address','admission_date','family_code','class','section','stream',
            'roll_no','is_new_admission','tuition_override','annual_override'];
   const sec=SECTIONS[0]?.name||'A';
   const c1=CLASSES[0]||'Nur', c2=CLASSES[10]||CLASSES[0]||'11th Science';
   const r1=['','1','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-08-15',
-            '123456789012','House 1, City','2024-04-01','F0001',c2,sec,'','1','false','',''];
+            '123456789012','1234567890','House 1, City','2024-04-01','F0001',c2,sec,'','1','false','',''];
   const r2=['','2','Neha Kumar','Shyam Kumar','Sita Devi','9876543210','','2020-03-09',
-            '','','2026-07-01','F0001',c1,sec,'','2','true','',''];
+            '','','','2026-07-01','F0001',c1,sec,'','2','true','',''];
   const notes=[
     ['--- NOTES — DELETE EVERY ROW BELOW BEFORE IMPORTING ---'],
     ['Same template as Admin Portal > Bulk Import. One CSV, either portal.'],
@@ -3398,6 +3398,7 @@ function downloadSampleCSV(){
     [`section     available in ${viewSession}: ${[...new Set(SECTIONS.map(s=>s.name))].join(' | ')||'(none yet — "A" will be created)'}`],
     ['family_code blank = auto-generate. Same code on 2 rows = siblings.'],
     ['            3+ siblings sharing a code triggers the flat sibling fee.'],
+    ['srn             10-digit Student Registration Number. Optional.'],
     ['is_new_admission   true = waives the annual charge.  BLANK DEFAULTS TO false.'],
     ['tuition_override / annual_override   blank = use the class fee master'],
   ];
@@ -3528,7 +3529,7 @@ function importCSV(input){
         stuRows.push({
           student_id:studentId, full_name:r.full_name, father_name:r.father_name,
           mother_name:r.mother_name||null, phone:r.phone||null, alt_phone:r.alt_phone||null,
-          dob:parseAdmDate(r.dob), aadhar_no:r.aadhar_no||null, address:r.address||null,
+          dob:parseAdmDate(r.dob), aadhar_no:r.aadhar_no||null, srn:r.srn||null, address:r.address||null,
           admission_date:parseAdmDate(r.admission_date), family_code:fc
         });
         const _strs=streamsFor(CLASS_ID[r.class]);
