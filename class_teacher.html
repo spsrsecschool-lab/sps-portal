@@ -730,7 +730,7 @@ async function loadClass(ct){
 
   // Students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,address,photo_url,family_code,admission_date)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,address,photo_url,family_code,admission_date)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -907,7 +907,7 @@ async function onRosterChanged(){
   clearTimeout(_rosterDebounce)
   _rosterDebounce=setTimeout(async()=>{
     const{data:students}=await sb.from('student_enrollments')
-      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,address,photo_url,family_code,admission_date)')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,address,photo_url,family_code,admission_date)')
       .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
     const before=CLASS_STUDENTS.length
@@ -1576,6 +1576,9 @@ async function viewStudentProfile(eid){
     {k:'alt_phone',label:'Alt Phone',val:s.alt_phone},
     {k:'aadhar_no',label:'Aadhaar No',val:s.aadhar_no},
     {k:'srn',label:'SRN',val:s.srn,locked:true},
+    {k:'pen',label:'PEN',val:s.pen,locked:true},
+    {k:'apaar_id',label:'APAAR ID',val:s.apaar_id,locked:true},
+    {k:'gender',label:'Gender',val:s.gender,type:'select',options:['','Male','Female']},
     {k:'address',label:'Address',val:s.address},
     {k:'admission_date',label:'Date of Admission / Joining',val:s.admission_date,type:'date',locked:admLocked},
   ]
@@ -1584,6 +1587,8 @@ async function viewStudentProfile(eid){
     '<div style="margin-bottom:12px"><label style="'+lbl+'">'+f.label+'</label>'
     +(f.k==='address'
       ?'<textarea id="sp_'+f.k+'" '+(canEdit?'':' disabled')+' style="'+inp+';min-height:60px;resize:vertical">'+esc(f.val||'')+'</textarea>'
+      :f.type==='select'
+      ?'<select id="sp_'+f.k+'" '+((canEdit&&!f.locked)?'':' disabled')+' style="'+inp+(f.locked?';background:var(--lav-100);color:var(--ink-soft)':'')+'">'+f.options.map(o=>'<option value="'+esc(o)+'"'+(f.val===o?' selected':'')+'>'+esc(o||'— Select —')+'</option>').join('')+'</select>'
       :'<input id="sp_'+f.k+'" '+(f.type==='date'?'type="date"':'')+' '+((canEdit&&!f.locked)?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+(f.locked?';background:var(--lav-100);color:var(--ink-soft)':'')+'">')
     +(f.k==='admission_date'&&f.locked?'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:3px">🔒 Continuing student — attendance counts from the session start. Only new admissions can change this.</div>':'')
     +(f.k==='admission_date'&&!f.locked?'<div style="font-size:10.5px;color:var(--indigo-dark);margin-top:3px">Attendance working days are counted from this date.</div>':'')
@@ -1765,13 +1770,14 @@ async function saveStudentProfile(){
     phone:document.getElementById('sp_phone')?.value?.trim(),
     alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
     aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
+    gender:document.getElementById('sp_gender')?.value||null,
     address:document.getElementById('sp_address')?.value?.trim(),
   }
   if(!updates.full_name){toast('Name cannot be empty','error');return}
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,address,photo_url,family_code,admission_date)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,address,photo_url,family_code,admission_date)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -1916,6 +1922,7 @@ async function saveStudentProfile(studentId){
     phone:document.getElementById('sp_phone')?.value?.trim(),
     alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
     aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
+    gender:document.getElementById('sp_gender')?.value||null,
     address:document.getElementById('sp_address')?.value?.trim(),
     admission_date:document.getElementById('sp_admission_date')?.value||null,
   }
@@ -1926,7 +1933,7 @@ async function saveStudentProfile(studentId){
   if(!updated||!updated.length){toast('Save did not persist — the database blocked this update (permissions).','error');console.warn('[profile] UPDATE affected 0 rows — likely RLS on students table',{sid});return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,address,photo_url,family_code,admission_date)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,address,photo_url,family_code,admission_date)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -2181,7 +2188,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,address,photo_url,family_code,admission_date)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,address,photo_url,family_code,admission_date)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]

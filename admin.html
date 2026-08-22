@@ -632,6 +632,9 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="fg" style="max-width:160px"><label>Status</label><select id="studentStatusFilter" onchange="filterStudents()"><option value="">All</option><option value="active">Active</option><option value="left">Left</option></select></div>
         <div class="fg" style="max-width:180px"><label>Re-admission</label><select id="studentSnoFilter" onchange="filterStudents()"><option value="">All</option><option value="has">S.No allotted</option><option value="no">S.No pending</option></select></div>
         <div class="fg" style="max-width:150px"><label>SRN</label><select id="studentSrnFilter" onchange="filterStudents()"><option value="">All</option><option value="has">Has SRN</option><option value="no">No SRN</option></select></div>
+        <div class="fg" style="max-width:150px"><label>PEN</label><select id="studentPenFilter" onchange="filterStudents()"><option value="">All</option><option value="has">Has PEN</option><option value="no">No PEN</option></select></div>
+        <div class="fg" style="max-width:150px"><label>APAAR ID</label><select id="studentApaarFilter" onchange="filterStudents()"><option value="">All</option><option value="has">Has APAAR</option><option value="no">No APAAR</option></select></div>
+        <div class="fg" style="max-width:140px"><label>Gender</label><select id="studentGenderFilter" onchange="filterStudents()"><option value="">All</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
       </div>
       <div id="studentCount" style="font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:10px"></div>
       <div class="card"><div class="table-wrap"><table>
@@ -667,6 +670,13 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="form-row">
             <div class="fg"><label>Aadhar No.</label><input type="text" inputmode="numeric" id="adm_aadhar" placeholder="xxxx xxxx xxxx"></div>
             <div class="fg"><label>SRN (10-digit)</label><input type="text" inputmode="numeric" id="adm_srn" maxlength="10" placeholder="e.g. 1234567890"></div>
+          </div>
+          <div class="form-row">
+            <div class="fg"><label>PEN</label><input type="text" id="adm_pen" placeholder="Permanent Education Number"></div>
+            <div class="fg"><label>APAAR ID</label><input type="text" id="adm_apaar" placeholder="APAAR ID"></div>
+          </div>
+          <div class="form-row">
+            <div class="fg"><label>Gender *</label><select id="adm_gender"><option value="">— Select —</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
           </div>
           <div class="form-row">
             <div class="fg"><label>Address</label><input type="text" id="adm_address" placeholder="Full address"></div>
@@ -2844,7 +2854,7 @@ async function toggleTeacher(id,active){confirmAct((active?'Deactivate':'Activat
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
   if(!SESS)return; ldg($('studentBody'))
-  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code,srn),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(1000)
+  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,stream_id,section_id,students(student_id,full_name,father_name,phone,family_code,srn,pen,apaar_id,gender),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(1000)
   if(error){toast('Failed to load students','error');console.error('[loadStudents] error:',error);return}
   _studentsRaw=(data||[]).sort((a,b)=>{
     // Stable ascending sort by student_id (STU-0001, STU-0002 ...). Client-side
@@ -2880,8 +2890,13 @@ function filterStudents(){
   const secF=$('studentSectionFilter')?.value||''
   const snoF=$('studentSnoFilter')?.value||''
   const srnF=$('studentSrnFilter')?.value||''
+  const penF=$('studentPenFilter')?.value||''
+  const apaarF=$('studentApaarFilter')?.value||''
+  const genderF=$('studentGenderFilter')?.value||''
   const hasSno=e=>e.s_no!=null&&String(e.s_no).trim()!==''
   const hasSrn=e=>e.students?.srn!=null&&String(e.students.srn).trim()!==''
+  const hasPen=e=>e.students?.pen!=null&&String(e.students.pen).trim()!==''
+  const hasApaar=e=>e.students?.apaar_id!=null&&String(e.students.apaar_id).trim()!==''
   const rows=(_studentsRaw||[]).filter(e=>{
     const st=e.students
     // Relieved students are hidden by default; only shown when the status
@@ -2892,6 +2907,11 @@ function filterStudents(){
     if(snoF==='no'&&hasSno(e))return false
     if(srnF==='has'&&!hasSrn(e))return false
     if(srnF==='no'&&hasSrn(e))return false
+    if(penF==='has'&&!hasPen(e))return false
+    if(penF==='no'&&hasPen(e))return false
+    if(apaarF==='has'&&!hasApaar(e))return false
+    if(apaarF==='no'&&hasApaar(e))return false
+    if(genderF&&e.students?.gender!==genderF)return false
     const matchStat = stat==='left' ? true : (!stat || e.status===stat)
     return (!s||st?.full_name?.toLowerCase().includes(s)||st?.father_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))
       &&(!cls||e.classes?.class_id===cls)&&matchStat&&(!streamF||e.stream_id===streamF)&&(!secF||e.section_id===secF)
@@ -2899,7 +2919,7 @@ function filterStudents(){
   // Count line: shows filtered total, and the overall total when a filter is on.
   const cnt=$('studentCount')
   if(cnt){
-    const anyFilter=!!(s||cls||stat||streamF||secF||snoF||srnF)
+    const anyFilter=!!(s||cls||stat||streamF||secF||snoF||srnF||penF||apaarF||genderF)
     // Overall active roster (relieved hidden) for context.
     const grandTotal=(_studentsRaw||[]).filter(e=>!e.relieved).length
     cnt.textContent=anyFilter
@@ -2919,7 +2939,7 @@ async function openProfile(enrollId){
   if(s?.photo_url){$('pm_av').innerHTML='<img src="'+s.photo_url+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'}else{$('pm_av').textContent=ini(s?.full_name||'')}; $('pm_name').textContent=s?.full_name||'Unknown'
   $('pm_class').textContent='Class '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')+(e.streams?.name?' · '+e.streams.name:'')+' · Roll '+(e.roll_no||'—')
   $('pm_tags').innerHTML='<span class="pill pill-neutral">'+esc(s?.student_id||'')+'</span><span class="pill pill-neutral">S.No '+esc(e.s_no||'—')+'</span><span class="pill '+(e.status==='active'?'pill-success':'pill-warn')+'">'+esc(e.status||'')+'</span>'
-  $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
+  $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">PEN</span><span class="fv">'+esc(s?.pen||'—')+'</span></div><div class="field-row"><span class="fk">APAAR ID</span><span class="fv">'+esc(s?.apaar_id||'—')+'</span></div><div class="field-row"><span class="fk">Gender</span><span class="fv">'+esc(s?.gender||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
   if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a class="map-tag" href="'+esc(d.file_url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button></span>').join('')+'</div>'
   else $('pm_docs').innerHTML=''
@@ -3015,6 +3035,8 @@ async function openEditDemoModal(){
     '<div class="form-row"><div class="fg"><label>Phone</label><input id="ed_phone" inputmode="numeric" value="'+esc(s.phone||'')+'"></div><div class="fg"><label>Alternate Phone</label><input id="ed_altphone" inputmode="numeric" value="'+esc(s.alt_phone||'')+'"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Aadhar No.</label><input id="ed_aadhar" inputmode="numeric" value="'+esc(s.aadhar_no||'')+'"></div><div class="fg"><label>Family Code</label><div style="display:flex;gap:6px"><input id="ed_family" value="'+esc(s.family_code||'')+'" style="flex:1"><button type="button" class="btn btn-ghost btn-sm" title="Generate a new, unused family code" onclick="edGenerateFamilyCode()">New</button></div></div></div>'+
     '<div class="form-row"><div class="fg"><label>SRN (10-digit)</label><input id="ed_srn" inputmode="numeric" maxlength="10" value="'+esc(s.srn||'')+'" placeholder="e.g. 1234567890"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>PEN</label><input id="ed_pen" value="'+esc(s.pen||'')+'" placeholder="Permanent Education Number"></div><div class="fg"><label>APAAR ID</label><input id="ed_apaar" value="'+esc(s.apaar_id||'')+'" placeholder="APAAR ID"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Gender</label><select id="ed_gender"><option value="">— Select —</option><option value="Male"'+(s.gender==='Male'?' selected':'')+'>Male</option><option value="Female"'+(s.gender==='Female'?' selected':'')+'>Female</option></select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Address</label><input id="ed_address" value="'+esc(s.address||'')+'"></div></div>'+
     '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Enrollment — '+esc(SESS?.session_id||'')+'</div>'+
@@ -3167,6 +3189,9 @@ async function saveEditDemo(){
   // row here lets you move a student to a new family without touching SQL.
   const edSrn=$('ed_srn')?.value?.trim()||null
   if(edSrn&&!/^\d{10}$/.test(edSrn)){toast('SRN must be exactly 10 digits','error');return}
+  const edPen=$('ed_pen')?.value?.trim()||null
+  const edApaar=$('ed_apaar')?.value?.trim()||null
+  const edGender=$('ed_gender')?.value||null
   const edFamily=$('ed_family')?.value?.trim()||null
   if(edFamily){
     const{error:fe}=await sb.from('families').upsert({family_code:edFamily},{onConflict:'family_code',ignoreDuplicates:true})
@@ -3182,7 +3207,7 @@ async function saveEditDemo(){
     aadhar_no:$('ed_aadhar')?.value?.trim()||null,
     address:$('ed_address')?.value?.trim()||null,
     family_code:edFamily,
-    srn:edSrn
+    srn:edSrn, pen:edPen, apaar_id:edApaar, gender:edGender
   }).eq('student_id',sid)
   if(e1){toast('Failed: '+e1.message,'error');return}
   // Did the section (or class) change? If so, give the student the next roll in
@@ -3288,7 +3313,10 @@ async function submitAdmission(e){
     }
     const admSrn=$('adm_srn')?.value?.trim()||null
     if(admSrn&&!/^\d{10}$/.test(admSrn))throw new Error('SRN must be exactly 10 digits')
-    const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,admission_date:$('adm_admdate').value||null,phone:$('adm_phone').value.trim()||null,alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc,srn:admSrn})
+    const admPen=$('adm_pen')?.value?.trim()||null
+    const admApaar=$('adm_apaar')?.value?.trim()||null
+    const admGender=$('adm_gender')?.value||null
+    const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,admission_date:$('adm_admdate').value||null,phone:$('adm_phone').value.trim()||null,alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc,srn:admSrn,pen:admPen,apaar_id:admApaar,gender:admGender})
     if(se)throw se
     // S.No is now MANUAL: use exactly what the admin typed, or leave it blank
     // if they left it empty (some students aren't allotted an S.No yet).
@@ -3442,7 +3470,7 @@ async function commitImport(count,type){
       full_name:r.full_name,father_name:r.father_name,
       mother_name:r.mother_name||null,phone:r.phone||null,
       alt_phone:r.alt_phone||null,
-      aadhar_no:r.aadhar_no||null,srn:r.srn||null,dob:normDate(r.dob)||null,
+      aadhar_no:r.aadhar_no||null,srn:r.srn||null,pen:r.pen||null,apaar_id:r.apaar_id||null,gender:r.gender||null,dob:normDate(r.dob)||null,
       admission_date:normDate(r.admission_date)||null,
       address:r.address||null,family_code:r.family_code||null
     }))
@@ -3540,13 +3568,13 @@ function downloadSampleCsv(type){
   let h,r1,r2,notes
   if(type==='student'){
     h=['student_id','s_no','full_name','father_name','mother_name','phone','alt_phone','dob',
-       'aadhar_no','srn','address','admission_date','family_code','class','section','stream',
+       'aadhar_no','srn','pen','apaar_id','gender','address','admission_date','family_code','class','section','stream',
        'roll_no','is_new_admission','tuition_override','annual_override']
     r1=['','1','Ram Kumar','Shyam Kumar','Sita Devi','9876543210','','2012-08-15',
-        '123456789012','1234567890','House 1, City','2024-04-01','F0001','11th Science','A','Science',
+        '123456789012','1234567890','','','Male','House 1, City','2024-04-01','F0001','11th Science','A','Science',
         '1','false','','']
     r2=['','2','Neha Kumar','Shyam Kumar','Sita Devi','9876543210','','2020-03-09',
-        '','','','2026-07-01','F0001','Nur','A','','2','true','','']
+        '','','','','Female','','2026-07-01','F0001','Nur','A','','2','true','','']
     notes=[
       ['--- NOTES — DELETE EVERY ROW BELOW BEFORE IMPORTING ---'],
       ['Same template as Fee Portal > Settings > Import Students. One CSV, either portal.'],
@@ -3562,6 +3590,9 @@ function downloadSampleCsv(type){
       ['family_code blank = auto-generate. Same code on 2 rows = siblings.'],
       ['            3+ siblings sharing a code triggers the flat sibling fee.'],
       ['srn             10-digit Student Registration Number. Optional.'],
+      ['pen             Permanent Education Number. Optional.'],
+      ['apaar_id        APAAR ID. Optional.'],
+      ['gender          Male or Female. Optional.'],
       ['is_new_admission   true = waives the annual charge.  BLANK DEFAULTS TO false.'],
       ['tuition_override / annual_override   blank = use the class fee master'],
       ['class / section / stream   auto-created if they do not exist — check your spelling'],
@@ -8354,7 +8385,7 @@ const _dlBuild={}
 // ── Student Master ──
 _dlBuild.student_master=async function(){
   const sid=_dlSess(),cid=_dlClass(),secId=_dlSec(),statusF=_dlStatus()
-  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,relieved_date,is_new_admission,readmission_date,tuition_override,annual_override,students(student_id,full_name,father_name,mother_name,dob,phone,alt_phone,address,admission_date,family_code,photo_url,aadhar_no,srn),classes(name),class_sections(name),streams(name)')
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,relieved_date,is_new_admission,readmission_date,tuition_override,annual_override,students(student_id,full_name,father_name,mother_name,dob,phone,alt_phone,address,admission_date,family_code,photo_url,aadhar_no,srn,pen,apaar_id,gender),classes(name),class_sections(name),streams(name)')
     .eq('session_id',sid)
   if(cid)q=q.eq('class_id',cid)
   if(secId)q=q.eq('section_id',secId)
@@ -8369,11 +8400,11 @@ _dlBuild.student_master=async function(){
     from+=1000
     if(all.length>=50000){toast('Capped at 50k rows','error');break}
   }
-  const hdr=['Student ID','SRN','S.No','Roll','Student Name','Father Name','Mother Name','DOB','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Photo URL']
+  const hdr=['Student ID','SRN','PEN','APAAR ID','Gender','S.No','Roll','Student Name','Father Name','Mother Name','DOB','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Photo URL']
   const rows=[_csvRow(hdr)]
   all.forEach(e=>{
     const s=e.students||{}
-    rows.push(_csvRow([s.student_id,s.srn,e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,e.classes?.name,e.class_sections?.name,e.streams?.name,s.phone,s.alt_phone,s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,s.aadhar_no,s.photo_url]))
+    rows.push(_csvRow([s.student_id,s.srn,s.pen,s.apaar_id,s.gender,e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,e.classes?.name,e.class_sections?.name,e.streams?.name,s.phone,s.alt_phone,s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,s.aadhar_no,s.photo_url]))
   })
   return rows
 }
