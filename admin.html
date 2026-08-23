@@ -5560,10 +5560,13 @@ async function loadPendingAttendance(){
   const el=$('caPending'); if(!el)return
   if(!month){toast('Select a month','error');return}
   ldg(el,'Scanning all classes…')
-  const firstDay=new Date(year,month-1,1), lastDay=new Date(year,month,0)
-  const todayStr=new Date().toISOString().slice(0,10)
-  const fromStr=firstDay.toISOString().slice(0,10)
-  let toStr=lastDay.toISOString().slice(0,10)
+  const _ds=d=>{return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+  const daysInMonth=new Date(year,month,0).getDate()
+  const firstDay=new Date(year+'-'+String(month).padStart(2,'0')+'-01T12:00:00')
+  const lastDay=new Date(year+'-'+String(month).padStart(2,'0')+'-'+String(daysInMonth).padStart(2,'0')+'T12:00:00')
+  const todayStr=_ds(new Date())
+  const fromStr=_ds(firstDay)
+  let toStr=_ds(lastDay)
   if(toStr>todayStr)toStr=todayStr
   const sid=SESS?.session_id||''
   const [enrR,holR,cssR,ctR,monR]=await Promise.all([
@@ -5590,8 +5593,8 @@ async function loadPendingAttendance(){
 
   // Build working days list
   const allDays=[]
-  for(let d=new Date(firstDay);d<=lastDay&&d.toISOString().slice(0,10)<=toStr;d.setDate(d.getDate()+1)){
-    const ds=d.toISOString().slice(0,10)
+  for(let d=new Date(firstDay.getTime());_ds(d)<=toStr;d.setDate(d.getDate()+1)){
+    const ds=_ds(d)
     if(d.getDay()===0)continue
     if(holSet.has(ds))continue
     if(ds<sessStart)continue
