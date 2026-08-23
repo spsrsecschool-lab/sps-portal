@@ -2196,7 +2196,7 @@ async function renderTodayPanel(){
     sb.from('teacher_attendance').select('teacher_id,status').eq('date',iso),
     sb.from('access_requests').select('*',{count:'exact',head:true}).eq('status','pending'),
     sb.from('teachers').select('teacher_id',{count:'exact',head:true}).eq('is_active',true),
-    sb.from('holidays').select('label').eq('session_id',sid).eq('date',iso).maybeSingle()
+    sb.from('holidays').select('label,applies_to').eq('session_id',sid).eq('date',iso).maybeSingle()
   ])
   const holidayToday=holR?.data||null
   const isHoliday=!!holidayToday
@@ -2249,15 +2249,23 @@ async function renderTodayPanel(){
     +(sub?'<div style="font-size:11px;color:var(--ink-soft);margin-top:1px">'+sub+'</div>':'')+'</div>'
 
   let html=''
+  const holScope=holidayToday?.applies_to||'both'
+  const holForStudents=isHoliday&&(holScope==='both'||holScope==='student')
+  const holForStaff=isHoliday&&(holScope==='both')
+  const isOffDay=isSunday||(holForStudents&&holForStaff)
   if(isHoliday||isSunday){
     const label=isHoliday?(holidayToday.label||'Holiday'):'Sunday'
+    const holMsg=isSunday?'No attendance is expected today.'
+      :holForStudents&&holForStaff?'No attendance is expected today — holiday for students and staff.'
+      :holForStudents?'No student attendance is expected today. Staff attendance still applies.'
+      :'Student attendance still applies. Staff have a holiday today.'
     html+='<div style="display:flex;align-items:center;gap:12px;background:var(--indigo-100);border:1px solid var(--indigo);border-radius:12px;padding:14px 16px;margin:12px 0 4px">'
       +'<div style="width:34px;height:34px;border-radius:9px;background:var(--indigo);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>'
-      +'<div><div style="font-size:14px;font-weight:800;color:var(--indigo-dark)">Today is a holiday'+(isHoliday?': '+esc(label):' (Sunday)')+'</div><div style="font-size:12px;color:var(--ink-soft);margin-top:1px">No student attendance is expected today. Staff attendance still applies.</div></div>'
+      +'<div><div style="font-size:14px;font-weight:800;color:var(--indigo-dark)">Today is a holiday'+(isHoliday?': '+esc(label):' (Sunday)')+'</div><div style="font-size:12px;color:var(--ink-soft);margin-top:1px">'+holMsg+'</div></div>'
       +'</div>'
-    // Holiday: show staff + requests + new admissions only (no student attendance).
+    // Holiday: show relevant stats based on scope.
     html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0 4px">'
-      +stat('Staff Present',staffPresent+' / '+staffTotal, staffAbsent+' absent'+(staffUnmarked?' · '+staffUnmarked+' unmarked':''), 'var(--grn,#216F40)')
+      +(!holForStaff&&!isSunday?stat('Staff Present',staffPresent+' / '+staffTotal, staffAbsent+' absent'+(staffUnmarked?' · '+staffUnmarked+' unmarked':''), 'var(--grn,#216F40)'):'')
       +stat('Pending Requests',pendingReq, pendingReq?'need your review':'all clear', pendingReq?'#C0392B':'var(--ink-soft)')
       +stat('New Admissions',newAdmToday,'today')
       +'</div>'
