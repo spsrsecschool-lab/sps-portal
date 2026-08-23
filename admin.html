@@ -5619,23 +5619,28 @@ async function loadPendingAttendance(){
     allDays.push(ds)
   }
 
-  // Fetch daily attendance + monthly backfill records in batches
+  // Fetch monthly backfill records (1 row per student, batch by 500)
   const allEids=enrs.map(e=>e.enrollment_id)
-  let attRows=[],monRows=[]
+  let monRows=[]
   for(let i=0;i<allEids.length;i+=500){
     const batch=allEids.slice(i,i+500)
-    const[{data:da},{data:ma}]=await Promise.all([
-      sb.from('student_attendance').select('enrollment_id,date').in('enrollment_id',batch).gte('date',fromStr).lte('date',toStr),
-      sb.from('attendance_monthly').select('enrollment_id').in('enrollment_id',batch).gte('from_date',fromStr).lte('to_date',monthEndStr)
-    ])
-    if(da)attRows.push(...da)
+    const{data:ma}=await sb.from('attendance_monthly').select('enrollment_id').in('enrollment_id',batch).gte('from_date',fromStr).lte('to_date',monthEndStr)
     if(ma)monRows.push(...ma)
+  }
+  const monthlyEids=new Set(monRows.map(r=>r.enrollment_id))
+
+  // Fetch daily attendance in small batches (each student × days can be many rows)
+  // Only query students NOT covered by monthly backfill
+  const dailyEids=allEids.filter(eid=>!monthlyEids.has(eid))
+  let attRows=[]
+  for(let i=0;i<dailyEids.length;i+=30){
+    const batch=dailyEids.slice(i,i+30)
+    const{data}=await sb.from('student_attendance').select('enrollment_id,date').in('enrollment_id',batch).gte('date',fromStr).lte('date',toStr)
+    if(data)attRows.push(...data)
   }
 
   // Build set of (enrollment_id|date) that have daily records
   const attSet=new Set(attRows.map(r=>r.enrollment_id+'|'+r.date))
-  // Enrollment IDs covered by monthly backfill
-  const monthlyEids=new Set(monRows.map(r=>r.enrollment_id))
 
   // For each group, find missing dates
   const results=[]
@@ -5792,9 +5797,8 @@ async function loadStudentAttendance(){
     const mKey=mb.from+'|'+mb.to
     const mon=monthlyMap[mKey]
 
-    // If monthly backfill exists and no daily records for this month
-    const hasDailyThisMonth=Object.keys(attMap).some(d=>d>=mb.from&&d<=mb.to)
-    if(mon&&!hasDailyThisMonth){
+    // Monthly backfill always overrides partial daily records
+    if(mon){
       body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· monthly totals</span></div>'
         +'<div style="display:flex;gap:18px;font-size:12.5px"><span>Working: <b>'+mon.working_days+'</b></span><span style="color:var(--grn)">Present: <b>'+mon.present_count+'</b></span><span style="color:var(--danger)">Absent: <b>'+mon.absent_count+'</b></span></div></div>'
       totalWork+=mon.working_days;totalP+=mon.present_count;totalA+=mon.absent_count
