@@ -5585,21 +5585,20 @@ async function loadPendingAttendance(){
   const lastDay=new Date(year+'-'+String(month).padStart(2,'0')+'-'+String(daysInMonth).padStart(2,'0')+'T12:00:00')
   const todayStr=_ds(new Date())
   const fromStr=_ds(firstDay)
-  let toStr=_ds(lastDay)
+  const monthEndStr=_ds(lastDay)
+  let toStr=monthEndStr
   if(toStr>todayStr)toStr=todayStr
   const sid=SESS?.session_id||''
-  const [enrR,holR,cssR,ctR,monR]=await Promise.all([
+  const [enrR,holR,cssR,ctR]=await Promise.all([
     sb.from('student_enrollments').select('enrollment_id,class_id,section_id,students(student_id),classes(name,sort_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
     sb.from('holidays').select('date,applies_to').eq('session_id',sid).gte('date',fromStr).lte('date',toStr),
     sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
-    sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid),
-    sb.from('attendance_monthly').select('enrollment_id').eq('session_id',sid).eq('from_date',fromStr).eq('to_date',toStr)
+    sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid)
   ])
   const enrs=enrR.data||[]
   const holSet=new Set((holR.data||[]).filter(h=>(h.applies_to||'both')!=='staff_only').map(h=>h.date))
   const classStarts={}; (cssR.data||[]).forEach(c=>{classStarts[c.class_id]=c.start_date})
   const ctMap={}; (ctR.data||[]).forEach(c=>{ctMap[c.section_id]={tid:c.teacher_id,name:c.teachers?.full_name||'?'}})
-  const monthlyEids=new Set((monR.data||[]).map(r=>r.enrollment_id))
   const sessStart=SESS?.start_date||fromStr
 
   // Group enrollments by class_id+section_id
@@ -5620,17 +5619,23 @@ async function loadPendingAttendance(){
     allDays.push(ds)
   }
 
-  // Fetch all attendance records for the date range in batches
+  // Fetch daily attendance + monthly backfill records in batches
   const allEids=enrs.map(e=>e.enrollment_id)
-  let attRows=[]
+  let attRows=[],monRows=[]
   for(let i=0;i<allEids.length;i+=500){
     const batch=allEids.slice(i,i+500)
-    const{data}=await sb.from('student_attendance').select('enrollment_id,date').in('enrollment_id',batch).gte('date',fromStr).lte('date',toStr)
-    if(data)attRows.push(...data)
+    const[{data:da},{data:ma}]=await Promise.all([
+      sb.from('student_attendance').select('enrollment_id,date').in('enrollment_id',batch).gte('date',fromStr).lte('date',toStr),
+      sb.from('attendance_monthly').select('enrollment_id').in('enrollment_id',batch).gte('from_date',fromStr).lte('to_date',monthEndStr)
+    ])
+    if(da)attRows.push(...da)
+    if(ma)monRows.push(...ma)
   }
 
-  // Build set of (enrollment_id|date) that have records
+  // Build set of (enrollment_id|date) that have daily records
   const attSet=new Set(attRows.map(r=>r.enrollment_id+'|'+r.date))
+  // Enrollment IDs covered by monthly backfill
+  const monthlyEids=new Set(monRows.map(r=>r.enrollment_id))
 
   // For each group, find missing dates
   const results=[]
