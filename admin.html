@@ -980,59 +980,78 @@ tbody tr:hover td{background:var(--lav-50)}
 
     <!-- CLASS ATTENDANCE -->
     <div class="page" id="page-classatt">
-      <div class="page-head"><div><h2>Class Attendance</h2><p>View the monthly attendance report for any class</p></div></div>
+
+      <!-- CARD MENU -->
+      <div id="ca-menu">
+        <div class="page-head"><div><h2>Class Attendance</h2><p>Choose an action to continue</p></div></div>
+        <div class="menu-board">
+          <div class="menu-card" onclick="openCaSub('ca-pending')">
+            <div class="ic" style="background:linear-gradient(135deg,#E67E22,#D35400)"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+            <h4>Pending Records</h4><p>Identify classes with missing student attendance and notify class teachers</p>
+          </div>
+          <div class="menu-card" onclick="openCaSub('ca-record')">
+            <div class="ic" style="background:linear-gradient(135deg,#3AB6E0,#2D8FC4)"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+            <h4>Attendance Record</h4><p>View the monthly attendance report for any class and section</p>
+          </div>
+        </div>
+      </div>
 
       <!-- ── Pending Records ── -->
-      <div class="card" style="margin-bottom:18px">
-        <h3>Pending Records</h3>
-        <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:12px">Classes with missing student attendance this month</p>
-        <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
-          <div class="fg" style="max-width:170px"><label>Month</label>
-            <select id="cap_month">
-              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
-              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
-            </select>
+      <div id="ca-pending" style="display:none">
+        <button class="back-btn" onclick="openCaSub('ca-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Pending Records</h2><p>Classes with missing student attendance this month</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg" style="max-width:170px"><label>Month</label>
+              <select id="cap_month">
+                <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              </select>
+            </div>
+            <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="cap_year" min="2024" max="2035"></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadPendingAttendance()">Check Pending</button>
           </div>
-          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="cap_year" min="2024" max="2035"></div>
-          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadPendingAttendance()">Check Pending</button>
+          <div id="caPending" style="margin-top:14px"></div>
         </div>
-        <div id="caPending" style="margin-top:14px"></div>
       </div>
 
       <!-- ── Attendance Record ── -->
-      <div class="card" style="margin-bottom:18px">
-        <h3>Attendance Record</h3>
-        <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end;margin-top:12px">
-          <div class="fg"><label>Class</label><select id="ca_class" onchange="caLoadSections()"><option value="">Select class</option></select></div>
-          <div class="fg"><label>Section</label><select id="ca_section"><option value="">Select class first</option></select></div>
-          <div class="fg" style="max-width:170px"><label>Month</label>
-            <select id="ca_month">
-              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
-              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
-            </select>
-          </div>
-          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="ca_year" min="2024" max="2035"></div>
-          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load Report</button>
-        </div>
-      </div>
-      <div id="caTable"></div>
-      <div id="caUpload" style="display:none;margin-top:18px">
-        <div class="grid-2">
-          <div class="card">
-            <h3 id="caUploadTitle">Upload Attendance CSV</h3>
-            <div class="dropzone" onclick="document.getElementById('csvAtt').click()">
-              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <div class="dmt">Drop CSV or click to browse</div>
-              <div class="dst">roll_no, student_id, name, status (P/A/L)</div>
+      <div id="ca-record" style="display:none">
+        <button class="back-btn" onclick="openCaSub('ca-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Attendance Record</h2><p>View the monthly attendance report for any class</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg"><label>Class</label><select id="ca_class" onchange="caLoadSections()"><option value="">Select class</option></select></div>
+            <div class="fg"><label>Section</label><select id="ca_section"><option value="">Select class first</option></select></div>
+            <div class="fg" style="max-width:170px"><label>Month</label>
+              <select id="ca_month">
+                <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              </select>
             </div>
-            <input type="file" id="csvAtt" accept=".csv" style="display:none" onchange="parseAttCsv(this)">
-            <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="downloadAttSample()">Download Pre-filled Sample</button>
+            <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="ca_year" min="2024" max="2035"></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadClassAttendance()">Load Report</button>
           </div>
-          <div class="card" id="caPreview"><h3>Validation Preview</h3><p style="font-size:12.5px;color:var(--ink-faint)">Upload a CSV to see validation results.</p></div>
+        </div>
+        <div id="caTable"></div>
+        <div id="caUpload" style="display:none;margin-top:18px">
+          <div class="grid-2">
+            <div class="card">
+              <h3 id="caUploadTitle">Upload Attendance CSV</h3>
+              <div class="dropzone" onclick="document.getElementById('csvAtt').click()">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <div class="dmt">Drop CSV or click to browse</div>
+                <div class="dst">roll_no, student_id, name, status (P/A/L)</div>
+              </div>
+              <input type="file" id="csvAtt" accept=".csv" style="display:none" onchange="parseAttCsv(this)">
+              <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="downloadAttSample()">Download Pre-filled Sample</button>
+            </div>
+            <div class="card" id="caPreview"><h3>Validation Preview</h3><p style="font-size:12.5px;color:var(--ink-faint)">Upload a CSV to see validation results.</p></div>
+          </div>
         </div>
       </div>
     </div>
@@ -5519,7 +5538,13 @@ async function debugAttendance(){
   toast('Total att sample: '+JSON.stringify(total?.slice(0,2)),'info')
 }
 
+function openCaSub(id){
+  ;['ca-menu','ca-pending','ca-record'].forEach(s=>{const el=$(s);if(el)el.style.display='none'})
+  const el=$(id);if(el)el.style.display='block'
+}
+
 function caInit(){
+  openCaSub('ca-menu')
   const now=new Date()
   const defMonth=SESS?.start_date ? (new Date(SESS.start_date+'T12:00:00').getMonth()+1) : (now.getMonth()+1)
   if($('ca_month')&&!$('ca_month').value)$('ca_month').value = defMonth
@@ -5542,7 +5567,7 @@ async function loadPendingAttendance(){
   if(toStr>todayStr)toStr=todayStr
   const sid=SESS?.session_id||''
   const [enrR,holR,cssR,ctR]=await Promise.all([
-    sb.from('student_enrollments').select('enrollment_id,class_id,section_id,students(student_id),classes(name,numeric_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
+    sb.from('student_enrollments').select('enrollment_id,class_id,section_id,students(student_id),classes(name,sort_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
     sb.from('holidays').select('date,applies_to').eq('session_id',sid).gte('date',fromStr).lte('date',toStr),
     sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
     sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid)
@@ -5557,7 +5582,7 @@ async function loadPendingAttendance(){
   const groups={}
   enrs.forEach(e=>{
     const key=e.class_id+'|'+e.section_id
-    if(!groups[key])groups[key]={class_id:e.class_id,section_id:e.section_id,className:e.classes?.name||'?',sectionName:e.class_sections?.name||'?',classOrder:e.classes?.numeric_order||999,eids:[]}
+    if(!groups[key])groups[key]={class_id:e.class_id,section_id:e.section_id,className:e.classes?.name||'?',sectionName:e.class_sections?.name||'?',classOrder:e.classes?.sort_order||999,eids:[]}
     groups[key].eids.push(e.enrollment_id)
   })
 
