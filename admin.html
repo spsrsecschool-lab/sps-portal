@@ -981,8 +981,30 @@ tbody tr:hover td{background:var(--lav-50)}
     <!-- CLASS ATTENDANCE -->
     <div class="page" id="page-classatt">
       <div class="page-head"><div><h2>Class Attendance</h2><p>View the monthly attendance report for any class</p></div></div>
+
+      <!-- ── Pending Records ── -->
       <div class="card" style="margin-bottom:18px">
+        <h3>Pending Records</h3>
+        <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:12px">Classes with missing student attendance this month</p>
         <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
+          <div class="fg" style="max-width:170px"><label>Month</label>
+            <select id="cap_month">
+              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="cap_year" min="2024" max="2035"></div>
+          <button class="btn btn-soft" style="align-self:flex-end" onclick="loadPendingAttendance()">Check Pending</button>
+        </div>
+        <div id="caPending" style="margin-top:14px"></div>
+      </div>
+
+      <!-- ── Attendance Record ── -->
+      <div class="card" style="margin-bottom:18px">
+        <h3>Attendance Record</h3>
+        <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end;margin-top:12px">
           <div class="fg"><label>Class</label><select id="ca_class" onchange="caLoadSections()"><option value="">Select class</option></select></div>
           <div class="fg"><label>Section</label><select id="ca_section"><option value="">Select class first</option></select></div>
           <div class="fg" style="max-width:170px"><label>Month</label>
@@ -5499,9 +5521,154 @@ async function debugAttendance(){
 
 function caInit(){
   const now=new Date()
-  if($('ca_month')&&!$('ca_month').value)$('ca_month').value = SESS?.start_date ? (new Date(SESS.start_date+'T12:00:00').getMonth()+1) : (now.getMonth()+1)
+  const defMonth=SESS?.start_date ? (new Date(SESS.start_date+'T12:00:00').getMonth()+1) : (now.getMonth()+1)
+  if($('ca_month')&&!$('ca_month').value)$('ca_month').value = defMonth
   if($('ca_year')&&!$('ca_year').value)$('ca_year').value = now.getFullYear()
+  if($('cap_month'))$('cap_month').value = now.getMonth()+1
+  if($('cap_year'))$('cap_year').value = now.getFullYear()
 }
+
+// ── Pending attendance records ──
+let _capData=[]
+async function loadPendingAttendance(){
+  const month=parseInt($('cap_month')?.value),year=parseInt($('cap_year')?.value)||new Date().getFullYear()
+  const el=$('caPending'); if(!el)return
+  if(!month){toast('Select a month','error');return}
+  ldg(el,'Scanning all classes…')
+  const firstDay=new Date(year,month-1,1), lastDay=new Date(year,month,0)
+  const todayStr=new Date().toISOString().slice(0,10)
+  const fromStr=firstDay.toISOString().slice(0,10)
+  let toStr=lastDay.toISOString().slice(0,10)
+  if(toStr>todayStr)toStr=todayStr
+  const sid=SESS?.session_id||''
+  const [enrR,holR,cssR,ctR]=await Promise.all([
+    sb.from('student_enrollments').select('enrollment_id,class_id,section_id,students(student_id),classes(name,numeric_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
+    sb.from('holidays').select('date,applies_to').eq('session_id',sid).gte('date',fromStr).lte('date',toStr),
+    sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
+    sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid)
+  ])
+  const enrs=enrR.data||[]
+  const holSet=new Set((holR.data||[]).filter(h=>(h.applies_to||'both')!=='staff_only').map(h=>h.date))
+  const classStarts={}; (cssR.data||[]).forEach(c=>{classStarts[c.class_id]=c.start_date})
+  const ctMap={}; (ctR.data||[]).forEach(c=>{ctMap[c.section_id]={tid:c.teacher_id,name:c.teachers?.full_name||'?'}})
+  const sessStart=SESS?.start_date||fromStr
+
+  // Group enrollments by class_id+section_id
+  const groups={}
+  enrs.forEach(e=>{
+    const key=e.class_id+'|'+e.section_id
+    if(!groups[key])groups[key]={class_id:e.class_id,section_id:e.section_id,className:e.classes?.name||'?',sectionName:e.class_sections?.name||'?',classOrder:e.classes?.numeric_order||999,eids:[]}
+    groups[key].eids.push(e.enrollment_id)
+  })
+
+  // Build working days list
+  const allDays=[]
+  for(let d=new Date(firstDay);d<=lastDay&&d.toISOString().slice(0,10)<=toStr;d.setDate(d.getDate()+1)){
+    const ds=d.toISOString().slice(0,10)
+    if(d.getDay()===0)continue
+    if(holSet.has(ds))continue
+    if(ds<sessStart)continue
+    allDays.push(ds)
+  }
+
+  // Fetch all attendance records for the date range in batches
+  const allEids=enrs.map(e=>e.enrollment_id)
+  let attRows=[]
+  for(let i=0;i<allEids.length;i+=500){
+    const batch=allEids.slice(i,i+500)
+    const{data}=await sb.from('student_attendance').select('enrollment_id,date').in('enrollment_id',batch).gte('date',fromStr).lte('date',toStr)
+    if(data)attRows.push(...data)
+  }
+
+  // Build set of (enrollment_id|date) that have records
+  const attSet=new Set(attRows.map(r=>r.enrollment_id+'|'+r.date))
+
+  // For each group, find missing dates
+  const results=[]
+  const MONTHS=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  Object.values(groups).forEach(g=>{
+    const cs=classStarts[g.class_id]||sessStart
+    const workDays=allDays.filter(d=>d>=cs)
+    const missing=[]
+    workDays.forEach(d=>{
+      const hasAny=g.eids.some(eid=>attSet.has(eid+'|'+d))
+      if(!hasAny)missing.push(d)
+    })
+    const ct=ctMap[g.section_id]||null
+    const missingLabels=missing.map(d=>{const dt=new Date(d+'T12:00:00');return dt.getDate()+' '+MONTHS[dt.getMonth()+1]})
+    results.push({...g,workDays:workDays.length,recorded:workDays.length-missing.length,pending:missing.length,missing,missingLabels,ct})
+  })
+  results.sort((a,b)=>b.pending-a.pending||a.classOrder-b.classOrder||a.className.localeCompare(b.className)||a.sectionName.localeCompare(b.sectionName))
+  _capData=results
+
+  if(!results.length){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">No active classes found for this session.</p>';return}
+
+  const pendingRows=results.filter(r=>r.pending>0)
+  const completeRows=results.filter(r=>r.pending===0)
+
+  let html=''
+  if(pendingRows.length){
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:12.5px;font-weight:700;color:var(--ink-soft)">'+pendingRows.length+' class-section'+(pendingRows.length>1?'s':'')+' with pending attendance</div>'
+      +'<button class="btn btn-soft btn-sm" onclick="pingAllPending()">Ping All Teachers</button></div>'
+  } else {
+    html+='<div style="font-size:12.5px;color:var(--grn,#216F40);font-weight:700;margin-bottom:10px">All classes have complete attendance for this month.</div>'
+  }
+
+  html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>'
+    +['Class','Sec','Class Teacher','Working','Recorded','Pending','Missing Dates',''].map(h=>'<th style="text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);border-bottom:2px solid var(--line);white-space:nowrap">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+
+  const renderRow=(r,dim)=>{
+    const style=dim?'color:var(--ink-faint);':'';const bg=dim?'background:var(--lav-50);':''
+    const pendC=r.pending>0?'color:#C0392B;font-weight:700':'color:var(--grn,#216F40)'
+    const ctLabel=r.ct?esc(r.ct.name):'<span style="color:var(--ink-faint);font-style:italic">Not assigned</span>'
+    const missingTxt=r.pending>0?'<span style="font-size:11.5px;color:#C0392B">'+esc(r.missingLabels.join(', '))+'</span>':'<span style="color:var(--ink-faint)">—</span>'
+    const pingBtn=r.pending>0&&r.ct?'<button class="btn btn-ghost btn-sm" onclick="pingPendingAtt(\''+esc(r.section_id)+'\',\''+esc(r.className)+'\',\''+esc(r.sectionName)+'\','+JSON.stringify(r.missingLabels).replace(/'/g,"\\'")+')">Ping</button>'
+      :r.pending>0?'<span style="font-size:10.5px;color:var(--ink-faint)">No CT</span>':''
+    return '<tr style="border-bottom:1px solid var(--line);'+bg+'"><td style="padding:7px 10px;font-weight:600;'+style+'">'+esc(r.className)+'</td>'
+      +'<td style="padding:7px 10px;'+style+'">'+esc(r.sectionName)+'</td>'
+      +'<td style="padding:7px 10px;'+style+'">'+ctLabel+'</td>'
+      +'<td style="padding:7px 10px;text-align:center;'+style+'">'+r.workDays+'</td>'
+      +'<td style="padding:7px 10px;text-align:center;'+style+'">'+r.recorded+'</td>'
+      +'<td style="padding:7px 10px;text-align:center;'+pendC+'">'+r.pending+'</td>'
+      +'<td style="padding:7px 10px;max-width:300px">'+missingTxt+'</td>'
+      +'<td style="padding:7px 10px;white-space:nowrap">'+pingBtn+'</td></tr>'
+  }
+  pendingRows.forEach(r=>{html+=renderRow(r,false)})
+  if(completeRows.length){
+    html+='<tr><td colspan="8" style="padding:10px;font-size:11px;color:var(--ink-faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:var(--lav-50)">Complete ('+completeRows.length+')</td></tr>'
+    completeRows.forEach(r=>{html+=renderRow(r,true)})
+  }
+  html+='</tbody></table></div>'
+  el.innerHTML=html
+}
+
+async function pingPendingAtt(sectionId,className,sectionName,missingLabels){
+  if(!confirm('Send a notification to the class teacher of '+className+'-'+sectionName+' about '+missingLabels.length+' missing day(s)?'))return
+  await adminNotifyCTs({
+    pairs:[{section_id:sectionId}],
+    subject:'Student attendance pending \u2014 '+className+'-'+sectionName,
+    body:'The following dates are missing student attendance for '+className+'-'+sectionName+':\n\n'+missingLabels.join(', ')+'\n\nPlease upload at the earliest.'
+  })
+}
+
+async function pingAllPending(){
+  const pending=_capData.filter(r=>r.pending>0&&r.ct)
+  if(!pending.length){toast('No pending sections with class teachers to notify','info');return}
+  if(!confirm('Send attendance-pending notifications to '+pending.length+' class teacher(s)?'))return
+  let sent=0
+  for(const r of pending){
+    await adminNotifyCTs({
+      pairs:[{section_id:r.section_id}],
+      subject:'Student attendance pending \u2014 '+r.className+'-'+r.sectionName,
+      body:'The following dates are missing student attendance for '+r.className+'-'+r.sectionName+':\n\n'+r.missingLabels.join(', ')+'\n\nPlease upload at the earliest.',
+      quiet:true
+    })
+    sent++
+  }
+  toast(sent+' class teacher'+(sent>1?'s':'')+' notified','success')
+}
+
 async function loadClassAttendance(){
   const classId=$('ca_class')?.value,secId=$('ca_section')?.value
   const month=parseInt($('ca_month')?.value),year=parseInt($('ca_year')?.value)||new Date().getFullYear()
