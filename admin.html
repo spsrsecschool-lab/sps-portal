@@ -5566,16 +5566,18 @@ async function loadPendingAttendance(){
   let toStr=lastDay.toISOString().slice(0,10)
   if(toStr>todayStr)toStr=todayStr
   const sid=SESS?.session_id||''
-  const [enrR,holR,cssR,ctR]=await Promise.all([
+  const [enrR,holR,cssR,ctR,monR]=await Promise.all([
     sb.from('student_enrollments').select('enrollment_id,class_id,section_id,students(student_id),classes(name,sort_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
     sb.from('holidays').select('date,applies_to').eq('session_id',sid).gte('date',fromStr).lte('date',toStr),
     sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
-    sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid)
+    sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid),
+    sb.from('attendance_monthly').select('enrollment_id').eq('session_id',sid).eq('from_date',fromStr).eq('to_date',toStr)
   ])
   const enrs=enrR.data||[]
   const holSet=new Set((holR.data||[]).filter(h=>(h.applies_to||'both')!=='staff_only').map(h=>h.date))
   const classStarts={}; (cssR.data||[]).forEach(c=>{classStarts[c.class_id]=c.start_date})
   const ctMap={}; (ctR.data||[]).forEach(c=>{ctMap[c.section_id]={tid:c.teacher_id,name:c.teachers?.full_name||'?'}})
+  const monthlyEids=new Set((monR.data||[]).map(r=>r.enrollment_id))
   const sessStart=SESS?.start_date||fromStr
 
   // Group enrollments by class_id+section_id
@@ -5616,7 +5618,7 @@ async function loadPendingAttendance(){
     const workDays=allDays.filter(d=>d>=cs)
     const missing=[]
     workDays.forEach(d=>{
-      const hasAny=g.eids.some(eid=>attSet.has(eid+'|'+d))
+      const hasAny=g.eids.some(eid=>attSet.has(eid+'|'+d)||monthlyEids.has(eid))
       if(!hasAny)missing.push(d)
     })
     const ct=ctMap[g.section_id]||null
