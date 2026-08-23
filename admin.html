@@ -993,6 +993,10 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="ic" style="background:linear-gradient(135deg,#3AB6E0,#2D8FC4)"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
             <h4>Attendance Record</h4><p>View the monthly attendance report for any class and section</p>
           </div>
+          <div class="menu-card" onclick="openCaSub('ca-student')">
+            <div class="ic" style="background:linear-gradient(135deg,#2BB673,#1F9960)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <h4>Student Attendance</h4><p>View individual student attendance report with day-wise breakdown and missing days</p>
+          </div>
         </div>
       </div>
 
@@ -1053,6 +1057,21 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="card" id="caPreview"><h3>Validation Preview</h3><p style="font-size:12.5px;color:var(--ink-faint)">Upload a CSV to see validation results.</p></div>
           </div>
         </div>
+      </div>
+
+      <!-- ── Student Individual Attendance ── -->
+      <div id="ca-student" style="display:none">
+        <button class="back-btn" onclick="openCaSub('ca-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Student Attendance</h2><p>Individual student attendance report</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg"><label>Class</label><select id="cas_class" onchange="casLoadSections()"><option value="">Select class</option></select></div>
+            <div class="fg"><label>Section</label><select id="cas_section" onchange="casLoadStudents()"><option value="">Select class first</option></select></div>
+            <div class="fg" style="min-width:200px"><label>Student</label><select id="cas_student"><option value="">Select section first</option></select></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadStudentAttendance()">Load Report</button>
+          </div>
+        </div>
+        <div id="casReport"></div>
       </div>
     </div>
 
@@ -2184,7 +2203,7 @@ async function loadGlobals(){
   SESS=sr.data; ALL_CLASSES=cr.data||[]; ALL_SUBJECTS=subr.data||[]; ALL_TEACHERS=tr.data||[]
   $('sessionBadge').textContent=SESS?'Session '+SESS.session_id:'No active session'
   const co=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
-  ;['adm_class','mo_class','pr_class','ca_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+co})
+  ;['adm_class','mo_class','pr_class','ca_class','cas_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+co})
   checkUnread()
 }
 async function checkUnread(){
@@ -5539,7 +5558,7 @@ async function debugAttendance(){
 }
 
 function openCaSub(id){
-  ;['ca-menu','ca-pending','ca-record'].forEach(s=>{const el=$(s);if(el)el.style.display='none'})
+  ;['ca-menu','ca-pending','ca-record','ca-student'].forEach(s=>{const el=$(s);if(el)el.style.display='none'})
   const el=$(id);if(el)el.style.display='block'
 }
 
@@ -5621,8 +5640,8 @@ async function loadPendingAttendance(){
     const workDays=allDays.filter(d=>d>=cs)
     const missing=[]
     workDays.forEach(d=>{
-      const hasAny=g.eids.some(eid=>attSet.has(eid+'|'+d)||monthlyEids.has(eid))
-      if(!hasAny)missing.push(d)
+      const allMarked=g.eids.every(eid=>attSet.has(eid+'|'+d)||monthlyEids.has(eid))
+      if(!allMarked)missing.push(d)
     })
     const ct=ctMap[g.section_id]||null
     const missingLabels=missing.map(d=>{const dt=new Date(d+'T12:00:00');return dt.getDate()+' '+MONTHS[dt.getMonth()+1]})
@@ -5697,6 +5716,139 @@ async function pingAllPending(){
     sent++
   }
   toast(sent+' class teacher'+(sent>1?'s':'')+' notified','success')
+}
+
+// ── Student Individual Attendance ──
+async function casLoadSections(){
+  const cid=$('cas_class')?.value,sel=$('cas_section'),stu=$('cas_student')
+  if(sel)sel.innerHTML='<option value="">Select class first</option>'
+  if(stu)stu.innerHTML='<option value="">Select section first</option>'
+  if(!cid||!SESS)return
+  const{data}=await sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  if(sel)sel.innerHTML='<option value="">Select section</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+}
+async function casLoadStudents(){
+  const secId=$('cas_section')?.value,sel=$('cas_student'),cid=$('cas_class')?.value
+  if(sel)sel.innerHTML='<option value="">Select section first</option>'
+  if(!secId||!cid||!SESS)return
+  const{data}=await sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name)').eq('session_id',SESS.session_id).eq('class_id',cid).eq('section_id',secId).eq('status','active').eq('relieved',false).order('roll_no')
+  if(sel)sel.innerHTML='<option value="">Select student</option>'+(data||[]).map(s=>'<option value="'+s.enrollment_id+'">'+esc((s.roll_no?s.roll_no+' — ':'')+( s.students?.full_name||'?'))+'</option>').join('')
+}
+async function loadStudentAttendance(){
+  const eid=$('cas_student')?.value,el=$('casReport')
+  if(!eid){toast('Select a student','error');return}
+  if(!el)return
+  ldg(el,'Loading attendance…')
+  const _ds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+  const sid=SESS?.session_id||''
+  const sessStart=SESS?.start_date||''
+  const todayStr=_ds(new Date())
+
+  const[{data:enr},{data:hols},{data:cssD},{data:att},{data:monthly}]=await Promise.all([
+    sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,is_new_admission,students(full_name,father_name,admission_date),classes(name),class_sections(name)').eq('enrollment_id',eid).single(),
+    sb.from('holidays').select('date,label,applies_to').eq('session_id',sid),
+    sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
+    sb.from('student_attendance').select('date,status').eq('enrollment_id',eid),
+    sb.from('attendance_monthly').select('from_date,to_date,working_days,present_count,absent_count').eq('enrollment_id',eid)
+  ])
+  if(!enr){emp(el,'Student not found.');return}
+  const holMap={}; (hols||[]).filter(h=>(h.applies_to||'both')!=='staff_only').forEach(h=>{holMap[h.date]=h.label})
+  const classStart=(cssD||[]).find(c=>c.class_id===enr.class_id)?.start_date||sessStart
+  const admDate=(enr.is_new_admission&&enr.students?.admission_date)?enr.students.admission_date:null
+  const effStart=[sessStart,classStart,admDate].filter(Boolean).sort().pop()
+
+  const attMap={}; (att||[]).forEach(a=>{attMap[a.date]=a.status})
+  const monthlyMap={}; (monthly||[]).forEach(m=>{monthlyMap[m.from_date+'|'+m.to_date]=m})
+
+  const sessionEnd=SESS?.end_date||todayStr
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+  // Build month-by-month breakdown for the full session
+  let sY=parseInt(sessStart.slice(0,4)),sM=parseInt(sessStart.slice(5,7))
+  const eY=parseInt(sessionEnd.slice(0,4)),eM=parseInt(sessionEnd.slice(5,7))
+  const monthBlocks=[]
+  while(sY<eY||(sY===eY&&sM<=eM)){
+    const dim=new Date(sY,sM,0).getDate()
+    const from=sY+'-'+String(sM).padStart(2,'0')+'-01'
+    const to=sY+'-'+String(sM).padStart(2,'0')+'-'+String(dim).padStart(2,'0')
+    monthBlocks.push({year:sY,month:sM,from,to,dim,label:MONTHS[sM-1]+' '+sY})
+    sM++;if(sM>12){sM=1;sY++}
+  }
+
+  let totalWork=0,totalP=0,totalA=0,totalL=0,totalMissing=0
+  const allMissingLabels=[]
+
+  let body='<h3 style="margin-bottom:4px">'+esc(enr.students?.full_name||'?')+'</h3>'
+    +'<p style="font-size:12px;color:var(--ink-soft);margin-bottom:16px">Roll: '+esc(enr.roll_no||'—')+' · '+esc(enr.classes?.name||'')+'-'+esc(enr.class_sections?.name||'')+' · Father: '+esc(enr.students?.father_name||'—')+'</p>'
+
+  monthBlocks.forEach(mb=>{
+    if(mb.from>todayStr)return
+    const capTo=mb.to>todayStr?todayStr:mb.to
+    const mKey=mb.from+'|'+mb.to
+    const mon=monthlyMap[mKey]
+
+    // If monthly backfill exists and no daily records for this month
+    const hasDailyThisMonth=Object.keys(attMap).some(d=>d>=mb.from&&d<=mb.to)
+    if(mon&&!hasDailyThisMonth){
+      body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· monthly totals</span></div>'
+        +'<div style="display:flex;gap:18px;font-size:12.5px"><span>Working: <b>'+mon.working_days+'</b></span><span style="color:var(--grn)">Present: <b>'+mon.present_count+'</b></span><span style="color:var(--danger)">Absent: <b>'+mon.absent_count+'</b></span></div></div>'
+      totalWork+=mon.working_days;totalP+=mon.present_count;totalA+=mon.absent_count
+      return
+    }
+
+    // Day-wise breakdown
+    const days=[]
+    for(let d=1;d<=mb.dim;d++){
+      const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0')
+      if(ds>capTo)break
+      const dow=new Date(ds+'T12:00:00').getDay()
+      const isSun=dow===0, isHol=!!holMap[ds], beforeStart=ds<effStart
+      const skip=isSun||isHol||beforeStart
+      const status=attMap[ds]||null
+      days.push({ds,d,dow,isSun,isHol,holLabel:holMap[ds]||'',beforeStart,skip,status})
+    }
+    const workDays=days.filter(x=>!x.skip)
+    const recorded=workDays.filter(x=>x.status)
+    const missing=workDays.filter(x=>!x.status)
+    const pCount=recorded.filter(x=>x.status==='P').length
+    const aCount=recorded.filter(x=>x.status==='A').length
+    const lCount=recorded.filter(x=>x.status==='L'||x.status==='HD').length
+    totalWork+=workDays.length;totalP+=pCount;totalA+=aCount;totalL+=lCount;totalMissing+=missing.length
+    if(missing.length)missing.forEach(x=>allMissingLabels.push(x.d+' '+MONTHS[mb.month-1]))
+
+    body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label
+      +' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· Working: '+workDays.length+' · P: '+pCount+' · A: '+aCount+(lCount?' · L: '+lCount:'')+'</span>'
+      +(missing.length?'<span style="font-size:11px;font-weight:700;color:#C0392B;margin-left:8px">'+missing.length+' pending</span>':'')
+      +'</div>'
+    body+='<div style="display:flex;flex-wrap:wrap;gap:4px">'
+    days.forEach(x=>{
+      let bg='var(--lav-50)',clr='var(--ink-faint)',lbl=String(x.d)
+      if(x.isSun){bg='#f0f0f0';clr='#bbb'}
+      else if(x.isHol){bg='#FFF3E0';clr='#E65100'}
+      else if(x.beforeStart){bg='#f5f5f5';clr='#ccc'}
+      else if(x.status==='P'){bg='#E8F5E9';clr='#2E7D32'}
+      else if(x.status==='A'){bg='#FFEBEE';clr='#C62828'}
+      else if(x.status==='L'||x.status==='HD'){bg='#FFF8E1';clr='#F57F17'}
+      else{bg='#FFCDD2';clr='#B71C1C'}
+      const title=x.isSun?'Sunday':x.isHol?x.holLabel:x.beforeStart?'Before start':x.status?x.status:'Missing'
+      body+='<div title="'+esc(x.ds+' — '+title)+'" style="width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:'+bg+';color:'+clr+'">'+lbl+'</div>'
+    })
+    body+='</div></div>'
+  })
+
+  // Summary
+  const pct=totalWork>0?Math.round(totalP/totalWork*100):0
+  let summary='<div class="card" style="margin-bottom:18px"><div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px">'
+    +'<div style="text-align:center;padding:12px 20px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800">'+totalWork+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Working Days</div></div>'
+    +'<div style="text-align:center;padding:12px 20px;background:#E8F5E9;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#2E7D32">'+totalP+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Present</div></div>'
+    +'<div style="text-align:center;padding:12px 20px;background:#FFEBEE;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#C62828">'+totalA+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Absent</div></div>'
+    +(totalL?'<div style="text-align:center;padding:12px 20px;background:#FFF8E1;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#F57F17">'+totalL+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Late/HD</div></div>':'')
+    +'<div style="text-align:center;padding:12px 20px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:var(--indigo)">'+pct+'%</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Attendance</div></div>'
+    +'</div>'
+    +(totalMissing?'<div style="padding:10px 14px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:var(--radius-sm);margin-bottom:16px;font-size:12.5px"><span style="font-weight:700;color:#E65100">'+totalMissing+' day'+(totalMissing>1?'s':'')+' pending:</span> <span style="color:#BF360C">'+esc(allMissingLabels.join(', '))+'</span></div>':'')
+    +body+'</div>'
+
+  el.innerHTML=summary
 }
 
 async function loadClassAttendance(){
@@ -6963,7 +7115,7 @@ async function loadClassesList(){
   const el=$('classList');if(!el)return;ldg(el)
   const{data}=await sb.from('classes').select('*').order('sort_order')
   ALL_CLASSES=data||[]
-  ;['adm_class','mo_class','pr_class','ca_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')})
+  ;['adm_class','mo_class','pr_class','ca_class','cas_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')})
   if(!data?.length){emp(el,'No classes yet');return}
   el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>'+
     data.map(c=>'<tr style="cursor:pointer" onclick="selectClass(\''+c.class_id+'\',\''+esc(c.name)+'\')"><td id="clsname_'+c.class_id+'">'+esc(c.name)+'</td><td class="mono">'+c.sort_order+'</td><td><span class="pill '+(c.is_active?'pill-success':'pill-neutral')+'">'+(c.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();startRenameClass(\''+c.class_id+'\',\''+esc(c.name)+'\')">Rename</button><button class="btn btn-danger btn-xs" onclick="event.stopPropagation();toggleClass(\''+c.class_id+'\','+c.is_active+')">'+(c.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')+
