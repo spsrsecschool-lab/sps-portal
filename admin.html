@@ -5590,7 +5590,7 @@ async function loadPendingAttendance(){
   if(toStr>todayStr)toStr=todayStr
   const sid=SESS?.session_id||''
   const [enrR,holR,cssR,ctR]=await Promise.all([
-    sb.from('student_enrollments').select('enrollment_id,class_id,section_id,students(student_id),classes(name,sort_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
+    sb.from('student_enrollments').select('enrollment_id,class_id,section_id,is_new_admission,students(student_id,admission_date),classes(name,sort_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
     sb.from('holidays').select('date,applies_to').eq('session_id',sid).gte('date',fromStr).lte('date',toStr),
     sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
     sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid)
@@ -5600,6 +5600,14 @@ async function loadPendingAttendance(){
   const classStarts={}; (cssR.data||[]).forEach(c=>{classStarts[c.class_id]=c.start_date})
   const ctMap={}; (ctR.data||[]).forEach(c=>{ctMap[c.section_id]={tid:c.teacher_id,name:c.teachers?.full_name||'?'}})
   const sessStart=SESS?.start_date||fromStr
+
+  // Per-enrollment effective start (accounts for late admissions)
+  const eidStartMap={}
+  enrs.forEach(e=>{
+    const admDate=(e.is_new_admission&&e.students?.admission_date)?e.students.admission_date:null
+    const cs=classStarts[e.class_id]||sessStart
+    eidStartMap[e.enrollment_id]=[sessStart,cs,admDate].filter(Boolean).sort().pop()
+  })
 
   // Group enrollments by class_id+section_id
   const groups={}
@@ -5650,7 +5658,9 @@ async function loadPendingAttendance(){
     const workDays=allDays.filter(d=>d>=cs)
     const missing=[]
     workDays.forEach(d=>{
-      const allMarked=g.eids.every(eid=>attSet.has(eid+'|'+d)||monthlyEids.has(eid))
+      const expected=g.eids.filter(eid=>!eidStartMap[eid]||d>=eidStartMap[eid])
+      if(!expected.length)return
+      const allMarked=expected.every(eid=>attSet.has(eid+'|'+d)||monthlyEids.has(eid))
       if(!allMarked)missing.push(d)
     })
     const ct=ctMap[g.section_id]||null
@@ -5922,7 +5932,9 @@ async function loadClassAttendance(){
         const dr=attMap[s.enrollment_id]||{}
         pres=Object.values(dr).filter(v=>v==='P'||v==='L').length
         abs=Object.values(dr).filter(v=>v==='A').length
-        wk=workingDays
+        const admD=(s.is_new_admission&&s.students?.admission_date)?s.students.admission_date:null
+        const sStart=[classStart,admD].filter(Boolean).sort().pop()||classStart||''
+        wk=days.filter(d=>!d.isSun&&!d.isHol&&d.dateStr>=sStart).length
       }
       h+='<tr>'
         +'<td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td>'
