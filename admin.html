@@ -4294,7 +4294,7 @@ function openAssessEditById(id,classNames){const a=window._assessMap?.[id];if(!a
 let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
-  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, marks unlock toggle</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div></div>'
+  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, max/pass marks, class groups</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div></div>'
 }
 // Manage which classes an assessment applies to (add/remove after creation).
 async function openAssessClasses(){
@@ -4341,7 +4341,70 @@ async function saveAssessClasses(assessId){
   if(!toAdd.length&&!toRemove.length){toast('No changes','error');return}
   proceed()
 }
-function openAssessSettings(){if(!_currentAssess)return;const a=_currentAssess;openSub('assessments','sub-assess-settings');$('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="'+esc(a.name)+'"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="ae_date" value="'+(a.commencement_date||'')+'"></div><div class="fg"><label>End Date</label><input type="date" id="ae_enddate" value="'+(a.end_date||'')+'"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance working days are counted up to and including the <b>End Date</b>. Start date is informational.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="'+(a.submission_deadline?.slice(0,16)||'')+'"></div></div><div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch '+(a.is_marks_unlocked?'on':'')+'" id="ae_unlock" onclick="this.classList.toggle(\'on\')"></div></div><button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'}
+function cmClassOpts(selId){
+  return '<option value="">—</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>'<option value="'+c.class_id+'"'+(c.class_id===selId?' selected':'')+'>'+esc(c.name)+'</option>').join('')
+}
+function cmRenderRow(id,fromId,toId,maxM,passM){
+  return '<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px" data-cmrow="'+id+'">'
+    +'<div class="form-row" style="margin-bottom:0"><div class="fg"><label>From Class</label><select id="cmf_'+id+'" style="font-size:12px">'+cmClassOpts(fromId)+'</select></div>'
+    +'<div class="fg"><label>To Class</label><select id="cmt_'+id+'" style="font-size:12px">'+cmClassOpts(toId)+'</select></div>'
+    +'<div class="fg"><label>Max Marks *</label><input type="number" inputmode="decimal" id="cmm_'+id+'" value="'+(maxM!=null?maxM:'')+'" min="1"></div>'
+    +'<div class="fg"><label>Pass Marks *</label><input type="number" inputmode="decimal" id="cmp_'+id+'" value="'+(passM!=null?passM:'')+'" min="0"></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmrow]\').remove()">×</button></div>'
+    +'</div></div>'
+}
+function classIdsInRange(fromId,toId){
+  const sorted=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  const fi=fromId?sorted.findIndex(c=>c.class_id===fromId):-1
+  const ti=toId?sorted.findIndex(c=>c.class_id===toId):-1
+  if(fi<0||ti<0)return[]
+  return sorted.slice(Math.min(fi,ti),Math.max(fi,ti)+1).map(c=>c.class_id)
+}
+function addCMRow(containerId){
+  const id='cm'+Date.now()
+  const wrap=document.createElement('div');wrap.innerHTML=cmRenderRow(id,'','','','')
+  $(containerId||'cmRows').appendChild(wrap.firstChild)
+}
+async function openAssessSettings(){
+  if(!_currentAssess)return;const a=_currentAssess
+  openSub('assessments','sub-assess-settings')
+  $('assessSettingsContent').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data:cgOvs}=await sb.from('assessment_mark_overrides').select('override_id,class_id,max_marks,pass_marks').eq('assessment_id',a.assessment_id).is('subject_id',null)
+  const sorted=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
+  const classOrder={};sorted.forEach((c,i)=>classOrder[c.class_id]=i)
+  const groups=[]
+  if(cgOvs&&cgOvs.length){
+    const byKey={}
+    cgOvs.forEach(o=>{const k=o.max_marks+'_'+o.pass_marks;(byKey[k]=byKey[k]||[]).push(o)})
+    Object.values(byKey).forEach(arr=>{
+      arr.sort((x,y)=>(classOrder[x.class_id]??99)-(classOrder[y.class_id]??99))
+      let start=0
+      for(let i=1;i<=arr.length;i++){
+        if(i===arr.length||(classOrder[arr[i]?.class_id]??99)!==(classOrder[arr[i-1].class_id]??99)+1){
+          const range=arr.slice(start,i)
+          groups.push({from:range[0].class_id,to:range[range.length-1].class_id,max:range[0].max_marks,pass:range[0].pass_marks})
+          start=i
+        }
+      }
+    })
+  }
+  let cmHtml=groups.map((g,i)=>cmRenderRow('cg'+i,g.from,g.to,g.max,g.pass)).join('')
+  if(!cmHtml)cmHtml='<div style="color:var(--ink-faint);font-size:13px;padding:4px 0">No class-group overrides — all classes use the default above.</div>'
+  $('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div>'
+    +'<div class="card" style="max-width:700px">'
+    +'<div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="'+esc(a.name)+'"></div></div>'
+    +'<div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="ae_date" value="'+(a.commencement_date||'')+'"></div><div class="fg"><label>End Date</label><input type="date" id="ae_enddate" value="'+(a.end_date||'')+'"></div></div>'
+    +'<div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance working days are counted up to and including the <b>End Date</b>. Start date is informational.</div>'
+    +'<div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="'+(a.submission_deadline?.slice(0,16)||'')+'"></div></div>'
+    +'<div class="form-row"><div class="fg"><label>Default Max Marks</label><input type="number" inputmode="decimal" id="ae_max" value="'+(a.max_marks||100)+'" min="1"></div><div class="fg"><label>Default Pass Marks</label><input type="number" inputmode="decimal" id="ae_pass" value="'+(a.pass_marks!=null?a.pass_marks:33)+'" min="0"></div></div>'
+    +'<div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Used for classes without a group override below.</div>'
+    +'<div style="margin:16px 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.05em">Class Group Marks</div>'
+    +'<div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px">Set different max/pass marks for different class ranges. Overrides the default above.</div>'
+    +'<div id="cmRows">'+cmHtml+'</div>'
+    +'<button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="addCMRow()">+ Add Class Group</button>'
+    +'<div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch '+(a.is_marks_unlocked?'on':'')+'" id="ae_unlock" onclick="this.classList.toggle(\'on\')"></div></div>'
+    +'<button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'
+}
 function parseEFGroup(g){
   if(!g)return{label:'',class_ids:[],from:'',to:''}
   try{const o=JSON.parse(g);return{label:o.label||'',class_ids:o.class_ids||[],from:o.from||'',to:o.to||''}}catch(e){}
@@ -4463,8 +4526,8 @@ async function openMarkOverrides(){
   const classes=(ALL_CLASSES||[]).filter(c=>classIds.includes(c.class_id))
   const subjects=(ALL_SUBJECTS||[]).filter(s=>s.is_active)
 
-  // Existing overrides
-  const{data:ovs}=await sb.from('assessment_mark_overrides').select('*').eq('assessment_id',a.assessment_id)
+  // Existing overrides (exclude class-group defaults with null subject_id — those are managed in Assessment Settings)
+  const{data:ovs}=await sb.from('assessment_mark_overrides').select('*').eq('assessment_id',a.assessment_id).not('subject_id','is',null)
   window._markOverrides=ovs||[]
 
   const clsOpts=classes.map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
@@ -4531,7 +4594,7 @@ async function deleteMarkOverride(id){
 
 function openAddAssessmentModal(){
   const clsChecks=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" value="'+c.class_id+'" class="na_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(c.name)+'</span></label>').join('')
-  openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="na_date"></div><div class="fg"><label>End Date</label><input type="date" id="na_enddate"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance is counted up to and including the End Date.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div class="form-row"><div class="fg"><label>Max Marks</label><input id="na_maxmarks" type="number" inputmode="decimal" value="100" min="1"></div><div class="fg"><label>Pass Marks</label><input id="na_passmarks" type="number" inputmode="decimal" value="33" min="1"></div></div><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
+  openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="na_date"></div><div class="fg"><label>End Date</label><input type="date" id="na_enddate"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance is counted up to and including the End Date.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div class="form-row"><div class="fg"><label>Default Max Marks</label><input id="na_maxmarks" type="number" inputmode="decimal" value="100" min="1"></div><div class="fg"><label>Default Pass Marks</label><input id="na_passmarks" type="number" inputmode="decimal" value="33" min="1"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Used for classes without a group override below.</div><div style="margin:10px 0 6px;font-size:12px;font-weight:600;color:var(--ink-soft)">Class Group Marks (optional)</div><div style="font-size:11px;color:var(--ink-soft);margin-bottom:8px">Override max/pass marks for specific class ranges.</div><div id="naCmRows"></div><button type="button" class="btn btn-ghost btn-xs" style="margin-bottom:12px" onclick="addCMRow(\'naCmRows\')">+ Add Class Group</button><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
     '<button class="btn btn-dark" onclick="createAssessment()">Create Assessment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 async function createAssessment(){
@@ -4543,9 +4606,42 @@ async function createAssessment(){
   if(error){toast('Failed: '+error.message,'error');return}
   const{error:je}=await sb.from('assessment_classes').insert(selectedClasses.map(class_id=>({assessment_id:asmtData.assessment_id,class_id})))
   if(je){toast('Assessment created but class linking failed: '+je.message,'error');return}
+  const naCmRows=document.querySelectorAll('#naCmRows [data-cmrow]')
+  const cgIns=[]
+  naCmRows.forEach(row=>{
+    const rid=row.dataset.cmrow
+    const fromId=$('cmf_'+rid)?.value,toId=$('cmt_'+rid)?.value
+    const mx=parseInt($('cmm_'+rid)?.value),ps=parseInt($('cmp_'+rid)?.value)
+    if(!fromId||!toId||!(mx>0))return
+    classIdsInRange(fromId,toId).forEach(cid=>cgIns.push({assessment_id:asmtData.assessment_id,class_id:cid,subject_id:null,max_marks:mx,pass_marks:ps>=0?ps:Math.round(mx*0.33)}))
+  })
+  if(cgIns.length){
+    const{error:cgErr}=await sb.from('assessment_mark_overrides').insert(cgIns)
+    if(cgErr)toast('Class group marks failed: '+cgErr.message,'error')
+  }
   toast('Assessment created for '+selectedClasses.length+' class(es)','success');closeModal();loadAssessments()
 }
-async function saveAssess(id){const{error}=await sb.from('assessments').update({name:$('ae_name')?.value?.trim(),commencement_date:$('ae_date')?.value||null,end_date:$('ae_enddate')?.value||null,submission_deadline:$('ae_dl')?.value?new Date($('ae_dl').value).toISOString():null,is_marks_unlocked:$('ae_unlock')?.classList.contains('on')}).eq('assessment_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Saved','success');loadAssessments()}
+async function saveAssess(id){
+  const maxVal=parseInt($('ae_max')?.value)||100
+  const passVal=parseInt($('ae_pass')?.value)
+  const{error}=await sb.from('assessments').update({name:$('ae_name')?.value?.trim(),commencement_date:$('ae_date')?.value||null,end_date:$('ae_enddate')?.value||null,submission_deadline:$('ae_dl')?.value?new Date($('ae_dl').value).toISOString():null,is_marks_unlocked:$('ae_unlock')?.classList.contains('on'),max_marks:maxVal,pass_marks:passVal>=0?passVal:Math.round(maxVal*0.33)}).eq('assessment_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  await sb.from('assessment_mark_overrides').delete().eq('assessment_id',id).is('subject_id',null)
+  const cmRows=document.querySelectorAll('[data-cmrow]')
+  const inserts=[]
+  cmRows.forEach(row=>{
+    const rid=row.dataset.cmrow
+    const fromId=$('cmf_'+rid)?.value,toId=$('cmt_'+rid)?.value
+    const mx=parseInt($('cmm_'+rid)?.value),ps=parseInt($('cmp_'+rid)?.value)
+    if(!fromId||!toId||!(mx>0))return
+    classIdsInRange(fromId,toId).forEach(cid=>inserts.push({assessment_id:id,class_id:cid,subject_id:null,max_marks:mx,pass_marks:ps>=0?ps:Math.round(mx*0.33)}))
+  })
+  if(inserts.length){
+    const{error:ie}=await sb.from('assessment_mark_overrides').insert(inserts)
+    if(ie){toast('Class group marks failed: '+ie.message,'error');return}
+  }
+  toast('Saved','success');loadAssessments()
+}
 async function deleteAssessment(id,name){
   const{count}=await sb.from('marks').select('*',{count:'exact',head:true}).eq('assessment_id',id)
   if(count>0){toast('Cannot delete "'+name+'" — '+count+' marks exist.','error');return}
@@ -4696,8 +4792,8 @@ async function loadMarksTable(){
   const _defMax=assess?.max_marks||100, _defPass=assess?.pass_marks||Math.round(_defMax*0.33)
   const{data:_ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',classId)
   const _ovMap={}; (_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
-  const subMax=sid=>{const o=_ovMap[sid];return (o&&o.max!=null)?o.max:_defMax}
-  const subPass=sid=>{const o=_ovMap[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return _defPass}
+  const subMax=sid=>{const o=_ovMap[sid]||_ovMap[null];return (o&&o.max!=null)?o.max:_defMax}
+  const subPass=sid=>{const o=_ovMap[sid]||_ovMap[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return _defPass}
 
   const{data:marks}=await sb.from('marks').select('*').in('enrollment_id',eids).eq('assessment_id',assessId)
   const marksMap={}; (marks||[]).forEach(m=>{if(!marksMap[m.enrollment_id])marksMap[m.enrollment_id]={};marksMap[m.enrollment_id][m.subject_id]=m})
@@ -5079,7 +5175,7 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   const defMax=aRow?.max_marks||100, defPass=aRow?.pass_marks||Math.round(defMax*0.33)
   const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',classId)
   const ovMap={}; (ovs||[]).forEach(o=>{ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
-  subs.forEach(s=>{const o=ovMap[s.subject_id];s.max=(o&&o.max!=null)?o.max:defMax;s.pass=(o&&o.pass!=null)?o.pass:(o&&o.max!=null?Math.round(o.max*0.33):defPass)})
+  subs.forEach(s=>{const o=ovMap[s.subject_id]||ovMap[null];s.max=(o&&o.max!=null)?o.max:defMax;s.pass=(o&&o.pass!=null)?o.pass:(o&&o.max!=null?Math.round(o.max*0.33):defPass)})
   const totalMax=subs.reduce((t,s)=>t+s.max,0)
 
   // Marks
@@ -9151,9 +9247,11 @@ _dlBuild.marks=async function(){
   const{data:subMaps}=await mq
   const subs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
   const defMax=assess.max_marks||100,defPass=assess.pass_marks||Math.round(defMax*0.33)
-  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId)
+  let ovQ=sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId)
+  if(cid)ovQ=ovQ.eq('class_id',cid)
+  const{data:ovs}=await ovQ
   const ovMap={};(ovs||[]).forEach(o=>{ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
-  const subMax=sid=>{const o=ovMap[sid];return(o&&o.max!=null)?o.max:defMax}
+  const subMax=sid=>{const o=ovMap[sid]||ovMap[null];return(o&&o.max!=null)?o.max:defMax}
   const marks=[]
   for(let i=0;i<eids.length;i+=500){
     const{data}=await sb.from('marks').select('enrollment_id,subject_id,marks_obtained,is_absent').eq('assessment_id',assessId).in('enrollment_id',eids.slice(i,i+500))
