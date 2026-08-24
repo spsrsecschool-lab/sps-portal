@@ -4598,6 +4598,7 @@ async function createEF(assessId,tid){
 async function refreshExamFees(assessId){
   const{data:fees}=await sb.from('exam_fees').select('*').eq('assessment_id',assessId)
   if(_currentAssess) _currentAssess.exam_fees=fees||[]
+  if(window._assessMap?.[assessId]) window._assessMap[assessId].exam_fees=fees||[]
   const el=$('efRows'); if(!el) return
   el.innerHTML=(fees||[]).map(f=>{const p=parseEFGroup(f.class_group);return efRenderRow(f.exam_fee_id,p,f.amount,f.is_collection_unlocked,assessId,false)}).join('')
 }
@@ -4607,9 +4608,13 @@ async function saveEF(fid,assessId){
   const grp=buildEFGroup(label,fromId,toId)
   const{error}=await sb.from('exam_fees').update({class_group:grp,amount:parseFloat($('efa_'+fid)?.value),is_collection_unlocked:$('efu_'+fid)?.classList.contains('on')}).eq('exam_fee_id',fid)
   if(error){toast('Failed: '+error.message,'error');return}
-  toast('Saved','success')
+  toast('Saved','success');await refreshExamFees(assessId)
 }
-async function deleteEF(fid){confirmAct('Remove this fee?','',async()=>{await sb.from('exam_fees').delete().eq('exam_fee_id',fid);toast('Removed','success');document.getElementById('efr_'+fid)?.remove()})}
+async function deleteEF(fid){confirmAct('Remove this fee?','',async()=>{
+  const assessId=_currentAssess?.assessment_id
+  await sb.from('exam_fees').delete().eq('exam_fee_id',fid);toast('Removed','success')
+  if(assessId)await refreshExamFees(assessId);else document.getElementById('efr_'+fid)?.remove()
+})}
 
 // ═══════════ MISC FEES ═══════════
 async function loadMiscFees(){
