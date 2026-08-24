@@ -5780,6 +5780,16 @@ async function loadStudentAttendance(){
   const attMap={}; (att||[]).forEach(a=>{attMap[a.date]=a.status})
   const monthlyMap={}; (monthly||[]).forEach(m=>{monthlyMap[m.from_date+'|'+m.to_date]=m})
 
+  // Check which months have class-level monthly records (any classmate in this section)
+  const{data:secMates}=await sb.from('student_enrollments').select('enrollment_id').eq('session_id',sid).eq('class_id',enr.class_id).eq('section_id',enr.section_id).eq('status','active').eq('relieved',false).neq('enrollment_id',eid)
+  const secEids=(secMates||[]).map(s=>s.enrollment_id)
+  const classMonthlySet=new Set()
+  for(let i=0;i<secEids.length;i+=500){
+    const batch=secEids.slice(i,i+500)
+    const{data:cm}=await sb.from('attendance_monthly').select('from_date,to_date').in('enrollment_id',batch)
+    if(cm)cm.forEach(r=>classMonthlySet.add(r.from_date+'|'+r.to_date))
+  }
+
   const sessionEnd=SESS?.end_date||todayStr
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -5812,6 +5822,18 @@ async function loadStudentAttendance(){
       body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· monthly totals</span></div>'
         +'<div style="display:flex;gap:18px;font-size:12.5px"><span>Working: <b>'+mon.working_days+'</b></span><span style="color:var(--grn)">Present: <b>'+mon.present_count+'</b></span><span style="color:var(--danger)">Absent: <b>'+mon.absent_count+'</b></span></div></div>'
       totalWork+=mon.working_days;totalP+=mon.present_count;totalA+=mon.absent_count
+      return
+    }
+
+    // Class has monthly records for this month but this student was skipped → infer totals
+    if(classMonthlySet.has(mKey)){
+      const wdDays=[];for(let d=1;d<=mb.dim;d++){const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0');if(ds>capTo)break;const dow=new Date(ds+'T12:00:00').getDay();if(dow===0||holMap[ds]||ds<effStart)continue;wdDays.push(ds)}
+      const wk=wdDays.length, dr=Object.keys(attMap).filter(d=>d>=mb.from&&d<=capTo)
+      const pres=dr.filter(d=>attMap[d]==='P'||attMap[d]==='L').length
+      const abs=Math.max(0,wk-pres)
+      body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· monthly totals</span></div>'
+        +'<div style="display:flex;gap:18px;font-size:12.5px"><span>Working: <b>'+wk+'</b></span><span style="color:var(--grn)">Present: <b>'+pres+'</b></span><span style="color:var(--danger)">Absent: <b>'+abs+'</b></span></div></div>'
+      totalWork+=wk;totalP+=pres;totalA+=abs
       return
     }
 
