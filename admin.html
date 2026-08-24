@@ -7415,10 +7415,61 @@ async function saveTeacherSched(btn,tid){
     delete _teacherScheds[tid]
     toast('Using default schedule','success');renderTeacherScheds();return
   }
+  const tName=ALL_TEACHERS.find(t=>t.teacher_id===tid)?.full_name||tid
+  const today=new Date();const todayISO=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0')
+  openModal('Apply threshold changes — '+tName,
+    '<p style="font-size:13px;margin-bottom:14px">How should the revised thresholds take effect?</p>'
+    +'<div style="display:flex;flex-direction:column;gap:10px">'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="ts_eff" value="today" checked> Apply from <b>today</b> onwards ('+fmtD(todayISO)+')</label>'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="ts_eff" value="date"> Apply from a specific date: <input type="date" id="ts_eff_date" value="'+todayISO+'" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--line);border-radius:7px" onclick="document.querySelector(\'input[name=ts_eff][value=date]\').checked=true"></label>'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="ts_eff" value="all"> Apply to <b>all records</b> (past &amp; future)</label>'
+    +'</div>'
+    +'<p style="font-size:11.5px;color:var(--ink-soft);margin-top:12px">Choosing "today" or a specific date preserves the old thresholds for earlier dates. "All records" changes thresholds retroactively and recomputes salary deductions.</p>',
+    '<button class="btn btn-dark" onclick="execTeacherSchedSave(\''+esc(tid)+'\')">Confirm</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+  _pendingSchedRec=rec
+}
+let _pendingSchedRec=null
+async function execTeacherSchedSave(tid){
+  const rec=_pendingSchedRec;if(!rec)return;_pendingSchedRec=null
+  const opt=document.querySelector('input[name=ts_eff]:checked')?.value||'all'
+  const today=new Date();const todayISO=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0')
+  let effDate=todayISO
+  if(opt==='date'){effDate=$('ts_eff_date')?.value||todayISO}
+  closeModal()
+  const oldSched=_teacherScheds[tid]||{}
+  const hm=t=>t?String(t).slice(0,5):null
+  const oldLate=hm(oldSched.late_after)||hm(_attDefaults?.default_late_after)||'07:30'
+  const oldHdLate=hm(oldSched.half_day_late_after)||hm(_attDefaults?.half_day_late_after)||'09:30'
+  const oldHdEarly=hm(oldSched.half_day_early_before)||hm(_attDefaults?.half_day_early_before)||'11:30'
+  if(opt==='today'||opt==='date'){
+    const dayBefore=new Date(effDate+'T12:00:00');dayBefore.setDate(dayBefore.getDate()-1)
+    const toDate=dayBefore.getFullYear()+'-'+String(dayBefore.getMonth()+1).padStart(2,'0')+'-'+String(dayBefore.getDate()).padStart(2,'0')
+    const sessStart=SESS?.start_date||todayISO
+    if(toDate>=sessStart){
+      const{error:oErr}=await sb.from('attendance_threshold_overrides').insert({
+        session_id:SESS?.session_id||null, teacher_id:tid,
+        from_date:sessStart, to_date:toDate,
+        late_after:oldLate, half_day_late_after:oldHdLate, half_day_early_before:oldHdEarly,
+        label:'Auto: previous schedule (before '+effDate+')'
+      })
+      if(oErr)console.warn('override insert',oErr.message)
+    }
+  }
   const{error}=await sb.from('teacher_schedules').upsert(rec,{onConflict:'teacher_id'})
   if(error){toast('Failed: '+error.message,'error');return}
   _teacherScheds[tid]=rec
-  toast('Schedule saved ✓','success');renderTeacherScheds()
+  await loadStaffAttRules()
+  if(opt==='all'){
+    toast('Schedule saved — recomputing deductions…','success')
+    const sessStart=SESS?.start_date||todayISO
+    const months=monthsInRange(sessStart,todayISO)
+    try{await recomputeDeductions(months)}catch(e){console.warn('recompute',e)}
+    toast('Deductions recomputed ✓','success')
+  } else {
+    toast('Schedule saved ✓','success')
+  }
+  renderTeacherScheds()
+  renderThresholdOverrides()
 }
 
 async function clearTeacherSched(tid){
