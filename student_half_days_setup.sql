@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS student_half_days (
   leave_time    TEXT NOT NULL,
   reason        TEXT,
   approved_by   TEXT NOT NULL REFERENCES teachers(teacher_id),
-  session_id    UUID NOT NULL REFERENCES sessions(session_id),
+  session_id    TEXT NOT NULL REFERENCES sessions(session_id),
   created_at    TIMESTAMPTZ DEFAULT now()
 );
 
