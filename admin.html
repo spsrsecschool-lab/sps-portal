@@ -5931,10 +5931,10 @@ async function loadClassAttendance(){
         // No monthly row for this student → fall back to their daily records.
         const dr=attMap[s.enrollment_id]||{}
         pres=Object.values(dr).filter(v=>v==='P'||v==='L').length
-        abs=Object.values(dr).filter(v=>v==='A').length
         const admD=(s.is_new_admission&&s.students?.admission_date)?s.students.admission_date:null
         const sStart=[classStart,admD].filter(Boolean).sort().pop()||classStart||''
         wk=days.filter(d=>!d.isSun&&!d.isHol&&d.dateStr>=sStart).length
+        abs=Math.max(0,wk-pres)
       }
       h+='<tr>'
         +'<td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td>'
