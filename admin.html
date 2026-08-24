@@ -2423,7 +2423,7 @@ async function buildLiveClassSnapshot(iso,off){
     sb.from('timetable_entries').select('entry_id,slot_id,teacher_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name),teachers(full_name)').eq('roster_id',roster.roster_id),
     sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name)').then(r=>r,()=>({data:[]})),
     sb.from('substitutions').select('entry_id,substitute_teacher_id,absent_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]})),
-    sb.from('teacher_schedules').select('teacher_id,shift_start').then(r=>r,()=>({data:[]})),
+    sb.from('teacher_schedules').select('teacher_id,shift_start,shift_end').then(r=>r,()=>({data:[]})),
     sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
   ])
   const motherIds=new Set((mtRows||[]).map(r=>r.teacher_id))
@@ -2432,8 +2432,9 @@ async function buildLiveClassSnapshot(iso,off){
 
   const subMap={};(subs||[]).forEach(s=>{subMap[s.entry_id]=s})
   const absentIds=new Set((subs||[]).map(s=>s.absent_teacher_id).filter(Boolean))
-  const schedMap={};(tScheds||[]).forEach(s=>{schedMap[s.teacher_id]=s.shift_start})
+  const schedMap={};(tScheds||[]).forEach(s=>{schedMap[s.teacher_id]={start:s.shift_start,end:s.shift_end}})
   const defShift=(_saDefaults?.default_shift_start||'07:20').slice(0,5)
+  const defShiftEnd=(_saDefaults?.default_shift_end||'13:15').slice(0,5)
 
   // Filter slots that have timetable entries for today
   const todaySlots=slots.filter(s=>(entries||[]).some(e=>(e.days||[]).includes(dow)&&e.slot_id===s.slot_id))
@@ -2450,7 +2451,7 @@ async function buildLiveClassSnapshot(iso,off){
   const defaultIdx=curIdx>=0?curIdx:(nextIdx>=0?nextIdx:todaySlots.length-1)
 
   // Cache everything for renderSlotView
-  _liveSnap={slots:todaySlots,entries,adjs,subs,subMap,absentIds,schedMap,defShift,motherIds,dow,curIdx,defaultIdx}
+  _liveSnap={slots:todaySlots,entries,adjs,subs,subMap,absentIds,schedMap,defShift,defShiftEnd,motherIds,dow,curIdx,defaultIdx}
 
   // Outer container
   let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px;overflow:hidden">'
@@ -2537,8 +2538,10 @@ function renderSlotView(idx,dir){
   ;(d.subs||[]).filter(s=>s.slot_id===slot.slot_id&&s.substitute_teacher_id).forEach(s=>busySet.add(s.substitute_teacher_id))
   const free=ALL_TEACHERS.filter(t=>{
     if(!t.is_active||d.motherIds.has(t.teacher_id)||busySet.has(t.teacher_id)||(d.absentIds&&d.absentIds.has(t.teacher_id)))return false
-    const ss=(d.schedMap[t.teacher_id]||d.defShift).slice(0,5)
-    return slotStart>=ss
+    const sch=d.schedMap[t.teacher_id]
+    const ss=(sch?.start||d.defShift).slice(0,5)
+    const se=(sch?.end||d.defShiftEnd).slice(0,5)
+    return slotStart>=ss&&slotStart<se
   })
   if(free.length){
     h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
