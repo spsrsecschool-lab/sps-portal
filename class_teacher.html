@@ -106,6 +106,7 @@ thead .sticky-col{background:var(--lav-100);z-index:3}
 .cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
 .cell-l{background:#FCF1E0!important;color:#C47A20;font-weight:700;text-align:center;font-size:11px}
 .cell-h{background:#F0F0F0!important;color:#888;font-weight:700;text-align:center;font-size:11px}
+.cell-hd{background:#E3F2FD!important;color:#1565C0;font-weight:700;text-align:center;font-size:11px}
 .cell-fail{background:var(--danger-soft)!important}
 .cell-low-att{background:#FCF1E0!important}
 .btn{font-family:var(--font);font-size:12.5px;font-weight:700;border-radius:var(--radius-sm);padding:10px 18px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:transform .1s,box-shadow .15s}
@@ -254,6 +255,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     <div class="sb-item" onclick="goTo('prevatt',this)">
       <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
       Previous Attendance
+    </div>
+    <div class="sb-item" onclick="goTo('halfday',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Half Day Records
     </div>
     <div class="sb-label">My Class</div>
     <div class="sb-item" onclick="goTo('myclass',this)">
@@ -413,6 +418,19 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <div id="prevAttWrap"></div>
     </div>
 
+    <!-- HALF DAY RECORDS -->
+    <div class="page" id="page-halfday">
+      <div class="page-head"><div><h2>Half Day Records</h2><p>Record and view half days taken by students</p></div></div>
+      <div class="card" style="margin-bottom:18px">
+        <div style="position:relative">
+          <label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Search Student</label>
+          <input id="hd_search" type="text" placeholder="Type student name…" autocomplete="off" oninput="hdSearchStudent(this.value)" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box">
+          <div id="hd_suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--line);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 8px 20px rgba(0,0,0,.12)"></div>
+        </div>
+      </div>
+      <div id="hdRecordsWrap"></div>
+    </div>
+
     <!-- MANAGE MY CLASS -->
     <div class="page" id="page-myclass">
       <div class="page-head"><div><h2>Manage My Class</h2><p id="myClassSub">Students in your section</p></div></div>
@@ -547,7 +565,7 @@ let _duesDebounce=null  // debounce for live dues repaint
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _currentTab='dashboard'   // which tab is open, so class-switch can refresh it
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
+const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -642,6 +660,7 @@ function goTo(id,el){
   if(id==='assessmarks')loadAssessDropdown()
   if(id==='dues')loadDues()
   if(id==='examfees')loadExamFeeDropdown()
+  if(id==='halfday')loadHalfDayRecords()
 }
 
 // ═══════════ AUTH & INIT ═══════════
@@ -760,6 +779,7 @@ async function refreshCurrentTab(){
     case 'assessmarks': await loadAssessDropdown();  break
     case 'dues':        await loadDues();            break
     case 'examfees':    await loadExamFeeDropdown(); break
+    case 'halfday':     await loadHalfDayRecords();  break
   }
 }
 
@@ -1209,6 +1229,80 @@ async function confirmAttSubmit(date){
   renderDashboard()
 }
 
+// ═══════════ HALF DAY RECORDS ═══════════
+function hdSearchStudent(q){
+  const box=$('hd_suggestions')
+  if(!q||q.length<2){box.style.display='none';return}
+  const lq=q.toLowerCase()
+  const matches=CLASS_STUDENTS.filter(s=>(s.students?.full_name||'').toLowerCase().includes(lq)).slice(0,8)
+  if(!matches.length){box.style.display='none';return}
+  box.innerHTML=matches.map(s=>'<div onclick="hdPickStudent(\''+s.enrollment_id+'\')" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background=\'var(--lav-50)\'" onmouseout="this.style.background=\'\'"><span style="font-weight:600">'+esc(s.students?.full_name||'?')+'</span><span style="font-size:11px;color:var(--ink-soft)">Roll '+esc(s.roll_no||'—')+'</span></div>').join('')
+  box.style.display='block'
+}
+function hdPickStudent(eid){
+  $('hd_suggestions').style.display='none'
+  const s=CLASS_STUDENTS.find(x=>x.enrollment_id===eid)
+  if(!s)return
+  $('hd_search').value=s.students?.full_name||''
+  openModal('Record Half Day for '+esc(s.students?.full_name||'?'),
+    '<div style="margin-bottom:16px"><div class="form-row" style="flex-wrap:wrap">'
+    +'<div class="fg"><label>Date</label><input type="date" id="hd_date" value="'+today()+'" max="'+today()+'"></div>'
+    +'<div class="fg"><label>Time of Leaving</label><input type="time" id="hd_time" value="'+new Date().toTimeString().slice(0,5)+'"></div>'
+    +'</div>'
+    +'<div style="margin-top:12px"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Reason for Leaving</label>'
+    +'<textarea id="hd_reason" rows="3" placeholder="e.g. Not feeling well, parent picked up early…" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box;resize:vertical"></textarea>'
+    +'</div></div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-primary" onclick="hdApprove(\''+eid+'\')">Approve Half Day</button>'
+  )
+}
+async function hdApprove(eid){
+  const date=$('hd_date')?.value, time=$('hd_time')?.value, reason=$('hd_reason')?.value?.trim()
+  if(!date){toast('Please select a date','error');return}
+  if(!time){toast('Please enter the time of leaving','error');return}
+  const s=CLASS_STUDENTS.find(x=>x.enrollment_id===eid)
+  const{error}=await sb.from('student_half_days').insert({
+    enrollment_id:eid, date:date, leave_time:time, reason:reason||null,
+    approved_by:TEACHER.teacher_id, session_id:SESS?.session_id||''
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal()
+  toast('Half day approved for '+esc(s?.students?.full_name||'student'),'success')
+  logActivity('half_day_approved', TEACHER.full_name+' approved half day for '+(s?.students?.full_name||'a student')+' ('+myClassLabel()+') at '+time)
+  $('hd_search').value=''
+  loadHalfDayRecords()
+}
+async function loadHalfDayRecords(){
+  const el=$('hdRecordsWrap')
+  if(!el)return
+  ldg(el,'Loading records…')
+  const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  if(!eids.length){emp(el,'No students in class.');return}
+  const{data:recs,error}=await sb.from('student_half_days').select('*').in('enrollment_id',eids).eq('session_id',SESS?.session_id||'').order('date',{ascending:false}).order('created_at',{ascending:false})
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!recs||!recs.length){el.innerHTML='<div class="card"><div style="text-align:center;padding:30px;color:var(--ink-faint)">No half day records yet. Search a student above to record one.</div></div>';return}
+  const nameOf=eid=>{const s=CLASS_STUDENTS.find(x=>x.enrollment_id===eid);return s?.students?.full_name||'?'}
+  const rollOf=eid=>{const s=CLASS_STUDENTS.find(x=>x.enrollment_id===eid);return s?.roll_no||'—'}
+  let h='<div class="card" style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Date</th><th>Roll</th><th>Student</th><th>Left At</th><th>Reason</th><th></th></tr></thead><tbody>'
+  recs.forEach(r=>{
+    h+='<tr><td style="white-space:nowrap;font-weight:600">'+fmtD(r.date)+'</td>'
+      +'<td class="mono" style="font-weight:700">'+esc(rollOf(r.enrollment_id))+'</td>'
+      +'<td style="font-weight:600">'+esc(nameOf(r.enrollment_id))+'</td>'
+      +'<td style="white-space:nowrap">'+esc(r.leave_time)+'</td>'
+      +'<td style="color:var(--ink-soft);font-size:12px;max-width:200px">'+esc(r.reason||'—')+'</td>'
+      +'<td><button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="hdDelete(\''+r.id+'\')">Remove</button></td></tr>'
+  })
+  h+='</tbody></table></div>'
+  el.innerHTML=h
+}
+async function hdDelete(id){
+  if(!confirm('Remove this half day record?'))return
+  const{error}=await sb.from('student_half_days').delete().eq('id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Record removed','success')
+  loadHalfDayRecords()
+}
+
 // ═══════════ ATTENDANCE REPORT ═══════════
 // ═══════════ PREVIOUS (BACKLOG) ATTENDANCE ═══════════
 let _paWorking=0, _paStudentWD={}, _paHolSet=new Set(), _paMonthLocked=false
@@ -1387,14 +1481,16 @@ async function loadAttReport(){
   const from=`${year}-${monthStr}-01`,to=`${year}-${monthStr}-${String(daysInMonth).padStart(2,'0')}`
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
 
-  // Get attendance and holidays
-  const[{data:att},{data:hols},{data:monthly}]=await Promise.all([
+  // Get attendance, holidays, and half days
+  const[{data:att},{data:hols},{data:monthly},{data:hdRecs}]=await Promise.all([
     sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',from).lte('date',to),
     sb.from('holidays').select('date,label').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to),
-    sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to)
+    sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to),
+    sb.from('student_half_days').select('enrollment_id,date').in('enrollment_id',eids).gte('date',from).lte('date',to).eq('session_id',SESS?.session_id||'')
   ])
 
   const attMap={}; (att||[]).forEach(a=>{if(!attMap[a.enrollment_id])attMap[a.enrollment_id]={};attMap[a.enrollment_id][a.date]=a.status})
+  const hdSet=new Set(); (hdRecs||[]).forEach(r=>hdSet.add(r.enrollment_id+'|'+r.date))
   const holSet=new Set((hols||[]).map(h=>h.date))
 
   // Build day list (exclude Sundays)
@@ -1454,7 +1550,9 @@ async function loadAttReport(){
       if(d.isHol){html+='<td class="cell-h" style="font-size:10px">H</td>';return}
       if(d.isSun||d.isHol){html+='<td class="cell-h">H</td>';return}
       const st=attMap[s.enrollment_id]?.[d.dateStr]||''
-      if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
+      const isHD=hdSet.has(s.enrollment_id+'|'+d.dateStr)
+      if(isHD&&st==='P'){pCount++;html+='<td class="cell-hd">½</td>'}
+      else if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
       else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
       else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
     })
