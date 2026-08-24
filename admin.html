@@ -4287,7 +4287,7 @@ async function loadAssessments(){
     const pill=a.is_marks_unlocked?'<span class="pill pill-success">Marks Open</span>':(a.commencement_date&&a.commencement_date<today()?'<span class="pill pill-neutral">Closed</span>':'<span class="pill pill-warn">Scheduled</span>')
     const cn=(clsByA[a.assessment_id]||[]).join(', ')||'No classes linked'
     const fees=a.exam_fees||[]
-    return '<div class="assess-card" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4>'+pill+'</div><div class="meta" style="font-size:11px">'+esc(cn)+'</div><div class="arow"><span>Start</span><span>'+(fmtD(a.commencement_date)||'TBD')+'</span></div><div class="arow"><span>End</span><span>'+(a.end_date?fmtD(a.end_date):(fmtD(a.commencement_date)||'—'))+'</span></div><div class="arow"><span>Deadline</span><span>'+(a.submission_deadline?fmtD(a.submission_deadline.slice(0,10)):'—')+'</span></div>'+(fees.length?'<div class="arow"><span>Exam Fee</span><span>'+fees.map(f=>'₹'+f.amount).join(', ')+'</span></div>':'')+'</div>'
+    return '<div class="assess-card" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4>'+pill+'</div><div class="meta" style="font-size:11px">'+esc(cn)+'</div><div class="arow"><span>Start</span><span>'+(fmtD(a.commencement_date)||'TBD')+'</span></div><div class="arow"><span>End</span><span>'+(a.end_date?fmtD(a.end_date):(fmtD(a.commencement_date)||'—'))+'</span></div><div class="arow"><span>Deadline</span><span>'+(a.submission_deadline?fmtD(a.submission_deadline.slice(0,10)):'—')+'</span></div>'+(fees.length?'<div class="arow"><span>Exam Fee</span><span>'+fees.map(f=>{const p=parseEFGroup(f.class_group);const lbl=p.label?p.label+' ':'';return lbl+'₹'+f.amount}).join(', ')+'</span></div>':'')+'</div>'
   }).join('')
 }
 function openAssessEditById(id,classNames){const a=window._assessMap?.[id];if(!a){toast('Assessment not found','error');return};openAssessEdit({...a,_classNames:classNames})}
@@ -4342,7 +4342,42 @@ async function saveAssessClasses(assessId){
   proceed()
 }
 function openAssessSettings(){if(!_currentAssess)return;const a=_currentAssess;openSub('assessments','sub-assess-settings');$('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="'+esc(a.name)+'"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="ae_date" value="'+(a.commencement_date||'')+'"></div><div class="fg"><label>End Date</label><input type="date" id="ae_enddate" value="'+(a.end_date||'')+'"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance working days are counted up to and including the <b>End Date</b>. Start date is informational.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="'+(a.submission_deadline?.slice(0,16)||'')+'"></div></div><div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch '+(a.is_marks_unlocked?'on':'')+'" id="ae_unlock" onclick="this.classList.toggle(\'on\')"></div></div><button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'}
-function openExamFees(){if(!_currentAssess)return;const a=_currentAssess,ef=a.exam_fees||[];openSub('assessments','sub-assess-examfees');$('assessExamFeesContent').innerHTML='<div class="page-head"><div><h2>Exam Fees — '+esc(a.name)+'</h2></div></div><div class="card" style="max-width:680px"><div id="efRows">'+ef.map(f=>'<div class="form-row" id="efr_'+f.exam_fee_id+'"><div class="fg"><label>Class Group</label><input id="efg_'+f.exam_fee_id+'" value="'+esc(f.class_group||'')+'"></div><div class="fg"><label>Amount ₹</label><input type="number" inputmode="decimal" id="efa_'+f.exam_fee_id+'" value="'+(f.amount||'')+'"></div><div class="fg" style="flex:0;align-items:flex-end"><div class="switch '+(f.is_collection_unlocked?'on':'')+'" id="efu_'+f.exam_fee_id+'" onclick="this.classList.toggle(\'on\')" style="margin-top:20px"></div></div><div style="display:flex;gap:5px;align-items:flex-end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="saveEF(\''+f.exam_fee_id+'\',\''+a.assessment_id+'\')">Save</button><button class="btn btn-danger btn-xs" onclick="deleteEF(\''+f.exam_fee_id+'\')">×</button></div></div>').join('')+'</div><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="addEFRow(\''+a.assessment_id+'\')">+ Add Fee Row</button></div>'}
+function parseEFGroup(g){
+  if(!g)return{label:'',class_ids:[],from:'',to:''}
+  try{const o=JSON.parse(g);return{label:o.label||'',class_ids:o.class_ids||[],from:o.from||'',to:o.to||''}}catch(e){}
+  const parts=String(g).split('-');if(parts.length>1&&/^\d+$/.test(parts[parts.length-1]))parts.pop()
+  return{label:parts.join('-')||'',class_ids:[],from:'',to:''}
+}
+function buildEFGroup(label,fromId,toId){
+  const sorted=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  const fi=fromId?sorted.findIndex(c=>c.class_id===fromId):-1
+  const ti=toId?sorted.findIndex(c=>c.class_id===toId):-1
+  const ids=(fi>=0&&ti>=0)?sorted.slice(Math.min(fi,ti),Math.max(fi,ti)+1).map(c=>c.class_id):[]
+  return JSON.stringify({label:label||'',class_ids:ids,from:fromId||'',to:toId||''})
+}
+function efClassOpts(selId){
+  return '<option value="">All</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>'<option value="'+c.class_id+'"'+(c.class_id===selId?' selected':'')+'>'+esc(c.name)+'</option>').join('')
+}
+function efRenderRow(id,p,amount,unlocked,assessId,isNew){
+  return '<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px" id="efr_'+id+'">'
+    +'<div class="form-row" style="margin-bottom:6px"><div class="fg"><label>From Class</label><select id="efc1_'+id+'" style="font-size:12px">'+efClassOpts(p.from)+'</select></div>'
+    +'<div class="fg"><label>To Class</label><select id="efc2_'+id+'" style="font-size:12px">'+efClassOpts(p.to)+'</select></div>'
+    +'<div class="fg"><label>Amount ₹ *</label><input type="number" inputmode="decimal" id="efa_'+id+'" value="'+(amount||'')+'"></div></div>'
+    +'<div class="form-row" style="margin-bottom:0;align-items:center"><div class="fg"><label>Label</label><input id="efl_'+id+'" value="'+esc(p.label)+'" placeholder="e.g. Entry Fee" style="font-size:12px"></div>'
+    +'<div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--ink-soft)">Unlock</span><div class="switch '+(unlocked?'on':'')+'" id="efu_'+id+'" onclick="this.classList.toggle(\'on\')"></div></div>'
+    +'<div style="display:flex;gap:5px">'
+    +(isNew?'<button class="btn btn-dark btn-xs" onclick="createEF(\''+assessId+'\',\''+id+'\')">Add</button><button class="btn btn-ghost btn-xs" onclick="document.getElementById(\'efr_'+id+'\').remove()">×</button>'
+          :'<button class="btn btn-ghost btn-xs" onclick="saveEF(\''+id+'\',\''+assessId+'\')">Save</button><button class="btn btn-danger btn-xs" onclick="deleteEF(\''+id+'\')">×</button>')
+    +'</div></div></div>'
+}
+function openExamFees(){
+  if(!_currentAssess)return;const a=_currentAssess,ef=a.exam_fees||[]
+  openSub('assessments','sub-assess-examfees')
+  $('assessExamFeesContent').innerHTML='<div class="page-head"><div><h2>Exam Fees — '+esc(a.name)+'</h2><p>Set different amounts for different class ranges. Teachers only see fees for their class.</p></div></div>'
+    +'<div class="card" style="max-width:740px"><div id="efRows">'
+    +ef.map(f=>{const p=parseEFGroup(f.class_group);return efRenderRow(f.exam_fee_id,p,f.amount,f.is_collection_unlocked,a.assessment_id,false)}).join('')
+    +'</div><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="addEFRow(\''+a.assessment_id+'\')">+ Add Fee Row</button></div>'
+}
 async function openSubmissionStatus(){
   if(!_currentAssess)return;const a=_currentAssess
   openSub('assessments','sub-assess-status');const el=$('assessStatusContent')
@@ -4546,16 +4581,34 @@ async function deleteAssessment(id,name){
     toast('Deleted','success');openSub('assessments','sub-assess-list');loadAssessments()
   })
 }
-function addEFRow(assessId){const id='new'+Date.now(),div=document.createElement('div');div.className='form-row';div.id='efr_'+id;div.innerHTML='<div class="fg"><label>Label (optional)</label><input id="efg_'+id+'" placeholder="e.g. Entry Fee"></div><div class="fg"><label>Amount ₹ *</label><input type="number" inputmode="decimal" id="efa_'+id+'"></div><div class="fg" style="flex:0;align-items:flex-end"><div style="display:flex;align-items:center;gap:8px;margin-top:20px"><span style="font-size:11px;color:var(--ink-soft)">Unlock</span><div class="switch" id="efu_'+id+'" onclick="this.classList.toggle(\'on\')"></div></div></div><div style="display:flex;gap:5px;align-items:flex-end;padding-bottom:2px"><button class="btn btn-dark btn-xs" onclick="createEF(\''+assessId+'\',\''+id+'\')">Add</button><button class="btn btn-ghost btn-xs" onclick="document.getElementById(\'efr_'+id+'\').remove()">×</button></div>';$('efRows').appendChild(div)}
-async function createEF(assessId,tid){const label=$('efg_'+tid)?.value?.trim()||'Fee',amt=$('efa_'+tid)?.value,unlocked=$('efu_'+tid)?.classList.contains('on');if(!amt){toast('Amount required','error');return};const grp=label+'-'+Date.now();const{error}=await sb.from('exam_fees').insert({assessment_id:assessId,class_group:grp,amount:parseFloat(amt),is_collection_unlocked:unlocked});if(error){toast('Failed: '+error.message,'error');return};toast('Fee added','success');await refreshExamFees(assessId)}
+function addEFRow(assessId){
+  const id='new'+Date.now()
+  const wrap=document.createElement('div');wrap.innerHTML=efRenderRow(id,{label:'',from:'',to:''},null,false,assessId,true)
+  $('efRows').appendChild(wrap.firstChild)
+}
+async function createEF(assessId,tid){
+  const label=$('efl_'+tid)?.value?.trim()||'',amt=$('efa_'+tid)?.value
+  if(!amt){toast('Amount required','error');return}
+  const fromId=$('efc1_'+tid)?.value||'',toId=$('efc2_'+tid)?.value||''
+  const grp=buildEFGroup(label,fromId,toId)
+  const{error}=await sb.from('exam_fees').insert({assessment_id:assessId,class_group:grp,amount:parseFloat(amt),is_collection_unlocked:$('efu_'+tid)?.classList.contains('on')})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Fee added','success');await refreshExamFees(assessId)
+}
 async function refreshExamFees(assessId){
   const{data:fees}=await sb.from('exam_fees').select('*').eq('assessment_id',assessId)
   if(_currentAssess) _currentAssess.exam_fees=fees||[]
   const el=$('efRows'); if(!el) return
-  const labelOf=f=>{const parts=(f.class_group||'').split('-');parts.pop();return parts.join('-')||'Fee'}
-  el.innerHTML=(fees||[]).map(f=>'<div class="form-row" id="efr_'+f.exam_fee_id+'"><div class="fg"><label>Label</label><input id="efg_'+f.exam_fee_id+'" value="'+esc(labelOf(f))+'"></div><div class="fg"><label>Amount ₹</label><input type="number" inputmode="decimal" id="efa_'+f.exam_fee_id+'" value="'+(f.amount||'')+'"></div><div class="fg" style="flex:0;align-items:flex-end"><div style="display:flex;align-items:center;gap:8px;margin-top:20px"><span style="font-size:11px;color:var(--ink-soft)">Unlock</span><div class="switch '+(f.is_collection_unlocked?'on':'')+'" id="efu_'+f.exam_fee_id+'" onclick="this.classList.toggle(\'on\')"></div></div></div><div style="display:flex;gap:5px;align-items:flex-end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="saveEF(\''+f.exam_fee_id+'\',\''+assessId+'\')">Save</button><button class="btn btn-danger btn-xs" onclick="deleteEF(\''+f.exam_fee_id+'\')">×</button></div></div>').join('')
+  el.innerHTML=(fees||[]).map(f=>{const p=parseEFGroup(f.class_group);return efRenderRow(f.exam_fee_id,p,f.amount,f.is_collection_unlocked,assessId,false)}).join('')
 }
-async function saveEF(fid,assessId){const{error}=await sb.from('exam_fees').update({class_group:$('efg_'+fid)?.value?.trim(),amount:parseFloat($('efa_'+fid)?.value),is_collection_unlocked:$('efu_'+fid)?.classList.contains('on')}).eq('exam_fee_id',fid);if(error){toast('Failed: '+error.message,'error');return};toast('Saved','success')}
+async function saveEF(fid,assessId){
+  const label=$('efl_'+fid)?.value?.trim()||''
+  const fromId=$('efc1_'+fid)?.value||'',toId=$('efc2_'+fid)?.value||''
+  const grp=buildEFGroup(label,fromId,toId)
+  const{error}=await sb.from('exam_fees').update({class_group:grp,amount:parseFloat($('efa_'+fid)?.value),is_collection_unlocked:$('efu_'+fid)?.classList.contains('on')}).eq('exam_fee_id',fid)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Saved','success')
+}
 async function deleteEF(fid){confirmAct('Remove this fee?','',async()=>{await sb.from('exam_fees').delete().eq('exam_fee_id',fid);toast('Removed','success');document.getElementById('efr_'+fid)?.remove()})}
 
 // ═══════════ MISC FEES ═══════════

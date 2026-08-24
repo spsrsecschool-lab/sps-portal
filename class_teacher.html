@@ -2559,14 +2559,17 @@ async function loadExamFeeDropdown(){
   const myAssessmentIds=[...new Set((acRows||[]).map(r=>r.assessment_id))]
   if(!myAssessmentIds.length){sel.innerHTML='<option value="">No assessments for your class yet</option>';return}
 
-  const{data:fees}=await sb.from('exam_fees')
+  const{data:allFees}=await sb.from('exam_fees')
     .select('*,assessments(name)')
     .in('assessment_id',myAssessmentIds)
     .eq('is_collection_unlocked',true)
-  if(!fees?.length){sel.innerHTML='<option value="">No exam fees unlocked for your class</option>';return}
+  const fees=(allFees||[]).filter(f=>{
+    const p=parseEFGroup(f.class_group)
+    if(!p.class_ids.length)return true
+    return p.class_ids.includes(MY_CLASS.class_id)
+  })
+  if(!fees.length){sel.innerHTML='<option value="">No exam fees unlocked for your class</option>';return}
 
-  // Label with assessment name + the fee's own label (from class_group) so two
-  // fees on the same assessment are distinguishable.
   sel.innerHTML='<option value="">Select exam fee</option>'+fees.map(f=>{
     const feeLabel=labelFromGroup(f.class_group)
     const aName=f.assessments?.name||'Assessment'
@@ -2575,10 +2578,15 @@ async function loadExamFeeDropdown(){
   }).join('')
 }
 
-// The admin stores an exam fee's label inside class_group as "Label-<timestamp>".
-// Strip the trailing timestamp to recover the human label.
+function parseEFGroup(g){
+  if(!g)return{label:'',class_ids:[],from:'',to:''}
+  try{const o=JSON.parse(g);return{label:o.label||'',class_ids:o.class_ids||[],from:o.from||'',to:o.to||''}}catch(e){}
+  const parts=String(g).split('-');if(parts.length>1&&/^\d+$/.test(parts[parts.length-1]))parts.pop()
+  return{label:parts.join('-')||'',class_ids:[],from:'',to:''}
+}
 function labelFromGroup(g){
   if(!g)return 'Fee'
+  try{const o=JSON.parse(g);return o.label||'Fee'}catch(e){}
   const parts=String(g).split('-')
   if(parts.length>1 && /^\d+$/.test(parts[parts.length-1])) parts.pop()
   return parts.join('-')||'Fee'

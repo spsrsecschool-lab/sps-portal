@@ -2715,14 +2715,43 @@ async function loadDues(){
 }
 
 // ═══════════ EXAM FEE COLLECTION ═══════════
+function parseEFGroup(g){
+  if(!g)return{label:'',class_ids:[],from:'',to:''}
+  try{const o=JSON.parse(g);return{label:o.label||'',class_ids:o.class_ids||[],from:o.from||'',to:o.to||''}}catch(e){}
+  const parts=String(g).split('-');if(parts.length>1&&/^\d+$/.test(parts[parts.length-1]))parts.pop()
+  return{label:parts.join('-')||'',class_ids:[],from:'',to:''}
+}
+function labelFromGroup(g){
+  if(!g)return 'Fee'
+  try{const o=JSON.parse(g);return o.label||'Fee'}catch(e){}
+  const parts=String(g).split('-')
+  if(parts.length>1&&/^\d+$/.test(parts[parts.length-1]))parts.pop()
+  return parts.join('-')||'Fee'
+}
 async function loadExamFeeDropdown(){
   const sel=$('ef_assess')
   if(!sel)return
   sel.innerHTML='<option value="">Loading…</option>'
-  // Get exam fees unlocked for this class
-  const{data:fees}=await sb.from('exam_fees').select('*,assessments(name)').eq('class_id',MY_CLASS.class_id).eq('is_collection_unlocked',true)
-  if(!fees?.length){sel.innerHTML='<option value="">No exam fees unlocked for your class</option>';return}
-  sel.innerHTML='<option value="">Select assessment</option>'+fees.map(f=>'<option value="'+f.exam_fee_id+'">'+esc(f.assessments?.name||f.exam_fee_id)+'  (₹'+f.amount+')</option>').join('')
+  const{data:acRows}=await sb.from('assessment_classes')
+    .select('assessment_id').eq('class_id',MY_CLASS.class_id)
+  const myAssessmentIds=[...new Set((acRows||[]).map(r=>r.assessment_id))]
+  if(!myAssessmentIds.length){sel.innerHTML='<option value="">No assessments for your class yet</option>';return}
+  const{data:allFees}=await sb.from('exam_fees')
+    .select('*,assessments(name)')
+    .in('assessment_id',myAssessmentIds)
+    .eq('is_collection_unlocked',true)
+  const fees=(allFees||[]).filter(f=>{
+    const p=parseEFGroup(f.class_group)
+    if(!p.class_ids.length)return true
+    return p.class_ids.includes(MY_CLASS.class_id)
+  })
+  if(!fees.length){sel.innerHTML='<option value="">No exam fees unlocked for your class</option>';return}
+  sel.innerHTML='<option value="">Select exam fee</option>'+fees.map(f=>{
+    const feeLabel=labelFromGroup(f.class_group)
+    const aName=f.assessments?.name||'Assessment'
+    const shown=feeLabel&&feeLabel!=='Fee'?aName+' — '+feeLabel:aName
+    return '<option value="'+f.exam_fee_id+'">'+esc(shown)+'  (₹'+f.amount+')</option>'
+  }).join('')
 }
 
 async function loadExamFees(){
