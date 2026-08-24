@@ -997,7 +997,7 @@ function renderAttendanceBanner(mode,stats){
     +'<div>'
     +'<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.65);font-weight:700;margin-bottom:4px">Today\'s Attendance</div>'
     +(mode==='done'
-      ?'<div style="font-size:18px;font-weight:800;color:#fff">✓ Attendance marked today</div><div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">'+stats.present+' present · '+stats.absent+' absent'+(stats.late?' · '+stats.late+' late':'')+'</div>'
+      ?'<div style="font-size:18px;font-weight:800;color:#fff">✓ Attendance marked today</div><div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">'+stats.present+' present · '+stats.absent+' absent</div>'
       :'<div style="font-size:18px;font-weight:800;color:#fff">⚠️ Attendance not marked yet</div><div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">Mark attendance for today</div>')
     +'</div>'
     +(mode!=='done'?'<button onclick="goTo(\'daily\',document.querySelector(\'.sb-item[onclick*=daily]\'))" style="background:#fff;color:#216F40;border:none;padding:10px 20px;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">Mark Attendance →</button>':'')
@@ -1044,18 +1044,16 @@ async function renderDashboard(){
       .select('enrollment_id,status').in('enrollment_id',eids).eq('date',todayStr)
     const present=(todayAtt||[]).filter(a=>a.status==='P').length
     const absent=(todayAtt||[]).filter(a=>a.status==='A').length
-    const late=(todayAtt||[]).filter(a=>a.status==='L').length
     $('statPresent').textContent=present
-    $('subPresent').textContent='Present today'+(late?' ('+late+' late)':'')
+    $('subPresent').textContent='Present today'
     $('statAbsent').textContent=absent
 
     // Decide what the banner shows: holiday/Sunday → no attendance ask; done → confirmation; pending → ask; else → tip
     const attendanceDue = !isSunday && !isHoliday && !(todayAtt?.length)
     if(attendanceDue){
-      renderAttendanceBanner('pending',{present,absent,late})
+      renderAttendanceBanner('pending',{present,absent})
     } else if(!isSunday && !isHoliday && todayAtt?.length){
-      // Attendance done — nothing due, show tip with a done note
-      renderTipBanner('✓ Attendance marked today — '+present+' present, '+absent+' absent'+(late?', '+late+' late':''))
+      renderTipBanner('✓ Attendance marked today — '+present+' present, '+absent+' absent')
     } else {
       // Sunday or holiday — show a tip
       renderTipBanner(isHoliday?('🏖️ Holiday today: '+(todayHoliday.label||'Holiday')):(isSunday?'☀️ It\'s Sunday — no attendance needed':''))
@@ -1067,7 +1065,7 @@ async function renderDashboard(){
     const{data:monthAtt}=await sb.from('student_attendance')
       .select('status').in('enrollment_id',eids).gte('date',m1).lte('date',todayStr)
     const totalRecs=monthAtt?.length||0
-    const presRecs=(monthAtt||[]).filter(a=>a.status==='P'||a.status==='L').length
+    const presRecs=(monthAtt||[]).filter(a=>a.status==='P').length
     $('statAvgAtt').textContent=totalRecs?Math.round(presRecs/totalRecs*100)+'%':'—'
   }
 
@@ -1138,7 +1136,7 @@ function renderAttTable(date, alreadySubmitted){
       +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
       +'<td><div style="display:flex;gap:5px">'
-      +['P','A','L'].map(st=>'<button class="att-btn'+( cur===st?' '+st:'')+'" data-eid="'+s.enrollment_id+'" data-status="'+st+'" onclick="setAtt(this,\''+s.enrollment_id+'\',\''+st+'\')">'+st+'</button>').join('')
+      +['P','A'].map(st=>'<button class="att-btn'+( cur===st?' '+st:'')+'" data-eid="'+s.enrollment_id+'" data-status="'+st+'" onclick="setAtt(this,\''+s.enrollment_id+'\',\''+st+'\')">'+st+'</button>').join('')
       +'</div></td>'
       +'</tr>'
   })
@@ -1156,21 +1154,21 @@ function setAtt(btn, eid, status){
   _attState[eid]=status
   // Update button styles in this row
   const row=document.querySelector('tr[data-eid="'+eid+'"]')
-  if(row){row.querySelectorAll('.att-btn').forEach(b=>{b.classList.remove('P','A','L');if(b.dataset.status===status)b.classList.add(status)})}
+  if(row){row.querySelectorAll('.att-btn').forEach(b=>{b.classList.remove('P','A');if(b.dataset.status===status)b.classList.add(status)})}
   updateAttSummary()
 }
 
 function markAll(status){
   CLASS_STUDENTS.forEach(s=>setAtt(null,s.enrollment_id,status))
-  document.querySelectorAll('.att-btn').forEach(b=>{b.classList.remove('P','A','L');if(b.dataset.status===status)b.classList.add(status)})
+  document.querySelectorAll('.att-btn').forEach(b=>{b.classList.remove('P','A');if(b.dataset.status===status)b.classList.add(status)})
   updateAttSummary()
 }
 
 function updateAttSummary(){
   const vals=Object.values(_attState)
-  const p=vals.filter(v=>v==='P').length,a=vals.filter(v=>v==='A').length,l=vals.filter(v=>v==='L').length
+  const p=vals.filter(v=>v==='P').length,a=vals.filter(v=>v==='A').length
   const sl=$('attSummaryLine')
-  if(sl)sl.textContent='P: '+p+' · A: '+a+' · L: '+l+' · Unmarked: '+(CLASS_STUDENTS.length-vals.length)
+  if(sl)sl.textContent='P: '+p+' · A: '+a+' · Unmarked: '+(CLASS_STUDENTS.length-p-a)
 }
 
 async function submitAttendance(date){
@@ -1181,13 +1179,11 @@ async function submitAttendance(date){
   // Confirm dialog
   const p=Object.values(_attState).filter(v=>v==='P').length
   const a=Object.values(_attState).filter(v=>v==='A').length
-  const l=Object.values(_attState).filter(v=>v==='L').length
   openModal('Confirm Attendance Submission',
     '<div style="font-size:14px;font-weight:700;margin-bottom:16px">'+fmtD(date)+'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">'
+    +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px">'
     +'<div style="text-align:center;padding:14px;background:var(--success-soft);border-radius:10px"><div style="font-size:28px;font-weight:800;color:var(--success)">'+p+'</div><div style="font-size:11px;color:var(--success);font-weight:700">PRESENT</div></div>'
     +'<div style="text-align:center;padding:14px;background:var(--danger-soft);border-radius:10px"><div style="font-size:28px;font-weight:800;color:var(--danger)">'+a+'</div><div style="font-size:11px;color:var(--danger);font-weight:700">ABSENT</div></div>'
-    +'<div style="text-align:center;padding:14px;background:var(--warn-soft);border-radius:10px"><div style="font-size:28px;font-weight:800;color:var(--warn)">'+l+'</div><div style="font-size:11px;color:var(--warn);font-weight:700">LATE</div></div>'
     +'</div>'
     +'<div style="font-size:12.5px;color:var(--ink-soft)">Confirm to save attendance to database. Existing records for this date will be replaced.</div>',
     '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
@@ -1433,7 +1429,7 @@ async function loadAttReport(){
 
   // Table — month bar + column headers live in the thead so they stay pinned;
   // only the Roll column is frozen horizontally.
-  const ncols=3+days.length+3
+  const ncols=3+days.length+2
   let html='<div class="card"><div class="att-scroll"><table style="min-width:800px">'
     +'<thead>'
     +'<tr class="mrow"><th class="rollcol" colspan="'+ncols+'">'+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year+' — Working Days: '+workingDays+'</th></tr>'
@@ -1445,10 +1441,10 @@ async function loadAttReport(){
     const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';
     html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'
   })
-  html+='<th style="text-align:center">P</th><th style="text-align:center">A</th><th style="text-align:center">L</th></tr></thead><tbody>'
+  html+='<th style="text-align:center">P</th><th style="text-align:center">A</th></tr></thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
-    let pCount=0,aCount=0,lCount=0
+    let pCount=0,aCount=0
     html+='<tr>'
     html+='<td class="rollcol" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
     html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
@@ -1460,12 +1456,10 @@ async function loadAttReport(){
       const st=attMap[s.enrollment_id]?.[d.dateStr]||''
       if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
       else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
-      else if(st==='L'){lCount++;pCount++;html+='<td class="cell-l">L</td>'}
       else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
     })
     html+='<td style="text-align:center;font-weight:700;color:var(--success)">'+pCount+'</td>'
       +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+aCount+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--warn)">'+lCount+'</td>'
     html+='</tr>'
   })
 
@@ -1476,21 +1470,21 @@ async function loadAttReport(){
     +'<td style="background:var(--lav-100)"></td>'
   days.forEach(d=>{
     if(d.isSun||d.isHol){html+='<td style="text-align:center;background:var(--lav-100)">—</td>';return}
-    const cnt=CLASS_STUDENTS.filter(s=>attMap[s.enrollment_id]?.[d.dateStr]==='P'||attMap[s.enrollment_id]?.[d.dateStr]==='L').length
+    const cnt=CLASS_STUDENTS.filter(s=>attMap[s.enrollment_id]?.[d.dateStr]==='P').length
     html+='<td style="text-align:center;font-size:11px">'+cnt+'</td>'
   })
-  html+='<td></td><td></td><td></td></tr>'
+  html+='<td></td><td></td></tr>'
   html+='</tbody></table></div></div>'
 
   // Summary below
   const full=CLASS_STUDENTS.filter(s=>{
     const sAtt=attMap[s.enrollment_id]||{}
-    const present=Object.values(sAtt).filter(v=>v==='P'||v==='L').length
+    const present=Object.values(sAtt).filter(v=>v==='P').length
     return present===workingDays
   })
   const low=CLASS_STUDENTS.filter(s=>{
     const sAtt=attMap[s.enrollment_id]||{}
-    const present=Object.values(sAtt).filter(v=>v==='P'||v==='L').length
+    const present=Object.values(sAtt).filter(v=>v==='P').length
     const pct=workingDays>0?Math.round(present/workingDays*100):0
     return pct<75&&workingDays>0
   })
@@ -1502,7 +1496,7 @@ async function loadAttReport(){
   html+='<div class="card"><h3 style="color:var(--danger)">Below 75% Attendance ('+low.length+')</h3>'
     +(low.length?low.map(s=>{
       const sAtt=attMap[s.enrollment_id]||{}
-      const present=Object.values(sAtt).filter(v=>v==='P'||v==='L').length
+      const present=Object.values(sAtt).filter(v=>v==='P').length
       const pct=workingDays>0?Math.round(present/workingDays*100):0
       return '<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px"><span style="font-family:var(--mono);font-weight:700;min-width:36px">'+esc(s.roll_no||'—')+'</span><span style="font-weight:600;flex:1">'+esc(s.students?.full_name||'?')+'</span><span class="pill pill-danger">'+pct+'%</span></div>'
     }).join(''):'<div style="color:var(--ink-faint);font-size:12.5px">All students above 75%</div>')
@@ -2279,7 +2273,7 @@ async function loadAssessMarks(){
       ;(monthly||[]).forEach(mr=>{(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
     const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
-    ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
+    ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
     // Working days PER STUDENT — a child who joined mid-session is counted from
     // their admission date, not the session start.
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=s.is_new_admission?(s.students?.admission_date||null):null})
