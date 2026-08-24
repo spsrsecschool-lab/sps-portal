@@ -2233,8 +2233,8 @@ async function loadAssessMarks(){
       .eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
     ;(_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
   }catch(e){}
-  const subMax=sid=>_ovMap[sid]?_ovMap[sid].max:_defMax
-  const subPass=sid=>_ovMap[sid]?_ovMap[sid].pass:_defPass
+  const subMax=sid=>{const o=_ovMap[sid]||_ovMap[null];return(o&&o.max!=null)?o.max:_defMax}
+  const subPass=sid=>{const o=_ovMap[sid]||_ovMap[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return _defPass}
 
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   // Get marks for all students in this assessment

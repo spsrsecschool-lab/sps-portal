@@ -2465,8 +2465,8 @@ async function loadAssessMarks(){
   // assessment default when a subject has no override).
   const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
   const ovMap={}; (ovs||[]).forEach(o=>{ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
-  const maxFor=sid=>{const o=ovMap[sid];return (o&&o.max!=null)?o.max:(assess?.max_marks||100)}
-  const passFor=sid=>{const o=ovMap[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return (assess?.pass_marks!=null?assess.pass_marks:Math.round((assess?.max_marks||100)*0.33))}
+  const maxFor=sid=>{const o=ovMap[sid]||ovMap[null];return (o&&o.max!=null)?o.max:(assess?.max_marks||100)}
+  const passFor=sid=>{const o=ovMap[sid]||ovMap[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return (assess?.pass_marks!=null?assess.pass_marks:Math.round((assess?.max_marks||100)*0.33))}
 
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   // Get marks for all students in this assessment
@@ -3398,8 +3398,8 @@ async function loadAssessMarksEditable(){
   // Per-subject max/pass overrides for this assessment + class.
   const{data:_ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
   const _ovMap={}; (_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
-  const maxFor=sid=>{const o=_ovMap[sid];return (o&&o.max!=null)?o.max:maxM}
-  const passFor=sid=>{const o=_ovMap[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
+  const maxFor=sid=>{const o=_ovMap[sid]||_ovMap[null];return (o&&o.max!=null)?o.max:maxM}
+  const passFor=sid=>{const o=_ovMap[sid]||_ovMap[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
   // Subject filter: if a subject is chosen, show only that column
   const selSub=$('mk_subject')?.value
   const cols=selSub?MK_SUBJECTS.filter(s=>s.subject_id===selSub):MK_SUBJECTS
