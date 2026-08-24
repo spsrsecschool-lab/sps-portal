@@ -231,6 +231,7 @@ thead .sticky-col{background:var(--lav-100);z-index:3}
 .cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
 .cell-l{background:#FCF1E0!important;color:#C47A20;font-weight:700;text-align:center;font-size:11px}
 .cell-h{background:#F0F0F0!important;color:#888;font-weight:700;text-align:center;font-size:11px}
+.cell-hd{background:#E3F2FD!important;color:#1565C0;font-weight:700;text-align:center;font-size:11px}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:11px 14px;text-align:left;white-space:nowrap}
 tbody td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap}
@@ -1064,6 +1065,12 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="back-btn" onclick="openCaSub('ca-menu')">&#8592; Back</button>
         <div class="page-head"><div><h2>Student Attendance</h2><p>Individual student attendance report</p></div></div>
         <div class="card" style="margin-bottom:18px">
+          <div style="margin-bottom:14px;position:relative">
+            <label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Search by Name</label>
+            <input id="cas_search" type="text" placeholder="Type student name…" autocomplete="off" oninput="casSearchStudent(this.value)" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box">
+            <div id="cas_suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--line);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 8px 20px rgba(0,0,0,.12)"></div>
+          </div>
+          <div style="font-size:11px;color:var(--ink-faint);margin-bottom:10px;text-align:center">— or filter by class —</div>
           <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
             <div class="fg"><label>Class</label><select id="cas_class" onchange="casLoadSections()"><option value="">Select class</option></select></div>
             <div class="fg"><label>Section</label><select id="cas_section" onchange="casLoadStudents()"><option value="">Select class first</option></select></div>
@@ -5897,6 +5904,27 @@ async function pingAllPending(){
 }
 
 // ── Student Individual Attendance ──
+let _casAllStudents=null
+async function casSearchStudent(q){
+  const box=$('cas_suggestions')
+  if(!q||q.length<2){box.style.display='none';return}
+  if(!_casAllStudents){
+    const{data}=await sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,students(full_name),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no')
+    _casAllStudents=data||[]
+  }
+  const lq=q.toLowerCase()
+  const matches=_casAllStudents.filter(s=>(s.students?.full_name||'').toLowerCase().includes(lq)).slice(0,10)
+  if(!matches.length){box.innerHTML='<div style="padding:10px 14px;color:var(--ink-faint);font-size:12.5px">No students found</div>';box.style.display='block';return}
+  box.innerHTML=matches.map(s=>'<div onclick="casPickSearch(\''+s.enrollment_id+'\')" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background=\'var(--lav-50)\'" onmouseout="this.style.background=\'\'"><span style="font-weight:600">'+esc(s.students?.full_name||'?')+'</span><span style="font-size:11px;color:var(--ink-soft)">'+esc(s.classes?.name||'')+'-'+esc(s.class_sections?.name||'')+' · Roll '+esc(s.roll_no||'—')+'</span></div>').join('')
+  box.style.display='block'
+}
+function casPickSearch(eid){
+  $('cas_suggestions').style.display='none'
+  const s=(_casAllStudents||[]).find(x=>x.enrollment_id===eid)
+  if(s)$('cas_search').value=s.students?.full_name||''
+  $('cas_student').innerHTML='<option value="'+eid+'" selected>'+esc((s?.roll_no?s.roll_no+' — ':'')+(s?.students?.full_name||'?'))+'</option>'
+  loadStudentAttendance()
+}
 async function casLoadSections(){
   const cid=$('cas_class')?.value,sel=$('cas_section'),stu=$('cas_student')
   if(sel)sel.innerHTML='<option value="">Select class first</option>'
@@ -5922,12 +5950,13 @@ async function loadStudentAttendance(){
   const sessStart=SESS?.start_date||''
   const todayStr=_ds(new Date())
 
-  const[{data:enr},{data:hols},{data:cssD},{data:att},{data:monthly}]=await Promise.all([
+  const[{data:enr},{data:hols},{data:cssD},{data:att},{data:monthly},{data:hdRecs}]=await Promise.all([
     sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,is_new_admission,students(full_name,father_name,admission_date),classes(name),class_sections(name)').eq('enrollment_id',eid).single(),
     sb.from('holidays').select('date,label,applies_to').eq('session_id',sid),
     sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
     sb.from('student_attendance').select('date,status').eq('enrollment_id',eid),
-    sb.from('attendance_monthly').select('from_date,to_date,working_days,present_count,absent_count').eq('enrollment_id',eid)
+    sb.from('attendance_monthly').select('from_date,to_date,working_days,present_count,absent_count').eq('enrollment_id',eid),
+    sb.from('student_half_days').select('date').eq('enrollment_id',eid).eq('session_id',sid)
   ])
   if(!enr){emp(el,'Student not found.');return}
   const holMap={}; (hols||[]).filter(h=>(h.applies_to||'both')!=='staff_only').forEach(h=>{holMap[h.date]=h.label})
@@ -5936,6 +5965,7 @@ async function loadStudentAttendance(){
   const effStart=[sessStart,classStart,admDate].filter(Boolean).sort().pop()
 
   const attMap={}; (att||[]).forEach(a=>{attMap[a.date]=a.status})
+  const hdDateSet=new Set(); (hdRecs||[]).forEach(r=>hdDateSet.add(r.date))
   const monthlyMap={}; (monthly||[]).forEach(m=>{monthlyMap[m.from_date+'|'+m.to_date]=m})
 
   // Check which months have class-level monthly records (any classmate in this section)
@@ -6025,11 +6055,12 @@ async function loadStudentAttendance(){
       if(x.isSun){bg='#f0f0f0';clr='#bbb'}
       else if(x.isHol){bg='#FFF3E0';clr='#E65100'}
       else if(x.beforeStart){bg='#f5f5f5';clr='#ccc'}
+      else if(x.status==='P'&&hdDateSet.has(x.ds)){bg='#E3F2FD';clr='#1565C0';lbl='½'}
       else if(x.status==='P'){bg='#E8F5E9';clr='#2E7D32'}
       else if(x.status==='A'){bg='#FFEBEE';clr='#C62828'}
       else if(x.status==='L'||x.status==='HD'){bg='#FFF8E1';clr='#F57F17'}
       else{bg='#FFCDD2';clr='#B71C1C'}
-      const title=x.isSun?'Sunday':x.isHol?x.holLabel:x.beforeStart?'Before start':x.status?x.status:'Missing'
+      const title=x.isSun?'Sunday':x.isHol?x.holLabel:x.beforeStart?'Before start':hdDateSet.has(x.ds)?'Half Day':x.status?x.status:'Missing'
       body+='<div title="'+esc(x.ds+' — '+title)+'" style="width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:'+bg+';color:'+clr+'">'+lbl+'</div>'
     })
     body+='</div></div>'
@@ -6079,12 +6110,14 @@ async function loadClassAttendance(){
   const monthStr=String(month).padStart(2,'0')
   const from=year+'-'+monthStr+'-01', to=year+'-'+monthStr+'-'+String(daysInMonth).padStart(2,'0')
 
-  const[{data:att},{data:hols},{data:monthly}]=await Promise.all([
+  const[{data:att},{data:hols},{data:monthly},{data:hdRecs}]=await Promise.all([
     sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',from).lte('date',to),
     sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to),
-    sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to)
+    sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to),
+    sb.from('student_half_days').select('enrollment_id,date').in('enrollment_id',eids).gte('date',from).lte('date',to).eq('session_id',SESS?.session_id||'')
   ])
   const attMap={}; (att||[]).forEach(a=>{if(!attMap[a.enrollment_id])attMap[a.enrollment_id]={};attMap[a.enrollment_id][a.date]=a.status})
+  const hdSet=new Set(); (hdRecs||[]).forEach(r=>hdSet.add(r.enrollment_id+'|'+r.date))
   const holSet=new Set((hols||[]).map(h=>h.date))
 
   const days=[]
@@ -6149,7 +6182,9 @@ async function loadClassAttendance(){
       if(d.isSun){html+='<td class="cell-h" style="font-size:10px">—</td>';return}
       if(d.isHol){html+='<td class="cell-h" style="font-size:10px">H</td>';return}
       const st=attMap[s.enrollment_id]?.[d.dateStr]||''
-      if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
+      const isHD=hdSet.has(s.enrollment_id+'|'+d.dateStr)
+      if(isHD&&st==='P'){pCount++;html+='<td class="cell-hd">½</td>'}
+      else if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
       else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
       else if(st==='L'){lCount++;pCount++;html+='<td class="cell-l">L</td>'}
       else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
