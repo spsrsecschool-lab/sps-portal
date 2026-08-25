@@ -853,7 +853,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="form-row" style="margin-bottom:0">
             <div class="fg"><label>Class</label><select id="rl_class" onchange="rlLoadSections()"><option value="">Select class</option></select></div>
             <div class="fg"><label>Section</label><select id="rl_section"><option value="">All sections</option></select></div>
-            <div class="fg"><label>Search</label><input id="rl_search" placeholder="Name or father" oninput="renderRelieveActive()"></div>
+            <div class="fg"><label>Search</label><input id="rl_search" placeholder="Name, father, student ID, S.No" oninput="renderRelieveActive()"></div>
             <button class="btn btn-soft" style="align-self:flex-end" onclick="loadRelieveActive()">Load</button>
           </div>
         </div>
@@ -4886,7 +4886,7 @@ async function loadReadmission(){
     (ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   const el=$('readmissionList');ldg(el)
   const{data,error}=await sb.from('student_enrollments')
-    .select('enrollment_id,class_id,s_no,readmission_date,students!inner(full_name,father_name,family_code),classes(name),class_sections(name)')
+    .select('enrollment_id,class_id,s_no,readmission_date,students!inner(student_id,full_name,father_name,family_code),classes(name),class_sections(name)')
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
   if(error){emp(el,'Error: '+error.message);return}
   // De-duplicate by enrollment_id: an embedded join can occasionally return the
@@ -4895,6 +4895,7 @@ async function loadReadmission(){
   const seen=new Set()
   _readmStudents=(data||[]).filter(e=>{if(seen.has(e.enrollment_id))return false;seen.add(e.enrollment_id);return true}).map(e=>({
     enrollment_id:e.enrollment_id, class_id:e.class_id,
+    studentId:e.students?.student_id||'',
     name:e.students?.full_name||'?', father:e.students?.father_name||'',
     familyCode:e.students?.family_code||'', sno:e.s_no,
     readmissionDate:e.readmission_date,
@@ -4911,7 +4912,7 @@ function readmissionFiltered(){
   if(cls)list=list.filter(s=>s.class_id===cls)
   if(filt==='pending')list=list.filter(s=>s.sno==null||s.sno==='')
   if(filt==='done')list=list.filter(s=>s.sno!=null&&s.sno!=='')
-  if(q)list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.father||'').toLowerCase().includes(q)||(s.familyCode||'').toLowerCase().includes(q)||String(s.sno||'').includes(q))
+  if(q)list=list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.father||'').toLowerCase().includes(q)||(s.familyCode||'').toLowerCase().includes(q)||String(s.sno||'').includes(q)||(s.studentId||'').toLowerCase().includes(q))
   return list.sort((a,b)=>clsIdx(a.clsName)-clsIdx(b.clsName)||String(a.name).localeCompare(String(b.name)))
 }
 function clsIdx(name){const i=(ALL_CLASSES||[]).findIndex(c=>c.name===name);return i<0?999:i}
@@ -4922,10 +4923,11 @@ function renderReadmission(){
   if(!list.length){container.innerHTML='<div class="card"><div class="empty">'+(filt==='pending'?'🎉 No students are awaiting re-admission.':'No students match these filters.')+'</div></div>';action.style.display='none';return}
   const pendingCount=_readmStudents.filter(s=>s.sno==null||s.sno==='').length
   container.innerHTML='<div class="card"><h3>'+list.length+' student'+(list.length!==1?'s':'')+' shown · '+pendingCount+' awaiting re-admission</h3>'
-    +'<div class="table-wrap"><table><thead><tr><th style="width:36px">✓</th><th>Status</th><th>Name</th><th>Father\'s Name</th><th>Class</th><th>Family</th><th>New S.No *</th></tr></thead><tbody id="readmTbody">'
+    +'<div class="table-wrap"><table><thead><tr><th style="width:36px">✓</th><th>Status</th><th>Student ID</th><th>Name</th><th>Father\'s Name</th><th>Class</th><th>Family</th><th>New S.No *</th></tr></thead><tbody id="readmTbody">'
     +list.map(s=>{const done=s.sno!=null&&s.sno!=='';return '<tr data-eid="'+s.enrollment_id+'">'
       +'<td><input type="checkbox" class="readm-check" data-eid="'+s.enrollment_id+'" style="width:16px;height:16px"></td>'
       +'<td>'+(done?'<span class="pill pill-success">Re-admitted</span>':'<span class="pill pill-warn">Pending</span>')+'</td>'
+      +'<td class="mono" style="font-size:11px;color:var(--ink-soft)">'+esc(s.studentId||'—')+'</td>'
       +'<td><b>'+esc(s.name)+'</b></td><td>'+esc(s.father||'—')+'</td>'
       +'<td><span class="pill pill-indigo">'+esc(s.cls)+'</span></td>'
       +'<td class="mono" style="color:var(--ink-faint)">'+esc(s.familyCode||'—')+'</td>'
@@ -4994,11 +4996,12 @@ function renderRelieveActive(){
   const wrap=$('rl_activeWrap')
   const term=($('rl_search')?.value||'').toLowerCase()
   let list=_relieveActive
-  if(term)list=list.filter(e=>(e.students?.full_name||'').toLowerCase().includes(term)||(e.students?.father_name||'').toLowerCase().includes(term))
+  if(term)list=list.filter(e=>(e.students?.full_name||'').toLowerCase().includes(term)||(e.students?.father_name||'').toLowerCase().includes(term)||(e.students?.student_id||'').toLowerCase().includes(term)||String(e.s_no||'').toLowerCase().includes(term))
   if(!list.length){wrap.innerHTML='<div class="card"><div style="padding:16px;color:var(--ink-soft);font-size:13px">No active students'+(term?' match your search':' loaded')+'.</div></div>';return}
-  wrap.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student</th><th>Father</th><th>Class</th><th>S.No</th><th></th></tr></thead><tbody>'+
+  wrap.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student ID</th><th>Student</th><th>Father</th><th>Class</th><th>S.No</th><th></th></tr></thead><tbody>'+
     list.map(e=>'<tr>'+
       '<td class="mono">'+(e.roll_no||'—')+'</td>'+
+      '<td class="mono" style="font-size:11px;color:var(--ink-soft)">'+esc(e.students?.student_id||'—')+'</td>'+
       '<td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td>'+
       '<td>'+esc(e.students?.father_name||'—')+'</td>'+
       '<td>'+esc(e.classes?.name||'?')+'-'+esc(e.class_sections?.name||'?')+'</td>'+
