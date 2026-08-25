@@ -851,10 +851,9 @@ tbody tr:hover td{background:var(--lav-50)}
       <div id="reltab-active">
         <div class="card" style="margin-bottom:16px">
           <div class="form-row" style="margin-bottom:0">
-            <div class="fg"><label>Class</label><select id="rl_class" onchange="rlLoadSections()"><option value="">Select class</option></select></div>
-            <div class="fg"><label>Section</label><select id="rl_section"><option value="">All sections</option></select></div>
+            <div class="fg"><label>Class</label><select id="rl_class" onchange="rlLoadSections();loadRelieveActive()"><option value="">All classes</option></select></div>
+            <div class="fg"><label>Section</label><select id="rl_section" onchange="loadRelieveActive()"><option value="">All sections</option></select></div>
             <div class="fg"><label>Search</label><input id="rl_search" placeholder="Name, father, student ID, S.No" oninput="renderRelieveActive()"></div>
-            <button class="btn btn-soft" style="align-self:flex-end" onclick="loadRelieveActive()">Load</button>
           </div>
         </div>
         <div id="rl_activeWrap"></div>
@@ -4865,8 +4864,9 @@ async function loadMarksTable(){
 let _relieveActive=[]   // current active-list rows loaded for relieving
 
 function loadRelievingShell(){
-  $('rl_class').innerHTML='<option value="">Select class</option>'+
+  $('rl_class').innerHTML='<option value="">All classes</option>'+
     (ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  loadRelieveActive()
   loadRelievedList()
 }
 
@@ -4981,11 +4981,12 @@ async function rlLoadSections(){
 
 async function loadRelieveActive(){
   const cid=$('rl_class').value
-  if(!cid){toast('Select a class first','error');return}
   const secId=$('rl_section').value
+  ldg($('rl_activeWrap'))
   let q=sb.from('student_enrollments')
     .select('enrollment_id,roll_no,s_no,class_id,section_id,students(student_id,full_name,father_name),classes(name),class_sections(name)')
-    .eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+    .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  if(cid)q=q.eq('class_id',cid)
   if(secId)q=q.eq('section_id',secId)
   const{data}=await q.order('roll_no',{nullsFirst:true})
   _relieveActive=data||[]
