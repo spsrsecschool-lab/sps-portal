@@ -513,7 +513,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-marks-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
 
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
-  .qp-preview{max-width:210mm;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:0.2in;font-family:'Times New Roman',Times,serif;font-size:11pt;color:#000;line-height:1.6}
+  .qp-preview{max-width:210mm;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:0.2in;font-family:'Times New Roman',Times,serif;font-size:11pt;color:#000;line-height:1.35}
   .qp-preview *{color:#000}
   .qp-preview[data-lang="hindi"],.qp-preview[data-lang="sanskrit"]{font-family:'Nirmala UI','Mangal',sans-serif;font-size:11pt}
   .qp-preview-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;border-bottom:2px solid #000;padding-bottom:8px}
@@ -525,10 +525,10 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-attempt-note{font-style:italic;font-weight:700;margin:2px 0 6px 28px;font-size:10pt}
   .qp-section-title{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;margin:18px 0 10px;text-decoration:underline}
   .qp-q{margin-bottom:14px}
-  .qp-q-head{display:flex;justify-content:space-between;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:4px}
+  .qp-q-head{display:flex;justify-content:space-between;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:2px}
   .qp-q-head .qmarks{color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
   .qp-q-heading{font-weight:700;font-size:11pt;margin-bottom:4px}
-  .qp-sp{margin:4px 0 4px 28px;font-size:11pt}
+  .qp-sp{margin:1px 0 1px 28px;font-size:11pt}
   .qp-sp-head{display:flex;justify-content:space-between;align-items:flex-start}
   .qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap}
   .qp-opt{margin:2px 0 2px 48px;font-size:11pt}
@@ -545,7 +545,8 @@ tbody tr:hover td{background:var(--lav-50)}
     .page{display:none!important}
     #page-questionpapers{display:block!important}
     #page-questionpapers .sub-page{display:none!important}
-    #sub-qp-preview{display:block!important}
+    #page-questionpapers #sub-qp-preview{display:block!important}
+    .content{padding:0!important}
     .qp-preview{border:none;padding:0;max-width:100%;box-shadow:none}
     @page{size:A4;margin:0.2in}
   }
@@ -10418,7 +10419,7 @@ async function previewQP(){
     }
 
     let qh='<div class="qp-q">'
-    qh+='<div class="qp-q-head"><span><b>'+ll.qPrefix+' '+qNum+'.</b>'+(q.heading?' &nbsp; <b>'+esc(q.heading)+'</b>':'')+'</span>'
+    qh+='<div class="qp-q-head"><span><b>'+ll.qPrefix+qNum+'.</b>'+(q.heading?' &nbsp; <b>'+esc(q.heading)+'</b>':'')+'</span>'
     if(marksStr)qh+='<span class="qmarks"><b>'+marksStr+'</b></span>'
     qh+='</div>'
 
