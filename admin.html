@@ -510,6 +510,11 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-match-builder td input{width:100%;font-size:12px;padding:5px 9px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);font-family:var(--font)}
   .qp-img-thumb{max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--line);margin-top:4px;cursor:pointer}
   .qp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .qp-fab{position:fixed;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;z-index:80;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);padding:10px 8px;box-shadow:var(--shadow)}
+  .qp-fab button{width:38px;height:38px;border-radius:var(--radius-sm);border:1.5px solid var(--line);background:var(--white);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .qp-fab button:hover{background:var(--indigo-50);border-color:var(--indigo);color:var(--indigo)}
+  .qp-fab .fab-tip{font-size:8px;text-align:center;color:var(--ink-faint);line-height:1;margin-bottom:4px}
+  @media(max-width:700px){.qp-fab{display:none}}
   .qp-marks-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
 
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
@@ -517,22 +522,23 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-preview *{color:#000}
   .qp-preview[data-lang="hindi"],.qp-preview[data-lang="sanskrit"]{font-family:'Nirmala UI','Mangal',sans-serif;font-size:11pt}
   .qp-preview-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;border-bottom:2px solid #000;padding-bottom:8px}
-  .qp-preview-header .col-left,.qp-preview-header .col-right{font-size:11pt;font-weight:700}
-  .qp-preview-header .col-center{text-align:center;font-size:12pt;font-weight:700}
+  .qp-preview-header .col-left{flex:0 0 28%;font-size:11pt;font-weight:700;word-wrap:break-word;overflow-wrap:break-word}
+  .qp-preview-header .col-right{flex:0 0 20%;font-size:11pt;font-weight:700;text-align:right}
+  .qp-preview-header .col-center{flex:1;text-align:center;font-size:12pt;font-weight:700}
   .qp-preview-header .col-center .school{font-size:14pt;font-weight:900;text-transform:uppercase}
   .qp-preview-header .col-center .assess{font-size:11pt;font-weight:700;margin-top:2px}
   .qp-general-instructions{font-style:italic;font-size:10pt;margin-bottom:10px;padding:4px 0;border-bottom:1px solid #ccc}
   .qp-attempt-note{font-style:italic;font-weight:700;margin:2px 0 6px 28px;font-size:10pt}
   .qp-section-title{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;margin:18px 0 10px;text-decoration:underline}
   .qp-q{margin-bottom:14px}
-  .qp-q-head{display:flex;justify-content:space-between;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:2px}
+  .qp-q-head{display:flex;justify-content:space-between;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:1px}
   .qp-q-head .qmarks{color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
   .qp-q-heading{font-weight:700;font-size:11pt;margin-bottom:4px}
-  .qp-sp{margin:1px 0 1px 28px;font-size:11pt}
+  .qp-sp{margin:0 0 0 28px;font-size:11pt}
   .qp-sp-head{display:flex;justify-content:space-between;align-items:flex-start}
   .qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap}
-  .qp-opt{margin:2px 0 2px 48px;font-size:11pt}
-  .qp-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:2px 0 2px 48px;font-size:11pt}
+  .qp-opt{margin:0 0 0 48px;font-size:11pt}
+  .qp-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 48px;font-size:11pt}
   .qp-match-tbl{margin:6px 0 6px 28px;border-collapse:collapse;font-size:11pt;width:calc(100% - 28px)}
   .qp-match-tbl td,.qp-match-tbl th{border:1px solid #000;padding:4px 10px;font-weight:400}
   .qp-match-tbl th{font-weight:700}
@@ -540,7 +546,7 @@ tbody tr:hover td{background:var(--lav-50)}
 
   @media print{
     body>*:not(#main){display:none!important}
-    #sidebar,.topbar,.back-btn,#qpPreviewToolbar,.qp-tracker{display:none!important}
+    #sidebar,.topbar,.back-btn,#qpPreviewToolbar,.qp-tracker,.qp-fab{display:none!important}
     #main{margin:0!important;padding:0!important}
     .page{display:none!important}
     #page-questionpapers{display:block!important}
@@ -9724,6 +9730,7 @@ async function loadQPList(){
 }
 
 function qpBackToList(){
+  const fab=$('qpFab');if(fab)fab.style.display='none'
   openSub('questionpapers','sub-qp-list')
   loadQPList()
 }
@@ -9820,9 +9827,7 @@ function renderQPBuilder(){
   const questions=ct.questions.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
   const unsectioned=questions.filter(q=>!q.section_id)
 
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px"><h3 style="margin:0;font-size:12px;text-transform:uppercase;color:var(--ink-soft)">Sections &amp; Questions</h3>'
-  h+='<div style="display:flex;gap:6px"><button class="btn btn-soft btn-sm" onclick="addQPSection()">+ Section</button>'
-  h+='<button class="btn btn-dark btn-sm" onclick="addQPQuestion(null)">+ Question</button></div></div>'
+  h+='<div style="margin:16px 0 10px"><h3 style="margin:0;font-size:12px;text-transform:uppercase;color:var(--ink-soft)">Sections &amp; Questions</h3></div>'
 
   // Unsectioned questions
   if(unsectioned.length||!sections.length){
@@ -9857,6 +9862,11 @@ function renderQPBuilder(){
   $('qpBuilderContent').querySelectorAll('textarea,input[type="text"],input:not([type])').forEach(el=>{
     el.addEventListener('focus',()=>{_qpActiveTextarea=el})
   })
+  // Floating toolbar
+  let fab=$('qpFab')
+  if(!fab){fab=document.createElement('div');fab.id='qpFab';fab.className='qp-fab';document.body.appendChild(fab)}
+  fab.innerHTML='<button onclick="addQPQuestion(null)" title="Add Question"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button><div class="fab-tip">Question</div><button onclick="addQPSection()" title="Add Section"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg></button><div class="fab-tip">Section</div>'
+  fab.style.display='flex'
 }
 
 function renderQPQuestionCard(q,allQs){
@@ -10145,7 +10155,7 @@ function qpChangeType(qid,type){
   if(!q.heading||_qpIsDefaultHeading(q.heading)){
     q.heading=(QP_DEFAULT_HEADINGS[lang]||QP_DEFAULT_HEADINGS.english)[type]||''
   }
-  if(type==='mcq'){const ol=_qpL('optLabels');q.subparts.forEach(sp=>{if(!sp.options||!sp.options.length)sp.options=ol.map(l=>({label:l,text:''}))})}
+  if(type==='mcq'){const ol=_qpL('optLabels');if(!q.subparts.length)q.subparts.push({id:'sp_'+Date.now(),label:'(i)',text:'',marks:'',options:ol.map(l=>({label:l,text:''}))});q.subparts.forEach(sp=>{if(!sp.options||!sp.options.length)sp.options=ol.map(l=>({label:l,text:''}))})}
   if(type==='match'&&!q.match_pairs)q.match_pairs=[{col_a:'',col_b:''}]
   renderQPBuilder()
 }
@@ -10370,6 +10380,7 @@ async function deleteQP(paperId){
 
 // ── Preview ──
 async function previewQP(){
+  const fab=$('qpFab');if(fab)fab.style.display='none'
   qpSyncFromForm()
   openSub('questionpapers','sub-qp-preview')
   await loadKaTeX()
@@ -10437,7 +10448,7 @@ async function previewQP(){
     // Match table at question level
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
       qh+='<table class="qp-match-tbl"><thead><tr><th>'+ll.colA+'</th><th>'+ll.colB+'</th></tr></thead><tbody>'
-      q.match_pairs.forEach(p=>{qh+='<tr><td class="qp-math-render">'+esc(p.col_a||'')+'</td><td class="qp-math-render">'+esc(p.col_b||'')+'</td></tr>'})
+      q.match_pairs.forEach((p,pi)=>{qh+='<tr><td class="qp-math-render">('+toRoman(pi+1)+') '+esc(p.col_a||'')+'</td><td class="qp-math-render">'+(ll.optLabels[pi]||'('+(String.fromCharCode(97+pi))+')')+' '+esc(p.col_b||'')+'</td></tr>'})
       qh+='</tbody></table>'
     }
 
