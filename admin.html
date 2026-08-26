@@ -498,9 +498,9 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-toolbar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px}
   .qp-toolbar button{font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:4px;background:var(--lav-50);cursor:pointer;font-family:var(--mono);color:var(--ink)}
   .qp-toolbar button:hover{background:var(--indigo-100);border-color:var(--indigo)}
-  .qp-toolbar-fixed{position:sticky;top:0;z-index:11;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:8px 12px;margin-bottom:12px}
-  .qp-toolbar-fixed .qp-toolbar{margin:0}
-  .qp-toolbar-fixed .qp-toolbar-label{font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:4px}
+  .qp-math-panel{background:var(--lav-50);border:1.5px solid var(--indigo-100);border-radius:var(--radius-sm);padding:8px 10px;margin:6px 0;display:none}
+  .qp-math-panel.open{display:block}
+  .qp-math-panel .qp-toolbar{margin:0}
   .qp-mcq-options{border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px;margin:4px 0 4px 52px;background:var(--lav-50)}
   .qp-mcq-options .qp-option-row{margin:3px 0}
   .qp-match-builder{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0}
@@ -9799,7 +9799,7 @@ function renderQPBuilder(){
   h+='</div>'
   h+='<div class="form-row"><div class="fg" style="flex:1"><label>General Instructions</label>'
   h+='<textarea id="qp_instructions" rows="2" style="width:100%;font-size:12px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font);resize:vertical" onchange="_qpCurrent.content.general_instructions=this.value">'+esc(ct.general_instructions||'')+'</textarea>'
-  h+='<button class="btn btn-ghost btn-xs" style="margin-top:4px" onclick="qpSaveDefaultInstructions()">Save as Default</button>'
+  h+='<button class="btn btn-ghost btn-xs" style="margin-top:4px" onclick="qpSaveDefaultInstructions()">Set Default</button>'
   h+='</div></div>'
   h+='</div>'
 
@@ -9813,9 +9813,6 @@ function renderQPBuilder(){
   if(totalMarks===maxM)h+='<span style="color:#22c55e;font-size:18px">&#10003;</span>'
   else if(totalMarks>maxM)h+='<span style="color:#ef4444;font-size:12px">OVER</span>'
   h+='</div>'
-
-  // Sticky math toolbar
-  h+=qpFixedToolbarHTML()
 
   // Sections + Questions
   const sections=ct.sections.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
@@ -9897,6 +9894,10 @@ function renderQPQuestionCard(q,allQs){
   // Heading
   h+='<div style="margin-bottom:6px"><input data-field="qheading-'+q.id+'" value="'+esc(q.heading||'')+'" placeholder="Heading (e.g. Answer the following questions:)" style="width:100%;font-size:12px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font)" onchange="qpSetField(\''+q.id+'\',\'heading\',this.value)"></div>'
 
+  // Math toolbar toggle
+  h+='<button class="btn btn-ghost btn-xs" onclick="qpToggleMathPanel(\''+q.id+'\')" style="margin-bottom:4px;font-family:var(--mono)">fx Math</button>'
+  h+=qpInlineMathPanelHTML(q.id)
+
   // Question text
   if(!isMatch&&(!sps.length||q.text)){
     h+='<textarea data-field="qtxt-'+q.id+'" placeholder="Question text (use $...$ for math)" style="width:100%;min-height:50px;font-size:12px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font);resize:vertical;margin-bottom:6px" onchange="qpSetField(\''+q.id+'\',\'text\',this.value)">'+esc(q.text||'')+'</textarea>'
@@ -9971,15 +9972,21 @@ function renderQPQuestionCard(q,allQs){
 
 function toRoman(n){return ['i','ii','iii','iv','v','vi','vii','viii','ix','x','xi','xii','xiii','xiv','xv','xvi','xvii','xviii','xix','xx'][n-1]||String(n)}
 
-function qpFixedToolbarHTML(){
-  const btns=[
-    ['\\frac{}{}','a/b'],['x^{}','x^n'],['x_{}','x_n'],['\\sqrt{}','√'],
-    ['\\pi','π'],['\\theta','θ'],['\\alpha','α'],['\\beta','β'],
-    ['\\in','∈'],['\\cup','∪'],['\\cap','∩'],['\\subset','⊂'],
-    ['\\leq','≤'],['\\geq','≥'],['\\neq','≠'],['\\times','×'],
-    ['\\infty','∞'],['\\pm','±'],['\\rightarrow','→'],['\\overline{}','x̄']
-  ]
-  return '<div class="qp-toolbar-fixed"><div class="qp-toolbar-label">Math Symbols (click a text field first, then insert)</div><div class="qp-toolbar">'+btns.map(b=>'<button type="button" onclick="qpInsertMathActive(\''+b[0]+'\');event.preventDefault()" title="'+b[0]+'">'+b[1]+'</button>').join('')+'</div></div>'
+const _qpMathBtns=[
+  ['\\frac{}{}','a/b'],['x^{}','x^n'],['x_{}','x_n'],['\\sqrt{}','√'],
+  ['\\pi','π'],['\\theta','θ'],['\\alpha','α'],['\\beta','β'],
+  ['\\in','∈'],['\\cup','∪'],['\\cap','∩'],['\\subset','⊂'],
+  ['\\leq','≤'],['\\geq','≥'],['\\neq','≠'],['\\times','×'],
+  ['\\infty','∞'],['\\pm','±'],['\\rightarrow','→'],['\\overline{}','x̄']
+]
+
+function qpInlineMathPanelHTML(qid){
+  return '<div class="qp-math-panel" id="qpMathPanel-'+qid+'"><div class="qp-toolbar">'+_qpMathBtns.map(b=>'<button type="button" onclick="qpInsertMathActive(\''+b[0]+'\');event.preventDefault()" title="'+b[0]+'">'+b[1]+'</button>').join('')+'</div></div>'
+}
+
+function qpToggleMathPanel(qid){
+  const panel=document.getElementById('qpMathPanel-'+qid)
+  if(panel)panel.classList.toggle('open')
 }
 
 function qpInsertMathActive(tex){
