@@ -540,7 +540,7 @@ tbody tr:hover td{background:var(--lav-50)}
 
   @media print{
     body>*:not(#main){display:none!important}
-    #sidebar,#topbar,.back-btn,#qpPreviewToolbar,.qp-tracker{display:none!important}
+    #sidebar,.topbar,.back-btn,#qpPreviewToolbar,.qp-tracker{display:none!important}
     #main{margin:0!important;padding:0!important}
     .page{display:none!important}
     #page-questionpapers{display:block!important}
@@ -9800,7 +9800,7 @@ function renderQPBuilder(){
   h+='</div>'
   h+='<div class="form-row"><div class="fg" style="flex:1"><label>General Instructions</label>'
   h+='<textarea id="qp_instructions" rows="2" style="width:100%;font-size:12px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font);resize:vertical" onchange="_qpCurrent.content.general_instructions=this.value">'+esc(ct.general_instructions||'')+'</textarea>'
-  h+='<button class="btn btn-ghost btn-xs" style="margin-top:4px" onclick="qpSaveDefaultInstructions()">Set Default</button>'
+  h+='<button class="btn btn-ghost btn-xs" style="margin-top:4px;width:fit-content" onclick="qpSaveDefaultInstructions()">Set Default</button>'
   h+='</div></div>'
   h+='</div>'
 
