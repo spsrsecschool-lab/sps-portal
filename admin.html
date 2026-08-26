@@ -9647,6 +9647,12 @@ const QP_DEFAULT_INSTRUCTIONS={
   hindi:'सभी प्रश्न अनिवार्य हैं। प्रत्येक प्रश्न के अंक उनके सामने अंकित हैं।',
   sanskrit:'सभी प्रश्न अनिवार्य हैं। प्रत्येक प्रश्न के अंक उनके सामने अंकित हैं।'
 }
+const QP_LABELS={
+  english:{qPrefix:'Q',classLabel:'CLASS',subjectLabel:'SUBJECT',mmLabel:'M.M.',timeLabel:'TIME',hrUnit:'hr.',minUnit:'min.',colA:'Column A',colB:'Column B',optLabels:['(a)','(b)','(c)','(d)']},
+  hindi:{qPrefix:'प्र०',classLabel:'कक्षा',subjectLabel:'विषय',mmLabel:'पू.अं.',timeLabel:'समय',hrUnit:'घंटा',minUnit:'मिनट',colA:'स्तम्भ अ',colB:'स्तम्भ ब',optLabels:['(क)','(ख)','(ग)','(घ)']},
+  sanskrit:{qPrefix:'प्र०',classLabel:'कक्षा',subjectLabel:'विषय',mmLabel:'पू.अं.',timeLabel:'समय',hrUnit:'घंटा',minUnit:'मिनट',colA:'स्तम्भ अ',colB:'स्तम्भ ब',optLabels:['(क)','(ख)','(ग)','(घ)']}
+}
+function _qpL(key){return (QP_LABELS[(_qpCurrent?.language)||'english']||QP_LABELS.english)[key]}
 
 function _qpId(){return 'qp_'+crypto.randomUUID().slice(0,8)}
 
@@ -9935,9 +9941,9 @@ function renderQPQuestionCard(q,allQs){
       // MCQ options
       if(isMCQ){
         const opts=sp.options||[]
-        const optLabels=['(a)','(b)','(c)','(d)']
+        const oLabels=_qpL('optLabels')
         h+='<div class="qp-mcq-options">'
-        optLabels.forEach((ol,oi)=>{
+        oLabels.forEach((ol,oi)=>{
           h+='<div class="qp-option-row"><span>'+ol+'</span>'
           h+='<input data-field="opt-'+sp.id+'-'+oi+'" value="'+esc((opts[oi]||{}).text||'')+'" placeholder="Option '+ol+'" onchange="qpSetOption(\''+q.id+'\',\''+sp.id+'\','+oi+',this.value)">'
           h+='</div>'
@@ -10131,7 +10137,7 @@ function qpChangeType(qid,type){
   if(!q.heading||_qpIsDefaultHeading(q.heading)){
     q.heading=(QP_DEFAULT_HEADINGS[lang]||QP_DEFAULT_HEADINGS.english)[type]||''
   }
-  if(type==='mcq')q.subparts.forEach(sp=>{if(!sp.options||!sp.options.length)sp.options=[{label:'(a)',text:''},{label:'(b)',text:''},{label:'(c)',text:''},{label:'(d)',text:''}]})
+  if(type==='mcq'){const ol=_qpL('optLabels');q.subparts.forEach(sp=>{if(!sp.options||!sp.options.length)sp.options=ol.map(l=>({label:l,text:''}))})}
   if(type==='match'&&!q.match_pairs)q.match_pairs=[{col_a:'',col_b:''}]
   renderQPBuilder()
 }
@@ -10142,7 +10148,8 @@ function qpSetOption(qid,spid,idx,val){
   const sp=q.subparts.find(s=>s.id===spid)
   if(!sp)return
   if(!sp.options)sp.options=[]
-  while(sp.options.length<=idx)sp.options.push({label:'('+String.fromCharCode(97+sp.options.length)+')',text:''})
+  const ol=_qpL('optLabels')
+  while(sp.options.length<=idx)sp.options.push({label:ol[sp.options.length]||'('+(sp.options.length+1)+')',text:''})
   sp.options[idx].text=val
 }
 
@@ -10365,7 +10372,8 @@ async function previewQP(){
   const assessName=c.assessment_id?(_qpAssessments.find(x=>x.assessment_id===c.assessment_id)||{}).name||'':'UNIT TEST'
   const sessLabel=SESS?.session_id||''
   const schoolName=ct.school_name||'SHIV PUBLIC SCHOOL'
-  const timeStr=c.time_minutes>=60?(c.time_minutes/60)+' hr.':(c.time_minutes+' min.')
+  const ll=QP_LABELS[lang]||QP_LABELS.english
+  const timeStr=c.time_minutes>=60?(c.time_minutes/60)+' '+ll.hrUnit:(c.time_minutes+' '+ll.minUnit)
 
   const previewEl=$('qpPreviewContent')
   previewEl.setAttribute('data-lang',lang)
@@ -10373,9 +10381,9 @@ async function previewQP(){
   let h=''
   // Header
   h+='<div class="qp-preview-header">'
-  h+='<div class="col-left">CLASS – '+esc(className).toUpperCase()+'<br>SUBJECT – '+esc(subjName).toUpperCase()+'</div>'
+  h+='<div class="col-left">'+ll.classLabel+' – '+esc(className).toUpperCase()+'<br>'+ll.subjectLabel+' – '+esc(subjName).toUpperCase()+'</div>'
   h+='<div class="col-center"><div class="school">'+esc(schoolName)+'</div><div class="assess">'+esc(assessName).toUpperCase()+(sessLabel?' ('+esc(sessLabel)+')':'')+'</div></div>'
-  h+='<div class="col-right">M.M. '+c.max_marks+'<br>TIME- '+timeStr+'</div>'
+  h+='<div class="col-right">'+ll.mmLabel+' '+c.max_marks+'<br>'+ll.timeLabel+'- '+timeStr+'</div>'
   h+='</div>'
 
   // General instructions
@@ -10403,7 +10411,7 @@ async function previewQP(){
     }
 
     let qh='<div class="qp-q">'
-    qh+='<div class="qp-q-head"><span><b>Q'+qNum+'.</b>'+(q.heading?' &nbsp; <b>'+esc(q.heading)+'</b>':'')+'</span>'
+    qh+='<div class="qp-q-head"><span><b>'+ll.qPrefix+' '+qNum+'.</b>'+(q.heading?' &nbsp; <b>'+esc(q.heading)+'</b>':'')+'</span>'
     if(marksStr)qh+='<span class="qmarks"><b>'+marksStr+'</b></span>'
     qh+='</div>'
 
@@ -10420,7 +10428,7 @@ async function previewQP(){
 
     // Match table at question level
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
-      qh+='<table class="qp-match-tbl"><thead><tr><th>Column A</th><th>Column B</th></tr></thead><tbody>'
+      qh+='<table class="qp-match-tbl"><thead><tr><th>'+ll.colA+'</th><th>'+ll.colB+'</th></tr></thead><tbody>'
       q.match_pairs.forEach(p=>{qh+='<tr><td class="qp-math-render">'+esc(p.col_a||'')+'</td><td class="qp-math-render">'+esc(p.col_b||'')+'</td></tr>'})
       qh+='</tbody></table>'
     }
@@ -10439,11 +10447,12 @@ async function previewQP(){
 
         // MCQ options
         if(q.type==='mcq'&&sp.options&&sp.options.length){
+          const oLabels=ll.optLabels
           const short=sp.options.every(o=>(o.text||'').length<30)
           if(short){
-            qh+='<div class="qp-opt-inline">'+sp.options.map(o=>'<span>'+o.label+' '+esc(o.text||'')+'</span>').join('')+'</div>'
+            qh+='<div class="qp-opt-inline">'+sp.options.map((o,oi)=>'<span>'+(oLabels[oi]||o.label)+' '+esc(o.text||'')+'</span>').join('')+'</div>'
           }else{
-            sp.options.forEach(o=>{qh+='<div class="qp-opt">'+o.label+' '+esc(o.text||'')+'</div>'})
+            sp.options.forEach((o,oi)=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' '+esc(o.text||'')+'</div>'})
           }
         }
         qh+='</div>'
