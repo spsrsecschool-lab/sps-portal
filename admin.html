@@ -509,8 +509,9 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-match-builder td{padding:4px 4px}
   .qp-match-builder td input{width:100%;font-size:12px;padding:5px 9px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);font-family:var(--font)}
   .qp-img-thumb{max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--line);margin-top:4px;cursor:pointer}
-  #qpBuilderContent{max-width:860px}
-  .qp-side{position:fixed;right:20px;top:50%;transform:translateY(-50%);width:150px;z-index:80;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius-md);padding:14px 12px;box-shadow:var(--shadow);display:none;flex-direction:column;gap:10px}
+  .qp-builder-wrap{display:flex;justify-content:center;gap:16px;align-items:flex-start}
+  #qpBuilderContent{max-width:860px;flex:1;min-width:0}
+  .qp-side{position:sticky;top:80px;width:140px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius-md);padding:14px 12px;box-shadow:var(--shadow);align-self:flex-start}
   .qp-side .qp-side-tracker{font-size:11px;font-weight:700}
   .qp-side .qp-side-bar{height:6px;background:var(--lav-100);border-radius:99px;overflow:hidden;margin-top:4px}
   .qp-side .qp-side-fill{height:100%;border-radius:99px;transition:width .2s,background .2s}
@@ -522,8 +523,10 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-side button.btn-success:hover{opacity:.9}
   .qp-side button.btn-danger{background:transparent;color:var(--danger);border-color:var(--danger)}
   .qp-side hr{border:none;border-top:1px solid var(--line);margin:0}
+  .qp-question-card.qp-active{border-color:var(--indigo);border-left:4px solid var(--indigo)}
+  .qp-section-card.qp-active{border-color:var(--indigo);border-left:4px solid var(--indigo)}
   .qp-actions-fallback{display:none}
-  @media(max-width:900px){.qp-side{display:none!important}.qp-actions-fallback{display:flex}}
+  @media(max-width:900px){.qp-side{display:none}.qp-actions-fallback{display:flex}.qp-builder-wrap{display:block}}
   .qp-marks-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
 
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
@@ -1669,7 +1672,10 @@ tbody tr:hover td{background:var(--lav-50)}
 
       <div class="sub-page" id="sub-qp-builder">
         <button class="back-btn" onclick="qpBackToList()"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Question Papers</button>
-        <div id="qpBuilderContent"></div>
+        <div class="qp-builder-wrap">
+          <div id="qpBuilderContent"></div>
+          <div id="qpSide" class="qp-side"></div>
+        </div>
       </div>
 
       <div class="sub-page" id="sub-qp-preview">
@@ -9649,7 +9655,7 @@ async function dlFullBackup(){
 }
 
 // ═══════════ QUESTION PAPER MAKER ═══════════
-let _qpList=[], _qpCurrent=null, _katexLoaded=false, _qpAssessments=[], _qpActiveTextarea=null
+let _qpList=[], _qpCurrent=null, _katexLoaded=false, _qpAssessments=[], _qpActiveTextarea=null, _qpActiveQid=null, _qpActiveSid=null
 
 const QP_TYPES=['mcq','fill_blank','true_false','match','very_short','short','long']
 const QP_TYPE_LABELS={mcq:'MCQ',fill_blank:'Fill Blank',true_false:'True/False',match:'Match',very_short:'Very Short',short:'Short',long:'Long'}
@@ -9739,7 +9745,6 @@ async function loadQPList(){
 }
 
 function qpBackToList(){
-  const sb=$('qpSide');if(sb)sb.style.display='none'
   openSub('questionpapers','sub-qp-list')
   loadQPList()
 }
@@ -9839,7 +9844,8 @@ function renderQPBuilder(){
   // Sections with their questions
   sections.forEach((sec,si)=>{
     const secQs=questions.filter(q=>q.section_id===sec.id)
-    h+='<div class="qp-section-card" data-sid="'+sec.id+'">'
+    const secActive=_qpActiveSid===sec.id?' qp-active':''
+    h+='<div class="qp-section-card'+secActive+'" data-sid="'+sec.id+'" onclick="qpSelectCard(\'s\',\''+sec.id+'\')">'
     h+='<div class="qp-section-head">'
     h+='<input value="'+esc(sec.title||'')+'" data-field="sec-title-'+sec.id+'" placeholder="Section Title (e.g. SECTION A)" onchange="qpUpdateSectionTitle(\''+sec.id+'\',this.value)">'
     h+='<button class="btn btn-ghost btn-xs" onclick="moveQP(\'section\',\''+sec.id+'\',-1)" title="Move up">&#9650;</button>'
@@ -9864,9 +9870,7 @@ function renderQPBuilder(){
   $('qpBuilderContent').querySelectorAll('textarea,input[type="text"],input:not([type])').forEach(el=>{
     el.addEventListener('focus',()=>{_qpActiveTextarea=el})
   })
-  // Fixed sidebar panel
-  let sb=$('qpSide')
-  if(!sb){sb=document.createElement('div');sb.id='qpSide';sb.className='qp-side';document.body.appendChild(sb)}
+  // Sidebar panel
   const pct=maxM?Math.min(100,totalMarks/maxM*100):0
   const tColor=totalMarks===maxM?'#22c55e':totalMarks>maxM?'#ef4444':'#f59e0b'
   let sh='<div class="qp-side-tracker"><span style="color:'+tColor+'">'+totalMarks+' / '+maxM+' marks</span>'
@@ -9874,15 +9878,14 @@ function renderQPBuilder(){
   else if(totalMarks>maxM)sh+=' <span style="color:#ef4444">OVER</span>'
   sh+='<div class="qp-side-bar"><div class="qp-side-fill" style="width:'+pct+'%;background:'+tColor+'"></div></div></div>'
   sh+='<hr>'
-  sh+='<button onclick="addQPQuestion(null)">+ Question</button>'
-  sh+='<button onclick="addQPSection()">+ Section</button>'
+  sh+='<button onclick="qpSmartAdd(\'question\')">+ Question</button>'
+  sh+='<button onclick="qpSmartAdd(\'section\')">+ Section</button>'
   sh+='<hr>'
   sh+='<button class="btn-dark" onclick="saveQP(\'draft\')">Save Draft</button>'
   sh+='<button class="btn-success" onclick="saveQP(\'final\')">Mark Final</button>'
   sh+='<button onclick="previewQP()">Preview</button>'
   if(c.paper_id)sh+='<button class="btn-danger" onclick="deleteQP(\''+c.paper_id+'\')">Delete</button>'
-  sb.innerHTML=sh
-  sb.style.display='flex'
+  $('qpSide').innerHTML=sh
 }
 
 function renderQPQuestionCard(q,allQs){
@@ -9901,7 +9904,8 @@ function renderQPQuestionCard(q,allQs){
     marksDisplay='['+(parseFloat(q.marks)||0)+']'
   }
 
-  let h='<div class="qp-question-card" data-qid="'+q.id+'">'
+  const activeClass=_qpActiveQid===q.id?' qp-active':''
+  let h='<div class="qp-question-card'+activeClass+'" data-qid="'+q.id+'" onclick="qpSelectCard(\'q\',\''+q.id+'\')">'
   h+='<div class="qp-question-head">'
   h+='<span class="qnum">'+qNo+'</span>'
   h+='<select data-field="qtype-'+q.id+'" onchange="qpChangeType(\''+q.id+'\',this.value)" style="width:110px">'
@@ -10078,6 +10082,66 @@ function addQPQuestion(sectionId){
     type:defaultType,heading:heading,text:'',image_url:null,
     marks:0,marks_mode:'equal',subparts:[],attempt_any:null
   })
+  renderQPBuilder()
+}
+
+function qpSelectCard(type,id){
+  if(type==='q'){
+    _qpActiveQid=id
+    const q=_qpCurrent.content.questions.find(x=>x.id===id)
+    if(q)_qpActiveSid=q.section_id||null
+  }else{
+    _qpActiveSid=id
+    _qpActiveQid=null
+  }
+  document.querySelectorAll('.qp-question-card,.qp-section-card').forEach(el=>el.classList.remove('qp-active'))
+  const el=document.querySelector(type==='q'?'[data-qid="'+id+'"]':'[data-sid="'+id+'"]')
+  if(el)el.classList.add('qp-active')
+  if(type==='q'){const sec=el&&el.closest('.qp-section-card');if(sec)sec.classList.add('qp-active')}
+}
+
+function qpSmartAdd(what){
+  qpSyncFromForm()
+  const ct=_qpCurrent.content
+  if(what==='question'){
+    const lang=_qpCurrent.language||'english'
+    const defaultType='short'
+    const heading=(QP_DEFAULT_HEADINGS[lang]||QP_DEFAULT_HEADINGS.english)[defaultType]||''
+    const newQ={id:_qpId(),section_id:_qpActiveSid||null,sort_order:0,type:defaultType,heading:heading,text:'',image_url:null,marks:0,marks_mode:'equal',subparts:[],attempt_any:null}
+    const siblings=ct.questions.filter(q=>(q.section_id||null)===(newQ.section_id||null)).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+    if(_qpActiveQid){
+      const activeQ=ct.questions.find(q=>q.id===_qpActiveQid)
+      if(activeQ&&(activeQ.section_id||null)===(newQ.section_id||null)){
+        const aOrder=activeQ.sort_order||0
+        siblings.filter(q=>(q.sort_order||0)>aOrder).forEach(q=>q.sort_order=(q.sort_order||0)+1)
+        newQ.sort_order=aOrder+1
+      }else{
+        newQ.sort_order=(siblings.length?Math.max(...siblings.map(q=>q.sort_order||0)):0)+1
+      }
+    }else{
+      newQ.sort_order=(siblings.length?Math.max(...siblings.map(q=>q.sort_order||0)):0)+1
+    }
+    ct.questions.push(newQ)
+    _qpActiveQid=newQ.id
+  }else{
+    const sections=ct.sections.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+    const newSec={id:_qpId(),title:'SECTION '+String.fromCharCode(65+sections.length),sort_order:0}
+    if(_qpActiveSid){
+      const activeSec=sections.find(s=>s.id===_qpActiveSid)
+      if(activeSec){
+        const aOrder=activeSec.sort_order||0
+        sections.filter(s=>(s.sort_order||0)>aOrder).forEach(s=>s.sort_order=(s.sort_order||0)+1)
+        newSec.sort_order=aOrder+1
+      }else{
+        newSec.sort_order=(sections.length?Math.max(...sections.map(s=>s.sort_order||0)):0)+1
+      }
+    }else{
+      newSec.sort_order=(sections.length?Math.max(...sections.map(s=>s.sort_order||0)):0)+1
+    }
+    ct.sections.push(newSec)
+    _qpActiveSid=newSec.id
+    _qpActiveQid=null
+  }
   renderQPBuilder()
 }
 
@@ -10396,7 +10460,6 @@ async function deleteQP(paperId){
 
 // ── Preview ──
 async function previewQP(){
-  const sb=$('qpSide');if(sb)sb.style.display='none'
   qpSyncFromForm()
   openSub('questionpapers','sub-qp-preview')
   await loadKaTeX()
