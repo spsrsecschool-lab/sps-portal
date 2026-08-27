@@ -8143,7 +8143,18 @@ async function loadSubstitutionSheet(teacherIdArg){
   if(error){emp(el,'Error: '+error.message);return}
   const dayEntries=(entries||[]).filter(e=>(e.days||[]).includes(dow))
   if(!dayEntries.length){emp(el,'No schedule for this teacher on '+dow+'.');return}
-  _subData=dayEntries.sort((a,b)=>(a.time_slots?.sort_order||0)-(b.time_slots?.sort_order||0))
+  const sorted=dayEntries.sort((a,b)=>(a.time_slots?.sort_order||0)-(b.time_slots?.sort_order||0))
+  // Filter to only periods the teacher is actually absent for
+  const unavMap=getUnavailable(date)
+  const teacherUnav=unavMap[teacherId]
+  _subData=sorted.filter(e=>{
+    if(!teacherUnav||teacherUnav.type==='all')return true
+    const st=(e.time_slots?.start_time||'').slice(0,5)
+    if(teacherUnav.type==='leaves')return st>=teacherUnav.time
+    if(teacherUnav.type==='arrives')return st<teacherUnav.time
+    return true
+  })
+  if(!_subData.length){emp(el,'Teacher is present for all scheduled periods on this day.');return}
   const slotIds=_subData.map(e=>e.slot_id)
   // A teacher is "not free" in a slot if, on that weekday, they already have:
   //  (1) a regular timetable entry, (2) a standing adjustment, or on that DATE
@@ -8163,7 +8174,6 @@ async function loadSubstitutionSheet(teacherIdArg){
   ;(busyAll||[]).filter(b=>(b.days||[]).includes(dow)).forEach(b=>mark(b.slot_id,b.teacher_id))
   ;(adjAll||[]).filter(a=>(a.days||[]).includes(dow)).forEach(a=>mark(a.slot_id,a.teacher_id))
   ;(subAll||[]).forEach(s=>mark(s.slot_id,s.substitute_teacher_id))
-  const unavMap=getUnavailable(date)
   const{data:existingSubs}=await sb.from('substitutions').select('entry_id,substitute_teacher_id').eq('date',date).eq('absent_teacher_id',teacherId)
   const existMap={};(existingSubs||[]).forEach(s=>{existMap[s.entry_id]=s.substitute_teacher_id})
   const tName=esc(ALL_TEACHERS.find(t=>t.teacher_id===teacherId)?.full_name||'Teacher')
