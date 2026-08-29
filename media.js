@@ -173,7 +173,7 @@ window.SPSMedia = (function () {
   }
 
   async function acquireDocument(type) {
-    const _wrap = async (r) => { if (r && r.file) r.file = await compressImage(r.file, { maxKB: 100 }); return r }
+    const _wrap = async (r) => { return r }
     const pages = MULTI[type]
     if (pages) {
       const first = await chooseOne({ accept: 'image/*', prompt: (type || 'Document') + ' — photo' })
