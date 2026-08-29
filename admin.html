@@ -532,7 +532,8 @@ tbody tr:hover td{background:var(--lav-50)}
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
   .qp-preview{max-width:210mm;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:0.2in;font-family:'Times New Roman',Times,serif;font-size:11pt;color:#000;line-height:1.35}
   .qp-preview *{color:#000}
-  .qp-preview[data-lang="hindi"],.qp-preview[data-lang="sanskrit"]{font-family:'Nirmala UI','Mangal',sans-serif;font-size:11pt}
+  @font-face{font-family:'QP Mixed';src:local('Nirmala UI'),local('Mangal');unicode-range:U+0900-097F,U+A8E0-A8FF,U+1CD0-1CFF,U+200C-200D,U+20B9,U+25CC}
+  .qp-preview[data-lang="hindi"],.qp-preview[data-lang="sanskrit"]{font-family:'QP Mixed','Times New Roman',Times,serif;font-size:11pt}
   .qp-preview-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;border-bottom:2px solid #000;padding-bottom:8px}
   .qp-preview-header .col-left{flex:0 0 28%;font-size:11pt;font-weight:700;word-wrap:break-word;overflow-wrap:break-word}
   .qp-preview-header .col-right{flex:0 0 20%;font-size:11pt;font-weight:700;text-align:right}
@@ -10519,8 +10520,7 @@ async function previewQP(){
     }
 
     let qh='<div class="qp-q">'
-    const hasInlineText=q.text&&!sps.length&&!isMatch
-    qh+='<div class="qp-q-head"><span><b>'+ll.qPrefix+qNum+'.</b>'+(q.heading?' &nbsp; <b>'+esc(q.heading)+'</b>':'')+(hasInlineText?' &nbsp; <span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
+    qh+='<div class="qp-q-head"><span><b>'+ll.qPrefix+qNum+'.</b>'+(q.heading?' &nbsp; <b>'+esc(q.heading)+'</b>':'')+(q.text?' &nbsp; <span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
     if(marksStr)qh+='<span class="qmarks"><b>'+marksStr+'</b></span>'
     qh+='</div>'
 
@@ -10532,7 +10532,6 @@ async function previewQP(){
       qh+='<div class="qp-attempt-note">'+note+'</div>'
     }
 
-    if(q.text&&!hasInlineText)qh+='<div style="margin-left:28px;margin-bottom:4px" class="qp-math-render">'+esc(q.text).replace(/\n/g,'<br>')+'</div>'
     if(q.image_url)qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px">'
 
     // Match table at question level
