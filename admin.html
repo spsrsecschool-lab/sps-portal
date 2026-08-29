@@ -545,6 +545,8 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-section-title{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;margin:18px 0 10px;text-decoration:underline}
   .qp-q{margin-bottom:14px}
   .qp-q-head{display:flex;justify-content:space-between;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:1px}
+  .qp-q-head .qnum{flex-shrink:0;white-space:nowrap}
+  .qp-q-head .qtxt{flex:1;min-width:0}
   .qp-q-head .qmarks{color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
   .qp-q-heading{font-weight:700;font-size:11pt;margin-bottom:4px}
   .qp-sp{margin:0 0 0 28px;font-size:11pt}
@@ -9668,8 +9670,8 @@ async function dlFullBackup(){
 // ═══════════ QUESTION PAPER MAKER ═══════════
 let _qpList=[], _qpCurrent=null, _katexLoaded=false, _qpAssessments=[], _qpActiveTextarea=null, _qpActiveQid=null, _qpActiveSid=null
 
-const QP_TYPES=['mcq','fill_blank','true_false','match','very_short','short','long']
-const QP_TYPE_LABELS={mcq:'MCQ',fill_blank:'Fill Blank',true_false:'True/False',match:'Match',very_short:'Very Short',short:'Short',long:'Long'}
+const QP_TYPES=['regular','mcq','fill_blank','true_false','match','very_short','short','long']
+const QP_TYPE_LABELS={regular:'Regular',mcq:'MCQ',fill_blank:'Fill Blank',true_false:'True/False',match:'Match',very_short:'Very Short',short:'Short',long:'Long'}
 const QP_DEFAULT_HEADINGS={
   english:{mcq:'Choose the correct option from the given Multiple Choice Questions:',fill_blank:'Fill in the blanks with the suitable word:',true_false:'Write True or False for the given statements:',match:'Match the following:',very_short:'Answer the following Very Short Answer Type Questions:',short:'Answer the following Short Answer Type Questions:',long:'Answer the following Long Answer Type Questions:'},
   hindi:{mcq:'दिए गए बहुविकल्पीय प्रश्नों में से सही विकल्प चुनिए:',fill_blank:'रिक्त स्थानों की पूर्ति उचित शब्द से कीजिए:',true_false:'दिए गए कथनों के लिए सत्य या असत्य लिखिए:',match:'निम्नलिखित का मिलान कीजिए:',very_short:'निम्नलिखित अति लघु उत्तरीय प्रश्नों के उत्तर दीजिए:',short:'निम्नलिखित लघु उत्तरीय प्रश्नों के उत्तर दीजिए:',long:'निम्नलिखित दीर्घ उत्तरीय प्रश्नों के उत्तर दीजिए:'},
@@ -9791,7 +9793,7 @@ async function openQPBuilder(paperId){
     _qpCurrent.content.general_instructions=_qpGetDefaultInstructions(_qpCurrent.language||'english')
   }
   _qpCurrent.content.questions.forEach(q=>{
-    if(q.type==='regular'||q.type==='diagram'||q.type==='numerical')q.type='short'
+    if(q.type==='diagram'||q.type==='numerical')q.type='short'
     if(q.type==='match'&&!q.match_pairs){
       q.match_pairs=[]
       ;(q.subparts||[]).forEach(sp=>{
@@ -10086,7 +10088,7 @@ function addQPQuestion(sectionId){
   const sameSection=ct.questions.filter(q=>(q.section_id||null)===(sectionId||null))
   const maxOrder=sameSection.reduce((m,q)=>Math.max(m,q.sort_order||0),0)
   const lang=_qpCurrent.language||'english'
-  const defaultType='short'
+  const defaultType='regular'
   const heading=(QP_DEFAULT_HEADINGS[lang]||QP_DEFAULT_HEADINGS.english)[defaultType]||''
   ct.questions.push({
     id:_qpId(),section_id:sectionId||null,sort_order:maxOrder+1,
@@ -10116,7 +10118,7 @@ function qpSmartAdd(what){
   const ct=_qpCurrent.content
   if(what==='question'){
     const lang=_qpCurrent.language||'english'
-    const defaultType='short'
+    const defaultType='regular'
     const heading=(QP_DEFAULT_HEADINGS[lang]||QP_DEFAULT_HEADINGS.english)[defaultType]||''
     const newQ={id:_qpId(),section_id:_qpActiveSid||null,sort_order:0,type:defaultType,heading:heading,text:'',image_url:null,marks:0,marks_mode:'equal',subparts:[],attempt_any:null}
     const siblings=ct.questions.filter(q=>(q.section_id||null)===(newQ.section_id||null)).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
@@ -10520,7 +10522,7 @@ async function previewQP(){
     }
 
     let qh='<div class="qp-q">'
-    qh+='<div class="qp-q-head"><span><b>'+ll.qPrefix+qNum+'.</b>'+(q.heading?' &nbsp; <b>'+esc(q.heading)+'</b>':'')+(q.text?' &nbsp; <span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
+    qh+='<div class="qp-q-head"><span class="qnum"><b>'+ll.qPrefix+qNum+'.</b>&nbsp;</span><span class="qtxt">'+(q.heading?'<b>'+esc(q.heading)+'</b>':'')+(q.text?(q.heading?' &nbsp; ':'')+'<span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
     if(marksStr)qh+='<span class="qmarks"><b>'+marksStr+'</b></span>'
     qh+='</div>'
 
