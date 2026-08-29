@@ -1529,6 +1529,7 @@ function openSub(subId){
   // Sub-pages use inline display style
   ['sub-menu','sub-entry','sub-perf','sub-test','sub-obs'].forEach(id=>{const el=$(id);if(el)el.style.display='none'})
   const sp=$(subId);if(sp)sp.style.display='block'
+  if(subId==='sub-test')loadMyTests()
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3029,6 +3030,7 @@ async function createTest(){
   logActivity('test_created', (TEACHER.full_name||'Teacher')+' created a test "'+name+'"')
   $('ct_name').value='';$('ct_date').value='';$('ct_marks').value='';$('ct_syllabus').value=''
   loadMyTests()
+  meInitAssessments()
 }
 
 
@@ -3041,6 +3043,7 @@ async function deleteTest(assessmentId, name){
   if(error){toast('Failed to delete: '+error.message,'error');return}
   toast('Test deleted','success')
   loadMyTests()
+  meInitAssessments()
 }
 async function loadMyTests(){
   const el=$('myTestsList');if(!el)return
