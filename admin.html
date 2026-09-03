@@ -535,8 +535,8 @@ tbody tr:hover td{background:var(--lav-50)}
   @font-face{font-family:'QP Mixed';src:local('Nirmala UI'),local('Mangal');unicode-range:U+0900-097F,U+A8E0-A8FF,U+1CD0-1CFF,U+200C-200D,U+20B9,U+25CC}
   .qp-preview[data-lang="hindi"],.qp-preview[data-lang="sanskrit"]{font-family:'QP Mixed','Times New Roman',Times,serif;font-size:11pt}
   .qp-preview-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;border-bottom:2px solid #000;padding-bottom:8px}
-  .qp-preview-header .col-left{flex:0 0 28%;font-size:11pt;font-weight:700;word-wrap:break-word;overflow-wrap:break-word}
-  .qp-preview-header .col-right{flex:0 0 20%;font-size:11pt;font-weight:700;text-align:right}
+  .qp-preview-header .col-left{flex:0 0 22%;font-size:11pt;font-weight:700;word-wrap:break-word;overflow-wrap:break-word}
+  .qp-preview-header .col-right{flex:0 0 14%;font-size:11pt;font-weight:700;text-align:right}
   .qp-preview-header .col-center{flex:1;text-align:center;font-size:12pt;font-weight:700}
   .qp-preview-header .col-center .school{font-size:14pt;font-weight:900;text-transform:uppercase}
   .qp-preview-header .col-center .assess{font-size:11pt;font-weight:700;margin-top:2px}
@@ -9951,8 +9951,9 @@ function renderQPQuestionCard(q,seqNum){
   h+='<button class="btn btn-ghost btn-xs" onclick="qpToggleMathPanel(\''+q.id+'\')" style="margin-bottom:4px;font-family:var(--mono)">fx Math</button>'
   h+=qpInlineMathPanelHTML(q.id)
 
-  // Question text
-  if(!isMatch&&(!sps.length||q.text)){
+  // Question text (hide for types where content goes in subparts)
+  const _hideText=isMatch||isMCQ||q.type==='fill_blank'||q.type==='true_false'
+  if(!_hideText&&(!sps.length||q.text)){
     h+='<textarea data-field="qtxt-'+q.id+'" placeholder="Question text (use $...$ for math)" style="width:100%;min-height:50px;font-size:12px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font);resize:vertical;margin-bottom:6px" onchange="qpSetField(\''+q.id+'\',\'text\',this.value)">'+esc(q.text||'')+'</textarea>'
   }
 
@@ -10337,9 +10338,10 @@ function qpOnLanguageChange(newLang){
   const c=_qpCurrent
   const oldLang=c.language||'english'
   c.language=newLang
-  const oldDefault=QP_DEFAULT_INSTRUCTIONS[oldLang]||''
+  const oldDefault=_qpGetDefaultInstructions(oldLang)
+  const oldHardcoded=QP_DEFAULT_INSTRUCTIONS[oldLang]||''
   const curInstr=c.content.general_instructions||''
-  if(!curInstr||curInstr===oldDefault){
+  if(!curInstr||curInstr===oldDefault||curInstr===oldHardcoded){
     c.content.general_instructions=_qpGetDefaultInstructions(newLang)
     const el=$('qp_instructions')
     if(el)el.value=c.content.general_instructions
