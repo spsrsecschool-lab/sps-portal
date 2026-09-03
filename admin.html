@@ -589,6 +589,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item active" onclick="goTo('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</div>
     <div class="sb-item" onclick="goTo('messages',this)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages<span class="bc" id="msgBadge" style="display:none">0</span></div>
     <div class="sb-item" onclick="goTo('requests',this)"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Requests<span class="bc" id="reqBadge" style="display:none">0</span></div>
+    <div class="sb-item" onclick="goTo('activitylog',this)"><svg viewBox="0 0 24 24" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Activity Log</div>
     <div class="sb-label">People</div>
     <div class="sb-item" onclick="goTo('staff',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Staff &amp; Teachers</div>
     <div class="sb-item" onclick="goTo('students',this)"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>Students</div>
@@ -904,7 +905,7 @@ tbody tr:hover td{background:var(--lav-50)}
         </div>
         <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--line)">
           <button class="btn btn-ghost" id="assessTabOfficial" onclick="switchAssessTab('official')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;border-bottom:2px solid var(--indigo);font-weight:700;color:var(--indigo);margin-bottom:-2px">Official Assessments</button>
-          <button class="btn btn-ghost" id="assessTabTeacher" onclick="switchAssessTab('teacher')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;border-bottom:2px solid transparent;margin-bottom:-2px">Teacher Tests</button>
+          <button class="btn btn-ghost" id="assessTabTeacher" onclick="switchAssessTab('teacher')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;border-bottom:2px solid transparent;margin-bottom:-2px">Class Tests</button>
         </div>
         <div id="assessFilterBar" style="display:none;margin-bottom:12px">
           <div class="form-row" style="margin-bottom:0">
@@ -1206,6 +1207,18 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
     <div id="reqTab-marks"><div id="marksReqList"><div class="loading-row"><div class="spinner"></div></div></div></div>
     <div id="reqTab-profile" style="display:none"><div id="profileReqList"><div class="loading-row"><div class="spinner"></div></div></div></div>
+  </div>
+
+  <div class="page" id="page-activitylog">
+    <div class="page-head"><div><h2>Activity Log</h2><p>View all portal activity across teachers, class teachers, and admin</p></div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:flex-end">
+      <div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:4px">Portal</label><select id="alPortal" onchange="loadActivityLog()" style="font-size:13px;padding:6px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);min-width:180px"><option value="">All Activity</option><option value="teacher">Teacher Portal</option><option value="class_teacher">Class Teacher Portal</option><option value="admin">Admin Portal</option></select></div>
+      <div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:4px">From</label><input type="date" id="alFrom" onchange="loadActivityLog()" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink)"></div>
+      <div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:4px">To</label><input type="date" id="alTo" onchange="loadActivityLog()" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink)"></div>
+      <button class="btn btn-ghost btn-sm" onclick="$('alPortal').value='';$('alFrom').value='';$('alTo').value='';loadActivityLog()" style="font-size:11px">Clear Filters</button>
+    </div>
+    <div id="alTable"><div class="loading-row"><div class="spinner"></div></div></div>
+    <div id="alPager" style="display:flex;justify-content:center;gap:10px;margin-top:14px"></div>
   </div>
 
   <div class="page" id="page-staffatt">
@@ -2017,7 +2030,7 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',settings:'Settings',requests:'Access Requests'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log'}
 // ═══════════ TEACHER DECLARATION (admin) — section → rules ═══════════
 let _decSecs=[], _decRules={}, _decMeta=null
 async function loadDeclarationAdmin(){ decSwitch('edit') }
@@ -2176,7 +2189,7 @@ async function loadDecSigned(){
     +'</tbody></table></div>'
 }
 
-const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,questionpapers:loadQPList,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt,declaration:loadDeclarationAdmin}
+const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,questionpapers:loadQPList,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt,declaration:loadDeclarationAdmin,activitylog:loadActivityLog}
 
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
@@ -2339,6 +2352,46 @@ async function logActivity(userType, userId, actionType, message){
   const{error}=await sb.from('activity_log').insert({user_type:userType,user_id:userId,action_type:actionType,message:message,created_at:new Date().toISOString()})
   if(error)console.error('[Activity] log failed — did you run activity_log_setup.sql?',error.message)
   else console.log('[Activity] logged:',message)
+}
+
+let _alPage=0
+const AL_PER=50
+async function loadActivityLog(resetPage){
+  if(resetPage!==false)_alPage=0
+  const el=$('alTable'),pager=$('alPager')
+  if(!el)return
+  el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const portal=$('alPortal')?.value||''
+  const from=$('alFrom')?.value||''
+  const to=$('alTo')?.value||''
+  let q=sb.from('activity_log').select('*',{count:'exact'}).order('created_at',{ascending:false})
+  if(portal)q=q.eq('user_type',portal)
+  if(from)q=q.gte('created_at',from+'T00:00:00')
+  if(to)q=q.lte('created_at',to+'T23:59:59')
+  q=q.range(_alPage*AL_PER,(_alPage+1)*AL_PER-1)
+  const{data:rows,count,error}=await q
+  if(error){el.innerHTML='<p style="color:var(--danger)">Failed to load activity log.</p>';return}
+  if(!rows||!rows.length){el.innerHTML='<p style="font-size:13px;color:var(--ink-faint)">No activity found for the selected filters.</p>';pager.innerHTML='';return}
+  const tIds=[...new Set((rows||[]).filter(r=>r.user_type==='teacher').map(r=>r.user_id))]
+  const tName={}
+  if(tIds.length){const{data:ts}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',tIds);(ts||[]).forEach(t=>tName[t.teacher_id]=t.full_name)}
+  const whoOf=(type,id)=>type==='teacher'?(tName[id]||'Teacher'):type==='admin'?'Admin':type==='class_teacher'?'Class Teacher':type==='coordinator'?'Coordinator':type
+  const portalLabel=(type)=>type==='teacher'?'Teacher':type==='admin'?'Admin':type==='class_teacher'?'Class Teacher':type==='coordinator'?'Coordinator':type||'—'
+  let h='<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="background:var(--lav-50);text-align:left"><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Date & Time</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Portal</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">User</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Action</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Details</th></tr></thead><tbody>'
+  rows.forEach(r=>{
+    const dt=new Date(r.created_at)
+    const ds=dt.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+' '+dt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})
+    h+='<tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;white-space:nowrap;color:var(--ink-soft);font-size:12px">'+ds+'</td><td style="padding:8px 10px"><span style="background:var(--indigo-50);color:var(--indigo);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600">'+esc(portalLabel(r.user_type))+'</span></td><td style="padding:8px 10px;font-weight:600">'+esc(whoOf(r.user_type,r.user_id))+'</td><td style="padding:8px 10px;color:var(--ink-soft);font-size:12px">'+esc(r.action_type||'—')+'</td><td style="padding:8px 10px">'+esc(r.message||'—')+'</td></tr>'
+  })
+  h+='</tbody></table>'
+  el.innerHTML=h
+  const total=count||0, pages=Math.ceil(total/AL_PER)
+  if(pages>1){
+    let pg='<span style="font-size:12px;color:var(--ink-soft)">Page '+(_alPage+1)+' of '+pages+' ('+total+' records)</span> '
+    if(_alPage>0)pg+='<button class="btn btn-ghost btn-sm" onclick="_alPage--;loadActivityLog(false)">← Prev</button> '
+    if(_alPage<pages-1)pg+='<button class="btn btn-ghost btn-sm" onclick="_alPage++;loadActivityLog(false)">Next →</button>'
+    pager.innerHTML=pg
+  }else{pager.innerHTML='<span style="font-size:12px;color:var(--ink-faint)">'+total+' record'+(total!==1?'s':'')+'</span>'}
 }
 
 async function loadGlobals(){
@@ -2538,7 +2591,7 @@ async function renderTodayPanel(){
   // Recent activity feed
   const feed=await buildRecentFeed()
   html+='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:12px 14px;flex:1">'
-    +'<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">Recent Activity</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft)">Recent Activity</div><button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 10px" onclick="goTo(\'activitylog\')">View All</button></div>'
   if(feed.length){
     html+='<div style="max-height:200px;overflow-y:auto">'
     html+=feed.map(a=>'<div class="log-row"><div class="log-dot" style="background:'+a.color+'"></div><div><div class="txt">'+(a.who?'<b>'+esc(a.who)+'</b> ':'')+esc(a.text)+'</div><div class="ts">'+rel(a.t)+'</div></div></div>').join('')
@@ -4496,7 +4549,60 @@ function openAssessEditById(id,classNames){const a=window._assessMap?.[id];if(!a
 let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
+  if(a.created_by_teacher_id){openClassTestDetail(a);return}
   $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, max/pass marks, class groups</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div></div>'
+}
+async function openClassTestDetail(a){
+  const el=$('assessEditContent')
+  const tchName=a._teacherName||'Unknown'
+  const clsName=a.classes?.name||'—'
+  const subName=a.subjects?.name||'—'
+  el.innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>Class Test by <b>'+esc(tchName)+'</b> · '+esc(clsName)+' · '+esc(subName)+' · '+(fmtD(a.commencement_date)||'Date TBD')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div>'
+    +'<div class="grid-3" style="margin-bottom:14px">'
+    +'<div class="stat-card"><span class="lbl">Teacher</span><span class="val" style="font-size:15px">'+esc(tchName)+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Class</span><span class="val" style="font-size:15px">'+esc(clsName)+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Subject</span><span class="val" style="font-size:15px">'+esc(subName)+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Date</span><span class="val" style="font-size:15px">'+(fmtD(a.commencement_date)||'TBD')+'</span></div>'
+    +'<div class="stat-card"><span class="lbl">Max Marks</span><span class="val" style="font-size:15px">'+(a.max_marks||'—')+'</span></div>'
+    +'</div>'
+    +'<div class="card" id="classTestMarksWrap"><div class="loading-row"><div class="spinner"></div></div></div>'
+  // Fetch marks
+  if(!a.class_id){$('classTestMarksWrap').innerHTML='<p style="padding:16px;color:var(--ink-faint)">No class linked.</p>';return}
+  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name,father_name)').eq('class_id',a.class_id).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no')
+  if(!enr?.length){$('classTestMarksWrap').innerHTML='<p style="padding:16px;color:var(--ink-faint)">No students in this class.</p>';return}
+  const eids=enr.map(e=>e.enrollment_id)
+  const{data:marks}=await sb.from('marks').select('enrollment_id,marks_obtained,is_absent').eq('assessment_id',a.assessment_id).eq('subject_id',a.subject_id||'').in('enrollment_id',eids)
+  const mMap={};(marks||[]).forEach(m=>{mMap[m.enrollment_id]=m})
+  if(!marks?.length){
+    $('classTestMarksWrap').innerHTML='<div style="padding:24px;text-align:center"><div style="font-size:40px;margin-bottom:8px;opacity:.4">📋</div><div style="font-size:14px;font-weight:700;color:var(--ink-soft)">Marks not uploaded yet</div><div style="font-size:12px;color:var(--ink-faint);margin-top:4px">The teacher has not entered marks for this class test.</div></div>'
+    return
+  }
+  const maxM=a.max_marks||100
+  let totalObt=0,totalStu=0,absentCount=0,passCount=0
+  enr.forEach(e=>{const m=mMap[e.enrollment_id];if(!m)return;if(m.is_absent){absentCount++;return};totalStu++;totalObt+=(m.marks_obtained||0);if((m.marks_obtained||0)>=(a.pass_marks||33))passCount++})
+  const avg=totalStu?Math.round(totalObt/totalStu*10)/10:0
+  const passP=totalStu?Math.round(passCount/totalStu*100):0
+  let h='<div style="display:flex;gap:12px;flex-wrap:wrap;padding:14px 14px 0">'
+    +'<div class="stat-card" style="min-width:100px"><span class="lbl">Students</span><span class="val">'+totalStu+'</span></div>'
+    +'<div class="stat-card" style="min-width:100px"><span class="lbl">Absent</span><span class="val" style="color:var(--danger)">'+absentCount+'</span></div>'
+    +'<div class="stat-card" style="min-width:100px"><span class="lbl">Average</span><span class="val">'+avg+' / '+maxM+'</span></div>'
+    +'<div class="stat-card" style="min-width:100px"><span class="lbl">Pass %</span><span class="val" style="color:'+(passP>=50?'var(--success)':'var(--danger)')+'">'+passP+'%</span></div>'
+    +'</div>'
+  h+='<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Roll</th><th>Name</th><th>Father</th><th style="text-align:center">Marks</th><th style="text-align:center">Status</th></tr></thead><tbody>'
+  enr.forEach(e=>{
+    const m=mMap[e.enrollment_id]
+    let marksCell,statusCell
+    if(!m){marksCell='—';statusCell='<span style="color:var(--ink-faint)">—</span>'}
+    else if(m.is_absent){marksCell='—';statusCell='<span class="pill pill-warn">Absent</span>'}
+    else{
+      const pct=maxM?Math.round((m.marks_obtained||0)/maxM*100):0
+      marksCell='<span style="font-weight:700">'+(m.marks_obtained??'—')+'</span> <span style="color:var(--ink-faint);font-size:11px">/ '+maxM+'</span>'
+      statusCell=(m.marks_obtained||0)>=(a.pass_marks||33)?'<span class="pill pill-success">Pass</span>':'<span class="pill pill-danger">Fail</span>'
+    }
+    h+='<tr><td style="font-family:var(--mono);font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td style="text-align:center;font-family:var(--mono)">'+marksCell+'</td><td style="text-align:center">'+statusCell+'</td></tr>'
+  })
+  h+='</tbody></table></div>'
+  $('classTestMarksWrap').innerHTML=h
 }
 // Manage which classes an assessment applies to (add/remove after creation).
 async function openAssessClasses(){

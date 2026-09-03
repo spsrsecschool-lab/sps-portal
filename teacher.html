@@ -2527,8 +2527,14 @@ async function confirmMarks(){
   }
   if(error){toast('Failed to save: '+error.message,'error');console.error('[SAVE] Error:',error);return}
 
-  // Lock only admin assessments
+  // Resolve names for logging / notifications before the conditional block
   const assessForLock=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
+  const _assessName=assessForLock.name||'assessment'
+  const _myMap=MY_MAPPINGS.find(m=>m.subject_id===subId&&m.section_id===secId)||MY_MAPPINGS.find(m=>m.section_id===secId)||{}
+  const _subName=_myMap.subjects?.name||'a subject'
+  const _clsName=(_myMap.classes?.name||'')+'-'+(_myMap.class_sections?.name||'')
+
+  // Lock only admin assessments
   if(assessForLock.created_by_teacher_id!==TEACHER.teacher_id){
     await sb.from('marks_lock_state').upsert({
       teacher_id:TEACHER.teacher_id,assessment_id:assessId,subject_id:subId,
@@ -2570,7 +2576,11 @@ async function confirmMarks(){
   }catch(e){console.warn('[marks-notify] class teacher notice failed',e)}
 
   toast('Marks saved ✓','success')
-  logActivity('marks_entered', (TEACHER.full_name||'Teacher')+' entered marks'+(typeof clsName!=='undefined'&&clsName?' for '+clsName:'')+(typeof assessName!=='undefined'&&assessName?' — '+assessName:''))
+  if(assessForLock.created_by_teacher_id===TEACHER.teacher_id){
+    logActivity('class_test_marks', (TEACHER.full_name||'Teacher')+' took class test "'+_assessName+'" of '+_clsName+' of '+_subName+' and uploaded marks')
+  }else{
+    logActivity('marks_entered', (TEACHER.full_name||'Teacher')+' entered marks for '+_clsName+' — '+_assessName+' ('+_subName+')')
+  }
   loadMarksTable()
 }
 
