@@ -912,7 +912,11 @@ async function loadAll(){
       const{data:asmtRows}=efIds.length?await sb.from('assessments').select('assessment_id,name').in('assessment_id',efIds):{data:[]};
       const asmtName={};(asmtRows||[]).forEach(a=>{asmtName[a.assessment_id]=a.name});
       const classesByAssess={};(acRows||[]).forEach(r=>{(classesByAssess[r.assessment_id]=classesByAssess[r.assessment_id]||[]).push(r.class_id)});
-      examFees=(efRows||[]).map(f=>({...f,_assessmentName:asmtName[f.assessment_id]||'Assessment',_classIds:classesByAssess[f.assessment_id]||[]}));
+      examFees=(efRows||[]).map(f=>{
+        let feeClassIds=[];
+        try{const o=JSON.parse(f.class_group);feeClassIds=o.class_ids||[]}catch(e){}
+        return{...f,_assessmentName:asmtName[f.assessment_id]||'Assessment',_classIds:classesByAssess[f.assessment_id]||[],_feeClassIds:feeClassIds};
+      });
 
       // Misc fees: unlocked ones for this session (already carry class_id/section_id).
       const{data:mfRows}=await sb.from('misc_fees').select('*').eq('session_id',viewSession||'').eq('is_collection_unlocked',true);
@@ -1475,7 +1479,11 @@ function switchCounterMode(mode){
 // student's class. Misc fees: those matching the student's class (and section,
 // if the misc fee targets a specific one).
 function extraFeesFor(stu){
-  const exams=examFees.filter(f=>(f._classIds||[]).includes(stu.class_id)).map(f=>({
+  const exams=examFees.filter(f=>{
+    const rowIds=f._feeClassIds||[];
+    if(rowIds.length) return rowIds.includes(stu.class_id);
+    return (f._classIds||[]).includes(stu.class_id);
+  }).map(f=>({
     kind:'exam', id:f.exam_fee_id, name:f._assessmentName+(labelFromGroupFP(f.class_group)&&labelFromGroupFP(f.class_group)!=='Fee'?' — '+labelFromGroupFP(f.class_group):''),
     amount:+f.amount||0, pay:examFeePays[f.exam_fee_id+'_'+stu.enrollment_id]||null
   }));
@@ -1487,6 +1495,7 @@ function extraFeesFor(stu){
 }
 function labelFromGroupFP(g){
   if(!g)return 'Fee';
+  try{const o=JSON.parse(g);return o.label||'Fee'}catch(e){}
   const parts=String(g).split('-');
   if(parts.length>1 && /^\d+$/.test(parts[parts.length-1])) parts.pop();
   return parts.join('-')||'Fee';
