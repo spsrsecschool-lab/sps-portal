@@ -902,6 +902,17 @@ tbody tr:hover td{background:var(--lav-50)}
           <div><h2>Assessments &amp; Exam Fees</h2><p>Click any card to configure dates, marks lock, exam fees and submission status</p></div>
           <button class="btn btn-dark" onclick="openAddAssessmentModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Assessment</button>
         </div>
+        <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--line)">
+          <button class="btn btn-ghost" id="assessTabOfficial" onclick="switchAssessTab('official')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;border-bottom:2px solid var(--indigo);font-weight:700;color:var(--indigo);margin-bottom:-2px">Official Assessments</button>
+          <button class="btn btn-ghost" id="assessTabTeacher" onclick="switchAssessTab('teacher')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;border-bottom:2px solid transparent;margin-bottom:-2px">Teacher Tests</button>
+        </div>
+        <div id="assessFilterBar" style="display:none;margin-bottom:12px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg" style="max-width:180px"><select id="assessFltClass" onchange="renderTeacherTests()"><option value="">All Classes</option></select></div>
+            <div class="fg" style="max-width:180px"><select id="assessFltSubject" onchange="renderTeacherTests()"><option value="">All Subjects</option></select></div>
+            <div class="fg" style="max-width:200px"><select id="assessFltTeacher" onchange="renderTeacherTests()"><option value="">All Teachers</option></select></div>
+          </div>
+        </div>
         <div class="assess-grid" id="assessGrid"><div class="loading-row" style="grid-column:1/-1"><div class="spinner"></div></div></div>
       </div>
       <div class="sub-page" id="sub-assess-edit">
@@ -4410,22 +4421,76 @@ async function updateMapping(){
 }
 
 // ═══════════ ASSESSMENTS ═══════════
+let _assessTab='official'
+let _assessOfficial=[], _assessTeacher=[], _assessClsByA={}
 async function loadAssessments(){
   const el=$('assessGrid');ldg(el)
   if(!SESS){emp(el,'No active session');return}
-  const{data:asmts,error}=await sb.from('assessments').select('*,exam_fees(*)').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  const{data:asmts,error}=await sb.from('assessments').select('*,exam_fees(*),classes(name),subjects(name)').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
   if(error){emp(el,'Failed to load: '+error.message);return}
-  if(!asmts?.length){emp(el,'No assessments yet.');$('assessGrid').className='assess-grid';return}
-  const{data:acRows}=await sb.from('assessment_classes').select('assessment_id,classes(name)').in('assessment_id',asmts.map(a=>a.assessment_id))
-  const clsByA={};(acRows||[]).forEach(r=>{if(!clsByA[r.assessment_id])clsByA[r.assessment_id]=[];if(r.classes?.name)clsByA[r.assessment_id].push(r.classes.name)})
-  window._assessMap={};asmts.forEach(a=>{window._assessMap[a.assessment_id]=a})
-  $('assessGrid').className='assess-grid'
-  el.innerHTML=asmts.map(a=>{
+  _assessOfficial=(asmts||[]).filter(a=>!a.created_by_teacher_id)
+  _assessTeacher=(asmts||[]).filter(a=>!!a.created_by_teacher_id)
+  // Fetch teacher names for teacher-created tests
+  const tchIds=[...new Set(_assessTeacher.map(a=>a.created_by_teacher_id).filter(Boolean))]
+  if(tchIds.length){
+    const{data:tRows}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',tchIds)
+    const tMap={};(tRows||[]).forEach(t=>{tMap[t.teacher_id]=t.full_name})
+    _assessTeacher.forEach(a=>{a._teacherName=tMap[a.created_by_teacher_id]||'Unknown'})
+  }
+  const officialIds=_assessOfficial.map(a=>a.assessment_id)
+  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,classes(name)').in('assessment_id',officialIds):{data:[]}
+  _assessClsByA={};(acRows||[]).forEach(r=>{if(!_assessClsByA[r.assessment_id])_assessClsByA[r.assessment_id]=[];if(r.classes?.name)_assessClsByA[r.assessment_id].push(r.classes.name)})
+  window._assessMap={};(asmts||[]).forEach(a=>{window._assessMap[a.assessment_id]=a})
+  // Populate teacher test filter dropdowns
+  const fltCls=$('assessFltClass'),fltSub=$('assessFltSubject'),fltTch=$('assessFltTeacher')
+  if(fltCls){
+    const cls=[...new Set(_assessTeacher.map(a=>a.classes?.name).filter(Boolean))].sort()
+    fltCls.innerHTML='<option value="">All Classes</option>'+cls.map(c=>'<option>'+esc(c)+'</option>').join('')
+  }
+  if(fltSub){
+    const subs=[...new Set(_assessTeacher.map(a=>a.subjects?.name).filter(Boolean))].sort()
+    fltSub.innerHTML='<option value="">All Subjects</option>'+subs.map(s=>'<option>'+esc(s)+'</option>').join('')
+  }
+  if(fltTch){
+    const tchs=[...new Map(_assessTeacher.filter(a=>a.created_by_teacher_id).map(a=>[a.created_by_teacher_id,a._teacherName||'Unknown'])).entries()].sort((a,b)=>(a[1]||'').localeCompare(b[1]||''))
+    fltTch.innerHTML='<option value="">All Teachers</option>'+tchs.map(([id,nm])=>'<option value="'+id+'">'+esc(nm)+'</option>').join('')
+  }
+  if(_assessTab==='official') renderOfficialAssessments()
+  else renderTeacherTests()
+}
+function switchAssessTab(tab){
+  _assessTab=tab
+  const tO=$('assessTabOfficial'),tT=$('assessTabTeacher'),fb=$('assessFilterBar')
+  if(tO){tO.style.borderBottomColor=tab==='official'?'var(--indigo)':'transparent';tO.style.fontWeight=tab==='official'?'700':'500';tO.style.color=tab==='official'?'var(--indigo)':''}
+  if(tT){tT.style.borderBottomColor=tab==='teacher'?'var(--indigo)':'transparent';tT.style.fontWeight=tab==='teacher'?'700':'500';tT.style.color=tab==='teacher'?'var(--indigo)':''}
+  if(fb)fb.style.display=tab==='teacher'?'':'none'
+  if(tab==='official') renderOfficialAssessments()
+  else renderTeacherTests()
+}
+function renderOfficialAssessments(){
+  const el=$('assessGrid')
+  if(!_assessOfficial.length){emp(el,'No official assessments yet.');el.className='assess-grid';return}
+  el.className='assess-grid'
+  el.innerHTML=_assessOfficial.map(a=>{
     const pill=a.is_marks_unlocked?'<span class="pill pill-success">Marks Open</span>':(a.commencement_date&&a.commencement_date<today()?'<span class="pill pill-neutral">Closed</span>':'<span class="pill pill-warn">Scheduled</span>')
-    const cn=(clsByA[a.assessment_id]||[]).join(', ')||'No classes linked'
+    const cn=(_assessClsByA[a.assessment_id]||[]).join(', ')||'No classes linked'
     const fees=a.exam_fees||[]
     return '<div class="assess-card" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4>'+pill+'</div><div class="meta" style="font-size:11px">'+esc(cn)+'</div><div class="arow"><span>Start</span><span>'+(fmtD(a.commencement_date)||'TBD')+'</span></div><div class="arow"><span>End</span><span>'+(a.end_date?fmtD(a.end_date):(fmtD(a.commencement_date)||'—'))+'</span></div><div class="arow"><span>Deadline</span><span>'+(a.submission_deadline?fmtD(a.submission_deadline.slice(0,10)):'—')+'</span></div>'+(fees.length?'<div class="arow"><span>Exam Fee</span><span>'+fees.map(f=>{const p=parseEFGroup(f.class_group);const lbl=p.label?p.label+' ':'';return lbl+'₹'+f.amount}).join(', ')+'</span></div>':'')+'</div>'
   }).join('')
+}
+function renderTeacherTests(){
+  const el=$('assessGrid')
+  let list=_assessTeacher
+  const fc=$('assessFltClass')?.value, fs=$('assessFltSubject')?.value, ft=$('assessFltTeacher')?.value
+  if(fc) list=list.filter(a=>(a.classes?.name||'')===fc)
+  if(fs) list=list.filter(a=>(a.subjects?.name||'')===fs)
+  if(ft) list=list.filter(a=>a.created_by_teacher_id===ft)
+  if(!list.length){emp(el,'No teacher tests'+(fc||fs||ft?' matching filters':'')+'.');el.className='';return}
+  el.className=''
+  el.innerHTML='<div class="card" style="overflow-x:auto;padding:0"><table><thead><tr><th>Name</th><th>Teacher</th><th>Class</th><th>Subject</th><th>Date</th><th></th></tr></thead><tbody>'
+    +list.map(a=>'<tr><td style="font-weight:600">'+esc(a.name)+'</td><td>'+esc(a._teacherName||'—')+'</td><td>'+esc(a.classes?.name||'—')+'</td><td>'+esc(a.subjects?.name||'—')+'</td><td class="mono">'+fmtD(a.commencement_date)+'</td>'
+      +'<td><button class="btn btn-ghost btn-xs" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(a.classes?.name||'—')+'\')">View</button></td></tr>').join('')
+    +'</tbody></table></div>'
 }
 function openAssessEditById(id,classNames){const a=window._assessMap?.[id];if(!a){toast('Assessment not found','error');return};openAssessEdit({...a,_classNames:classNames})}
 let _currentAssess=null
