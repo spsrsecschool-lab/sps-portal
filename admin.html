@@ -9893,6 +9893,24 @@ function renderQPBuilder(){
   $('qpBuilderContent').querySelectorAll('textarea,input[type="text"],input:not([type])').forEach(el=>{
     el.addEventListener('focus',()=>{_qpActiveTextarea=el})
   })
+  if(!$('qpBuilderContent')._qpFocusInit){
+    $('qpBuilderContent')._qpFocusInit=true
+    $('qpBuilderContent').addEventListener('focusin',function(e){
+      const card=e.target.closest('[data-qid]')
+      if(card){
+        const qid=card.getAttribute('data-qid')
+        if(_qpActiveQid!==qid){
+          _qpActiveQid=qid
+          const q=_qpCurrent.content.questions.find(x=>x.id===qid)
+          if(q)_qpActiveSid=q.section_id||null
+          document.querySelectorAll('.qp-question-card,.qp-section-card').forEach(c=>c.classList.remove('qp-active'))
+          card.classList.add('qp-active')
+          const sec=card.closest('.qp-section-card')
+          if(sec)sec.classList.add('qp-active')
+        }
+      }
+    })
+  }
   // Sidebar panel
   const pct=maxM?Math.min(100,totalMarks/maxM*100):0
   const tColor=totalMarks===maxM?'#22c55e':totalMarks>maxM?'#ef4444':'#f59e0b'
@@ -10244,11 +10262,15 @@ function _qpAnimateSwap(idA,idB,dir,type){
   elB.style.transition='transform .25s ease'
   elA.style.transform='translateY('+distA+'px)'
   elB.style.transform='translateY('+distB+'px)'
-  elA.addEventListener('transitionend',function handler(){
-    elA.removeEventListener('transitionend',handler)
+  let done=false
+  function finish(){
+    if(done)return;done=true
     renderQPBuilder()
-  },{once:true})
-  setTimeout(()=>renderQPBuilder(),300)
+    const moved=document.querySelector('['+sel+'="'+idA+'"]')
+    if(moved)moved.scrollIntoView({behavior:'smooth',block:'nearest'})
+  }
+  elA.addEventListener('transitionend',finish,{once:true})
+  setTimeout(finish,300)
 }
 
 function qpSetField(qid,field,val){
