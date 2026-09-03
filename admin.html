@@ -9870,11 +9870,11 @@ function renderQPBuilder(){
     const secActive=_qpActiveSid===sec.id?' qp-active':''
     h+='<div class="qp-section-card'+secActive+'" data-sid="'+sec.id+'" onclick="qpSelectCard(\'s\',\''+sec.id+'\')">'
     h+='<div class="qp-section-head">'
-    h+='<input value="'+esc(sec.title||'')+'" data-field="sec-title-'+sec.id+'" placeholder="Section Title (e.g. SECTION A)" onchange="qpUpdateSectionTitle(\''+sec.id+'\',this.value)">'
-    h+='<button class="btn btn-ghost btn-xs" onclick="moveQP(\'section\',\''+sec.id+'\',-1)" title="Move up">&#9650;</button>'
-    h+='<button class="btn btn-ghost btn-xs" onclick="moveQP(\'section\',\''+sec.id+'\',1)" title="Move down">&#9660;</button>'
-    h+='<button class="btn btn-danger btn-xs" onclick="removeQPSection(\''+sec.id+'\')" title="Delete section">&#10005;</button>'
-    h+='<button class="btn btn-dark btn-xs" onclick="addQPQuestion(\''+sec.id+'\')">+ Question</button>'
+    h+='<input value="'+esc(sec.title||'')+'" data-field="sec-title-'+sec.id+'" placeholder="Section Title (e.g. SECTION A)" onchange="qpUpdateSectionTitle(\''+sec.id+'\',this.value)" onclick="event.stopPropagation()" onfocus="event.stopPropagation()">'
+    h+='<button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();moveQP(\'section\',\''+sec.id+'\',-1)" title="Move up">&#9650;</button>'
+    h+='<button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();moveQP(\'section\',\''+sec.id+'\',1)" title="Move down">&#9660;</button>'
+    h+='<button class="btn btn-danger btn-xs" onclick="event.stopPropagation();removeQPSection(\''+sec.id+'\')" title="Delete section">&#10005;</button>'
+    h+='<button class="btn btn-dark btn-xs" onclick="event.stopPropagation();addQPQuestion(\''+sec.id+'\')">+ Question</button>'
     h+='</div>'
     secQs.forEach(q=>{h+=renderQPQuestionCard(q,_qpNumMap[q.id]||0)})
     if(!secQs.length)h+='<div style="padding:10px;color:var(--ink-faint);font-size:12px">No questions in this section yet.</div>'
@@ -9945,7 +9945,7 @@ function renderQPQuestionCard(q,seqNum){
   }
 
   const activeClass=_qpActiveQid===q.id?' qp-active':''
-  let h='<div class="qp-question-card'+activeClass+'" data-qid="'+q.id+'" onclick="qpSelectCard(\'q\',\''+q.id+'\')">'
+  let h='<div class="qp-question-card'+activeClass+'" data-qid="'+q.id+'" onclick="event.stopPropagation();qpSelectCard(\'q\',\''+q.id+'\')">'
   h+='<div class="qp-question-head">'
   h+='<span class="qnum">'+qNo+'</span>'
   h+='<select data-field="qtype-'+q.id+'" onchange="qpChangeType(\''+q.id+'\',this.value)" style="width:110px">'
