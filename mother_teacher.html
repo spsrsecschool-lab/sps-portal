@@ -1524,7 +1524,7 @@ async function confirmAttSubmit(date){
 function myClassLabel(){ return (MY_CLASS?.classes?.name||'?')+'-'+(MY_CLASS?.class_sections?.name||'?') }
 async function logActivity(actionType,message){
   try{ if(!TEACHER?.teacher_id||!message)return
-    await sb.from('activity_log').insert({user_type:'teacher',user_id:TEACHER.teacher_id,action_type:actionType,message:message,created_at:new Date().toISOString()})
+    await sb.from('activity_log').insert({user_type:'mother_teacher',user_id:TEACHER.teacher_id,action_type:actionType,message:message,created_at:new Date().toISOString()})
   }catch(e){ console.warn('[activity] log failed',e) }
 }
 function hdSearchStudent(q){

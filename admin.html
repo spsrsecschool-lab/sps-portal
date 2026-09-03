@@ -1212,10 +1212,11 @@ tbody tr:hover td{background:var(--lav-50)}
   <div class="page" id="page-activitylog">
     <div class="page-head"><div><h2>Activity Log</h2><p>View all portal activity across teachers, class teachers, and admin</p></div></div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:flex-end">
-      <div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:4px">Portal</label><select id="alPortal" onchange="loadActivityLog()" style="font-size:13px;padding:6px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);min-width:180px"><option value="">All Activity</option><option value="teacher">Teacher Portal</option><option value="class_teacher">Class Teacher Portal</option><option value="admin">Admin Portal</option></select></div>
+      <div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:4px">Portal</label><select id="alPortal" onchange="loadActivityLog()" style="font-size:13px;padding:6px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);min-width:180px"><option value="">All Activity</option><option value="teacher">Teacher Portal</option><option value="class_teacher">Class Teacher Portal</option><option value="mother_teacher">Main Teacher Portal</option><option value="admin">Admin Portal</option></select></div>
+      <div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:4px">Teacher</label><select id="alTeacher" onchange="loadActivityLog()" style="font-size:13px;padding:6px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink);min-width:180px"><option value="">All Teachers</option></select></div>
       <div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:4px">From</label><input type="date" id="alFrom" onchange="loadActivityLog()" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink)"></div>
       <div><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;display:block;margin-bottom:4px">To</label><input type="date" id="alTo" onchange="loadActivityLog()" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);color:var(--ink)"></div>
-      <button class="btn btn-ghost btn-sm" onclick="$('alPortal').value='';$('alFrom').value='';$('alTo').value='';loadActivityLog()" style="font-size:11px">Clear Filters</button>
+      <button class="btn btn-ghost btn-sm" onclick="$('alPortal').value='';$('alTeacher').value='';$('alFrom').value='';$('alTo').value='';loadActivityLog()" style="font-size:11px">Clear Filters</button>
     </div>
     <div id="alTable"><div class="loading-row"><div class="spinner"></div></div></div>
     <div id="alPager" style="display:flex;justify-content:center;gap:10px;margin-top:14px"></div>
@@ -2354,30 +2355,39 @@ async function logActivity(userType, userId, actionType, message){
   else console.log('[Activity] logged:',message)
 }
 
-let _alPage=0
+let _alPage=0, _alTeachersLoaded=false
 const AL_PER=50
 async function loadActivityLog(resetPage){
   if(resetPage!==false)_alPage=0
   const el=$('alTable'),pager=$('alPager')
   if(!el)return
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  if(!_alTeachersLoaded){
+    _alTeachersLoaded=true
+    const sel=$('alTeacher')
+    if(sel&&ALL_TEACHERS?.length){
+      ALL_TEACHERS.forEach(t=>{const o=document.createElement('option');o.value=t.teacher_id;o.textContent=t.full_name;sel.appendChild(o)})
+    }
+  }
   const portal=$('alPortal')?.value||''
+  const teacher=$('alTeacher')?.value||''
   const from=$('alFrom')?.value||''
   const to=$('alTo')?.value||''
   let q=sb.from('activity_log').select('*',{count:'exact'}).order('created_at',{ascending:false})
   if(portal)q=q.eq('user_type',portal)
+  if(teacher)q=q.eq('user_id',teacher)
   if(from)q=q.gte('created_at',from+'T00:00:00')
   if(to)q=q.lte('created_at',to+'T23:59:59')
   q=q.range(_alPage*AL_PER,(_alPage+1)*AL_PER-1)
   const{data:rows,count,error}=await q
   if(error){el.innerHTML='<p style="color:var(--danger)">Failed to load activity log.</p>';return}
   if(!rows||!rows.length){el.innerHTML='<p style="font-size:13px;color:var(--ink-faint)">No activity found for the selected filters.</p>';pager.innerHTML='';return}
-  const tIds=[...new Set((rows||[]).filter(r=>r.user_type==='teacher').map(r=>r.user_id))]
+  const tIds=[...new Set((rows||[]).filter(r=>['teacher','class_teacher','mother_teacher'].includes(r.user_type)).map(r=>r.user_id))]
   const tName={}
   if(tIds.length){const{data:ts}=await sb.from('teachers').select('teacher_id,full_name').in('teacher_id',tIds);(ts||[]).forEach(t=>tName[t.teacher_id]=t.full_name)}
-  const whoOf=(type,id)=>type==='teacher'?(tName[id]||'Teacher'):type==='admin'?'Admin':type==='class_teacher'?'Class Teacher':type==='coordinator'?'Coordinator':type
-  const portalLabel=(type)=>type==='teacher'?'Teacher':type==='admin'?'Admin':type==='class_teacher'?'Class Teacher':type==='coordinator'?'Coordinator':type||'—'
-  let h='<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="background:var(--lav-50);text-align:left"><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Date & Time</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Portal</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">User</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Action</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Details</th></tr></thead><tbody>'
+  const whoOf=(type,id)=>tName[id]||(type==='admin'?'Admin':type==='coordinator'?'Coordinator':type||'—')
+  const portalLabel=(type)=>type==='teacher'?'Teacher':type==='admin'?'Admin':type==='class_teacher'?'Class Teacher':type==='mother_teacher'?'Main Teacher':type==='coordinator'?'Coordinator':type||'—'
+  let h='<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="background:var(--lav-50);text-align:left"><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Date & Time</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Portal</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Teacher</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Action</th><th style="padding:8px 10px;font-weight:700;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Details</th></tr></thead><tbody>'
   rows.forEach(r=>{
     const dt=new Date(r.created_at)
     const ds=dt.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+' '+dt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})
@@ -2787,8 +2797,8 @@ async function buildRecentFeed(){
     sb.from('student_enrollments').select('readmission_date,students(full_name),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').not('readmission_date','is',null).order('readmission_date',{ascending:false}).limit(5)
   ])
   const acts=logR.data||[], adms=admR.data||[]
-  await resolveTeachers(acts.filter(a=>a.user_type==='teacher').map(a=>a.user_id))
-  const whoOf=(type,id)=> type==='teacher'?(tName[id]||'Teacher') : type==='admin'?'Admin' : type==='coordinator'?'Coordinator' : type
+  await resolveTeachers(acts.filter(a=>['teacher','class_teacher','mother_teacher'].includes(a.user_type)).map(a=>a.user_id))
+  const whoOf=(type,id)=> tName[id] ? tName[id] : type==='admin'?'Admin' : type==='coordinator'?'Coordinator' : type
   // 1) logged actions (attendance, marks, exam fees, tests, profile edits, access requests…)
   acts.forEach(a=>items.push({t:a.created_at, color:'var(--indigo)', who:whoOf(a.user_type,a.user_id), text:a.message||a.action_type||'did something'}))
   // 2) new admissions / re-admissions
