@@ -546,7 +546,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-q{margin-bottom:14px}
   .qp-q-head{display:flex;justify-content:space-between;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:1px}
   .qp-q-head .qnum{flex-shrink:0;white-space:nowrap}
-  .qp-q-head .qtxt{flex:1;min-width:0}
+  .qp-q-head .qtxt{flex:1;min-width:0;display:block}
   .qp-q-head .qmarks{color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
   .qp-q-heading{font-weight:700;font-size:11pt;margin-bottom:4px}
   .qp-sp{margin:0 0 0 28px;font-size:11pt}
@@ -9849,9 +9849,19 @@ function renderQPBuilder(){
 
   h+='<div style="margin:16px 0 10px"><h3 style="margin:0;font-size:12px;text-transform:uppercase;color:var(--ink-soft)">Sections &amp; Questions</h3></div>'
 
+  // Build sequential numbering: unsectioned first, then each section in order
+  let _qpSeqNum=0
+  const _qpNumMap={}
+  if(unsectioned.length||!sections.length){
+    unsectioned.forEach(q=>{_qpSeqNum++;_qpNumMap[q.id]=_qpSeqNum})
+  }
+  sections.forEach(sec=>{
+    questions.filter(q=>q.section_id===sec.id).forEach(q=>{_qpSeqNum++;_qpNumMap[q.id]=_qpSeqNum})
+  })
+
   // Unsectioned questions
   if(unsectioned.length||!sections.length){
-    unsectioned.forEach(q=>{h+=renderQPQuestionCard(q,questions)})
+    unsectioned.forEach(q=>{h+=renderQPQuestionCard(q,_qpNumMap[q.id]||0)})
   }
 
   // Sections with their questions
@@ -9866,7 +9876,7 @@ function renderQPBuilder(){
     h+='<button class="btn btn-danger btn-xs" onclick="removeQPSection(\''+sec.id+'\')" title="Delete section">&#10005;</button>'
     h+='<button class="btn btn-dark btn-xs" onclick="addQPQuestion(\''+sec.id+'\')">+ Question</button>'
     h+='</div>'
-    secQs.forEach(q=>{h+=renderQPQuestionCard(q,questions)})
+    secQs.forEach(q=>{h+=renderQPQuestionCard(q,_qpNumMap[q.id]||0)})
     if(!secQs.length)h+='<div style="padding:10px;color:var(--ink-faint);font-size:12px">No questions in this section yet.</div>'
     h+='</div>'
   })
@@ -9901,9 +9911,8 @@ function renderQPBuilder(){
   $('qpSide').innerHTML=sh
 }
 
-function renderQPQuestionCard(q,allQs){
-  const idx=allQs.indexOf(q)
-  const qNo='Q'+(idx+1)
+function renderQPQuestionCard(q,seqNum){
+  const qNo='Q'+seqNum
   const sps=q.subparts||[]
   const isEqual=q.marks_mode==='equal'
   const isMCQ=q.type==='mcq'
