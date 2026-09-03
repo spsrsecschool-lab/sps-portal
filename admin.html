@@ -9935,7 +9935,7 @@ function renderQPQuestionCard(q,seqNum){
     h+='<option value="'+t+'"'+(q.type===t?' selected':'')+'>'+(QP_TYPE_LABELS[t]||t)+'</option>'
   })
   h+='</select>'
-  h+='<input type="number" data-field="qmarks-'+q.id+'" value="'+(q.marks||0)+'" min="0" step="0.5" placeholder="Marks" onchange="qpSetQuestionMarks(\''+q.id+'\',this.value)" title="Total marks">'
+  h+='<input type="number" data-field="qmarks-'+q.id+'" value="'+(q.marks||0)+'" min="0" step="0.5" placeholder="Marks" oninput="qpSetQuestionMarks(\''+q.id+'\',this.value)" title="Total marks">'
   if(marksDisplay)h+='<span style="font-size:11px;font-weight:700;color:var(--ink-soft)">'+marksDisplay+'</span>'
   if(sps.length)h+='<label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox"'+(isEqual?' checked':'')+' onchange="qpToggleEqualMarks(\''+q.id+'\',this.checked)" style="width:14px;height:14px"> Equal marks</label>'
   h+='<span style="flex:1"></span>'
@@ -10095,16 +10095,26 @@ function qpUpdateSectionTitle(sid,val){
 
 function addQPQuestion(sectionId){
   const ct=_qpCurrent.content
-  const sameSection=ct.questions.filter(q=>(q.section_id||null)===(sectionId||null))
-  const maxOrder=sameSection.reduce((m,q)=>Math.max(m,q.sort_order||0),0)
+  qpSyncFromForm()
+  const siblings=ct.questions.filter(q=>(q.section_id||null)===(sectionId||null)).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
   const lang=_qpCurrent.language||'english'
   const defaultType='regular'
   const heading=(QP_DEFAULT_HEADINGS[lang]||QP_DEFAULT_HEADINGS.english)[defaultType]||''
-  ct.questions.push({
-    id:_qpId(),section_id:sectionId||null,sort_order:maxOrder+1,
-    type:defaultType,heading:heading,text:'',image_url:null,
-    marks:0,marks_mode:'equal',subparts:[],attempt_any:null
-  })
+  const newQ={id:_qpId(),section_id:sectionId||null,sort_order:0,type:defaultType,heading:heading,text:'',image_url:null,marks:0,marks_mode:'equal',subparts:[],attempt_any:null}
+  if(_qpActiveQid){
+    const activeQ=ct.questions.find(q=>q.id===_qpActiveQid)
+    if(activeQ&&(activeQ.section_id||null)===(sectionId||null)){
+      const aOrder=activeQ.sort_order||0
+      siblings.filter(q=>(q.sort_order||0)>aOrder).forEach(q=>q.sort_order=(q.sort_order||0)+1)
+      newQ.sort_order=aOrder+1
+    }else{
+      newQ.sort_order=(siblings.length?Math.max(...siblings.map(q=>q.sort_order||0)):0)+1
+    }
+  }else{
+    newQ.sort_order=(siblings.length?Math.max(...siblings.map(q=>q.sort_order||0)):0)+1
+  }
+  ct.questions.push(newQ)
+  _qpActiveQid=newQ.id
   renderQPBuilder()
 }
 
@@ -10200,15 +10210,45 @@ function qpDistributeEqual(q){
 }
 
 function moveQP(type,id,dir){
+  qpSyncFromForm()
   const ct=_qpCurrent.content
-  const arr=type==='section'?ct.sections:ct.questions
+  if(type==='question'){
+    const q=ct.questions.find(x=>x.id===id)
+    if(!q)return
+    const siblings=ct.questions.filter(x=>(x.section_id||null)===(q.section_id||null)).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+    const si=siblings.findIndex(x=>x.id===id)
+    if(si<0)return
+    const ni=si+dir
+    if(ni<0||ni>=siblings.length)return
+    ;[siblings[si].sort_order,siblings[ni].sort_order]=[siblings[ni].sort_order,siblings[si].sort_order]
+    _qpAnimateSwap(id,siblings[ni].id,dir,type)
+    return
+  }
+  const arr=ct.sections
   const idx=arr.findIndex(x=>x.id===id)
   if(idx<0)return
   const ni=idx+dir
   if(ni<0||ni>=arr.length)return
-  ;[arr[idx],arr[ni]]=[arr[ni],arr[idx]]
-  arr.forEach((x,i)=>x.sort_order=i+1)
-  renderQPBuilder()
+  ;[arr[idx].sort_order,arr[ni].sort_order]=[arr[ni].sort_order,arr[idx].sort_order]
+  _qpAnimateSwap(id,arr[ni].id,dir,type)
+}
+function _qpAnimateSwap(idA,idB,dir,type){
+  const sel=type==='question'?'data-qid':'data-sid'
+  const elA=document.querySelector('['+sel+'="'+idA+'"]')
+  const elB=document.querySelector('['+sel+'="'+idB+'"]')
+  if(!elA||!elB){renderQPBuilder();return}
+  const hA=elA.offsetHeight,hB=elB.offsetHeight
+  const gap=12
+  const distA=(hB+gap)*dir,distB=(hA+gap)*(-dir)
+  elA.style.transition='transform .25s ease'
+  elB.style.transition='transform .25s ease'
+  elA.style.transform='translateY('+distA+'px)'
+  elB.style.transform='translateY('+distB+'px)'
+  elA.addEventListener('transitionend',function handler(){
+    elA.removeEventListener('transitionend',handler)
+    renderQPBuilder()
+  },{once:true})
+  setTimeout(()=>renderQPBuilder(),300)
 }
 
 function qpSetField(qid,field,val){
@@ -10379,6 +10419,18 @@ function qpUpdateMarks(){
       else if(totalMarks>maxM){chk.textContent='OVER';chk.style.color='#ef4444'}
       else{chk.textContent='';chk.style.color=''}
     }
+  }
+  const side=document.querySelector('.qp-side-tracker')
+  if(side){
+    const sp=side.querySelector('span')
+    if(sp){sp.style.color=tColor;sp.textContent=totalMarks+' / '+maxM+' marks'}
+    const fill=side.querySelector('.qp-side-fill')
+    if(fill){fill.style.width=pct+'%';fill.style.background=tColor}
+    let chk2=side.querySelectorAll('span')[1]
+    if(!chk2){chk2=document.createElement('span');side.insertBefore(chk2,side.querySelector('.qp-side-bar'))}
+    if(totalMarks===maxM){chk2.innerHTML=' &#10003;';chk2.style.color='#22c55e'}
+    else if(totalMarks>maxM){chk2.textContent=' OVER';chk2.style.color='#ef4444'}
+    else{chk2.textContent=''}
   }
 }
 
