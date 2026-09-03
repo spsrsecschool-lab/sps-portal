@@ -526,7 +526,11 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-question-card.qp-active{border-color:var(--indigo);border-left:4px solid var(--indigo);box-shadow:0 0 12px rgba(99,102,241,.25)}
   .qp-section-card.qp-active{border-color:var(--indigo);border-left:4px solid var(--indigo);box-shadow:0 0 12px rgba(99,102,241,.2)}
   .qp-actions-fallback{display:none}
-  @media(max-width:900px){.qp-side{display:none}.qp-actions-fallback{display:flex}.qp-builder-wrap{display:block}}
+  .qp-fab{position:fixed;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;z-index:80;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);padding:8px;box-shadow:var(--shadow)}
+  .qp-fab button{width:40px;height:40px;border-radius:var(--radius-sm);border:none;background:var(--indigo-50);color:var(--indigo);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:background .15s}
+  .qp-fab button:hover{background:var(--indigo-100)}
+  .qp-fab .fab-label{font-size:9px;text-align:center;color:var(--ink-soft);margin-top:-2px}
+  @media(max-width:900px){.qp-side{display:none}.qp-actions-fallback{display:flex}.qp-builder-wrap{display:block}.qp-fab{display:none}}
   .qp-marks-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
 
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
@@ -2312,7 +2316,7 @@ function admPickFather(e,fatherEnc,familyEnc){
   const box=$('adm_father_suggest');if(box)box.style.display='none'
   showAdmFamilyStudents(family, father)   // show this father's siblings in the family
 }
-function goTo(id,el){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
+function goTo(id,el){const fab=$('qpFab');if(fab)fab.remove();document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
 function closeMobileSidebar(){$('sidebar').classList.remove('show');$('scrim').classList.remove('show')}
@@ -9758,6 +9762,7 @@ async function loadQPList(){
 }
 
 function qpBackToList(){
+  const fab=$('qpFab');if(fab)fab.remove()
   openSub('questionpapers','sub-qp-list')
   loadQPList()
 }
@@ -9888,6 +9893,14 @@ function renderQPBuilder(){
   h+='<button class="btn btn-soft" onclick="previewQP()">Preview</button>'
   if(c.paper_id)h+='<button class="btn btn-danger" onclick="deleteQP(\''+c.paper_id+'\')">Delete Paper</button>'
   h+='</div>'
+
+  // Floating action buttons (Google Forms style)
+  if(!$('qpFab')){
+    const fab=document.createElement('div');fab.id='qpFab';fab.className='qp-fab'
+    fab.innerHTML='<button onclick="qpSmartAdd(\'question\')" title="Add Question"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="8"/><line x1="10" y1="6" x2="10" y2="14"/><line x1="6" y1="10" x2="14" y2="10"/></svg></button><div class="fab-label">Question</div>'
+      +'<button onclick="qpSmartAdd(\'section\')" title="Add Section"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="3" y1="9" x2="17" y2="9"/></svg></button><div class="fab-label">Section</div>'
+    document.body.appendChild(fab)
+  }
 
   $('qpBuilderContent').innerHTML=h
   $('qpBuilderContent').querySelectorAll('textarea,input[type="text"],input:not([type])').forEach(el=>{
@@ -10558,6 +10571,7 @@ async function deleteQP(paperId){
 
 // ── Preview ──
 async function previewQP(){
+  const fab=$('qpFab');if(fab)fab.remove()
   qpSyncFromForm()
   openSub('questionpapers','sub-qp-preview')
   await loadKaTeX()
