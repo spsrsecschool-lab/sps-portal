@@ -10831,14 +10831,17 @@ async function previewQP(){
         qh+='</div>'
         if(sp.image_url)qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview">'
 
-        // MCQ options
+        // MCQ options — skip options with no text
         if(q.type==='mcq'&&sp.options&&sp.options.length){
           const oLabels=ll.optLabels
-          const short=sp.options.every(o=>(o.text||'').length<30)
-          if(short){
-            qh+='<div class="qp-opt-inline">'+sp.options.map((o,oi)=>'<span>'+(oLabels[oi]||o.label)+' '+esc(o.text||'')+'</span>').join('')+'</div>'
-          }else{
-            sp.options.forEach((o,oi)=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' '+esc(o.text||'')+'</div>'})
+          const filled=sp.options.map((o,oi)=>({o,oi})).filter(({o})=>(o.text||'').trim())
+          if(filled.length){
+            const short=filled.every(({o})=>(o.text||'').length<30)
+            if(short){
+              qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' '+esc(o.text)+'</span>').join('')+'</div>'
+            }else{
+              filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' '+esc(o.text)+'</div>'})
+            }
           }
         }
         qh+='</div>'
