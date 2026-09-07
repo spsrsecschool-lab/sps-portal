@@ -9922,24 +9922,33 @@ async function loadQPList(){
   ])
   _qpList=papers||[];_qpAssessments=assess||[]
   if(!_qpList.length){grid.innerHTML='<div style="grid-column:1/-1;padding:32px;text-align:center;color:var(--ink-soft)">No question papers yet. Click <b>Create New Paper</b> to get started.</div>';return}
-  grid.innerHTML=_qpList.map(p=>{
-    const cls=p.classes?.name||'?',subj=p.subjects?.name||'?',assess=p.assessments?.name||''
-    const title=p.title||(cls+' — '+subj)
-    const dt=p.updated_at?new Date(p.updated_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
-    return '<div class="assess-card" onclick="openQPBuilder(\''+p.paper_id+'\')" style="cursor:pointer">'+
-      '<h4 style="font-size:13px;margin-bottom:6px">'+esc(title)+'</h4>'+
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+
-        '<span class="pill pill-indigo">'+esc(cls)+'</span>'+
-        '<span class="pill pill-neutral">'+esc(subj)+'</span>'+
-      '</div>'+
-      (assess?'<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:4px">'+esc(assess)+'</div>':'')+
-      '<div style="font-size:12px;font-weight:600;margin-bottom:4px">'+p.max_marks+' marks · '+p.time_minutes+' min'+(p.language&&p.language!=='english'?' · '+esc(p.language):'')+'</div>'+
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<span class="pill '+(p.status==='final'?'pill-success':'pill-warn')+'">'+esc(p.status==='final'?'Final':'Draft')+'</span>'+
-        '<span style="font-size:11px;color:var(--ink-faint)">'+dt+'</span>'+
-      '</div>'+
-    '</div>'
-  }).join('')
+  const classOrder={}; ALL_CLASSES.forEach(c=>classOrder[c.class_id]=c.sort_order??999)
+  const grouped={}
+  _qpList.forEach(p=>{const cid=p.class_id||'_none';if(!grouped[cid])grouped[cid]={name:p.classes?.name||'Uncategorised',order:classOrder[cid]??999,papers:[]};grouped[cid].papers.push(p)})
+  const buckets=Object.values(grouped).sort((a,b)=>a.order-b.order)
+  let html=''
+  buckets.forEach(b=>{
+    html+='<div style="grid-column:1/-1;margin-top:10px;margin-bottom:2px"><div style="font-size:13px;font-weight:700;color:var(--ink);padding:6px 0;border-bottom:2px solid var(--indigo)">Class '+esc(b.name)+'<span style="font-weight:400;color:var(--ink-faint);margin-left:8px;font-size:12px">'+b.papers.length+' paper'+(b.papers.length!==1?'s':'')+'</span></div></div>'
+    b.papers.forEach(p=>{
+      const cls=p.classes?.name||'?',subj=p.subjects?.name||'?',assessN=p.assessments?.name||''
+      const title=p.title||(cls+' — '+subj)
+      const dt=p.updated_at?new Date(p.updated_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+      html+='<div class="assess-card" onclick="openQPBuilder(\''+p.paper_id+'\')" style="cursor:pointer">'+
+        '<h4 style="font-size:13px;margin-bottom:6px">'+esc(title)+'</h4>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+
+          '<span class="pill pill-indigo">'+esc(cls)+'</span>'+
+          '<span class="pill pill-neutral">'+esc(subj)+'</span>'+
+        '</div>'+
+        (assessN?'<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:4px">'+esc(assessN)+'</div>':'')+
+        '<div style="font-size:12px;font-weight:600;margin-bottom:4px">'+p.max_marks+' marks · '+p.time_minutes+' min'+(p.language&&p.language!=='english'?' · '+esc(p.language):'')+'</div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<span class="pill '+(p.status==='final'?'pill-success':'pill-warn')+'">'+esc(p.status==='final'?'Final':'Draft')+'</span>'+
+          '<span style="font-size:11px;color:var(--ink-faint)">'+dt+'</span>'+
+        '</div>'+
+      '</div>'
+    })
+  })
+  grid.innerHTML=html
 }
 
 function qpBackToList(){
