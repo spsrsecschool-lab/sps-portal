@@ -10021,11 +10021,14 @@ async function openQPBuilder(paperId){
   if(!_qpCurrent.content.sections)_qpCurrent.content.sections=[]
   if(!_qpCurrent.content.questions)_qpCurrent.content.questions=[]
   if(!_qpCurrent.content.school_name)_qpCurrent.content.school_name='SHIV PUBLIC SCHOOL'
-  if(!_qpCurrent.content.general_instructions&&!_qpCurrent.paper_id){
+  if(!_qpCurrent.content.general_instructions){
     _qpCurrent.content.general_instructions=_qpGetDefaultInstructions(_qpCurrent.language||'english')
   }
+  const _lang=_qpCurrent.language||'english'
+  const _dh=QP_DEFAULT_HEADINGS[_lang]||QP_DEFAULT_HEADINGS.english
   _qpCurrent.content.questions.forEach(q=>{
     if(q.type==='diagram'||q.type==='numerical')q.type='short'
+    if(!q.heading&&_dh[q.type])q.heading=_dh[q.type]
     if(q.type==='match'&&!q.match_pairs){
       q.match_pairs=[]
       ;(q.subparts||[]).forEach(sp=>{
