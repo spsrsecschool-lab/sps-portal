@@ -234,6 +234,11 @@ thead .sticky-col{background:var(--lav-100);z-index:3}
 .cell-hd{background:#E3F2FD!important;color:#1565C0;font-weight:700;text-align:center;font-size:11px}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:11px 14px;text-align:left;white-space:nowrap}
+th.sortable{cursor:pointer;user-select:none;position:relative;padding-right:22px}
+th.sortable:hover{color:var(--ink);background:var(--lav-200,#e0dff5)}
+th.sortable::after{content:'⇅';position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;opacity:.4}
+th.sortable.asc::after{content:'▲';opacity:.8}
+th.sortable.desc::after{content:'▼';opacity:.8}
 tbody td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap}
 tbody tr:hover td{background:var(--lav-50)}
 .mono{font-family:var(--mono)}
@@ -744,7 +749,7 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
       <div id="studentCount" style="font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:10px"></div>
       <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>ID</th><th>Name</th><th>Father's Name</th><th>Class</th><th>Sec</th><th>Roll</th><th>S.No</th><th>Family</th><th>Phone</th><th></th></tr></thead>
+        <thead><tr><th class="sortable asc" onclick="sortStudentCol('student_id',this)">ID</th><th class="sortable" onclick="sortStudentCol('full_name',this)">Name</th><th class="sortable" onclick="sortStudentCol('father_name',this)">Father's Name</th><th class="sortable" onclick="sortStudentCol('class',this)">Class</th><th class="sortable" onclick="sortStudentCol('section',this)">Sec</th><th class="sortable" onclick="sortStudentCol('roll_no',this)">Roll</th><th class="sortable" onclick="sortStudentCol('s_no',this)">S.No</th><th class="sortable" onclick="sortStudentCol('family_code',this)">Family</th><th class="sortable" onclick="sortStudentCol('phone',this)">Phone</th><th></th></tr></thead>
         <tbody id="studentBody"><tr><td colspan="10"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table></div></div>
     </div>
@@ -1774,6 +1779,7 @@ tbody tr:hover td{background:var(--lav-50)}
 <script>
 // ═══════════ GLOBALS ═══════════
 let SESS=null,ALL_CLASSES=[],ALL_SUBJECTS=[],ALL_TEACHERS=[],_staffRaw=[],_studentsRaw=[],_promoStudents=[],_selectedClassId=null,_profileEnrollId=null,_confirmCb=null,_openMsgId=null,_calYear=null,_calMonth=null,_subData=[],_subRoster=null,_selectedRosterId=null,_selectedRosterName='',_photoPicked=null,_docPicked=null
+let _studentSort={col:'student_id',dir:'asc'}
 window._msgStore={}, window._assessMap={}
 
 // ═══════════ INIT ═══════════
@@ -3167,6 +3173,13 @@ async function loadStudents(){
   }
   filterStudents()
 }
+function sortStudentCol(col,th){
+  if(_studentSort.col===col) _studentSort.dir=_studentSort.dir==='asc'?'desc':'asc'
+  else{_studentSort.col=col;_studentSort.dir='asc'}
+  document.querySelectorAll('#page-students thead th.sortable').forEach(h=>{h.classList.remove('asc','desc')})
+  if(th)th.classList.add(_studentSort.dir)
+  filterStudents()
+}
 function filterStudents(){
   const s=$('studentSearch')?.value?.toLowerCase()||'',cls=$('studentClassFilter')?.value||'',stat=$('studentStatusFilter')?.value||''
   const streamF=$('studentStreamFilter')?.value||''
@@ -3209,6 +3222,22 @@ function filterStudents(){
       ? 'Showing '+rows.length+' of '+grandTotal+' students'
       : 'Total students: '+rows.length
   }
+  const sc=_studentSort.col,sd=_studentSort.dir==='asc'?1:-1
+  const classOrder=Object.fromEntries((ALL_CLASSES||[]).map(c=>[c.class_id,c.sort_order??999]))
+  rows.sort((a,b)=>{
+    let va,vb
+    if(sc==='student_id'){va=a.students?.student_id||'';vb=b.students?.student_id||''}
+    else if(sc==='full_name'){va=(a.students?.full_name||'').toLowerCase();vb=(b.students?.full_name||'').toLowerCase()}
+    else if(sc==='father_name'){va=(a.students?.father_name||'').toLowerCase();vb=(b.students?.father_name||'').toLowerCase()}
+    else if(sc==='class'){va=classOrder[a.classes?.class_id]??999;vb=classOrder[b.classes?.class_id]??999}
+    else if(sc==='section'){va=(a.class_sections?.name||'').toLowerCase();vb=(b.class_sections?.name||'').toLowerCase()}
+    else if(sc==='roll_no'){va=parseInt(a.roll_no)||0;vb=parseInt(b.roll_no)||0}
+    else if(sc==='s_no'){va=(a.s_no||'').toLowerCase();vb=(b.s_no||'').toLowerCase()}
+    else if(sc==='family_code'){va=(a.students?.family_code||'').toLowerCase();vb=(b.students?.family_code||'').toLowerCase()}
+    else if(sc==='phone'){va=a.students?.phone||'';vb=b.students?.phone||''}
+    else{va='';vb=''}
+    return va<vb?-sd:va>vb?sd:0
+  })
   const body=$('studentBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="10"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/></svg><p>No students found.</p></div></td></tr>';return}
   body.innerHTML=rows.slice(0,1000).map(e=>{const s=e.students;return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(s?.father_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
