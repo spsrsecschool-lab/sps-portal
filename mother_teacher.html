@@ -1691,14 +1691,14 @@ async function loadPrevAtt(){
   // count from that date. Everyone else — continuing students, or students
   // added without a date — counts the full period from the session/month start.
   CLASS_STUDENTS.forEach(s=>{
-    const admForWD=(s.is_new_admission && s.students?.admission_date) ? s.students.admission_date : null
+    const admForWD=((s.is_new_admission||s.att_from_admission) && s.students?.admission_date) ? s.students.admission_date : null
     _paStudentWD[s.enrollment_id]=effectiveWD(admForWD, from, to, _paHolSet)
   })
   const month=parseInt($('pa_month')?.value),year=parseInt($('pa_year')?.value)||new Date().getFullYear()
   const mLabel=['January','February','March','April','May','June','July','August','September','October','November','December'][month-1]+' '+year
   el.innerHTML='<div class="card"><h3 style="margin:0 0 4px">'+esc(mLabel)+'</h3><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">Enter <b>Present</b> days for each student — Absent updates automatically. Present + Absent must equal that student\'s <b>Working Days</b> (fewer for those who joined mid-period).</div><div style="overflow-x:auto"><table><thead><tr>'
     +'<th>Roll</th><th>Student</th><th style="width:80px">Working</th><th style="width:120px">Present</th><th style="width:90px">Absent</th><th style="width:60px">Save</th></tr></thead><tbody>'
-    +CLASS_STUDENTS.map(s=>{const ex=exMap[s.enrollment_id];const p=ex?ex.present_count:'';const wd=_paStudentWD[s.enrollment_id];const joined=s.is_new_admission&&s.students?.admission_date&&s.students.admission_date>from;return '<tr data-eid="'+s.enrollment_id+'">'
+    +CLASS_STUDENTS.map(s=>{const ex=exMap[s.enrollment_id];const p=ex?ex.present_count:'';const wd=_paStudentWD[s.enrollment_id];const joined=(s.is_new_admission||s.att_from_admission)&&s.students?.admission_date&&s.students.admission_date>from;return '<tr data-eid="'+s.enrollment_id+'">'
       +'<td class="mono">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+(joined?'<div style="font-size:10px;color:var(--indigo-dark);font-weight:500">joined '+fmtD(s.students.admission_date)+'</div>':'')+'</td>'
       +'<td class="mono" style="font-weight:700">'+wd+'</td>'
@@ -1948,7 +1948,7 @@ async function viewStudentProfile(eid){
   const lbl='font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px'
   const inp='width:100%;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box'
 
-  const admLocked = !enr.is_new_admission   // only NEW admissions can have their join date set; continuing students stay at session start
+  const admLocked = !enr.is_new_admission && !enr.att_from_admission
   const fields=[
     {k:'full_name',label:'Full Name',val:s.full_name},
     {k:'father_name',label:'Fathers Name',val:s.father_name},
@@ -2598,7 +2598,7 @@ async function loadAssessMarks(){
     }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
     const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
     ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
-    const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=s.is_new_admission?(s.students?.admission_date||null):null})
+    const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission||s.att_from_admission)?(s.students?.admission_date||null):null})
     const wdCache={}
     const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
     CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStudent[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id])}})
@@ -3387,7 +3387,7 @@ async function loadViewMarks(){
     }catch(e){}
     const _inMon2=(eid,d)=>(_mp[eid]||[]).some(p=>d>=p.from&&d<=p.to)
     ;(attData||[]).forEach(a=>{if(_inMon2(a.enrollment_id,a.date))return;if(a.status==='P')byStu[a.enrollment_id]=(byStu[a.enrollment_id]||0)+1})
-    const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=s.is_new_admission?(s.students?.admission_date||null):null})
+    const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission||s.att_from_admission)?(s.students?.admission_date||null):null})
     const wdCache={}
     const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
     CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStu[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id])}})

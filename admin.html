@@ -3355,6 +3355,7 @@ async function openEditDemoModal(){
     '<div class="form-row"><div class="fg"><label>Class *</label><select id="ed_class" onchange="edLoadSecStream()">'+clsOpts+'</select></div><div class="fg"><label>Section *</label><select id="ed_section" onchange="syncStreamSection(\'section\',\'ed\')"></select></div></div>'+
     '<div class="form-row"><div class="fg" id="ed_stream_fg" style="display:none"><label>Stream *</label><select id="ed_stream" onchange="syncStreamSection(\'stream\',\'ed\')"></select></div><div class="fg"><label>Roll No.</label><input id="ed_roll" inputmode="numeric" value="'+esc(e.roll_no||'')+'"></div><div class="fg"><label>S.No</label><input id="ed_sno" inputmode="numeric" value="'+esc(e.s_no||'')+'"></div></div>'+
     '<div class="form-row" style="align-items:center"><div class="fg"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink)"><input type="checkbox" id="ed_isnew" '+(e.is_new_admission?'checked':'')+' style="width:16px;height:16px;accent-color:var(--ink)"> New admission? <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(waives the annual charge)</span></label></div></div>'+
+    '<div class="form-row" style="align-items:center"><div class="fg"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--ink)"><input type="checkbox" id="ed_attadm" '+(e.att_from_admission?'checked':'')+' style="width:16px;height:16px;accent-color:var(--indigo)"> Count attendance from admission date <span style="font-weight:400;color:var(--ink-faint);font-size:11.5px">(instead of session start)</span></label></div></div>'+
     '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px 12px;font-size:11.5px;color:var(--ink-soft);line-height:1.5">Classes with streams (11th / 12th) must have one selected — tuition is set per stream, so a blank stream bills &#8377;0.<br>Blank S.No means <b>promoted but not yet re-admitted</b>; the Fee Portal flags them.</div>',
     '<button class="btn btn-dark" onclick="saveEditDemo()">Save Changes</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
   // Remember the enrollment BEFORE editing, to detect a section move on save.
@@ -3534,7 +3535,8 @@ async function saveEditDemo(){
 
   const{error:e2}=await sb.from('student_enrollments').update({
     class_id:cid, section_id:secId, stream_id:streamId,
-    roll_no:rollToSet, s_no:sno, is_new_admission:$('ed_isnew')?.checked===true
+    roll_no:rollToSet, s_no:sno, is_new_admission:$('ed_isnew')?.checked===true,
+    att_from_admission:$('ed_attadm')?.checked===true
   }).eq('enrollment_id',eid)
   if(e2){toast('Demographics saved, but enrollment update failed: '+e2.message,'error');return}
 
@@ -5122,7 +5124,7 @@ async function loadMarksTable(){
 
   // Students in this class (+ section if chosen)
   let sq=sb.from('student_enrollments')
-    .select('enrollment_id,roll_no,is_new_admission,students(full_name,father_name,admission_date)')
+    .select('enrollment_id,roll_no,is_new_admission,att_from_admission,students(full_name,father_name,admission_date)')
     .eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').eq('relieved',false)
   if(secId)sq=sq.eq('section_id',secId)
   const{data:studs}=await sq.order('roll_no')
@@ -5165,7 +5167,7 @@ async function loadMarksTable(){
   ;(attRows||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1})
   const wdCache={}
   const wdFor=adm=>{const k=adm||'_';if(wdCache[k]!=null)return wdCache[k];let start=attFrom;if(adm&&adm>attTo)return(wdCache[k]=0);if(adm&&adm>attFrom)start=adm;let n=0;const c=new Date(start+'T12:00:00'),e=new Date(attTo+'T12:00:00');while(c<=e){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)}return(wdCache[k]=n)}
-  const attMap={}; studs.forEach(s=>{const adm=(s.is_new_admission&&s.students?.admission_date)?s.students.admission_date:null; attMap[s.enrollment_id]={present:presentMap[s.enrollment_id]||0, working:wdFor(adm)}})
+  const attMap={}; studs.forEach(s=>{const adm=((s.is_new_admission||s.att_from_admission)&&s.students?.admission_date)?s.students.admission_date:null; attMap[s.enrollment_id]={present:presentMap[s.enrollment_id]||0, working:wdFor(adm)}})
 
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table class="msheet" style="min-width:800px"><thead><tr>'
@@ -5565,7 +5567,7 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
     if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1
   })
   // Working days per student (cached by effective start date).
-  const admBy={}; studs.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission&&s.students?.admission_date)?s.students.admission_date:null})
+  const admBy={}; studs.forEach(s=>{admBy[s.enrollment_id]=((s.is_new_admission||s.att_from_admission)&&s.students?.admission_date)?s.students.admission_date:null})
   const wdCache={}
   const wdFor=adm=>{const key=adm||'_';if(wdCache[key]!=null)return wdCache[key];let start=attFrom;if(adm&&adm>attTo)return(wdCache[key]=0);if(adm&&adm>attFrom)start=adm;let n=0;const c=new Date(start+'T12:00:00'),e2=new Date(attTo+'T12:00:00');while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)}return(wdCache[key]=n)}
 
@@ -6102,7 +6104,7 @@ async function loadPendingAttendance(){
   if(toStr>todayStr)toStr=todayStr
   const sid=SESS?.session_id||''
   const [enrR,holR,cssR,ctR]=await Promise.all([
-    sb.from('student_enrollments').select('enrollment_id,class_id,section_id,is_new_admission,students(student_id,admission_date),classes(name,sort_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
+    sb.from('student_enrollments').select('enrollment_id,class_id,section_id,is_new_admission,att_from_admission,students(student_id,admission_date),classes(name,sort_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
     sb.from('holidays').select('date,applies_to').eq('session_id',sid).gte('date',fromStr).lte('date',toStr),
     sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
     sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid)
@@ -6116,7 +6118,7 @@ async function loadPendingAttendance(){
   // Per-enrollment effective start (accounts for late admissions)
   const eidStartMap={}
   enrs.forEach(e=>{
-    const admDate=(e.is_new_admission&&e.students?.admission_date)?e.students.admission_date:null
+    const admDate=((e.is_new_admission||e.att_from_admission)&&e.students?.admission_date)?e.students.admission_date:null
     const cs=classStarts[e.class_id]||sessStart
     eidStartMap[e.enrollment_id]=[sessStart,cs,admDate].filter(Boolean).sort().pop()
   })
@@ -6298,7 +6300,7 @@ async function loadStudentAttendance(){
   const todayStr=_ds(new Date())
 
   const[{data:enr},{data:hols},{data:cssD},{data:att},{data:monthly},{data:hdRecs}]=await Promise.all([
-    sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,is_new_admission,students(full_name,father_name,admission_date),classes(name),class_sections(name)').eq('enrollment_id',eid).single(),
+    sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,is_new_admission,att_from_admission,students(full_name,father_name,admission_date),classes(name),class_sections(name)').eq('enrollment_id',eid).single(),
     sb.from('holidays').select('date,label,applies_to').eq('session_id',sid),
     sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
     sb.from('student_attendance').select('date,status').eq('enrollment_id',eid),
@@ -6308,7 +6310,7 @@ async function loadStudentAttendance(){
   if(!enr){emp(el,'Student not found.');return}
   const holMap={}; (hols||[]).filter(h=>(h.applies_to||'both')!=='staff_only').forEach(h=>{holMap[h.date]=h.label})
   const classStart=(cssD||[]).find(c=>c.class_id===enr.class_id)?.start_date||sessStart
-  const admDate=(enr.is_new_admission&&enr.students?.admission_date)?enr.students.admission_date:null
+  const admDate=((enr.is_new_admission||enr.att_from_admission)&&enr.students?.admission_date)?enr.students.admission_date:null
   const effStart=[sessStart,classStart,admDate].filter(Boolean).sort().pop()
 
   const attMap={}; (att||[]).forEach(a=>{attMap[a.date]=a.status})
@@ -6438,7 +6440,7 @@ async function loadClassAttendance(){
 
   // Students in this class (+ section if chosen)
   let eq=sb.from('student_enrollments')
-    .select('enrollment_id,roll_no,is_new_admission,students(full_name,father_name,admission_date)')
+    .select('enrollment_id,roll_no,is_new_admission,att_from_admission,students(full_name,father_name,admission_date)')
     .eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').eq('relieved',false)
   if(secId)eq=eq.eq('section_id',secId)
   const{data:studs,error:se}=await eq.order('roll_no')
@@ -6491,7 +6493,7 @@ async function loadClassAttendance(){
         // No monthly row for this student → fall back to their daily records.
         const dr=attMap[s.enrollment_id]||{}
         pres=Object.values(dr).filter(v=>v==='P'||v==='L').length
-        const admD=(s.is_new_admission&&s.students?.admission_date)?s.students.admission_date:null
+        const admD=((s.is_new_admission||s.att_from_admission)&&s.students?.admission_date)?s.students.admission_date:null
         const sStart=[classStart,admD].filter(Boolean).sort().pop()||classStart||''
         wk=days.filter(d=>!d.isSun&&!d.isHol&&d.dateStr>=sStart).length
         abs=Math.max(0,wk-pres)
