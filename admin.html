@@ -3232,7 +3232,7 @@ function filterStudents(){
     else if(sc==='class'){va=classOrder[a.classes?.class_id]??999;vb=classOrder[b.classes?.class_id]??999}
     else if(sc==='section'){va=(a.class_sections?.name||'').toLowerCase();vb=(b.class_sections?.name||'').toLowerCase()}
     else if(sc==='roll_no'){va=parseInt(a.roll_no)||0;vb=parseInt(b.roll_no)||0}
-    else if(sc==='s_no'){va=(a.s_no||'').toLowerCase();vb=(b.s_no||'').toLowerCase()}
+    else if(sc==='s_no'){va=parseInt(a.s_no)||0;vb=parseInt(b.s_no)||0}
     else if(sc==='family_code'){va=(a.students?.family_code||'').toLowerCase();vb=(b.students?.family_code||'').toLowerCase()}
     else if(sc==='phone'){va=a.students?.phone||'';vb=b.students?.phone||''}
     else{va='';vb=''}
