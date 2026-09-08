@@ -3561,11 +3561,12 @@ async function uploadDoc(){
   const file=_docPicked,type=$('doc_type')?.value
   if(!file){toast('Select or capture a file first','error');return}
   showUploadOverlay('Uploading document…')
+  try{
   const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
   const sid=e?.student_id;if(!sid){hideUploadOverlay();toast('Student not found','error');return}
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
-  const safeType=String(docType||type||'Document').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
-    const path='student-docs/'+sid+'/'+safeType+'_'+sid+'.'+ext
+  const safeType=String(type||'Document').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
+  const path='student-docs/'+sid+'/'+safeType+'_'+sid+'.'+ext
   const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
   if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create a bucket called "school-files" in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
@@ -3573,6 +3574,7 @@ async function uploadDoc(){
   await sb.from('student_documents').insert({student_id:sid,file_url:publicUrl,file_type:type,uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id,uploaded_at:new Date().toISOString()})
   _docPicked=null
   hideUploadOverlay();toast('Document uploaded','success');closeModal();openProfile(_profileEnrollId)
+  }catch(err){hideUploadOverlay();toast('Upload failed: '+err.message,'error')}
 }
 
 // ═══════════ NEW ADMISSION ═══════════
