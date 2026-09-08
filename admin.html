@@ -558,6 +558,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-q-head .qtxt{flex:1;min-width:0;display:block}
   .qp-q-head .qmarks{color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
   .qp-q-heading{font-weight:700;font-size:11pt;margin-bottom:4px}
+  .qp-q-body{margin:1px 0 2px 28px;font-size:11pt}
   .qp-sp{margin:0 0 0 28px;font-size:11pt}
   .qp-sp-head{display:flex;justify-content:space-between;align-items:flex-start}
   .qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap}
@@ -10849,9 +10850,11 @@ async function previewQP(){
     }
 
     let qh='<div class="qp-q">'
-    qh+='<div class="qp-q-head"><span class="qnum"><b>'+ll.qPrefix+qNum+'.</b>&nbsp;</span><span class="qtxt">'+(q.heading?'<b>'+esc(q.heading)+'</b>':'')+(q.text?(q.heading?' &nbsp; ':'')+'<span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
+    const hasHeadingAndText=q.heading&&q.text
+    qh+='<div class="qp-q-head"><span class="qnum"><b>'+ll.qPrefix+qNum+'.</b>&nbsp;</span><span class="qtxt">'+(q.heading?'<b>'+esc(q.heading)+'</b>':'')+(q.text&&!hasHeadingAndText?'<span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
     if(marksStr)qh+='<span class="qmarks"><b>'+marksStr+'</b></span>'
     qh+='</div>'
+    if(hasHeadingAndText)qh+='<div class="qp-q-body"><span class="qp-math-render">'+esc(q.text).replace(/\n/g,'<br>')+'</span></div>'
 
     // Attempt any X out of Y
     if(q.attempt_any&&sps.length){
