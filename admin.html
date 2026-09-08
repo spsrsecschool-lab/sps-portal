@@ -10839,8 +10839,9 @@ async function previewQP(){
     const isMatch=q.type==='match'
     let marksStr=''
     if(sps.length&&isEqual){
-      const per=sps.length?(parseFloat(q.marks)||0)/sps.length:0
-      marksStr='['+sps.length+' &times; '+per+' = '+(parseFloat(q.marks)||0)+']'
+      const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
+      const per=cnt?(parseFloat(q.marks)||0)/cnt:0
+      marksStr='['+cnt+' &times; '+per+' = '+(parseFloat(q.marks)||0)+']'
     }else if(!sps.length&&!isMatch){
       marksStr='['+(parseFloat(q.marks)||0)+']'
     }else if(isMatch){
