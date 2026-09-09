@@ -506,6 +506,10 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-math-panel{background:var(--lav-50);border:1.5px solid var(--indigo-100);border-radius:var(--radius-sm);padding:8px 10px;margin:6px 0;display:none}
   .qp-math-panel.open{display:block}
   .qp-math-panel .qp-toolbar{margin:0}
+  .qp-nested-subpart-row{display:flex;gap:6px;align-items:flex-start;margin:2px 0 2px 62px;padding:4px 8px;border-left:2px solid var(--indigo-100);background:var(--lav-50);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+  .qp-nested-subpart-row .sp-label{font-size:12px;font-weight:700;flex-shrink:0;padding-top:7px;min-width:32px}
+  .qp-nested-subpart-row textarea{flex:1;min-height:28px;font-size:12px;padding:5px 9px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white);font-family:var(--font);resize:vertical}
+  .qp-nested-mcq-options{border:1px solid var(--line);border-radius:var(--radius-sm);padding:6px 8px;margin:2px 0 2px 62px;background:var(--lav-50)}
   .qp-mcq-options{border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px;margin:4px 0 4px 52px;background:var(--lav-50)}
   .qp-mcq-options .qp-option-row{margin:3px 0}
   .qp-match-builder{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0}
@@ -552,20 +556,25 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-general-instructions{font-style:italic;font-size:10pt;margin-bottom:10px;padding:4px 0;border-bottom:1px solid #ccc}
   .qp-attempt-note{font-style:italic;font-weight:700;margin:2px 0 6px 28px;font-size:10pt}
   .qp-section-title{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;margin:18px 0 10px;text-decoration:underline}
-  .qp-q{margin-bottom:8px;position:relative;padding-right:100px}
+  .qp-q{margin-bottom:8px}
   .qp-q-head{display:flex;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:1px}
   .qp-q-head .qnum{flex-shrink:0;white-space:nowrap}
   .qp-q-head .qtxt{flex:1;min-width:0;display:block}
-  .qp-q-head .qmarks{position:absolute;right:0;top:0;color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
+  .qp-q-head .qmarks{color:#000;font-weight:700;font-size:11pt;white-space:nowrap;flex-shrink:0;margin-left:8px}
   .qp-q-heading{font-weight:700;font-size:11pt;margin-bottom:4px}
   .qp-q-body{margin:1px 0 2px 28px;font-size:11pt}
   .qp-sp{margin:0 0 0 28px;font-size:11pt}
   .qp-sp-head{display:flex;align-items:flex-start}
-  .qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap;margin-left:auto}
+  .qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap;flex-shrink:0;margin-left:8px}
+  .qp-nested{margin:0 0 0 20px;font-size:11pt}
+  .qp-nested-head{display:flex;align-items:flex-start}
+  .qp-nested .nested-marks{font-weight:700;font-size:11pt;white-space:nowrap;flex-shrink:0;margin-left:8px}
   .qp-opt{margin:0 0 0 48px;font-size:11pt}
   .qp-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 48px;font-size:11pt}
+  .qp-nested-opt{margin:0 0 0 24px;font-size:11pt}
+  .qp-nested-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 24px;font-size:11pt}
   .qp-sp-inline{display:flex;flex-wrap:wrap;gap:4px 24px;margin:0 0 0 28px;font-size:11pt}
-  .qp-match-tbl{margin:6px 0 6px 28px;border-collapse:collapse;font-size:11pt;width:calc(100% - 100px)}
+  .qp-match-tbl{margin:6px 0 6px 28px;border-collapse:collapse;font-size:11pt;width:100%}
   .qp-match-tbl td,.qp-match-tbl th{border:1px solid #000;padding:4px 10px;font-weight:400}
   .qp-match-tbl th{font-weight:700}
   .qp-img-preview{max-width:300px;max-height:220px;margin:6px 0;display:block}
@@ -10113,6 +10122,14 @@ function renderQPBuilder(){
     h+='<button class="btn btn-danger btn-xs" onclick="event.stopPropagation();removeQPSection(\''+sec.id+'\')" title="Delete section">&#10005;</button>'
     h+='<button class="btn btn-dark btn-xs" onclick="event.stopPropagation();addQPQuestion(\''+sec.id+'\')">+ Question</button>'
     h+='</div>'
+    if(secQs.length>1){
+      h+='<div style="padding:4px 12px;display:flex;align-items:center;gap:8px;font-size:11px" onclick="event.stopPropagation()">'
+      h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox"'+(sec.attempt_any?' checked':'')+' onchange="qpToggleSectionAttemptAny(\''+sec.id+'\',this.checked)" style="width:14px;height:14px"> Optional questions</label>'
+      if(sec.attempt_any){
+        h+='<span>Attempt any</span><input type="number" value="'+(sec.attempt_any||'')+'" min="1" max="'+secQs.length+'" style="width:50px;font-size:11px;padding:3px 6px;border:1px solid var(--line);border-radius:4px" onchange="qpSetSectionAttemptAny(\''+sec.id+'\',this.value)"><span>out of '+secQs.length+' questions</span>'
+      }
+      h+='</div>'
+    }
     secQs.forEach(q=>{h+=renderQPQuestionCard(q,_qpNumMap[q.id]||0)})
     if(!secQs.length)h+='<div style="padding:10px;color:var(--ink-faint);font-size:12px">No questions in this section yet.</div>'
     h+='</div>'
@@ -10264,6 +10281,32 @@ function renderQPQuestionCard(q,seqNum){
         })
         h+='</div>'
       }
+      // Nested children
+      const kids=sp.children||[]
+      if(kids.length){
+        kids.forEach((kid,ki)=>{
+          const kidLabel=String.fromCharCode(97+ki)+')'
+          h+='<div class="qp-nested-subpart-row" data-nid="'+kid.id+'">'
+          h+='<span class="sp-label">'+kidLabel+'</span>'
+          h+='<textarea data-field="ntxt-'+kid.id+'" placeholder="Nested sub-part text" onchange="qpSetNestedField(\''+q.id+'\',\''+sp.id+'\',\''+kid.id+'\',\'text\',this.value)">'+esc(kid.text||'')+'</textarea>'
+          h+='<input type="number" data-field="nmarks-'+kid.id+'" value="'+(kid.marks||0)+'" min="0" step="0.5" onchange="qpSetNestedMarks(\''+q.id+'\',\''+sp.id+'\',\''+kid.id+'\',this.value)" title="Marks" style="width:55px">'
+          h+='<button class="btn btn-ghost btn-xs" onclick="removeQPNestedSubpart(\''+q.id+'\',\''+sp.id+'\',\''+kid.id+'\')" style="padding-top:6px" title="Delete">&#10005;</button>'
+          h+='</div>'
+          // Nested MCQ options
+          if(kid.options&&kid.options.length){
+            const oLabels2=_qpL('optLabels')
+            h+='<div class="qp-nested-mcq-options">'
+            oLabels2.forEach((ol,oi)=>{
+              h+='<div class="qp-option-row"><span>'+ol+'</span>'
+              h+='<input data-field="nopt-'+kid.id+'-'+oi+'" value="'+esc((kid.options[oi]||{}).text||'')+'" placeholder="Option '+ol+'" onchange="qpSetNestedOption(\''+q.id+'\',\''+sp.id+'\',\''+kid.id+'\','+oi+',this.value)">'
+              h+='</div>'
+            })
+            h+='</div>'
+          }
+        })
+      }
+      h+='<div style="margin:2px 0 4px 62px"><button class="btn btn-ghost btn-xs" onclick="addQPNestedSubpart(\''+q.id+'\',\''+sp.id+'\')">+ Child</button>'
+      h+='<button class="btn btn-ghost btn-xs" onclick="addQPNestedMCQ(\''+q.id+'\',\''+sp.id+'\')">+ MCQ Child</button></div>'
     })
 
     // Attempt any X out of Y
@@ -10637,6 +10680,79 @@ function qpSetAttemptAny(qid,val){
   renderQPBuilder()
 }
 
+function qpToggleSectionAttemptAny(sid,checked){
+  const sec=_qpCurrent.content.sections.find(s=>s.id===sid)
+  if(!sec)return
+  const secQs=_qpCurrent.content.questions.filter(q=>q.section_id===sid)
+  sec.attempt_any=checked?Math.max(1,secQs.length-1):null
+  renderQPBuilder()
+}
+function qpSetSectionAttemptAny(sid,val){
+  const sec=_qpCurrent.content.sections.find(s=>s.id===sid)
+  if(!sec)return
+  sec.attempt_any=parseInt(val)||null
+  renderQPBuilder()
+}
+
+function addQPNestedSubpart(qid,spid){
+  const q=_qpCurrent.content.questions.find(x=>x.id===qid)
+  if(!q)return
+  const sp=q.subparts.find(s=>s.id===spid)
+  if(!sp)return
+  if(!sp.children)sp.children=[]
+  sp.children.push({id:_qpId(),label:'',text:'',marks:0})
+  renderQPBuilder()
+}
+function addQPNestedMCQ(qid,spid){
+  const q=_qpCurrent.content.questions.find(x=>x.id===qid)
+  if(!q)return
+  const sp=q.subparts.find(s=>s.id===spid)
+  if(!sp)return
+  if(!sp.children)sp.children=[]
+  const ol=_qpL('optLabels')
+  sp.children.push({id:_qpId(),label:'',text:'',marks:0,options:ol.map(l=>({label:l,text:''}))})
+  renderQPBuilder()
+}
+function removeQPNestedSubpart(qid,spid,childId){
+  const q=_qpCurrent.content.questions.find(x=>x.id===qid)
+  if(!q)return
+  const sp=q.subparts.find(s=>s.id===spid)
+  if(!sp||!sp.children)return
+  sp.children=sp.children.filter(c=>c.id!==childId)
+  renderQPBuilder()
+}
+function qpSetNestedField(qid,spid,childId,field,val){
+  const q=_qpCurrent.content.questions.find(x=>x.id===qid)
+  if(!q)return
+  const sp=q.subparts.find(s=>s.id===spid)
+  if(!sp||!sp.children)return
+  const kid=sp.children.find(c=>c.id===childId)
+  if(kid)kid[field]=val
+}
+function qpSetNestedMarks(qid,spid,childId,val){
+  const q=_qpCurrent.content.questions.find(x=>x.id===qid)
+  if(!q)return
+  const sp=q.subparts.find(s=>s.id===spid)
+  if(!sp||!sp.children)return
+  const kid=sp.children.find(c=>c.id===childId)
+  if(kid)kid.marks=parseFloat(val)||0
+  sp.marks=sp.children.reduce((s,c)=>s+(parseFloat(c.marks)||0),0)
+  q.marks=q.subparts.reduce((s,x)=>s+(parseFloat(x.marks)||0),0)
+  qpUpdateMarks()
+}
+function qpSetNestedOption(qid,spid,childId,idx,val){
+  const q=_qpCurrent.content.questions.find(x=>x.id===qid)
+  if(!q)return
+  const sp=q.subparts.find(s=>s.id===spid)
+  if(!sp||!sp.children)return
+  const kid=sp.children.find(c=>c.id===childId)
+  if(!kid)return
+  if(!kid.options)kid.options=[]
+  const ol=_qpL('optLabels')
+  while(kid.options.length<=idx)kid.options.push({label:ol[kid.options.length]||'('+(kid.options.length+1)+')',text:''})
+  kid.options[idx].text=val
+}
+
 function qpOnLanguageChange(newLang){
   const c=_qpCurrent
   const oldLang=c.language||'english'
@@ -10875,7 +10991,8 @@ async function previewQP(){
 
     // Sub-parts (not for match)
     if(!isMatch){
-      const canInline=q.type!=='mcq'&&isEqual&&sps.length>1&&sps.every(sp=>!sp.image_url&&(sp.text||'').length<40&&!(sp.text||'').includes('\n'))
+      const hasNested=sps.some(sp=>(sp.children||[]).length>0)
+      const canInline=!hasNested&&q.type!=='mcq'&&isEqual&&sps.length>1&&sps.every(sp=>!sp.image_url&&(sp.text||'').length<40&&!(sp.text||'').includes('\n'))
       if(canInline){
         qh+='<div class="qp-sp-inline">'
         sps.forEach((sp,spi)=>{qh+='<span>('+toRoman(spi+1)+') <span class="qp-math-render">'+esc(sp.text||'')+'</span></span>'})
@@ -10904,6 +11021,29 @@ async function previewQP(){
             }
           }
         }
+        // Nested children
+        const kids=sp.children||[]
+        kids.forEach((kid,ki)=>{
+          const kidLabel=String.fromCharCode(97+ki)+')'
+          let kidMarks=kid.marks?'<b>['+(kid.marks)+']</b>':''
+          qh+='<div class="qp-nested"><div class="qp-nested-head"><span>'+kidLabel+' <span class="qp-math-render">'+esc(kid.text||'').replace(/\n/g,'<br>')+'</span></span>'
+          if(kidMarks)qh+='<span class="nested-marks">'+kidMarks+'</span>'
+          qh+='</div>'
+          // Nested MCQ options
+          if(kid.options&&kid.options.length){
+            const oLabels2=ll.optLabels
+            const filled2=kid.options.map((o,oi)=>({o,oi})).filter(({o})=>(o.text||'').trim())
+            if(filled2.length){
+              const short2=filled2.every(({o})=>(o.text||'').length<30)
+              if(short2){
+                qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' '+esc(o.text)+'</span>').join('')+'</div>'
+              }else{
+                filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' '+esc(o.text)+'</div>'})
+              }
+            }
+          }
+          qh+='</div>'
+        })
         qh+='</div>'
       })
       }
@@ -10917,6 +11057,13 @@ async function previewQP(){
     unsectioned.forEach(q=>{h+=renderQPreview(q)})
     sections.forEach(sec=>{
       h+='<div class="qp-section-title">'+esc(sec.title||'')+'</div>'
+      if(sec.attempt_any){
+        const secQCount=questions.filter(q=>q.section_id===sec.id).length
+        const note=lang==='hindi'||lang==='sanskrit'
+          ?'इस खण्ड में से कोई '+sec.attempt_any+' प्रश्न हल कीजिए (कुल '+secQCount+' में से)'
+          :'Attempt any '+sec.attempt_any+' out of '+secQCount+' questions from this section.'
+        h+='<div class="qp-attempt-note" style="text-align:center;margin:0 0 8px">'+note+'</div>'
+      }
       questions.filter(q=>q.section_id===sec.id).forEach(q=>{h+=renderQPreview(q)})
     })
   }else{
