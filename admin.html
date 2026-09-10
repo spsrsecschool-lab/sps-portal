@@ -10354,6 +10354,14 @@ function renderQPQuestionCard(q,seqNum){
   if(q.image_url)h+='<img src="'+esc(q.image_url)+'" class="qp-img-thumb" onclick="window.open(this.src)"> '
   h+='<label class="btn btn-soft btn-xs" style="cursor:pointer"><input type="file" accept="image/*" style="display:none" onchange="uploadQPImage(this,\''+q.id+'\',\'question\')"> '+(q.image_url?'Replace Image':'+ Image')+'</label>'
   if(q.image_url)h+=' <button class="btn btn-ghost btn-xs" onclick="qpRemoveImage(\''+q.id+'\',\'question\')">Remove</button>'
+  if(q.image_url){
+    const sz=q.image_size||100
+    h+=' <span style="display:inline-flex;align-items:center;gap:2px;margin-left:6px;font-size:11px;color:var(--ink-soft)">'
+    h+='<button class="btn btn-ghost btn-xs" onclick="qpImageSize(\''+q.id+'\',\'question\',null,-1)" title="Smaller">&#9660;</button>'
+    h+='<span style="min-width:32px;text-align:center">'+sz+'%</span>'
+    h+='<button class="btn btn-ghost btn-xs" onclick="qpImageSize(\''+q.id+'\',\'question\',null,1)" title="Larger">&#9650;</button>'
+    h+='</span>'
+  }
   h+='</div>'
 
   // Match-the-following: two-column table at question level
@@ -10385,7 +10393,13 @@ function renderQPQuestionCard(q,seqNum){
       h+='<button class="btn btn-ghost btn-xs" onclick="removeQPSubpart(\''+q.id+'\',\''+sp.id+'\')" style="padding-top:6px" title="Delete sub-part">&#10005;</button>'
       h+='</div>'
       if(sp.image_url){
-        h+='<div style="margin:0 0 4px 52px"><img src="'+esc(sp.image_url)+'" class="qp-img-thumb" onclick="window.open(this.src)"> <button class="btn btn-ghost btn-xs" onclick="qpRemoveImage(\''+sp.id+'\',\'subpart\',\''+q.id+'\')">Remove</button></div>'
+        const spSz=sp.image_size||100
+        h+='<div style="margin:0 0 4px 52px"><img src="'+esc(sp.image_url)+'" class="qp-img-thumb" onclick="window.open(this.src)"> <button class="btn btn-ghost btn-xs" onclick="qpRemoveImage(\''+sp.id+'\',\'subpart\',\''+q.id+'\')">Remove</button>'
+        h+=' <span style="display:inline-flex;align-items:center;gap:2px;margin-left:6px;font-size:11px;color:var(--ink-soft)">'
+        h+='<button class="btn btn-ghost btn-xs" onclick="qpImageSize(\''+sp.id+'\',\'subpart\',\''+q.id+'\',-1)" title="Smaller">&#9660;</button>'
+        h+='<span style="min-width:32px;text-align:center">'+spSz+'%</span>'
+        h+='<button class="btn btn-ghost btn-xs" onclick="qpImageSize(\''+sp.id+'\',\'subpart\',\''+q.id+'\',1)" title="Larger">&#9650;</button>'
+        h+='</span></div>'
       }
       // MCQ options (question-level MCQ — each subpart gets options)
       if(isMCQ){
@@ -10980,6 +10994,24 @@ function qpRemoveImage(elementId,elementType,parentQId){
   renderQPBuilder()
 }
 
+const _qpImgSizes=[25,50,75,100]
+function qpImageSize(elementId,elementType,parentQId,dir){
+  let target
+  if(elementType==='question'){
+    target=_qpCurrent.content.questions.find(x=>x.id===elementId)
+  }else if(elementType==='subpart'&&parentQId){
+    const q=_qpCurrent.content.questions.find(x=>x.id===parentQId)
+    if(q)target=q.subparts.find(s=>s.id===elementId)
+  }
+  if(!target)return
+  const cur=target.image_size||100
+  const idx=_qpImgSizes.indexOf(cur)
+  const ni=idx<0?_qpImgSizes.length-1:idx+dir
+  if(ni<0||ni>=_qpImgSizes.length)return
+  target.image_size=_qpImgSizes[ni]
+  renderQPBuilder()
+}
+
 // ── Save / Delete ──
 function qpSyncFromForm(){
   const c=_qpCurrent
@@ -11108,7 +11140,7 @@ async function previewQP(){
       qh+='<div class="qp-attempt-note">'+note+'</div>'
     }
 
-    if(q.image_url)qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px">'
+    if(q.image_url){const qImgW=q.image_size||100;qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px;max-width:'+qImgW+'%">'}
 
     // Match table at question level
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
@@ -11135,7 +11167,7 @@ async function previewQP(){
         qh+='<div class="qp-sp"><div class="qp-sp-head"><span>'+spLabel+' <span class="qp-math-render">'+esc(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
         if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
         qh+='</div>'
-        if(sp.image_url)qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview">'
+        if(sp.image_url){const spImgW=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview" style="max-width:'+spImgW+'%">'}
 
         // MCQ options — use subpart type (sp.type) or fall back to question type
         const spType=sp.type||q.type
