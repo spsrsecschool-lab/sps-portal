@@ -9974,7 +9974,7 @@ async function loadQPList(){
   const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];if(r.classes)acMap[r.assessment_id].push(r.classes)})
   const cSubjMap={};(tscmRows||[]).forEach(r=>{const k=r.class_id;if(!cSubjMap[k])cSubjMap[k]=new Map();if(r.subject_id&&r.subjects?.name)cSubjMap[k].set(r.subject_id,r.subjects.name)})
   window._qpAcMap=acMap;window._qpCSubjMap=cSubjMap
-  _qpNav={assess:null,classId:null}
+  if(_qpNav.assess){_qpNav.assess=_qpAssessments.find(a=>a.assessment_id===_qpNav.assess.assessment_id)||null;if(!_qpNav.assess)_qpNav.classId=null}
   _qpRenderExplorer()
 }
 
@@ -10039,43 +10039,10 @@ function _qpRenderAssessmentView(grid,assess){
   const acClasses=(window._qpAcMap[assess.assessment_id]||[]).slice().sort((a,b)=>(a.sort_order??999)-(b.sort_order??999))
   const papers=_qpList.filter(p=>p.assessment_id===assess.assessment_id)
   let h=_qpBreadcrumb()
-  // Overview matrix
-  h+='<div style="grid-column:1/-1;margin-bottom:16px" class="card">'
-  h+='<h3 style="margin-bottom:10px">Overview — '+esc(assess.name)+'</h3>'
   if(!acClasses.length){
-    h+='<div style="padding:12px;color:var(--ink-soft);font-size:13px">No classes linked to this assessment.</div></div>'
+    h+='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--ink-soft)">No classes linked to this assessment.</div>'
     grid.innerHTML=h;return
   }
-  h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
-  h+='<thead><tr><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--line);font-weight:700;white-space:nowrap">Class</th><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--line);font-weight:700">Subjects</th></tr></thead><tbody>'
-  acClasses.forEach(cls=>{
-    const cid=cls.class_id
-    const subjMap=window._qpCSubjMap[cid]
-    const subjects=subjMap?[...subjMap.entries()].sort((a,b)=>a[1].localeCompare(b[1])):[]
-    h+='<tr style="cursor:pointer" onclick="_qpNav.classId=\''+cid+'\';_qpRenderExplorer()">'
-    h+='<td style="padding:8px 10px;border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap;vertical-align:top">'
-    h+='<div style="display:flex;align-items:center;gap:8px"><svg width="18" height="18" fill="none" stroke="var(--indigo)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'+esc(cls.name)+'</div></td>'
-    h+='<td style="padding:8px 10px;border-bottom:1px solid var(--line)">'
-    if(!subjects.length){
-      h+='<span style="color:var(--ink-faint);font-style:italic">No subjects mapped</span>'
-    }else{
-      h+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
-      subjects.forEach(([sid,sname])=>{
-        const paper=papers.find(p=>p.class_id===cid&&p.subject_id===sid)
-        let icon,color,tip
-        if(paper&&paper.status==='final'){icon='&#10003;';color='var(--green)';tip='Final'}
-        else if(paper){icon='&#9711;';color='var(--amber)';tip='Draft'}
-        else{icon='&#10005;';color='var(--red)';tip='Not started'}
-        h+='<span title="'+esc(sname)+' — '+tip+'" style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:var(--radius-sm);background:var(--lav-50);font-size:11.5px;white-space:nowrap">'
-        h+='<span style="color:'+color+';font-weight:700;font-size:13px">'+icon+'</span> '+esc(sname)+'</span>'
-      })
-      h+='</div>'
-    }
-    h+='</td></tr>'
-  })
-  h+='</tbody></table></div></div>'
-  // Class folders
-  h+='<div style="grid-column:1/-1;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px">Classes</div>'
   acClasses.forEach(cls=>{
     const cid=cls.class_id
     const cPapers=papers.filter(p=>p.class_id===cid)
