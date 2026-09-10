@@ -9900,7 +9900,7 @@ async function dlFullBackup(){
 }
 
 // ═══════════ QUESTION PAPER MAKER ═══════════
-let _qpList=[], _qpCurrent=null, _katexLoaded=false, _qpAssessments=[], _qpActiveTextarea=null, _qpActiveQid=null, _qpActiveSid=null
+let _qpList=[], _qpCurrent=null, _katexLoaded=false, _qpAssessments=[], _qpActiveTextarea=null, _qpActiveQid=null, _qpActiveSid=null, _qpNav={assess:null,classId:null}
 
 const QP_TYPES=['regular','mcq','fill_blank','true_false','match','very_short','short','long']
 const QP_TYPE_LABELS={regular:'Regular',mcq:'MCQ',fill_blank:'Fill Blank',true_false:'True/False',match:'Match',very_short:'Very Short',short:'Short',long:'Long'}
@@ -9963,39 +9963,189 @@ function renderQPMath(el){
 async function loadQPList(){
   loadKaTeX()
   const grid=$('qpGrid');ldg(grid)
-  const[{data:papers},{data:assess}]=await Promise.all([
-    sb.from('question_papers').select('*,classes(name),subjects(name),assessments(name)').eq('session_id',SESS?.session_id||'').order('updated_at',{ascending:false}),
-    sb.from('assessments').select('assessment_id,name').eq('session_id',SESS?.session_id||'').order('name')
+  const[{data:papers},{data:assess},{data:tscmRows}]=await Promise.all([
+    sb.from('question_papers').select('*,classes(name,sort_order),subjects(name),assessments(name)').eq('session_id',SESS?.session_id||'').order('updated_at',{ascending:false}),
+    sb.from('assessments').select('assessment_id,name,created_by_teacher_id,commencement_date').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false}),
+    sb.from('teacher_subject_class_map').select('class_id,subject_id,subjects(name)').eq('session_id',SESS?.session_id||'')
   ])
-  _qpList=papers||[];_qpAssessments=assess||[]
-  if(!_qpList.length){grid.innerHTML='<div style="grid-column:1/-1;padding:32px;text-align:center;color:var(--ink-soft)">No question papers yet. Click <b>Create New Paper</b> to get started.</div>';return}
-  const classOrder={}; ALL_CLASSES.forEach(c=>classOrder[c.class_id]=c.sort_order??999)
-  const grouped={}
-  _qpList.forEach(p=>{const cid=p.class_id||'_none';if(!grouped[cid])grouped[cid]={name:p.classes?.name||'Uncategorised',order:classOrder[cid]??999,papers:[]};grouped[cid].papers.push(p)})
-  const buckets=Object.values(grouped).sort((a,b)=>a.order-b.order)
-  let html=''
-  buckets.forEach(b=>{
-    html+='<div style="grid-column:1/-1;margin-top:10px;margin-bottom:2px"><div style="font-size:13px;font-weight:700;color:var(--ink);padding:6px 0;border-bottom:2px solid var(--indigo)">Class '+esc(b.name)+'<span style="font-weight:400;color:var(--ink-faint);margin-left:8px;font-size:12px">'+b.papers.length+' paper'+(b.papers.length!==1?'s':'')+'</span></div></div>'
-    b.papers.forEach(p=>{
-      const cls=p.classes?.name||'?',subj=p.subjects?.name||'?',assessN=p.assessments?.name||''
-      const title=p.title||(cls+' — '+subj)
-      const dt=p.updated_at?new Date(p.updated_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
-      html+='<div class="assess-card" onclick="openQPBuilder(\''+p.paper_id+'\')" style="cursor:pointer">'+
-        '<h4 style="font-size:13px;margin-bottom:6px">'+esc(title)+'</h4>'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+
-          '<span class="pill pill-indigo">'+esc(cls)+'</span>'+
-          '<span class="pill pill-neutral">'+esc(subj)+'</span>'+
-        '</div>'+
-        (assessN?'<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:4px">'+esc(assessN)+'</div>':'')+
-        '<div style="font-size:12px;font-weight:600;margin-bottom:4px">'+p.max_marks+' marks · '+p.time_minutes+' min'+(p.language&&p.language!=='english'?' · '+esc(p.language):'')+'</div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center">'+
-          '<span class="pill '+(p.status==='final'?'pill-success':'pill-warn')+'">'+esc(p.status==='final'?'Final':'Draft')+'</span>'+
-          '<span style="font-size:11px;color:var(--ink-faint)">'+dt+'</span>'+
-        '</div>'+
-      '</div>'
-    })
+  _qpList=papers||[];_qpAssessments=(assess||[]).filter(a=>!a.created_by_teacher_id)
+  const officialIds=_qpAssessments.map(a=>a.assessment_id)
+  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name,sort_order,class_id)').in('assessment_id',officialIds):{data:[]}
+  const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];if(r.classes)acMap[r.assessment_id].push(r.classes)})
+  const cSubjMap={};(tscmRows||[]).forEach(r=>{const k=r.class_id;if(!cSubjMap[k])cSubjMap[k]=new Map();if(r.subject_id&&r.subjects?.name)cSubjMap[k].set(r.subject_id,r.subjects.name)})
+  window._qpAcMap=acMap;window._qpCSubjMap=cSubjMap
+  _qpNav={assess:null,classId:null}
+  _qpRenderExplorer()
+}
+
+function _qpRenderExplorer(){
+  const grid=$('qpGrid')
+  const nav=_qpNav
+  if(!nav.assess) return _qpRenderAssessmentFolders(grid)
+  if(!nav.classId) return _qpRenderAssessmentView(grid,nav.assess)
+  _qpRenderClassPapers(grid,nav.assess,nav.classId)
+}
+
+function _qpBreadcrumb(){
+  const nav=_qpNav
+  let bc='<div style="display:flex;align-items:center;gap:4px;font-size:13px;margin-bottom:12px;grid-column:1/-1">'
+  bc+='<span style="cursor:pointer;color:var(--indigo);font-weight:600" onclick="_qpNav={assess:null,classId:null};_qpRenderExplorer()">Assessments</span>'
+  if(nav.assess){
+    bc+='<span style="color:var(--ink-faint);margin:0 2px">/</span>'
+    if(nav.classId){
+      bc+='<span style="cursor:pointer;color:var(--indigo)" onclick="_qpNav.classId=null;_qpRenderExplorer()">'+esc(nav.assess.name)+'</span>'
+      bc+='<span style="color:var(--ink-faint);margin:0 2px">/</span>'
+      const cn=ALL_CLASSES.find(c=>c.class_id===nav.classId)
+      bc+='<span style="color:var(--ink);font-weight:600">'+esc(cn?.name||'Class')+'</span>'
+    }else{
+      bc+='<span style="color:var(--ink);font-weight:600">'+esc(nav.assess.name)+'</span>'
+    }
+  }
+  bc+='</div>'
+  return bc
+}
+
+function _qpRenderAssessmentFolders(grid){
+  if(!_qpAssessments.length){grid.innerHTML='<div style="grid-column:1/-1;padding:32px;text-align:center;color:var(--ink-soft)">No official assessments found for this session.</div>';return}
+  let h=''
+  _qpAssessments.forEach(a=>{
+    const classes=window._qpAcMap[a.assessment_id]||[]
+    const paperCount=_qpList.filter(p=>p.assessment_id===a.assessment_id).length
+    const dt=a.commencement_date?new Date(a.commencement_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+    h+='<div class="assess-card" onclick="qpOpenAssessment(\''+a.assessment_id+'\')" style="cursor:pointer;display:flex;align-items:center;gap:12px">'
+    h+='<div style="width:42px;height:42px;border-radius:var(--radius);background:var(--indigo-50);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" fill="none" stroke="var(--indigo)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>'
+    h+='<div style="flex:1;min-width:0">'
+    h+='<div style="font-size:13.5px;font-weight:700;color:var(--ink)">'+esc(a.name)+'</div>'
+    h+='<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px">'+classes.length+' class'+(classes.length!==1?'es':'')+' · '+paperCount+' paper'+(paperCount!==1?'s':'')+(dt?' · '+dt:'')+'</div>'
+    h+='</div>'
+    h+='<svg width="18" height="18" fill="none" stroke="var(--ink-faint)" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>'
+    h+='</div>'
   })
-  grid.innerHTML=html
+  const unlinked=_qpList.filter(p=>!p.assessment_id||!_qpAssessments.find(a=>a.assessment_id===p.assessment_id))
+  if(unlinked.length){
+    h+='<div style="grid-column:1/-1;margin-top:14px;font-size:12px;color:var(--ink-soft);border-top:1px solid var(--line);padding-top:10px">'+unlinked.length+' paper'+(unlinked.length!==1?'s':'')+' not linked to any official assessment</div>'
+  }
+  grid.innerHTML=h
+}
+
+function qpOpenAssessment(assessId){
+  const a=_qpAssessments.find(x=>x.assessment_id===assessId)
+  if(!a)return
+  _qpNav={assess:a,classId:null}
+  _qpRenderExplorer()
+}
+
+function _qpRenderAssessmentView(grid,assess){
+  const acClasses=(window._qpAcMap[assess.assessment_id]||[]).slice().sort((a,b)=>(a.sort_order??999)-(b.sort_order??999))
+  const papers=_qpList.filter(p=>p.assessment_id===assess.assessment_id)
+  let h=_qpBreadcrumb()
+  // Overview matrix
+  h+='<div style="grid-column:1/-1;margin-bottom:16px" class="card">'
+  h+='<h3 style="margin-bottom:10px">Overview — '+esc(assess.name)+'</h3>'
+  if(!acClasses.length){
+    h+='<div style="padding:12px;color:var(--ink-soft);font-size:13px">No classes linked to this assessment.</div></div>'
+    grid.innerHTML=h;return
+  }
+  h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+  h+='<thead><tr><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--line);font-weight:700;white-space:nowrap">Class</th><th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--line);font-weight:700">Subjects</th></tr></thead><tbody>'
+  acClasses.forEach(cls=>{
+    const cid=cls.class_id
+    const subjMap=window._qpCSubjMap[cid]
+    const subjects=subjMap?[...subjMap.entries()].sort((a,b)=>a[1].localeCompare(b[1])):[]
+    h+='<tr style="cursor:pointer" onclick="_qpNav.classId=\''+cid+'\';_qpRenderExplorer()">'
+    h+='<td style="padding:8px 10px;border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap;vertical-align:top">'
+    h+='<div style="display:flex;align-items:center;gap:8px"><svg width="18" height="18" fill="none" stroke="var(--indigo)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'+esc(cls.name)+'</div></td>'
+    h+='<td style="padding:8px 10px;border-bottom:1px solid var(--line)">'
+    if(!subjects.length){
+      h+='<span style="color:var(--ink-faint);font-style:italic">No subjects mapped</span>'
+    }else{
+      h+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
+      subjects.forEach(([sid,sname])=>{
+        const paper=papers.find(p=>p.class_id===cid&&p.subject_id===sid)
+        let icon,color,tip
+        if(paper&&paper.status==='final'){icon='&#10003;';color='var(--green)';tip='Final'}
+        else if(paper){icon='&#9711;';color='var(--amber)';tip='Draft'}
+        else{icon='&#10005;';color='var(--red)';tip='Not started'}
+        h+='<span title="'+esc(sname)+' — '+tip+'" style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:var(--radius-sm);background:var(--lav-50);font-size:11.5px;white-space:nowrap">'
+        h+='<span style="color:'+color+';font-weight:700;font-size:13px">'+icon+'</span> '+esc(sname)+'</span>'
+      })
+      h+='</div>'
+    }
+    h+='</td></tr>'
+  })
+  h+='</tbody></table></div></div>'
+  // Class folders
+  h+='<div style="grid-column:1/-1;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px">Classes</div>'
+  acClasses.forEach(cls=>{
+    const cid=cls.class_id
+    const cPapers=papers.filter(p=>p.class_id===cid)
+    const subjMap=window._qpCSubjMap[cid]
+    const totalSubjects=subjMap?subjMap.size:0
+    const finalCount=cPapers.filter(p=>p.status==='final').length
+    h+='<div class="assess-card" onclick="_qpNav.classId=\''+cid+'\';_qpRenderExplorer()" style="cursor:pointer;display:flex;align-items:center;gap:12px">'
+    h+='<div style="width:38px;height:38px;border-radius:var(--radius);background:var(--lav-50);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" fill="none" stroke="var(--indigo)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>'
+    h+='<div style="flex:1;min-width:0">'
+    h+='<div style="font-size:13px;font-weight:600;color:var(--ink)">'+esc(cls.name)+'</div>'
+    h+='<div style="font-size:11px;color:var(--ink-soft);margin-top:1px">'+cPapers.length+'/'+totalSubjects+' papers · '+finalCount+' final</div>'
+    h+='</div>'
+    h+='<svg width="16" height="16" fill="none" stroke="var(--ink-faint)" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>'
+    h+='</div>'
+  })
+  grid.innerHTML=h
+}
+
+function _qpRenderClassPapers(grid,assess,classId){
+  const papers=_qpList.filter(p=>p.assessment_id===assess.assessment_id&&p.class_id===classId)
+  const subjMap=window._qpCSubjMap[classId]
+  const allSubjects=subjMap?[...subjMap.entries()].sort((a,b)=>a[1].localeCompare(b[1])):[]
+  let h=_qpBreadcrumb()
+  h+='<div style="grid-column:1/-1;display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn btn-dark btn-sm" onclick="qpCreateFromNav()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg> New Paper</button></div>'
+  if(!allSubjects.length&&!papers.length){
+    h+='<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--ink-soft)">No subjects mapped for this class. Add mappings in the Teacher-Subject-Class Mapping tab.</div>'
+    grid.innerHTML=h;return
+  }
+  allSubjects.forEach(([sid,sname])=>{
+    const paper=papers.find(p=>p.subject_id===sid)
+    if(paper){
+      const dt=paper.updated_at?new Date(paper.updated_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+      h+='<div class="assess-card" onclick="openQPBuilder(\''+paper.paper_id+'\')" style="cursor:pointer">'
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+      h+='<svg width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+      h+='<span style="font-size:13.5px;font-weight:700;color:var(--ink)">'+esc(sname)+'</span></div>'
+      h+='<div style="font-size:12px;font-weight:600;margin-bottom:4px">'+paper.max_marks+' marks · '+paper.time_minutes+' min'+(paper.language&&paper.language!=='english'?' · '+esc(paper.language):'')+'</div>'
+      h+='<div style="display:flex;justify-content:space-between;align-items:center">'
+      h+='<span class="pill '+(paper.status==='final'?'pill-success':'pill-warn')+'">'+(paper.status==='final'?'Final':'Draft')+'</span>'
+      h+='<span style="font-size:11px;color:var(--ink-faint)">'+dt+'</span>'
+      h+='</div></div>'
+    }else{
+      h+='<div class="assess-card" onclick="qpCreateFromNav(\''+sid+'\')" style="cursor:pointer;border-style:dashed;opacity:0.7">'
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+      h+='<svg width="18" height="18" fill="none" stroke="var(--ink-faint)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+      h+='<span style="font-size:13px;font-weight:600;color:var(--ink-soft)">'+esc(sname)+'</span></div>'
+      h+='<div style="font-size:12px;color:var(--ink-faint)">Not started — click to create</div>'
+      h+='</div>'
+    }
+  })
+  const extraPapers=papers.filter(p=>!allSubjects.find(([sid])=>sid===p.subject_id))
+  extraPapers.forEach(p=>{
+    const sname=p.subjects?.name||'?'
+    const dt=p.updated_at?new Date(p.updated_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+    h+='<div class="assess-card" onclick="openQPBuilder(\''+p.paper_id+'\')" style="cursor:pointer">'
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+    h+='<svg width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+    h+='<span style="font-size:13.5px;font-weight:700;color:var(--ink)">'+esc(sname)+'</span></div>'
+    h+='<div style="font-size:12px;font-weight:600;margin-bottom:4px">'+p.max_marks+' marks · '+p.time_minutes+' min</div>'
+    h+='<div style="display:flex;justify-content:space-between;align-items:center">'
+    h+='<span class="pill '+(p.status==='final'?'pill-success':'pill-warn')+'">'+(p.status==='final'?'Final':'Draft')+'</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint)">'+dt+'</span>'
+    h+='</div></div>'
+  })
+  grid.innerHTML=h
+}
+
+function qpCreateFromNav(subjectId){
+  const nav=_qpNav
+  openQPBuilder(null,nav.assess?.assessment_id||'',nav.classId||'',subjectId||'')
 }
 
 function qpBackToList(){
@@ -10004,7 +10154,7 @@ function qpBackToList(){
   loadQPList()
 }
 
-async function openQPBuilder(paperId){
+async function openQPBuilder(paperId,prefillAssess,prefillClass,prefillSubject){
   openSub('questionpapers','sub-qp-builder')
   const wrap=$('qpBuilderContent');ldg(wrap)
   await loadKaTeX()
@@ -10021,7 +10171,7 @@ async function openQPBuilder(paperId){
     _qpCurrent={
       paper_id:null,
       title:'',
-      class_id:'',subject_id:'',assessment_id:'',
+      class_id:prefillClass||'',subject_id:prefillSubject||'',assessment_id:prefillAssess||'',
       max_marks:30,time_minutes:60,language:'english',
       status:'draft',
       content:{school_name:'SHIV PUBLIC SCHOOL',sections:[],questions:[],general_instructions:''}
@@ -10048,8 +10198,8 @@ async function openQPBuilder(paperId){
     }
   })
   if(!_qpAssessments.length){
-    const{data}=await sb.from('assessments').select('assessment_id,name').eq('session_id',SESS?.session_id||'').order('name')
-    _qpAssessments=data||[]
+    const{data}=await sb.from('assessments').select('assessment_id,name,created_by_teacher_id').eq('session_id',SESS?.session_id||'').order('name')
+    _qpAssessments=(data||[]).filter(a=>!a.created_by_teacher_id)
   }
   renderQPBuilder()
 }
