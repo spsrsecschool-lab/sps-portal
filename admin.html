@@ -577,7 +577,6 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-match-tbl td,.qp-match-tbl th{border:1px solid #000;padding:4px 10px;font-weight:400}
   .qp-match-tbl th{font-weight:700}
   .qp-img-preview{max-width:300px;max-height:220px;margin:6px 0;display:block}
-  #sub-qp-preview{background:#fff;padding:16px;border-radius:var(--radius-md)}
 
   @media print{
     body>*:not(#main){display:none!important}
@@ -10995,7 +10994,7 @@ function qpRemoveImage(elementId,elementType,parentQId){
   renderQPBuilder()
 }
 
-const _qpImgSizes=[25,50,75,100]
+const _qpImgSizes=[50,75,100,150,200]
 function qpImageSize(elementId,elementType,parentQId,dir){
   let target
   if(elementType==='question'){
@@ -11007,7 +11006,7 @@ function qpImageSize(elementId,elementType,parentQId,dir){
   if(!target)return
   const cur=target.image_size||100
   const idx=_qpImgSizes.indexOf(cur)
-  const ni=idx<0?_qpImgSizes.length-1:idx+dir
+  const ni=idx<0?2:idx+dir
   if(ni<0||ni>=_qpImgSizes.length)return
   target.image_size=_qpImgSizes[ni]
   renderQPBuilder()
@@ -11141,7 +11140,7 @@ async function previewQP(){
       qh+='<div class="qp-attempt-note">'+note+'</div>'
     }
 
-    if(q.image_url){const qImgW=q.image_size||100;qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px;max-width:'+qImgW+'%">'}
+    if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
 
     // Match table at question level
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
@@ -11168,7 +11167,7 @@ async function previewQP(){
         qh+='<div class="qp-sp"><div class="qp-sp-head"><span>'+spLabel+' <span class="qp-math-render">'+esc(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
         if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
         qh+='</div>'
-        if(sp.image_url){const spImgW=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview" style="max-width:'+spImgW+'%">'}
+        if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
 
         // MCQ options — use subpart type (sp.type) or fall back to question type
         const spType=sp.type||q.type
