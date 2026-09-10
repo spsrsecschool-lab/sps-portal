@@ -9974,7 +9974,7 @@ async function loadQPList(){
   const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];if(r.classes)acMap[r.assessment_id].push(r.classes)})
   const cSubjMap={};(tscmRows||[]).forEach(r=>{const k=r.class_id;if(!cSubjMap[k])cSubjMap[k]=new Map();if(r.subject_id&&r.subjects?.name)cSubjMap[k].set(r.subject_id,r.subjects.name)})
   window._qpAcMap=acMap;window._qpCSubjMap=cSubjMap
-  _qpNav={assess:null,classId:null}
+  if(_qpNav.assess){_qpNav.assess=_qpAssessments.find(a=>a.assessment_id===_qpNav.assess.assessment_id)||null;if(!_qpNav.assess)_qpNav.classId=null}
   _qpRenderExplorer()
 }
 
