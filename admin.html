@@ -535,11 +535,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-question-card.qp-active{border-color:var(--indigo);border-left:4px solid var(--indigo);box-shadow:0 0 12px rgba(99,102,241,.25)}
   .qp-section-card.qp-active{border-color:var(--indigo);border-left:4px solid var(--indigo);box-shadow:0 0 12px rgba(99,102,241,.2)}
   .qp-actions-fallback{display:none}
-  .qp-fab{position:fixed;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;z-index:80;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);padding:8px;box-shadow:var(--shadow)}
-  .qp-fab button{width:40px;height:40px;border-radius:var(--radius-sm);border:none;background:var(--indigo-50);color:var(--indigo);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:background .15s}
-  .qp-fab button:hover{background:var(--indigo-100)}
-  .qp-fab .fab-label{font-size:9px;text-align:center;color:var(--ink-soft);margin-top:-2px}
-  @media(max-width:900px){.qp-side{display:none}.qp-actions-fallback{display:flex}.qp-builder-wrap{display:block}.qp-fab{display:none}}
+  @media(max-width:900px){.qp-side{display:none}.qp-actions-fallback{display:flex}.qp-builder-wrap{display:block}}
   .qp-marks-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
 
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
@@ -565,7 +561,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-q-body{margin:1px 0 2px 28px;font-size:11pt}
   .qp-sp{margin:3px 0 3px 28px;font-size:11pt}
   .qp-sp-head{display:flex;align-items:flex-start}
-  .qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap;flex-shrink:0;margin-left:8px}
+  .qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap;flex-shrink:0;margin-left:auto;text-align:right}
   .qp-nested{margin:0 0 0 20px;font-size:11pt}
   .qp-nested-head{display:flex;align-items:flex-start}
   .qp-opt{margin:0 0 0 48px;font-size:11pt}
@@ -2042,6 +2038,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   const ok=$('confirmOkBtn');if(ok)ok.addEventListener('click',()=>{const cb=_confirmCb;closeConfirm();if(cb)cb()})
   const bd=document.querySelector('#confirmDialog .backdrop');if(bd)bd.addEventListener('click',closeConfirm)
 })
+window.onbeforeunload=function(e){if(_qpDirty){e.preventDefault();return''}}
 
 // ═══════════ MODAL ═══════════
 function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=title;$('modalBody').innerHTML=body;$('modalFoot').innerHTML=foot;$('modalSheet').className='modal-sheet'+(wide?' wide':'');$('modalOverlay').classList.add('show')}
@@ -2358,7 +2355,7 @@ function admPickFather(e,fatherEnc,familyEnc){
   const box=$('adm_father_suggest');if(box)box.style.display='none'
   showAdmFamilyStudents(family, father)   // show this father's siblings in the family
 }
-function goTo(id,el){const fab=$('qpFab');if(fab)fab.remove();document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
+function goTo(id,el){if(_qpDirty&&!confirm('You have unsaved changes in the question paper. Leave without saving?')){return}_qpDirty=false;_qpSavedSnap=null;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
 function closeMobileSidebar(){$('sidebar').classList.remove('show');$('scrim').classList.remove('show')}
@@ -9909,7 +9906,25 @@ async function dlFullBackup(){
 }
 
 // ═══════════ QUESTION PAPER MAKER ═══════════
-let _qpList=[], _qpCurrent=null, _katexLoaded=false, _qpAssessments=[], _qpActiveTextarea=null, _qpActiveQid=null, _qpActiveSid=null, _qpNav={assess:null,classId:null}
+let _qpList=[], _qpCurrent=null, _katexLoaded=false, _qpAssessments=[], _qpActiveTextarea=null, _qpActiveQid=null, _qpActiveSid=null, _qpNav={assess:null,classId:null}, _qpDirty=false, _qpSavedSnap=null
+
+function _qpEffectiveMarks(ct){
+  const sections=ct.sections||[]
+  const questions=ct.questions||[]
+  let total=0
+  sections.forEach(sec=>{
+    const secQs=questions.filter(q=>q.section_id===sec.id)
+    if(sec.attempt_any&&secQs.length){
+      const sorted=secQs.map(q=>parseFloat(q.marks)||0).sort((a,b)=>b-a)
+      const take=Math.min(parseInt(sec.attempt_any)||secQs.length,secQs.length)
+      for(let i=0;i<take;i++)total+=sorted[i]
+    }else{
+      secQs.forEach(q=>{total+=parseFloat(q.marks)||0})
+    }
+  })
+  questions.filter(q=>!q.section_id).forEach(q=>{total+=parseFloat(q.marks)||0})
+  return total
+}
 
 const QP_TYPES=['regular','mcq','fill_blank','true_false','match','very_short','short','long']
 const QP_TYPE_LABELS={regular:'Regular',mcq:'MCQ',fill_blank:'Fill Blank',true_false:'True/False',match:'Match',very_short:'Very Short',short:'Short',long:'Long'}
@@ -10088,7 +10103,7 @@ function _qpRenderClassPapers(grid,assess,classId){
       h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
       h+='<svg width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
       h+='<span style="font-size:13.5px;font-weight:700;color:var(--ink)">'+esc(sname)+'</span></div>'
-      const qs=paper.content?.questions||[];let actM=0;qs.forEach(q=>{actM+=Number(q.marks)||0})
+      const actM=paper.content?_qpEffectiveMarks(paper.content):0
       const mDiff=actM-paper.max_marks
       const mColor=mDiff===0?'var(--green)':mDiff>0?'var(--red)':'var(--amber)'
       const mLabel=mDiff===0?'Marks OK':mDiff>0?'+'+mDiff+' over':''+mDiff+' short'
@@ -10114,7 +10129,7 @@ function _qpRenderClassPapers(grid,assess,classId){
     h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
     h+='<svg width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="1.7" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
     h+='<span style="font-size:13.5px;font-weight:700;color:var(--ink)">'+esc(sname)+'</span></div>'
-    const eqs=p.content?.questions||[];let eActM=0;eqs.forEach(q=>{eActM+=Number(q.marks)||0})
+    const eActM=p.content?_qpEffectiveMarks(p.content):0
     const eDiff=eActM-p.max_marks
     const eColor=eDiff===0?'var(--green)':eDiff>0?'var(--red)':'var(--amber)'
     const eLabel=eDiff===0?'Marks OK':eDiff>0?'+'+eDiff+' over':''+eDiff+' short'
@@ -10133,7 +10148,10 @@ function qpCreateFromNav(subjectId){
 }
 
 function qpBackToList(){
-  const fab=$('qpFab');if(fab)fab.remove()
+  if(_qpDirty){
+    if(!confirm('You have unsaved changes. Leave without saving?'))return
+  }
+  _qpDirty=false;_qpSavedSnap=null
   openSub('questionpapers','sub-qp-list')
   loadQPList()
 }
@@ -10185,6 +10203,7 @@ async function openQPBuilder(paperId,prefillAssess,prefillClass,prefillSubject){
     const{data}=await sb.from('assessments').select('assessment_id,name,created_by_teacher_id').eq('session_id',SESS?.session_id||'').order('name')
     _qpAssessments=(data||[]).filter(a=>!a.created_by_teacher_id)
   }
+  _qpDirty=false;_qpSavedSnap=JSON.stringify(_qpCurrent.content)
   renderQPBuilder()
 }
 
@@ -10217,8 +10236,8 @@ function renderQPBuilder(){
   h+='</div></div>'
   h+='</div>'
 
-  // Marks tracker (computed for sidebar)
-  const totalMarks=ct.questions.reduce((s,q)=>s+(parseFloat(q.marks)||0),0)
+  // Marks tracker (computed for sidebar) — respect attempt_any
+  const totalMarks=_qpEffectiveMarks(ct)
   const maxM=c.max_marks||0
 
   // Sections + Questions
@@ -10276,17 +10295,15 @@ function renderQPBuilder(){
   if(c.paper_id)h+='<button class="btn btn-danger" onclick="deleteQP(\''+c.paper_id+'\')">Delete Paper</button>'
   h+='</div>'
 
-  // Floating action buttons (Google Forms style)
-  if(!$('qpFab')){
-    const fab=document.createElement('div');fab.id='qpFab';fab.className='qp-fab'
-    fab.innerHTML='<button onclick="qpSmartAdd(\'question\')" title="Add Question"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="8"/><line x1="10" y1="6" x2="10" y2="14"/><line x1="6" y1="10" x2="14" y2="10"/></svg></button><div class="fab-label">Question</div><button onclick="qpSmartAdd(\'section\')" title="Add Section"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="3" y1="9" x2="17" y2="9"/></svg></button><div class="fab-label">Section</div>'
-    document.body.appendChild(fab)
-  }
 
   $('qpBuilderContent').innerHTML=h
   $('qpBuilderContent').querySelectorAll('textarea,input[type="text"],input:not([type])').forEach(el=>{
     el.addEventListener('focus',()=>{_qpActiveTextarea=el})
   })
+  if(!$('qpBuilderContent')._qpChangeInit){
+    $('qpBuilderContent')._qpChangeInit=true
+    $('qpBuilderContent').addEventListener('change',()=>{_qpDirty=true})
+  }
   if(!$('qpBuilderContent')._qpFocusInit){
     $('qpBuilderContent')._qpFocusInit=true
     $('qpBuilderContent').addEventListener('focusin',function(e){
@@ -10317,6 +10334,9 @@ function renderQPBuilder(){
   sh+='<button class="btn-success" onclick="saveQP(\'final\')">Mark Final</button>'
   sh+='<button onclick="previewQP()">Preview</button>'
   if(c.paper_id)sh+='<button class="btn-danger" onclick="deleteQP(\''+c.paper_id+'\')">Delete</button>'
+  sh+='<hr>'
+  sh+='<button onclick="qpSmartAdd(\'question\')">+ Question</button>'
+  sh+='<button onclick="qpSmartAdd(\'section\')">+ Section</button>'
   $('qpSide').innerHTML=sh
 }
 
@@ -10941,7 +10961,8 @@ function qpSaveDefaultInstructions(){
 
 function qpUpdateMarks(){
   const ct=_qpCurrent.content
-  const totalMarks=ct.questions.reduce((s,q)=>s+(parseFloat(q.marks)||0),0)
+  if(_qpSavedSnap&&JSON.stringify(ct)!==_qpSavedSnap)_qpDirty=true
+  const totalMarks=_qpEffectiveMarks(ct)
   const maxM=parseFloat($('qp_maxmarks')?.value)||_qpCurrent.max_marks||0
   const pct=maxM?Math.min(100,totalMarks/maxM*100):0
   const tColor=totalMarks===maxM?'#22c55e':totalMarks>maxM?'#ef4444':'#f59e0b'
@@ -11072,6 +11093,7 @@ async function saveQP(status){
       c.paper_id=data.paper_id
       toast('Paper created','success')
     }
+    _qpDirty=false;_qpSavedSnap=JSON.stringify(c.content)
   }catch(e){toast('Save failed: '+(e.message||e),'error')}
 }
 
@@ -11092,7 +11114,6 @@ async function deleteQP(paperId){
 
 // ── Preview ──
 async function previewQP(){
-  const fab=$('qpFab');if(fab)fab.remove()
   qpSyncFromForm()
   openSub('questionpapers','sub-qp-preview')
   await loadKaTeX()
