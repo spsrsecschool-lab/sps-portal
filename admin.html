@@ -597,8 +597,8 @@ tbody tr:hover td{background:var(--lav-50)}
     .qp-sp{break-inside:avoid;page-break-inside:avoid}
     .qp-batch-paper{page-break-after:always}
     .qp-batch-paper:last-child{page-break-after:auto}
-    .qp-pto-print{display:block;text-align:center;font-size:10pt;font-weight:700;color:#000;padding:4px 0 0;break-after:page;page-break-after:always}
-    @page{size:A4;margin:0.2in}
+    .qp-pto-print{display:block;position:fixed;bottom:0.2in;left:0.2in;right:0.2in;text-align:center;font-size:10pt;font-weight:700;color:#000}
+    @page{size:A4;margin:0.2in 0.2in 0.4in 0.2in}
   }
 </style>
 </head>
@@ -11307,41 +11307,12 @@ function printQP(){qpInsertPTO();window.print()}
 
 function qpInsertPTO(){
   document.querySelectorAll('.qp-pto-print').forEach(el=>el.remove())
-  const PAGE_H=1084
-  function aTop(el,root){let t=0,c=el;while(c&&c!==root){t+=c.offsetTop;c=c.offsetParent}return t}
-  document.querySelectorAll('.qp-preview').forEach(paper=>{
-    const saved=paper.style.cssText
-    paper.style.cssText+=';width:755px!important;max-width:755px!important;padding:0!important'
-    void paper.offsetHeight
-    const pages=Math.ceil(paper.scrollHeight/PAGE_H)
-    if(pages<=1){paper.style.cssText=saved;return}
-    for(let p=pages-1;p>=1;p--){
-      if(p%2!==1)continue
-      const brk=p*PAGE_H
-      let ins=null
-      for(const ch of paper.children){
-        if(ch.classList.contains('qp-pto-print'))continue
-        if(ch.offsetTop+ch.offsetHeight>=brk-5){
-          if(ch.offsetTop<brk-60){
-            const sps=ch.querySelectorAll(':scope>.qp-sp,:scope>.qp-sp-inline,:scope>.qp-match-tbl')
-            for(const sp of sps){
-              const st=aTop(sp,paper)
-              if(st+sp.offsetHeight>=brk-5&&st>ch.offsetTop+40){ins={par:ch,bef:sp};break}
-            }
-          }
-          if(!ins)ins={par:paper,bef:ch}
-          break
-        }
-      }
-      if(ins){
-        const el=document.createElement('div')
-        el.className='qp-pto-print'
-        el.textContent='[P.T.O.]'
-        ins.par.insertBefore(el,ins.bef)
-      }
-    }
-    paper.style.cssText=saved
-  })
+  const paper=document.querySelector('.qp-preview')
+  if(!paper)return
+  const pto=document.createElement('div')
+  pto.className='qp-pto-print'
+  pto.textContent='[P.T.O.]'
+  paper.appendChild(pto)
 }
 
 // ── Batch Print ──
