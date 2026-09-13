@@ -537,6 +537,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-actions-fallback{display:none}
   @media(max-width:900px){.qp-side{display:none}.qp-actions-fallback{display:flex}.qp-builder-wrap{display:block}}
   .qp-marks-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
+  .qp-pto-print{display:none}
 
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
   .qp-preview{max-width:210mm;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:0.2in;font-family:'Times New Roman',Times,serif;font-size:11pt;color:#000;line-height:1.35}
@@ -551,7 +552,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-preview-header .col-center .assess{font-size:11pt;font-weight:700;margin-top:2px}
   .qp-general-instructions{font-style:italic;font-size:10pt;margin-bottom:10px;padding:4px 0;border-bottom:1px solid #ccc}
   .qp-attempt-note{font-style:italic;font-weight:700;margin:2px 0 6px 28px;font-size:10pt}
-  .qp-section-title{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;margin:18px 0 10px;text-decoration:underline}
+  .qp-section-title{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;margin:12px 0 6px;text-decoration:underline}
   .qp-q{margin-bottom:8px;position:relative;padding-right:80px}
   .qp-q-head{display:flex;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:1px}
   .qp-q-head .qnum{flex-shrink:0;white-space:nowrap}
@@ -598,8 +599,7 @@ tbody tr:hover td{background:var(--lav-50)}
     .qp-sp{break-inside:avoid;page-break-inside:avoid}
     .qp-batch-paper{page-break-after:always}
     .qp-batch-paper:last-child{page-break-after:auto}
-    .qp-preview::after{content:'[P.T.O.]';position:fixed;bottom:4px;right:12px;font-size:10pt;font-weight:700;color:#000}
-    .qp-preview:last-child::after,.qp-batch-paper:last-child .qp-preview::after{content:none}
+    .qp-pto-print{display:block;position:absolute;right:0;font-size:10pt;font-weight:700;color:#000}
     @page{size:A4;margin:0.2in}
   }
 </style>
@@ -11247,9 +11247,9 @@ async function previewQP(){
           if(filled.length){
             const short=filled.every(({o})=>(o.text||'').length<30)
             if(short){
-              qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' '+esc(o.text)+'</span>').join('')+'</div>'
+              qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'
             }else{
-              filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' '+esc(o.text)+'</div>'})
+              filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})
             }
           }
         }
@@ -11266,9 +11266,9 @@ async function previewQP(){
             if(filled2.length){
               const short2=filled2.every(({o})=>(o.text||'').length<30)
               if(short2){
-                qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' '+esc(o.text)+'</span>').join('')+'</div>'
+                qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'
               }else{
-                filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' '+esc(o.text)+'</div>'})
+                filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})
               }
             }
           }
@@ -11305,7 +11305,28 @@ async function previewQP(){
   renderQPMath(previewEl)
 }
 
-function printQP(){window.print()}
+function printQP(){qpInsertPTO();window.print()}
+
+function qpInsertPTO(){
+  document.querySelectorAll('.qp-pto-print').forEach(el=>el.remove())
+  const PAGE_H=1084
+  document.querySelectorAll('.qp-preview').forEach(paper=>{
+    const st=getComputedStyle(paper)
+    const padT=parseFloat(st.paddingTop)||0
+    const padB=parseFloat(st.paddingBottom)||0
+    const contentH=paper.scrollHeight-padT-padB
+    const pages=Math.ceil(contentH/PAGE_H)
+    if(pages<=1)return
+    paper.style.position='relative'
+    for(let i=1;i<pages;i++){
+      const pto=document.createElement('div')
+      pto.className='qp-pto-print'
+      pto.textContent='[P.T.O.]'
+      pto.style.top=(i*PAGE_H-24)+'px'
+      paper.appendChild(pto)
+    }
+  })
+}
 
 // ── Batch Print ──
 let _qpBatchAssessId=null
@@ -11344,7 +11365,7 @@ async function qpBatchPreview(){
   })
   $('qpBatchContent').innerHTML=h
   document.querySelectorAll('#qpBatchContent .qp-math-render').forEach(el=>renderQPMath(el))
-  setTimeout(()=>window.print(),400)
+  setTimeout(()=>{qpInsertPTO();window.print()},400)
 }
 
 function _qpRenderOnePaper(c){
@@ -11425,8 +11446,8 @@ function _qpRenderOnePaper(c){
             const filled=sp.options.map((o,oi)=>({o,oi})).filter(({o})=>(o.text||'').trim())
             if(filled.length){
               const short=filled.every(({o})=>(o.text||'').length<30)
-              if(short){qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' '+esc(o.text)+'</span>').join('')+'</div>'}
-              else{filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' '+esc(o.text)+'</div>'})}
+              if(short){qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'}
+              else{filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})}
             }
           }
           const kids=sp.children||[]
@@ -11438,8 +11459,8 @@ function _qpRenderOnePaper(c){
               const filled2=kid.options.map((o,oi)=>({o,oi})).filter(({o})=>(o.text||'').trim())
               if(filled2.length){
                 const short2=filled2.every(({o})=>(o.text||'').length<30)
-                if(short2){qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' '+esc(o.text)+'</span>').join('')+'</div>'}
-                else{filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' '+esc(o.text)+'</div>'})}
+                if(short2){qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'}
+                else{filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})}
               }
             }
             qh+='</div>'
