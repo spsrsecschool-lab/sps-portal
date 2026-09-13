@@ -559,8 +559,9 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-q-head .qmarks{position:absolute;right:0;top:0;color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
   .qp-q-heading{font-weight:700;font-size:11pt;margin-bottom:4px}
   .qp-q-body{margin:1px 0 2px 28px;font-size:11pt}
-  .qp-sp{margin:3px 0 3px 28px;font-size:11pt}
+  .qp-sp{margin:1px 0 1px 28px;font-size:11pt}
   .qp-sp-head{display:flex;align-items:flex-start}
+  .qp-sp-head .sp-label{flex-shrink:0;white-space:nowrap;min-width:30px}
   .qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap;flex-shrink:0;margin-left:auto;text-align:right}
   .qp-nested{margin:0 0 0 20px;font-size:11pt}
   .qp-nested-head{display:flex;align-items:flex-start}
@@ -11202,7 +11203,7 @@ async function previewQP(){
         let spMarks=''
         if(!isEqual&&sp.marks)spMarks='<b>['+(sp.marks)+']</b>'
 
-        qh+='<div class="qp-sp"><div class="qp-sp-head"><span>'+spLabel+' <span class="qp-math-render">'+esc(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
+        qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+esc(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
         if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
         qh+='</div>'
         if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
