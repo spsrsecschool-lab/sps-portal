@@ -598,7 +598,7 @@ tbody tr:hover td{background:var(--lav-50)}
     .qp-batch-paper{page-break-after:always}
     .qp-batch-paper:last-child{page-break-after:auto}
     .qp-pto-print{display:block;position:absolute;left:0;right:0;text-align:center;font-size:10pt;font-weight:700;color:#000}
-    @page{size:A4;margin:0.2in}
+    @page{size:A4;margin:0.2in 0.2in 0.45in 0.2in}
   }
 </style>
 </head>
@@ -11307,7 +11307,7 @@ function printQP(){qpInsertPTO();window.print()}
 
 function qpInsertPTO(){
   document.querySelectorAll('.qp-pto-print').forEach(el=>el.remove())
-  const PAGE_H=1084
+  const PAGE_H=1060
   document.querySelectorAll('.qp-preview').forEach(paper=>{
     const st=getComputedStyle(paper)
     const padT=parseFloat(st.paddingTop)||0
@@ -11318,10 +11318,11 @@ function qpInsertPTO(){
     paper.style.position='relative'
     for(let i=1;i<pages;i++){
       if(i%2!==1)continue
+      if(i===pages-1)continue
       const pto=document.createElement('div')
       pto.className='qp-pto-print'
       pto.textContent='[P.T.O.]'
-      pto.style.top=(i*PAGE_H-18)+'px'
+      pto.style.top=(i*PAGE_H+2)+'px'
       paper.appendChild(pto)
     }
   })
