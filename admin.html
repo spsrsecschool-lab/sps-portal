@@ -537,6 +537,11 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-actions-fallback{display:none}
   @media(max-width:900px){.qp-side{display:none}.qp-actions-fallback{display:flex}.qp-builder-wrap{display:block}}
   .qp-marks-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
+  .qp-fab{position:fixed;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:80;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);padding:8px;box-shadow:var(--shadow)}
+  .qp-fab button{width:40px;height:40px;border-radius:var(--radius-sm);border:none;background:var(--indigo-50);color:var(--indigo);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px}
+  .qp-fab button:hover{background:var(--indigo-100)}
+  .qp-fab .fab-label{font-size:9px;text-align:center;color:var(--ink-soft);margin-top:-4px}
+  @media(max-width:700px){.qp-fab{display:none}}
 
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
   .qp-preview{max-width:210mm;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:0.2in;font-family:'Times New Roman',Times,serif;font-size:11pt;color:#000;line-height:1.35}
@@ -544,8 +549,8 @@ tbody tr:hover td{background:var(--lav-50)}
   @font-face{font-family:'QP Mixed';src:local('Nirmala UI'),local('Mangal');unicode-range:U+0900-097F,U+A8E0-A8FF,U+1CD0-1CFF,U+200C-200D,U+20B9,U+25CC}
   .qp-preview[data-lang="hindi"],.qp-preview[data-lang="sanskrit"]{font-family:'QP Mixed','Times New Roman',Times,serif;font-size:11pt}
   .qp-preview-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;border-bottom:2px solid #000;padding-bottom:8px}
-  .qp-preview-header .col-left{flex:0 0 22%;font-size:11pt;font-weight:700;word-wrap:break-word;overflow-wrap:break-word}
-  .qp-preview-header .col-right{flex:0 0 14%;font-size:11pt;font-weight:700;text-align:right}
+  .qp-preview-header .col-left{flex:0 0 28%;font-size:11pt;font-weight:700;word-wrap:break-word;overflow-wrap:break-word}
+  .qp-preview-header .col-right{flex:0 0 20%;font-size:11pt;font-weight:700;text-align:right}
   .qp-preview-header .col-center{flex:1;text-align:center;font-size:12pt;font-weight:700}
   .qp-preview-header .col-center .school{font-size:14pt;font-weight:900;text-transform:uppercase}
   .qp-preview-header .col-center .assess{font-size:11pt;font-weight:700;margin-top:2px}
@@ -559,14 +564,14 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-q-head .qmarks{position:absolute;right:0;top:0;color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
   .qp-q-heading{font-weight:700;font-size:11pt;margin-bottom:4px}
   .qp-q-body{margin:1px 0 2px 28px;font-size:11pt}
-  .qp-sp{margin:1px 0 1px 0;font-size:11pt;position:relative}
+  .qp-sp{margin:0;font-size:11pt;position:relative}
   .qp-sp-head{display:flex;align-items:flex-start}
   .qp-sp-head .sp-label{flex-shrink:0;white-space:nowrap;width:28px;text-align:left}
   .qp-sp .sp-marks{position:absolute;right:-80px;top:0;font-weight:700;font-size:11pt;white-space:nowrap;text-align:right;width:76px}
   .qp-nested{margin:0 0 0 20px;font-size:11pt}
   .qp-nested-head{display:flex;align-items:flex-start}
-  .qp-opt{margin:0 0 0 28px;font-size:11pt}
-  .qp-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 28px;font-size:11pt}
+  .qp-opt{margin:0 0 0 48px;font-size:11pt}
+  .qp-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 48px;font-size:11pt}
   .qp-nested-opt{margin:0 0 0 24px;font-size:11pt}
   .qp-nested-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 24px;font-size:11pt}
   .qp-sp-inline{display:flex;flex-wrap:wrap;gap:4px 24px;margin:0 0 0 0;font-size:11pt}
@@ -594,9 +599,14 @@ tbody tr:hover td{background:var(--lav-50)}
     .qp-attempt-note{break-after:avoid;page-break-after:avoid}
     .qp-q{break-inside:auto;page-break-inside:auto}
     .qp-q-head+.qp-sp,.qp-q-head+.qp-sp-inline,.qp-q-body+.qp-sp,.qp-q-body+.qp-sp-inline,.qp-q-head+.qp-q-body{break-before:avoid;page-break-before:avoid}
+    .qp-match-tbl{break-inside:avoid;page-break-inside:avoid}
+    .qp-sp{break-inside:avoid;page-break-inside:avoid}
     .qp-batch-paper{page-break-after:always}
     .qp-batch-paper:last-child{page-break-after:auto}
+    .qp-preview::after{content:'[P.T.O.]';position:fixed;bottom:4px;right:12px;font-size:10pt;font-weight:700;color:#000}
+    .qp-preview:last-child::after,.qp-batch-paper:last-child .qp-preview::after{content:none}
     @page{size:A4;margin:0.2in}
+    @page:last{--pto:none}
   }
 </style>
 </head>
@@ -10180,6 +10190,7 @@ function qpBackToList(){
     if(!confirm('You have unsaved changes. Leave without saving?'))return
   }
   _qpDirty=false;_qpSavedSnap=null
+  const fab=document.getElementById('qpFab');if(fab)fab.style.display='none'
   openSub('questionpapers','sub-qp-list')
   loadQPList()
 }
@@ -10323,6 +10334,12 @@ function renderQPBuilder(){
   if(c.paper_id)h+='<button class="btn btn-danger" onclick="deleteQP(\''+c.paper_id+'\')">Delete Paper</button>'
   h+='</div>'
 
+
+  // Floating toolbar
+  let fab=document.getElementById('qpFab')
+  if(!fab){fab=document.createElement('div');fab.id='qpFab';fab.className='qp-fab';document.body.appendChild(fab)}
+  fab.innerHTML='<button onclick="addQPQuestion(null)" title="Add Question"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="8"/><line x1="10" y1="6" x2="10" y2="14"/><line x1="6" y1="10" x2="14" y2="10"/></svg></button><div class="fab-label">Question</div><button onclick="addQPSection()" title="Add Section"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="6" y1="12" x2="14" y2="12"/></svg></button><div class="fab-label">Section</div>'
+  fab.style.display=''
 
   $('qpBuilderContent').innerHTML=h
   $('qpBuilderContent').querySelectorAll('textarea,input[type="text"],input:not([type])').forEach(el=>{
@@ -11143,6 +11160,7 @@ async function deleteQP(paperId){
 // ── Preview ──
 async function previewQP(){
   qpSyncFromForm()
+  const fab=document.getElementById('qpFab');if(fab)fab.style.display='none'
   openSub('questionpapers','sub-qp-preview')
   await loadKaTeX()
   const c=_qpCurrent,ct=c.content
