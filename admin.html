@@ -594,8 +594,12 @@ tbody tr:hover td{background:var(--lav-50)}
     .qp-attempt-note{break-after:avoid;page-break-after:avoid}
     .qp-q{break-inside:auto;page-break-inside:auto}
     .qp-q-head+.qp-sp,.qp-q-head+.qp-sp-inline,.qp-q-body+.qp-sp,.qp-q-body+.qp-sp-inline,.qp-q-head+.qp-q-body{break-before:avoid;page-break-before:avoid}
+    .qp-match-tbl{break-inside:avoid;page-break-inside:avoid}
+    .qp-sp{break-inside:avoid;page-break-inside:avoid}
     .qp-batch-paper{page-break-after:always}
     .qp-batch-paper:last-child{page-break-after:auto}
+    .qp-preview::after{content:'[P.T.O.]';position:fixed;bottom:4px;right:12px;font-size:10pt;font-weight:700;color:#000}
+    .qp-preview:last-child::after,.qp-batch-paper:last-child .qp-preview::after{content:none}
     @page{size:A4;margin:0.2in}
   }
 </style>
