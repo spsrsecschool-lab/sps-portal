@@ -537,7 +537,6 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-actions-fallback{display:none}
   @media(max-width:900px){.qp-side{display:none}.qp-actions-fallback{display:flex}.qp-builder-wrap{display:block}}
   .qp-marks-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
-  .qp-pto-print{display:none}
 
   /* ═══════ QUESTION PAPER PREVIEW ═══════ */
   .qp-preview{max-width:210mm;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:0.2in;font-family:'Times New Roman',Times,serif;font-size:11pt;color:#000;line-height:1.35}
@@ -597,8 +596,7 @@ tbody tr:hover td{background:var(--lav-50)}
     .qp-sp{break-inside:avoid;page-break-inside:avoid}
     .qp-batch-paper{page-break-after:always}
     .qp-batch-paper:last-child{page-break-after:auto}
-    .qp-pto-print{display:block;position:fixed;bottom:0;left:50%;transform:translateX(-50%);text-align:center;font-size:10pt;font-weight:700;color:#000;background:#fff;padding:2px 10px;line-height:1.2}
-    @page{size:A4;margin:0.2in}
+    @page{size:A4;margin:0.2in 0.2in 0.4in 0.2in}
   }
 </style>
 </head>
@@ -11303,17 +11301,7 @@ async function previewQP(){
   renderQPMath(previewEl)
 }
 
-function printQP(){qpInsertPTO();window.print()}
-
-function qpInsertPTO(){
-  document.querySelectorAll('.qp-pto-print').forEach(el=>el.remove())
-  const paper=document.querySelector('.qp-preview')
-  if(!paper)return
-  const pto=document.createElement('div')
-  pto.className='qp-pto-print'
-  pto.textContent='[P.T.O.]'
-  paper.appendChild(pto)
-}
+function printQP(){window.print()}
 
 // ── Batch Print ──
 let _qpBatchAssessId=null
@@ -11352,7 +11340,7 @@ async function qpBatchPreview(){
   })
   $('qpBatchContent').innerHTML=h
   document.querySelectorAll('#qpBatchContent .qp-math-render').forEach(el=>renderQPMath(el))
-  setTimeout(()=>{qpInsertPTO();window.print()},400)
+  setTimeout(()=>{window.print()},400)
 }
 
 function _qpRenderOnePaper(c){
