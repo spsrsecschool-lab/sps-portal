@@ -597,7 +597,7 @@ tbody tr:hover td{background:var(--lav-50)}
     .qp-sp{break-inside:avoid;page-break-inside:avoid}
     .qp-batch-paper{page-break-after:always}
     .qp-batch-paper:last-child{page-break-after:auto}
-    .qp-pto-print{display:block;position:absolute;left:0;right:0;text-align:center;font-size:10pt;font-weight:700;color:#000}
+    .qp-pto-print{display:block;position:absolute;left:0;right:0;text-align:center;font-size:10pt;font-weight:700;color:#000;background:#fff;padding:2px 0;z-index:10}
     @page{size:A4;margin:0.2in 0.2in 0.45in 0.2in}
   }
 </style>
@@ -11322,7 +11322,7 @@ function qpInsertPTO(){
       const pto=document.createElement('div')
       pto.className='qp-pto-print'
       pto.textContent='[P.T.O.]'
-      pto.style.top=(i*PAGE_H+2)+'px'
+      pto.style.top=(i*PAGE_H-16)+'px'
       paper.appendChild(pto)
     }
   })
