@@ -591,8 +591,8 @@ tbody tr:hover td{background:var(--lav-50)}
     .qp-preview{border:none;padding:0;max-width:100%;box-shadow:none}
     .qp-q-head{break-after:avoid;page-break-after:avoid}
     .qp-q-body{break-after:avoid;page-break-after:avoid}
-    .qp-section-title{break-after:avoid;page-break-after:avoid}
-    .qp-attempt-note{break-after:avoid;page-break-after:avoid}
+    .qp-section-title{break-inside:avoid;page-break-inside:avoid}
+    .qp-attempt-note{break-inside:avoid;page-break-inside:avoid}
     .qp-q{break-inside:auto;page-break-inside:auto}
     .qp-q-head+.qp-sp,.qp-q-head+.qp-sp-inline,.qp-q-body+.qp-sp,.qp-q-body+.qp-sp-inline,.qp-q-head+.qp-q-body{break-before:avoid;page-break-before:avoid}
     .qp-match-tbl{break-inside:avoid;page-break-inside:avoid}
@@ -11319,6 +11319,7 @@ function qpInsertPTO(){
     if(pages<=1)return
     paper.style.position='relative'
     for(let i=1;i<pages;i++){
+      if(i%2!==1)continue
       const pto=document.createElement('div')
       pto.className='qp-pto-print'
       pto.textContent='[P.T.O.]'
