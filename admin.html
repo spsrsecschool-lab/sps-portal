@@ -11184,15 +11184,14 @@ async function previewQP(){
     const isEqual=q.marks_mode==='equal'
     const isMatch=q.type==='match'
     let marksStr=''
+    const totalM=parseFloat(q.marks)||0
     if(sps.length&&isEqual){
       const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
-      const per=cnt?(parseFloat(q.marks)||0)/cnt:0
-      if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+(parseFloat(q.marks)||0)+']'
-      else marksStr='['+(parseFloat(q.marks)||0)+']'
-    }else if(!sps.length&&!isMatch){
-      marksStr='['+(parseFloat(q.marks)||0)+']'
-    }else if(isMatch){
-      marksStr='['+(parseFloat(q.marks)||0)+']'
+      const per=cnt?totalM/cnt:0
+      if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+totalM+']'
+      else marksStr='['+totalM+']'
+    }else{
+      marksStr='['+totalM+']'
     }
 
     let qh='<div class="qp-q">'
@@ -11499,15 +11498,14 @@ function _qpRenderOnePaper(c){
     const isEqual=q.marks_mode==='equal'
     const isMatch=q.type==='match'
     let marksStr=''
+    const totalM=parseFloat(q.marks)||0
     if(sps.length&&isEqual){
       const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
-      const per=cnt?(parseFloat(q.marks)||0)/cnt:0
-      if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+(parseFloat(q.marks)||0)+']'
-      else marksStr='['+(parseFloat(q.marks)||0)+']'
-    }else if(!sps.length&&!isMatch){
-      marksStr='['+(parseFloat(q.marks)||0)+']'
-    }else if(isMatch){
-      marksStr='['+(parseFloat(q.marks)||0)+']'
+      const per=cnt?totalM/cnt:0
+      if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+totalM+']'
+      else marksStr='['+totalM+']'
+    }else{
+      marksStr='['+totalM+']'
     }
     let qh='<div class="qp-q">'
     const hasHT=q.heading&&q.text
