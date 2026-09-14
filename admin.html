@@ -1736,7 +1736,8 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="sub-page" id="sub-qp-preview">
         <div style="display:flex;gap:8px;margin-bottom:16px" id="qpPreviewToolbar">
           <button class="back-btn" onclick="openSub('questionpapers','sub-qp-builder')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Builder</button>
-          <button class="btn btn-dark btn-sm" onclick="printQP()" style="margin-left:auto"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
+          <button class="btn btn-soft btn-sm" onclick="qpDownloadPDF()" style="margin-left:auto"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF</button>
+          <button class="btn btn-dark btn-sm" onclick="printQP()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
         </div>
         <div id="qpPreviewContent" class="qp-preview"></div>
       </div>
@@ -1748,6 +1749,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <div style="margin-left:auto;display:flex;gap:8px">
             <button class="btn btn-soft btn-sm" onclick="qpBatchSelectAll()">Select All</button>
             <button class="btn btn-soft btn-sm" onclick="qpBatchDeselectAll()">Deselect All</button>
+            <button class="btn btn-soft btn-sm" onclick="qpBatchDownloadZip()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download ZIP</button>
             <button class="btn btn-dark btn-sm" onclick="qpBatchPreview()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Preview &amp; Print Selected</button>
           </div>
         </div>
@@ -11301,7 +11303,118 @@ async function previewQP(){
   renderQPMath(previewEl)
 }
 
-function printQP(){window.print()}
+async function _qpGetStudentCount(classId){
+  const{count}=await sb.from('student_enrollments').select('*',{count:'exact',head:true}).eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false)
+  return count||0
+}
+function _qpSanitizeFileName(s){return s.replace(/[\/\\:*?"<>|]+/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').trim()}
+
+async function _qpFileName(paper){
+  const cn=(ALL_CLASSES.find(x=>x.class_id===paper.class_id)||{}).name||'Class'
+  const sn=(ALL_SUBJECTS.find(x=>x.subject_id===paper.subject_id)||{}).name||'Subject'
+  const count=await _qpGetStudentCount(paper.class_id)
+  return _qpSanitizeFileName(cn+'_'+sn+'_'+count)
+}
+
+let _html2pdfLoaded=false
+async function _loadHtml2Pdf(){
+  if(_html2pdfLoaded)return
+  await new Promise((ok,fail)=>{
+    const s=document.createElement('script')
+    s.src='https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js'
+    s.onload=ok;s.onerror=fail;document.head.appendChild(s)
+  })
+  _html2pdfLoaded=true
+}
+let _jszipLoaded=false
+async function _loadJSZip(){
+  if(_jszipLoaded)return
+  await new Promise((ok,fail)=>{
+    const s=document.createElement('script')
+    s.src='https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'
+    s.onload=ok;s.onerror=fail;document.head.appendChild(s)
+  })
+  _jszipLoaded=true
+}
+
+async function _qpRenderPaperToBlob(paperHtml){
+  const wrapper=document.createElement('div')
+  wrapper.innerHTML=paperHtml
+  wrapper.style.cssText='width:190mm;font-family:serif;font-size:12pt;line-height:1.4'
+  wrapper.querySelectorAll('.qp-math-render').forEach(el=>renderQPMath(el))
+  document.body.appendChild(wrapper)
+  await new Promise(r=>setTimeout(r,100))
+  const blob=await html2pdf().set({
+    margin:[0.2,0.2,0.2,0.2],
+    filename:'paper.pdf',
+    image:{type:'jpeg',quality:0.98},
+    html2canvas:{scale:2,useCORS:true,letterRendering:true},
+    jsPDF:{unit:'in',format:'a4',orientation:'portrait'},
+    pagebreak:{mode:['css','legacy']}
+  }).from(wrapper).outputPdf('blob')
+  document.body.removeChild(wrapper)
+  return blob
+}
+
+async function printQP(){
+  if(_qpCurrent){
+    const fname=await _qpFileName(_qpCurrent)
+    document.title=fname
+  }
+  setTimeout(()=>{window.print()},50)
+}
+
+async function qpDownloadPDF(){
+  try{
+    toast('Generating PDF…','info')
+    await _loadHtml2Pdf()
+    await loadKaTeX()
+    const previewEl=$('qpPreviewContent')
+    if(!previewEl||!previewEl.innerHTML.trim()){toast('No preview content','warn');return}
+    const fname=await _qpFileName(_qpCurrent)
+    const wrapper=document.createElement('div')
+    wrapper.innerHTML=previewEl.innerHTML
+    wrapper.style.cssText='width:190mm;font-family:serif;font-size:12pt;line-height:1.4'
+    document.body.appendChild(wrapper)
+    await new Promise(r=>setTimeout(r,100))
+    await html2pdf().set({
+      margin:[0.2,0.2,0.2,0.2],
+      filename:fname+'.pdf',
+      image:{type:'jpeg',quality:0.98},
+      html2canvas:{scale:2,useCORS:true,letterRendering:true},
+      jsPDF:{unit:'in',format:'a4',orientation:'portrait'},
+      pagebreak:{mode:['css','legacy']}
+    }).from(wrapper).save()
+    document.body.removeChild(wrapper)
+    toast('PDF downloaded','ok')
+  }catch(e){console.error(e);toast('PDF generation failed: '+e.message,'error')}
+}
+
+async function qpBatchDownloadZip(){
+  try{
+    const ids=[...document.querySelectorAll('.qp-batch-cb:checked')].map(cb=>cb.value)
+    if(!ids.length){toast('Select at least one paper','warn');return}
+    toast('Generating ZIP… this may take a moment','info')
+    await Promise.all([_loadHtml2Pdf(),_loadJSZip(),loadKaTeX()])
+    const selected=_qpList.filter(p=>ids.includes(p.paper_id))
+    const zip=new JSZip()
+    for(const paper of selected){
+      const paperHtml=_qpRenderOnePaper(paper)
+      if(!paperHtml)continue
+      const fname=await _qpFileName(paper)
+      const blob=await _qpRenderPaperToBlob(paperHtml)
+      zip.file(fname+'.pdf',blob)
+    }
+    const zipBlob=await zip.generateAsync({type:'blob'})
+    const a=document.createElement('a')
+    a.href=URL.createObjectURL(zipBlob)
+    const assess=_qpAssessments.find(x=>x.assessment_id===_qpBatchAssessId)
+    a.download=_qpSanitizeFileName((assess?.name||'papers')+'_batch')+'.zip'
+    document.body.appendChild(a);a.click();document.body.removeChild(a)
+    URL.revokeObjectURL(a.href)
+    toast('ZIP downloaded','ok')
+  }catch(e){console.error(e);toast('ZIP generation failed: '+e.message,'error')}
+}
 
 // ── Batch Print ──
 let _qpBatchAssessId=null
