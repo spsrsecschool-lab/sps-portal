@@ -11190,6 +11190,8 @@ async function previewQP(){
       const per=cnt?totalM/cnt:0
       if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+totalM+']'
       else marksStr='['+totalM+']'
+    }else if(sps.length&&!isEqual&&sps.some(sp=>parseFloat(sp.marks)>0)){
+      marksStr=''
     }else{
       marksStr='['+totalM+']'
     }
@@ -11504,6 +11506,8 @@ function _qpRenderOnePaper(c){
       const per=cnt?totalM/cnt:0
       if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+totalM+']'
       else marksStr='['+totalM+']'
+    }else if(sps.length&&!isEqual&&sps.some(sp=>parseFloat(sp.marks)>0)){
+      marksStr=''
     }else{
       marksStr='['+totalM+']'
     }
