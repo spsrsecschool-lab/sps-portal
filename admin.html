@@ -11188,7 +11188,8 @@ async function previewQP(){
     if(sps.length&&isEqual){
       const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
       const per=cnt?totalM/cnt:0
-      if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+totalM+']'
+      const perR=Math.round(per*100)/100
+      if(perR>0) marksStr='['+cnt+' &times; '+perR+' = '+totalM+']'
       else marksStr='['+totalM+']'
     }else if(sps.length&&!isEqual&&sps.some(sp=>parseFloat(sp.marks)>0)){
       marksStr=''
@@ -11504,7 +11505,8 @@ function _qpRenderOnePaper(c){
     if(sps.length&&isEqual){
       const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
       const per=cnt?totalM/cnt:0
-      if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+totalM+']'
+      const perR=Math.round(per*100)/100
+      if(perR>0) marksStr='['+cnt+' &times; '+perR+' = '+totalM+']'
       else marksStr='['+totalM+']'
     }else if(sps.length&&!isEqual&&sps.some(sp=>parseFloat(sp.marks)>0)){
       marksStr=''
