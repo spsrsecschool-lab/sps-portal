@@ -561,7 +561,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-q-body{margin:1px 0 2px 28px;font-size:11pt}
   .qp-sp{margin:1px 0 1px 0;font-size:11pt;position:relative}
   .qp-sp-head{display:flex;align-items:flex-start}
-  .qp-sp-head .sp-label{flex-shrink:0;white-space:nowrap;width:28px;text-align:left}
+  .qp-sp-head .sp-label{flex-shrink:0;white-space:nowrap;min-width:28px;text-align:left;margin-right:4px}
   .qp-sp .sp-marks{position:absolute;right:-80px;top:0;font-weight:700;font-size:11pt;white-space:nowrap;text-align:right;width:76px}
   .qp-nested{margin:0 0 0 20px;font-size:11pt}
   .qp-nested-head{display:flex;align-items:flex-start}
@@ -569,7 +569,8 @@ tbody tr:hover td{background:var(--lav-50)}
   .qp-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 28px;font-size:11pt}
   .qp-nested-opt{margin:0 0 0 24px;font-size:11pt}
   .qp-nested-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 24px;font-size:11pt}
-  .qp-sp-inline{display:flex;flex-wrap:wrap;gap:4px 24px;margin:0 0 0 0;font-size:11pt}
+  /* GRID-SUBPARTS: inline subparts with grid alignment */
+  .qp-sp-inline{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:2px 20px;margin:0 0 0 28px;font-size:11pt}
   .qp-match-tbl{margin:6px 0 6px 28px;border-collapse:collapse;font-size:11pt;width:100%}
   .qp-match-tbl td,.qp-match-tbl th{border:1px solid #000;padding:4px 10px;font-weight:400}
   .qp-match-tbl th{font-weight:700}
@@ -11186,7 +11187,8 @@ async function previewQP(){
     if(sps.length&&isEqual){
       const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
       const per=cnt?(parseFloat(q.marks)||0)/cnt:0
-      marksStr='['+cnt+' &times; '+per+' = '+(parseFloat(q.marks)||0)+']'
+      if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+(parseFloat(q.marks)||0)+']'
+      else marksStr='['+(parseFloat(q.marks)||0)+']'
     }else if(!sps.length&&!isMatch){
       marksStr='['+(parseFloat(q.marks)||0)+']'
     }else if(isMatch){
@@ -11303,7 +11305,17 @@ async function previewQP(){
   renderQPMath(previewEl)
 }
 
-async function _qpGetStudentCount(classId){
+async function _qpGetStudentCount(classId,subjectId){
+  const cls=ALL_CLASSES.find(x=>x.class_id===classId)
+  const clsName=(cls?.name||'').toLowerCase()
+  const isHigher=/\b(11|12|xi)/i.test(clsName)
+  if(isHigher&&subjectId){
+    const{data:enr}=await sb.from('student_enrollments').select('enrollment_id').eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false)
+    if(!enr||!enr.length)return 0
+    const eids=enr.map(e=>e.enrollment_id)
+    const{data:ss}=await sb.from('student_subjects').select('enrollment_id').in('enrollment_id',eids).eq('subject_id',subjectId)
+    if(ss&&ss.length)return ss.length
+  }
   const{count}=await sb.from('student_enrollments').select('*',{count:'exact',head:true}).eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false)
   return count||0
 }
@@ -11312,8 +11324,8 @@ function _qpSanitizeFileName(s){return s.replace(/[\/\\:*?"<>|]+/g,'_').replace(
 async function _qpFileName(paper){
   const cn=(ALL_CLASSES.find(x=>x.class_id===paper.class_id)||{}).name||'Class'
   const sn=(ALL_SUBJECTS.find(x=>x.subject_id===paper.subject_id)||{}).name||'Subject'
-  const count=await _qpGetStudentCount(paper.class_id)
-  return _qpSanitizeFileName(cn+'_'+sn+'_'+count)
+  const count=await _qpGetStudentCount(paper.class_id,paper.subject_id)
+  return _qpSanitizeFileName(cn+'_'+sn+'_'+count+'_copies')
 }
 
 let _html2pdfLoaded=false
@@ -11340,10 +11352,11 @@ async function _loadJSZip(){
 async function _qpRenderPaperToBlob(paperHtml){
   const wrapper=document.createElement('div')
   wrapper.innerHTML=paperHtml
-  wrapper.style.cssText='width:190mm;font-family:serif;font-size:12pt;line-height:1.4'
+  wrapper.className='qp-preview'
+  wrapper.style.cssText='width:190mm;position:absolute;left:-9999px;top:0'
   wrapper.querySelectorAll('.qp-math-render').forEach(el=>renderQPMath(el))
   document.body.appendChild(wrapper)
-  await new Promise(r=>setTimeout(r,100))
+  await new Promise(r=>setTimeout(r,200))
   const blob=await html2pdf().set({
     margin:[0.2,0.2,0.2,0.2],
     filename:'paper.pdf',
@@ -11372,11 +11385,11 @@ async function qpDownloadPDF(){
     const previewEl=$('qpPreviewContent')
     if(!previewEl||!previewEl.innerHTML.trim()){toast('No preview content','warn');return}
     const fname=await _qpFileName(_qpCurrent)
-    const wrapper=document.createElement('div')
-    wrapper.innerHTML=previewEl.innerHTML
-    wrapper.style.cssText='width:190mm;font-family:serif;font-size:12pt;line-height:1.4'
+    const wrapper=previewEl.cloneNode(true)
+    wrapper.id=''
+    wrapper.style.cssText='width:190mm;position:absolute;left:-9999px;top:0'
     document.body.appendChild(wrapper)
-    await new Promise(r=>setTimeout(r,100))
+    await new Promise(r=>setTimeout(r,200))
     await html2pdf().set({
       margin:[0.2,0.2,0.2,0.2],
       filename:fname+'.pdf',
@@ -11489,7 +11502,8 @@ function _qpRenderOnePaper(c){
     if(sps.length&&isEqual){
       const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
       const per=cnt?(parseFloat(q.marks)||0)/cnt:0
-      marksStr='['+cnt+' &times; '+per+' = '+(parseFloat(q.marks)||0)+']'
+      if(per===Math.floor(per)&&per>0) marksStr='['+cnt+' &times; '+per+' = '+(parseFloat(q.marks)||0)+']'
+      else marksStr='['+(parseFloat(q.marks)||0)+']'
     }else if(!sps.length&&!isMatch){
       marksStr='['+(parseFloat(q.marks)||0)+']'
     }else if(isMatch){
