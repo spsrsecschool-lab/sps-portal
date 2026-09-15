@@ -741,16 +741,16 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 .qp-general-instructions{font-style:italic;font-size:10pt;margin-bottom:10px;padding:4px 0;border-bottom:1px solid #ccc}
 .qp-attempt-note{font-style:italic;font-weight:700;margin:2px 0 6px 28px;font-size:10pt}
 .qp-section-title{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;margin:12px 0 6px;text-decoration:underline}
-.qp-q{margin-bottom:8px;position:relative;padding-right:80px}
-.qp-q-head{display:flex;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:1px}
+.qp-q{margin-bottom:8px}
+.qp-q-head{display:flex;align-items:flex-start;flex-wrap:wrap;font-weight:700;font-size:11pt;margin-bottom:1px}
 .qp-q-head .qnum{flex-shrink:0;white-space:nowrap}
 .qp-q-head .qtxt{flex:1;min-width:0;display:block}
-.qp-q-head .qmarks{position:absolute;right:0;top:0;color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
+.qp-q-head .qmarks{color:#000;font-weight:700;font-size:11pt;white-space:nowrap;margin-left:6px}
 .qp-q-body{margin:1px 0 2px 28px;font-size:11pt}
-.qp-sp{margin:1px 0 1px 0;font-size:11pt;position:relative}
-.qp-sp-head{display:flex;align-items:flex-start}
+.qp-sp{margin:1px 0 1px 0;font-size:11pt}
+.qp-sp-head{display:flex;align-items:flex-start;flex-wrap:wrap}
 .qp-sp-head .sp-label{flex-shrink:0;white-space:nowrap;min-width:28px;text-align:left;margin-right:4px}
-.qp-sp .sp-marks{position:absolute;right:-80px;top:0;font-weight:700;font-size:11pt;white-space:nowrap;text-align:right;width:76px}
+.qp-sp .sp-marks{font-weight:700;font-size:11pt;white-space:nowrap;margin-left:6px}
 .qp-nested{margin:0 0 0 20px;font-size:11pt}
 .qp-nested-head{display:flex;align-items:flex-start}
 .qp-opt{margin:0 0 0 28px;font-size:11pt}
@@ -782,7 +782,10 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
   #tqpPreviewWrap{overflow:visible!important}
   .qp-section-title{break-after:avoid;page-break-after:avoid}
   .qp-attempt-note{break-inside:avoid}
-  .qp-q{break-inside:auto;page-break-inside:auto}
+  .qp-q{break-inside:auto;page-break-inside:auto;position:relative;padding-right:80px}
+  .qp-q-head .qmarks{position:absolute;right:0;top:0;margin-left:0}
+  .qp-sp{position:relative}
+  .qp-sp .sp-marks{position:absolute;right:-80px;top:0;margin-left:0;text-align:right;width:76px}
   .qp-q-head+.qp-sp,.qp-q-head+.qp-sp-inline,.qp-q-body+.qp-sp,.qp-q-body+.qp-sp-inline,.qp-q-head+.qp-q-body{break-before:avoid;page-break-before:avoid}
   .qp-match-tbl{break-inside:avoid;page-break-inside:avoid}
   .qp-sp{break-inside:avoid;page-break-inside:avoid}
@@ -1148,11 +1151,10 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
         <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center" id="tqpToolbar">
           <button class="back-btn" onclick="tqpBackToList()"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
           <span id="tqpStatus" style="font-size:12px;font-weight:700"></span>
-          <button class="btn btn-dark btn-sm" id="tqpFinalBtn" onclick="tqpMarkFinal()" style="margin-left:auto;display:none">Mark as Final</button>
-          <button class="btn btn-dark btn-sm" onclick="tqpPrint()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
+          <button class="btn btn-sm" id="tqpFinalBtn" onclick="tqpMarkFinal()" style="margin-left:auto;display:none;background:#16a34a;color:#fff;border:none">Mark as Final</button>
         </div>
         <div id="tqpPreviewWrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-          <div id="tqpPreviewContent" class="qp-preview" style="min-width:210mm"></div>
+          <div id="tqpPreviewContent" class="qp-preview"></div>
         </div>
       </div>
     </div>
@@ -3830,14 +3832,7 @@ async function tqpMarkFinal(){
   toast('Paper marked as Final','ok')
 }
 
-function tqpPrint(){
-  if(_tqpCurrent){
-    const cn=_tqpCurrent.classes?.name||'Class'
-    const sn=_tqpCurrent.subjects?.name||'Subject'
-    document.title=cn+'_'+sn+'_'+(_tqpCurrent.max_marks||'')+'marks'
-  }
-  setTimeout(()=>{window.print()},50)
-}
+
 
 
 </script>
