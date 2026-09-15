@@ -727,6 +727,68 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
 @keyframes pillPop{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
 @keyframes pillBlink{0%,100%{opacity:1}50%{opacity:.3}}
 
+/* ═══════ QUESTION PAPER PREVIEW ═══════ */
+.qp-preview{max-width:210mm;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:0.2in;font-family:'Times New Roman',Times,serif;font-size:11pt;color:#000;line-height:1.35}
+.qp-preview *{color:#000}
+@font-face{font-family:'QP Mixed';src:local('Nirmala UI'),local('Mangal');unicode-range:U+0900-097F,U+A8E0-A8FF,U+1CD0-1CFF,U+200C-200D,U+20B9,U+25CC}
+.qp-preview[data-lang="hindi"],.qp-preview[data-lang="sanskrit"]{font-family:'QP Mixed','Times New Roman',Times,serif;font-size:11pt}
+.qp-preview-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;border-bottom:2px solid #000;padding-bottom:8px}
+.qp-preview-header .col-left{flex:0 0 22%;font-size:11pt;font-weight:700;word-wrap:break-word;overflow-wrap:break-word}
+.qp-preview-header .col-right{flex:0 0 14%;font-size:11pt;font-weight:700;text-align:right}
+.qp-preview-header .col-center{flex:1;text-align:center;font-size:12pt;font-weight:700}
+.qp-preview-header .col-center .school{font-size:14pt;font-weight:900;text-transform:uppercase}
+.qp-preview-header .col-center .assess{font-size:11pt;font-weight:700;margin-top:2px}
+.qp-general-instructions{font-style:italic;font-size:10pt;margin-bottom:10px;padding:4px 0;border-bottom:1px solid #ccc}
+.qp-attempt-note{font-style:italic;font-weight:700;margin:2px 0 6px 28px;font-size:10pt}
+.qp-section-title{text-align:center;font-size:11pt;font-weight:700;text-transform:uppercase;margin:12px 0 6px;text-decoration:underline}
+.qp-q{margin-bottom:8px;position:relative;padding-right:80px}
+.qp-q-head{display:flex;align-items:flex-start;font-weight:700;font-size:11pt;margin-bottom:1px}
+.qp-q-head .qnum{flex-shrink:0;white-space:nowrap}
+.qp-q-head .qtxt{flex:1;min-width:0;display:block}
+.qp-q-head .qmarks{position:absolute;right:0;top:0;color:#000;font-weight:700;font-size:11pt;white-space:nowrap}
+.qp-q-body{margin:1px 0 2px 28px;font-size:11pt}
+.qp-sp{margin:1px 0 1px 0;font-size:11pt;position:relative}
+.qp-sp-head{display:flex;align-items:flex-start}
+.qp-sp-head .sp-label{flex-shrink:0;white-space:nowrap;min-width:28px;text-align:left;margin-right:4px}
+.qp-sp .sp-marks{position:absolute;right:-80px;top:0;font-weight:700;font-size:11pt;white-space:nowrap;text-align:right;width:76px}
+.qp-nested{margin:0 0 0 20px;font-size:11pt}
+.qp-nested-head{display:flex;align-items:flex-start}
+.qp-opt{margin:0 0 0 28px;font-size:11pt}
+.qp-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 28px;font-size:11pt}
+.qp-nested-opt{margin:0 0 0 24px;font-size:11pt}
+.qp-nested-opt-inline{display:flex;flex-wrap:wrap;gap:20px;margin:0 0 0 24px;font-size:11pt}
+.qp-sp-inline{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0 16px;margin:0;font-size:11pt}
+.qp-sp-inline .sp-inline-item{display:flex;align-items:flex-start}
+.qp-sp-inline .sp-inline-label{flex-shrink:0;min-width:28px;text-align:left}
+.qp-match-tbl{margin:6px 0 6px 28px;border-collapse:collapse;font-size:11pt;width:100%}
+.qp-match-tbl td,.qp-match-tbl th{border:1px solid #000;padding:4px 10px;font-weight:400}
+.qp-match-tbl th{font-weight:700}
+.qp-img-preview{max-width:300px;max-height:220px;margin:6px 0;display:block}
+.qp-preview .katex{font-size:1.1em}
+.tqp-card{background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+.tqp-card:hover{border-color:var(--indigo)}
+.tqp-card .tqp-title{font-size:14px;font-weight:700}
+.tqp-card .tqp-meta{font-size:12px;color:var(--ink-soft);margin-top:4px}
+@media print{
+  body>*:not(#main){display:none!important}
+  #sidebar,.topbar,.back-btn,#tqpToolbar{display:none!important}
+  #main{margin:0!important;padding:0!important}
+  .page{display:none!important}
+  #page-qpapers{display:block!important}
+  #page-qpapers .sub-page{display:none!important}
+  #page-qpapers #sub-qp-view{display:block!important}
+  .content{padding:0!important}
+  .qp-preview{border:none;padding:0;max-width:100%;box-shadow:none;min-width:auto!important}
+  #tqpPreviewWrap{overflow:visible!important}
+  .qp-section-title{break-after:avoid;page-break-after:avoid}
+  .qp-attempt-note{break-inside:avoid}
+  .qp-q{break-inside:auto;page-break-inside:auto}
+  .qp-q-head+.qp-sp,.qp-q-head+.qp-sp-inline,.qp-q-body+.qp-sp,.qp-q-body+.qp-sp-inline,.qp-q-head+.qp-q-body{break-before:avoid;page-break-before:avoid}
+  .qp-match-tbl{break-inside:avoid;page-break-inside:avoid}
+  .qp-sp{break-inside:avoid;page-break-inside:avoid}
+  @page{size:A4;margin:0.2in}
+}
+
 </style>
 </head>
 <body>
@@ -771,6 +833,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       My Attendance
     </div>
+    <div class="sb-item" onclick="goTo('qpapers',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Question Papers</div>
     <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Code of Conduct</div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -1076,6 +1139,24 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
     </div>
 
     <!-- MY PROFILE -->
+    <div class="page" id="page-qpapers">
+      <div class="sub-page active" id="sub-qp-list">
+        <div class="page-head"><div><h2>My Question Papers</h2><p>Question papers for your assigned classes &amp; subjects</p></div></div>
+        <div id="tqpList"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
+      </div>
+      <div class="sub-page" id="sub-qp-view">
+        <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center" id="tqpToolbar">
+          <button class="back-btn" onclick="tqpBackToList()"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+          <span id="tqpStatus" style="font-size:12px;font-weight:700"></span>
+          <button class="btn btn-dark btn-sm" id="tqpFinalBtn" onclick="tqpMarkFinal()" style="margin-left:auto;display:none">Mark as Final</button>
+          <button class="btn btn-dark btn-sm" onclick="tqpPrint()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
+        </div>
+        <div id="tqpPreviewWrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+          <div id="tqpPreviewContent" class="qp-preview" style="min-width:210mm"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-handbook">
       <div class="page-head"><div><h2>Code of Conduct and Declaration</h2><p>Staff code of conduct &amp; declaration</p></div></div>
       <div id="hbHost"></div>
@@ -1123,7 +1204,7 @@ let _isClassView=false
 
 const TITLES={
   dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks & Assessment',
-  critical:'Critical Students',myattendance:'My Attendance',handbook:'Code of Conduct',messages:'Messages',profile:'My Profile'
+  critical:'Critical Students',myattendance:'My Attendance',qpapers:'Question Papers',handbook:'Code of Conduct',messages:'Messages',profile:'My Profile'
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1486,6 +1567,7 @@ function goTo(id,el){
   if(id==='timetable'){window._timetableStale=false;loadMyTimetable()}
   if(id==='messages'){ showMsgView(window._forceInbox?'inbox':'compose'); window._forceInbox=false }
   if(id==='profile')loadProfile()
+  if(id==='qpapers'){document.querySelectorAll('#page-qpapers .sub-page').forEach(sp=>sp.classList.remove('active'));$('sub-qp-list').classList.add('active');loadTeacherQPapers()}
   if(id==='critical')loadCriticalStudents()
   if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t;loadDeductionHistory()}
 }
@@ -3535,6 +3617,227 @@ async function logout(){
   SPS.signOut()
 }
 
+// ══════════════════════════════════════════════════════════════════
+// TEACHER QUESTION PAPERS
+// ══════════════════════════════════════════════════════════════════
+const TQP_LABELS={
+  english:{qPrefix:'Q',classLabel:'CLASS',subjectLabel:'SUBJECT',mmLabel:'M.M.',timeLabel:'TIME',hrUnit:'hr.',minUnit:'min.',colA:'Column A',colB:'Column B',optLabels:['(a)','(b)','(c)','(d)']},
+  hindi:{qPrefix:'प्र०',classLabel:'कक्षा',subjectLabel:'विषय',mmLabel:'पू.अं.',timeLabel:'समय',hrUnit:'घंटा',minUnit:'मिनट',colA:'स्तम्भ अ',colB:'स्तम्भ ब',optLabels:['(क)','(ख)','(ग)','(घ)']},
+  sanskrit:{qPrefix:'प्र०',classLabel:'कक्षा',subjectLabel:'विषय',mmLabel:'पू.अं.',timeLabel:'समय',hrUnit:'घंटा',minUnit:'मिनट',colA:'स्तम्भ अ',colB:'स्तम्भ ब',optLabels:['(क)','(ख)','(ग)','(घ)']}
+}
+function _tqpRoman(n){return['i','ii','iii','iv','v','vi','vii','viii','ix','x','xi','xii','xiii','xiv','xv','xvi','xvii','xviii','xix','xx'][n-1]||String(n)}
+
+let _tqpPapers=[],_tqpCurrent=null,_tqpKatexLoaded=false
+async function _tqpLoadKaTeX(){
+  if(_tqpKatexLoaded)return
+  const css=document.createElement('link');css.rel='stylesheet'
+  css.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css'
+  document.head.appendChild(css)
+  await new Promise((ok,fail)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';s.onload=ok;s.onerror=fail;document.head.appendChild(s)})
+  await new Promise((ok,fail)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';s.onload=ok;s.onerror=fail;document.head.appendChild(s)})
+  _tqpKatexLoaded=true
+}
+function _tqpRenderMath(el){
+  if(!_tqpKatexLoaded||!window.renderMathInElement)return
+  try{renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})}catch(e){}
+}
+
+async function loadTeacherQPapers(){
+  const el=$('tqpList');if(!el)return
+  el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div>'
+  const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))].filter(Boolean)
+  const subjectIds=[...new Set(MY_MAPPINGS.map(m=>m.subject_id))].filter(Boolean)
+  if(!classIds.length||!subjectIds.length){el.innerHTML='<p style="color:var(--ink-faint);padding:20px">No class-subject assignments found.</p>';return}
+  const{data:papers}=await sb.from('question_papers').select('*,classes(name,sort_order),subjects(name),assessments(name)')
+    .eq('session_id',SESS?.session_id||'').in('class_id',classIds).in('subject_id',subjectIds)
+    .order('updated_at',{ascending:false})
+  _tqpPapers=papers||[]
+  if(!_tqpPapers.length){el.innerHTML='<p style="color:var(--ink-faint);padding:20px">No question papers available for your classes yet.</p>';return}
+  let h=''
+  _tqpPapers.forEach(p=>{
+    const cn=p.classes?.name||'Class'
+    const sn=p.subjects?.name||'Subject'
+    const an=p.assessments?.name||''
+    const isFinal=p.status==='final'
+    h+='<div class="tqp-card" onclick="tqpPreview(\''+p.paper_id+'\')">'
+    h+='<div style="display:flex;align-items:center;gap:8px"><span class="tqp-title">'+esc(cn)+' – '+esc(sn)+'</span>'
+    h+='<span class="pill '+(isFinal?'pill-success':'pill-warn')+'" style="font-size:10px">'+(isFinal?'Final':'Draft')+'</span></div>'
+    h+='<div class="tqp-meta">'+esc(an)+' &bull; '+p.max_marks+' marks &bull; '+(p.time_minutes||60)+' min</div>'
+    h+='</div>'
+  })
+  el.innerHTML=h
+}
+
+async function tqpPreview(paperId){
+  const paper=_tqpPapers.find(p=>p.paper_id===paperId)
+  if(!paper)return
+  _tqpCurrent=paper
+  await _tqpLoadKaTeX()
+  // Show sub-page
+  document.querySelectorAll('#page-qpapers .sub-page').forEach(sp=>sp.classList.remove('active'))
+  $('sub-qp-view').classList.add('active')
+  const isFinal=paper.status==='final'
+  const statusEl=$('tqpStatus')
+  statusEl.innerHTML='<span class="pill '+(isFinal?'pill-success':'pill-warn')+'">'+(isFinal?'Final':'Draft')+'</span>'
+  $('tqpFinalBtn').style.display=isFinal?'none':''
+
+  const ct=paper.content
+  if(!ct){$('tqpPreviewContent').innerHTML='<p>No content</p>';return}
+  const lang=paper.language||'english'
+  const cn=paper.classes?.name||'Class'
+  const sn=paper.subjects?.name||'Subject'
+  const an=paper.assessments?.name||'EXAM'
+  const schoolName=ct.school_name||'SHIV PUBLIC SCHOOL'
+  const ll=TQP_LABELS[lang]||TQP_LABELS.english
+  const timeStr=paper.time_minutes>=60?(paper.time_minutes/60)+' '+ll.hrUnit:(paper.time_minutes+' '+ll.minUnit)
+  const sessLabel=SESS?.session_id||''
+
+  const previewEl=$('tqpPreviewContent')
+  previewEl.setAttribute('data-lang',lang)
+
+  let h=''
+  h+='<div class="qp-preview-header">'
+  h+='<div class="col-left">'+ll.classLabel+' – '+esc(cn).toUpperCase()+'<br>'+ll.subjectLabel+' – '+esc(sn).toUpperCase()+'</div>'
+  h+='<div class="col-center"><div class="school">'+esc(schoolName)+'</div><div class="assess">'+esc(an).toUpperCase()+(sessLabel?' ('+esc(sessLabel)+')':'')+'</div></div>'
+  h+='<div class="col-right">'+ll.mmLabel+' '+paper.max_marks+'<br>'+ll.timeLabel+'- '+timeStr+'</div>'
+  h+='</div>'
+  if(ct.general_instructions) h+='<div class="qp-general-instructions">'+esc(ct.general_instructions)+'</div>'
+
+  const sections=(ct.sections||[]).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  const questions=(ct.questions||[]).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+  let qNum=0
+
+  function renderQ(q){
+    qNum++
+    const sps=q.subparts||[]
+    const isEqual=q.marks_mode==='equal'
+    const isMatch=q.type==='match'
+    let marksStr=''
+    const totalM=parseFloat(q.marks)||0
+    if(sps.length&&isEqual){
+      const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
+      const per=cnt?totalM/cnt:0
+      const perR=Math.round(per*100)/100
+      if(perR>0)marksStr='['+cnt+' &times; '+perR+' = '+totalM+']'
+      else marksStr='['+totalM+']'
+    }else if(sps.length&&!isEqual&&sps.some(sp=>parseFloat(sp.marks)>0)){
+      marksStr=''
+    }else{
+      marksStr='['+totalM+']'
+    }
+    let qh='<div class="qp-q">'
+    const hasHT=q.heading&&q.text
+    qh+='<div class="qp-q-head"><span class="qnum"><b>'+ll.qPrefix+qNum+'.</b>&nbsp;</span><span class="qtxt">'+(q.heading?'<b>'+esc(q.heading)+'</b>':'')+(q.text&&!hasHT?'<span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
+    if(marksStr)qh+='<span class="qmarks"><b>'+marksStr+'</b></span>'
+    qh+='</div>'
+    if(hasHT)qh+='<div class="qp-q-body"><span class="qp-math-render">'+esc(q.text).replace(/\n/g,'<br>')+'</span></div>'
+    if(q.attempt_any&&sps.length){
+      const note=lang==='hindi'||lang==='sanskrit'?'कोई '+q.attempt_any+' प्रश्न हल कीजिए (कुल '+sps.length+' में से)':'Attempt any '+q.attempt_any+' out of '+sps.length+'.'
+      qh+='<div class="qp-attempt-note">'+note+'</div>'
+    }
+    if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
+    if(isMatch&&q.match_pairs&&q.match_pairs.length){
+      qh+='<table class="qp-match-tbl"><thead><tr><th>'+ll.colA+'</th><th>'+ll.colB+'</th></tr></thead><tbody>'
+      q.match_pairs.forEach((p,pi)=>{qh+='<tr><td class="qp-math-render">('+_tqpRoman(pi+1)+') '+esc(p.col_a||'')+'</td><td class="qp-math-render">'+(ll.optLabels[pi]||'('+(String.fromCharCode(97+pi))+')')+' '+esc(p.col_b||'')+'</td></tr>'})
+      qh+='</tbody></table>'
+    }
+    if(!isMatch){
+      const hasNested=sps.some(sp=>(sp.children||[]).length>0)
+      const hasMCQ=sps.some(sp=>(sp.type||q.type)==='mcq')
+      const canInline=!hasNested&&!hasMCQ&&q.type!=='mcq'&&isEqual&&sps.length>1&&sps.every(sp=>!sp.image_url&&(sp.text||'').length<40&&!(sp.text||'').includes('\n'))
+      if(canInline){
+        qh+='<div class="qp-sp-inline">'
+        sps.forEach((sp,spi)=>{qh+='<div class="sp-inline-item"><span class="sp-inline-label">('+_tqpRoman(spi+1)+')</span><span class="qp-math-render">'+esc(sp.text||'')+'</span></div>'})
+        qh+='</div>'
+      }else{
+        sps.forEach((sp,spi)=>{
+          const spLabel='('+_tqpRoman(spi+1)+')'
+          let spMarks=''
+          if(!isEqual&&sp.marks)spMarks='<b>['+(sp.marks)+']</b>'
+          qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+esc(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
+          if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
+          qh+='</div>'
+          if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
+          const spType=sp.type||q.type
+          if(spType==='mcq'&&sp.options&&sp.options.length){
+            const oLabels=ll.optLabels
+            const filled=sp.options.map((o,oi)=>({o,oi})).filter(({o})=>(o.text||'').trim())
+            if(filled.length){
+              const short=filled.every(({o})=>(o.text||'').length<30)
+              if(short) qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'
+              else filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})
+            }
+          }
+          const kids=sp.children||[]
+          kids.forEach((kid,ki)=>{
+            const kidLabel=ll.optLabels[ki]||(String.fromCharCode(97+ki)+')')
+            qh+='<div class="qp-nested"><div class="qp-nested-head"><span>'+kidLabel+' <span class="qp-math-render">'+esc(kid.text||'').replace(/\n/g,'<br>')+'</span></span></div>'
+            if(spType==='mcq'&&kid.options&&kid.options.length){
+              const oLabels2=ll.optLabels
+              const filled2=kid.options.map((o,oi)=>({o,oi})).filter(({o})=>(o.text||'').trim())
+              if(filled2.length){
+                const short2=filled2.every(({o})=>(o.text||'').length<30)
+                if(short2) qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'
+                else filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})
+              }
+            }
+            qh+='</div>'
+          })
+          qh+='</div>'
+        })
+      }
+    }
+    qh+='</div>'
+    return qh
+  }
+
+  if(sections.length){
+    const unsectioned=questions.filter(q=>!q.section_id)
+    unsectioned.forEach(q=>{h+=renderQ(q)})
+    sections.forEach(sec=>{
+      h+='<div class="qp-section-title">'+esc(sec.title||'')+'</div>'
+      if(sec.attempt_any){
+        const secQCount=questions.filter(q=>q.section_id===sec.id).length
+        const note=lang==='hindi'||lang==='sanskrit'?'इस खण्ड में से कोई '+sec.attempt_any+' प्रश्न हल कीजिए (कुल '+secQCount+' में से)':'Attempt any '+sec.attempt_any+' out of '+secQCount+' questions from this section.'
+        h+='<div class="qp-attempt-note" style="text-align:center;margin:0 0 8px">'+note+'</div>'
+      }
+      questions.filter(q=>q.section_id===sec.id).forEach(q=>{h+=renderQ(q)})
+    })
+  }else{
+    questions.forEach(q=>{h+=renderQ(q)})
+  }
+
+  previewEl.innerHTML=h
+  previewEl.querySelectorAll('.qp-math-render').forEach(el=>_tqpRenderMath(el))
+}
+
+function tqpBackToList(){
+  document.querySelectorAll('#page-qpapers .sub-page').forEach(sp=>sp.classList.remove('active'))
+  $('sub-qp-list').classList.add('active')
+  _tqpCurrent=null
+}
+
+async function tqpMarkFinal(){
+  if(!_tqpCurrent)return
+  if(!confirm('Mark this paper as Final? This indicates the paper is ready for printing.'))return
+  const{error}=await sb.from('question_papers').update({status:'final',updated_at:new Date().toISOString()}).eq('paper_id',_tqpCurrent.paper_id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  _tqpCurrent.status='final'
+  $('tqpStatus').innerHTML='<span class="pill pill-success">Final</span>'
+  $('tqpFinalBtn').style.display='none'
+  const card=_tqpPapers.find(p=>p.paper_id===_tqpCurrent.paper_id)
+  if(card)card.status='final'
+  toast('Paper marked as Final','ok')
+}
+
+function tqpPrint(){
+  if(_tqpCurrent){
+    const cn=_tqpCurrent.classes?.name||'Class'
+    const sn=_tqpCurrent.subjects?.name||'Subject'
+    document.title=cn+'_'+sn+'_'+(_tqpCurrent.max_marks||'')+'marks'
+  }
+  setTimeout(()=>{window.print()},50)
+}
 
 
 </script>
