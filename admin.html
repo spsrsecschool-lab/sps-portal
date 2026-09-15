@@ -11376,6 +11376,8 @@ async function qpBatchPreview(){
   })
   $('qpBatchContent').innerHTML=h
   document.querySelectorAll('#qpBatchContent .qp-math-render').forEach(el=>renderQPMath(el))
+  const assess=_qpAssessments.find(x=>x.assessment_id===_qpBatchAssessId)
+  document.title=_qpSanitizeFileName((assess?.name||'Papers')+'_batch_'+selected.length+'_papers')
   setTimeout(()=>{window.print()},400)
 }
 
