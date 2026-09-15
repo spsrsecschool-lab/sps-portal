@@ -600,37 +600,37 @@ tbody tr:hover td{background:var(--lav-50)}
   .ec-sign-cell{height:28px}
   .ec-class-sep td{border-left:none;border-right:none;height:4px;padding:0;background:#ddd}
 
-  .ec-admit-page{page-break-after:always;break-after:page;display:flex;flex-direction:column;width:297mm;height:210mm;box-sizing:border-box;padding:0}
+  .ec-admit-page{page-break-after:always;break-after:page;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;width:297mm;height:210mm;box-sizing:border-box;padding:0}
   .ec-admit-page:last-child{page-break-after:auto;break-after:auto}
-  .ec-admit-cell{width:297mm;height:105mm;box-sizing:border-box;padding:0;overflow:hidden}
-  .ec-admit-card{width:100%;height:100%;border:1px solid #333;box-sizing:border-box;padding:6mm 8mm;font-size:11px;display:flex;flex-direction:column}
-  .ec-admit-card .ac-school{text-align:center;font-weight:700;font-size:14px;margin-bottom:0}
-  .ec-admit-card .ac-title{text-align:center;font-weight:700;font-size:12px;text-transform:uppercase;margin-bottom:6px}
-  .ec-admit-card .ac-info{display:flex;justify-content:space-between;margin-bottom:6px;font-size:11.5px;gap:20px}
+  .ec-admit-cell{width:148.5mm;height:105mm;box-sizing:border-box;padding:0;overflow:hidden}
+  .ec-admit-card{width:100%;height:100%;border:1px solid #333;box-sizing:border-box;padding:4mm 5mm;font-size:12.5px;display:flex;flex-direction:column}
+  .ec-admit-card .ac-school{text-align:center;font-weight:700;font-size:15px;margin-bottom:0}
+  .ec-admit-card .ac-title{text-align:center;font-weight:700;font-size:13px;text-transform:uppercase;margin-bottom:4px}
+  .ec-admit-card .ac-info{display:flex;justify-content:space-between;margin-bottom:4px;font-size:12.5px;gap:10px}
   .ec-admit-card .ac-info-left,.ec-admit-card .ac-info-right{display:flex;flex-direction:column;gap:1px}
   .ec-admit-card .ac-info .ac-lbl{font-weight:700}
-  .ec-admit-card .ac-body{display:flex;gap:12px;flex:1;min-height:0}
-  .ec-admit-card .ac-ds{flex:0 0 auto;width:40%}
-  .ec-admit-card .ac-ds-title{text-align:center;font-weight:700;font-size:11px;text-transform:uppercase;margin-bottom:3px}
-  .ec-admit-card .ac-ds table{width:100%;border-collapse:collapse;font-size:10.5px}
-  .ec-admit-card .ac-ds th,.ec-admit-card .ac-ds td{border:1px solid #333;padding:2.5px 5px;text-align:left}
-  .ec-admit-card .ac-ds th{font-weight:700;font-size:10px}
+  .ec-admit-card .ac-body{display:flex;gap:8px;flex:1;min-height:0}
+  .ec-admit-card .ac-ds{flex:0 0 auto;width:42%}
+  .ec-admit-card .ac-ds-title{text-align:center;font-weight:700;font-size:12px;text-transform:uppercase;margin-bottom:2px}
+  .ec-admit-card .ac-ds table{width:100%;border-collapse:collapse;font-size:11.5px}
+  .ec-admit-card .ac-ds th,.ec-admit-card .ac-ds td{border:1px solid #333;padding:2px 4px;text-align:left}
+  .ec-admit-card .ac-ds th{font-weight:700;font-size:11px}
   .ec-admit-card .ac-instr{flex:1}
-  .ec-admit-card .ac-instr-title{font-weight:700;font-size:11px;text-transform:uppercase;margin-bottom:3px}
-  .ec-admit-card .ac-instr ul{margin:0;padding-left:16px;font-size:10px;line-height:1.55}
-  .ec-admit-card .ac-sign{display:flex;justify-content:center;gap:80px;font-size:10.5px;margin-top:auto;padding-top:4px;border-top:none}
+  .ec-admit-card .ac-instr-title{font-weight:700;font-size:12px;text-transform:uppercase;margin-bottom:2px}
+  .ec-admit-card .ac-instr ul{margin:0;padding-left:14px;font-size:11px;line-height:1.5}
+  .ec-admit-card .ac-sign{display:flex;justify-content:center;gap:40px;font-size:11.5px;margin-top:auto;padding-top:3px}
   .ec-admit-card .ac-sign span{text-align:center}
-  .ec-admit-card .ac-sign .ac-sline{display:block;width:110px;border-top:1px solid #333;margin:0 auto 2px;margin-top:14px}
-  .ec-admit-back{width:100%;height:100%;border:1px solid #333;box-sizing:border-box;padding:6mm 8mm;font-size:11px;display:flex;flex-direction:column}
-  .ec-admit-back .ab-title{text-align:center;font-weight:700;font-size:14px;margin-bottom:2px}
-  .ec-admit-back .ab-sub{text-align:center;font-size:9.5px;text-transform:uppercase;font-weight:600;margin-bottom:8px}
+  .ec-admit-card .ac-sign .ac-sline{display:block;width:90px;border-top:1px solid #333;margin:0 auto 2px;margin-top:10px}
+  .ec-admit-back{width:100%;height:100%;border:1px solid #333;box-sizing:border-box;padding:4mm 5mm;font-size:12.5px;display:flex;flex-direction:column}
+  .ec-admit-back .ab-title{text-align:center;font-weight:700;font-size:15px;margin-bottom:2px}
+  .ec-admit-back .ab-sub{text-align:center;font-size:10.5px;text-transform:uppercase;font-weight:600;margin-bottom:6px}
   .ec-admit-back .ab-dues{margin-bottom:auto}
-  .ec-admit-back .ab-dues table{width:100%;border-collapse:collapse;font-size:11px}
-  .ec-admit-back .ab-dues th,.ec-admit-back .ab-dues td{border:1px solid #333;padding:5px 8px;text-align:left}
-  .ec-admit-back .ab-dues th{font-weight:700;font-size:10px;text-transform:uppercase}
-  .ec-admit-back .ab-dues td{height:30px}
-  .ec-admit-back .ab-princ{text-align:left;font-size:10.5px;margin-top:20px}
-  .ec-admit-back .ab-princ .ab-line{display:block;width:120px;border-top:1px solid #333;margin-bottom:2px}
+  .ec-admit-back .ab-dues table{width:100%;border-collapse:collapse;font-size:12px}
+  .ec-admit-back .ab-dues th,.ec-admit-back .ab-dues td{border:1px solid #333;padding:4px 6px;text-align:left}
+  .ec-admit-back .ab-dues th{font-weight:700;font-size:11px;text-transform:uppercase}
+  .ec-admit-back .ab-dues td{height:28px}
+  .ec-admit-back .ab-princ{text-align:left;font-size:11.5px;margin-top:16px}
+  .ec-admit-back .ab-princ .ab-line{display:block;width:110px;border-top:1px solid #333;margin-bottom:2px}
 
   @media print{
     body>*:not(#main){display:none!important}
@@ -12180,17 +12180,17 @@ async function ecGenerateAdmitCards(){
     return b
   }
   let h=''
-  for(let pi=0;pi<cards.length;pi+=2){
-    const batch=cards.slice(pi,pi+2)
+  for(let pi=0;pi<cards.length;pi+=4){
+    const batch=cards.slice(pi,pi+4)
     h+='<div class="ec-admit-page">'
-    for(let i=0;i<2;i++){
+    for(let i=0;i<4;i++){
       h+='<div class="ec-admit-cell">'
       if(batch[i]) h+=renderFront(batch[i])
       h+='</div>'
     }
     h+='</div>'
     h+='<div class="ec-admit-page">'
-    for(let i=0;i<2;i++){
+    for(let i=0;i<4;i++){
       h+='<div class="ec-admit-cell">'
       h+=renderBack()
       h+='</div>'
