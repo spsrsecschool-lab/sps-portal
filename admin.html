@@ -11185,10 +11185,12 @@ async function previewQP(){
     const isMatch=q.type==='match'
     let marksStr=''
     const totalM=parseFloat(q.marks)||0
+    console.log('Q'+qNum+' marks_mode=',q.marks_mode,'isEqual=',isEqual,'sps=',sps.length,'totalM=',totalM)
     if(sps.length&&isEqual){
       const cnt=q.attempt_any?parseInt(q.attempt_any):sps.length
       const per=cnt?totalM/cnt:0
       const perR=Math.round(per*100)/100
+      console.log('  cnt=',cnt,'per=',per,'perR=',perR)
       if(perR>0) marksStr='['+cnt+' &times; '+perR+' = '+totalM+']'
       else marksStr='['+totalM+']'
     }else if(sps.length&&!isEqual&&sps.some(sp=>parseFloat(sp.marks)>0)){
@@ -11196,6 +11198,7 @@ async function previewQP(){
     }else{
       marksStr='['+totalM+']'
     }
+    console.log('  marksStr=',marksStr)
 
     let qh='<div class="qp-q">'
     const hasHeadingAndText=q.heading&&q.text
