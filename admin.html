@@ -9972,6 +9972,7 @@ const QP_LABELS={
   sanskrit:{qPrefix:'प्र०',classLabel:'कक्षा',subjectLabel:'विषय',mmLabel:'पू.अं.',timeLabel:'समय',hrUnit:'घंटा',minUnit:'मिनट',colA:'स्तम्भ अ',colB:'स्तम्भ ब',optLabels:['(क)','(ख)','(ग)','(घ)']}
 }
 function _qpL(key){return (QP_LABELS[(_qpCurrent?.language)||'english']||QP_LABELS.english)[key]}
+function _qpFmt(s){return esc(s).replace(/__(.+?)__/g,'<u>$1</u>')}
 
 function _qpId(){return 'qp_'+crypto.randomUUID().slice(0,8)}
 
@@ -10414,7 +10415,7 @@ function renderQPQuestionCard(q,seqNum){
   // Question text (hide for types where content goes in subparts)
   const _hideText=isMatch||isMCQ||q.type==='fill_blank'||q.type==='true_false'
   if(!_hideText&&(!sps.length||q.text)){
-    h+='<textarea data-field="qtxt-'+q.id+'" placeholder="Question text (use $...$ for math)" style="width:100%;min-height:50px;font-size:12px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font);resize:vertical;margin-bottom:6px" onchange="qpSetField(\''+q.id+'\',\'text\',this.value)">'+esc(q.text||'')+'</textarea>'
+    h+='<textarea data-field="qtxt-'+q.id+'" placeholder="Question text ($..$ math, __..__ underline)" style="width:100%;min-height:50px;font-size:12px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font);resize:vertical;margin-bottom:6px" onchange="qpSetField(\''+q.id+'\',\'text\',this.value)">'+esc(q.text||'')+'</textarea>'
   }
 
   // Image upload (all types)
@@ -11200,10 +11201,10 @@ async function previewQP(){
 
     let qh='<div class="qp-q">'
     const hasHeadingAndText=q.heading&&q.text
-    qh+='<div class="qp-q-head"><span class="qnum"><b>'+ll.qPrefix+qNum+'.</b>&nbsp;</span><span class="qtxt">'+(q.heading?'<b>'+esc(q.heading)+'</b>':'')+(q.text&&!hasHeadingAndText?'<span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
+    qh+='<div class="qp-q-head"><span class="qnum"><b>'+ll.qPrefix+qNum+'.</b>&nbsp;</span><span class="qtxt">'+(q.heading?'<b>'+_qpFmt(q.heading)+'</b>':'')+(q.text&&!hasHeadingAndText?'<span class="qp-math-render" style="font-weight:normal">'+_qpFmt(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
     if(marksStr)qh+='<span class="qmarks"><b>'+marksStr+'</b></span>'
     qh+='</div>'
-    if(hasHeadingAndText)qh+='<div class="qp-q-body"><span class="qp-math-render">'+esc(q.text).replace(/\n/g,'<br>')+'</span></div>'
+    if(hasHeadingAndText)qh+='<div class="qp-q-body"><span class="qp-math-render">'+_qpFmt(q.text).replace(/\n/g,'<br>')+'</span></div>'
 
     // Attempt any X out of Y
     if(q.attempt_any&&sps.length){
@@ -11218,7 +11219,7 @@ async function previewQP(){
     // Match table at question level
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
       qh+='<table class="qp-match-tbl"><thead><tr><th>'+ll.colA+'</th><th>'+ll.colB+'</th></tr></thead><tbody>'
-      q.match_pairs.forEach((p,pi)=>{qh+='<tr><td class="qp-math-render">('+toRoman(pi+1)+') '+esc(p.col_a||'')+'</td><td class="qp-math-render">'+(ll.optLabels[pi]||'('+(String.fromCharCode(97+pi))+')')+' '+esc(p.col_b||'')+'</td></tr>'})
+      q.match_pairs.forEach((p,pi)=>{qh+='<tr><td class="qp-math-render">('+toRoman(pi+1)+') '+_qpFmt(p.col_a||'')+'</td><td class="qp-math-render">'+(ll.optLabels[pi]||'('+(String.fromCharCode(97+pi))+')')+' '+_qpFmt(p.col_b||'')+'</td></tr>'})
       qh+='</tbody></table>'
     }
 
@@ -11229,7 +11230,7 @@ async function previewQP(){
       const canInline=!hasNested&&!hasMCQSubpart&&q.type!=='mcq'&&isEqual&&sps.length>1&&sps.every(sp=>!sp.image_url&&(sp.text||'').length<40&&!(sp.text||'').includes('\n'))
       if(canInline){
         qh+='<div class="qp-sp-inline">'
-        sps.forEach((sp,spi)=>{qh+='<div class="sp-inline-item"><span class="sp-inline-label">('+toRoman(spi+1)+')</span><span class="qp-math-render">'+esc(sp.text||'')+'</span></div>'})
+        sps.forEach((sp,spi)=>{qh+='<div class="sp-inline-item"><span class="sp-inline-label">('+toRoman(spi+1)+')</span><span class="qp-math-render">'+_qpFmt(sp.text||'')+'</span></div>'})
         qh+='</div>'
       }else{
       sps.forEach((sp,spi)=>{
@@ -11237,7 +11238,7 @@ async function previewQP(){
         let spMarks=''
         if(!isEqual&&sp.marks)spMarks='<b>['+(sp.marks)+']</b>'
 
-        qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+esc(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
+        qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+_qpFmt(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
         if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
         qh+='</div>'
         if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
@@ -11250,9 +11251,9 @@ async function previewQP(){
           if(filled.length){
             const short=filled.every(({o})=>(o.text||'').length<30)
             if(short){
-              qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'
+              qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+_qpFmt(o.text)+'</span></span>').join('')+'</div>'
             }else{
-              filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})
+              filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+_qpFmt(o.text)+'</span></div>'})
             }
           }
         }
@@ -11260,7 +11261,7 @@ async function previewQP(){
         const kids=sp.children||[]
         kids.forEach((kid,ki)=>{
           const kidLabel=ll.optLabels[ki]||(String.fromCharCode(97+ki)+')')
-          qh+='<div class="qp-nested"><div class="qp-nested-head"><span>'+kidLabel+' <span class="qp-math-render">'+esc(kid.text||'').replace(/\n/g,'<br>')+'</span></span>'
+          qh+='<div class="qp-nested"><div class="qp-nested-head"><span>'+kidLabel+' <span class="qp-math-render">'+_qpFmt(kid.text||'').replace(/\n/g,'<br>')+'</span></span>'
           qh+='</div>'
           // Nested MCQ options based on subpart type
           if(spType==='mcq'&&kid.options&&kid.options.length){
@@ -11269,9 +11270,9 @@ async function previewQP(){
             if(filled2.length){
               const short2=filled2.every(({o})=>(o.text||'').length<30)
               if(short2){
-                qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'
+                qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+_qpFmt(o.text)+'</span></span>').join('')+'</div>'
               }else{
-                filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})
+                filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+_qpFmt(o.text)+'</span></div>'})
               }
             }
           }
@@ -11425,10 +11426,10 @@ function _qpRenderOnePaper(c){
     }
     let qh='<div class="qp-q">'
     const hasHT=q.heading&&q.text
-    qh+='<div class="qp-q-head"><span class="qnum"><b>'+ll.qPrefix+qNum+'.</b>&nbsp;</span><span class="qtxt">'+(q.heading?'<b>'+esc(q.heading)+'</b>':'')+(q.text&&!hasHT?'<span class="qp-math-render" style="font-weight:normal">'+esc(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
+    qh+='<div class="qp-q-head"><span class="qnum"><b>'+ll.qPrefix+qNum+'.</b>&nbsp;</span><span class="qtxt">'+(q.heading?'<b>'+_qpFmt(q.heading)+'</b>':'')+(q.text&&!hasHT?'<span class="qp-math-render" style="font-weight:normal">'+_qpFmt(q.text).replace(/\n/g,'<br>')+'</span>':'')+'</span>'
     if(marksStr)qh+='<span class="qmarks"><b>'+marksStr+'</b></span>'
     qh+='</div>'
-    if(hasHT)qh+='<div class="qp-q-body"><span class="qp-math-render">'+esc(q.text).replace(/\n/g,'<br>')+'</span></div>'
+    if(hasHT)qh+='<div class="qp-q-body"><span class="qp-math-render">'+_qpFmt(q.text).replace(/\n/g,'<br>')+'</span></div>'
     if(q.attempt_any&&sps.length){
       const note=lang==='hindi'||lang==='sanskrit'?'कोई '+q.attempt_any+' प्रश्न हल कीजिए (कुल '+sps.length+' में से)':'Attempt any '+q.attempt_any+' out of '+sps.length+'.'
       qh+='<div class="qp-attempt-note">'+note+'</div>'
@@ -11436,7 +11437,7 @@ function _qpRenderOnePaper(c){
     if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
       qh+='<table class="qp-match-tbl"><thead><tr><th>'+ll.colA+'</th><th>'+ll.colB+'</th></tr></thead><tbody>'
-      q.match_pairs.forEach((p,pi)=>{qh+='<tr><td class="qp-math-render">('+toRoman(pi+1)+') '+esc(p.col_a||'')+'</td><td class="qp-math-render">'+(ll.optLabels[pi]||'('+(String.fromCharCode(97+pi))+')')+' '+esc(p.col_b||'')+'</td></tr>'})
+      q.match_pairs.forEach((p,pi)=>{qh+='<tr><td class="qp-math-render">('+toRoman(pi+1)+') '+_qpFmt(p.col_a||'')+'</td><td class="qp-math-render">'+(ll.optLabels[pi]||'('+(String.fromCharCode(97+pi))+')')+' '+_qpFmt(p.col_b||'')+'</td></tr>'})
       qh+='</tbody></table>'
     }
     if(!isMatch){
@@ -11445,14 +11446,14 @@ function _qpRenderOnePaper(c){
       const canInline=!hasNested&&!hasMCQ&&q.type!=='mcq'&&isEqual&&sps.length>1&&sps.every(sp=>!sp.image_url&&(sp.text||'').length<40&&!(sp.text||'').includes('\n'))
       if(canInline){
         qh+='<div class="qp-sp-inline">'
-        sps.forEach((sp,spi)=>{qh+='<div class="sp-inline-item"><span class="sp-inline-label">('+toRoman(spi+1)+')</span><span class="qp-math-render">'+esc(sp.text||'')+'</span></div>'})
+        sps.forEach((sp,spi)=>{qh+='<div class="sp-inline-item"><span class="sp-inline-label">('+toRoman(spi+1)+')</span><span class="qp-math-render">'+_qpFmt(sp.text||'')+'</span></div>'})
         qh+='</div>'
       }else{
         sps.forEach((sp,spi)=>{
           const spLabel='('+toRoman(spi+1)+')'
           let spMarks=''
           if(!isEqual&&sp.marks)spMarks='<b>['+(sp.marks)+']</b>'
-          qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+esc(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
+          qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+_qpFmt(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
           if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
           qh+='</div>'
           if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
@@ -11462,21 +11463,21 @@ function _qpRenderOnePaper(c){
             const filled=sp.options.map((o,oi)=>({o,oi})).filter(({o})=>(o.text||'').trim())
             if(filled.length){
               const short=filled.every(({o})=>(o.text||'').length<30)
-              if(short){qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'}
-              else{filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})}
+              if(short){qh+='<div class="qp-opt-inline">'+filled.map(({o,oi})=>'<span>'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+_qpFmt(o.text)+'</span></span>').join('')+'</div>'}
+              else{filled.forEach(({o,oi})=>{qh+='<div class="qp-opt">'+(oLabels[oi]||o.label)+' <span class="qp-math-render">'+_qpFmt(o.text)+'</span></div>'})}
             }
           }
           const kids=sp.children||[]
           kids.forEach((kid,ki)=>{
             const kidLabel=ll.optLabels[ki]||(String.fromCharCode(97+ki)+')')
-            qh+='<div class="qp-nested"><div class="qp-nested-head"><span>'+kidLabel+' <span class="qp-math-render">'+esc(kid.text||'').replace(/\n/g,'<br>')+'</span></span></div>'
+            qh+='<div class="qp-nested"><div class="qp-nested-head"><span>'+kidLabel+' <span class="qp-math-render">'+_qpFmt(kid.text||'').replace(/\n/g,'<br>')+'</span></span></div>'
             if(spType==='mcq'&&kid.options&&kid.options.length){
               const oLabels2=ll.optLabels
               const filled2=kid.options.map((o,oi)=>({o,oi})).filter(({o})=>(o.text||'').trim())
               if(filled2.length){
                 const short2=filled2.every(({o})=>(o.text||'').length<30)
-                if(short2){qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></span>').join('')+'</div>'}
-                else{filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+esc(o.text)+'</span></div>'})}
+                if(short2){qh+='<div class="qp-nested-opt-inline">'+filled2.map(({o,oi})=>'<span>'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+_qpFmt(o.text)+'</span></span>').join('')+'</div>'}
+                else{filled2.forEach(({o,oi})=>{qh+='<div class="qp-nested-opt">'+(oLabels2[oi]||o.label)+' <span class="qp-math-render">'+_qpFmt(o.text)+'</span></div>'})}
               }
             }
             qh+='</div>'
