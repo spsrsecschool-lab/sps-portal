@@ -9972,7 +9972,7 @@ const QP_LABELS={
   sanskrit:{qPrefix:'प्र०',classLabel:'कक्षा',subjectLabel:'विषय',mmLabel:'पू.अं.',timeLabel:'समय',hrUnit:'घंटा',minUnit:'मिनट',colA:'स्तम्भ अ',colB:'स्तम्भ ब',optLabels:['(क)','(ख)','(ग)','(घ)']}
 }
 function _qpL(key){return (QP_LABELS[(_qpCurrent?.language)||'english']||QP_LABELS.english)[key]}
-function _qpFmt(s){return esc(s).replace(/__(.+?)__/g,'<u>$1</u>')}
+function _qpFmt(s){return esc(s).replace(/\|(.+?)\|/g,'<u>$1</u>')}
 
 function _qpId(){return 'qp_'+crypto.randomUUID().slice(0,8)}
 
@@ -10415,7 +10415,7 @@ function renderQPQuestionCard(q,seqNum){
   // Question text (hide for types where content goes in subparts)
   const _hideText=isMatch||isMCQ||q.type==='fill_blank'||q.type==='true_false'
   if(!_hideText&&(!sps.length||q.text)){
-    h+='<textarea data-field="qtxt-'+q.id+'" placeholder="Question text ($..$ math, __..__ underline)" style="width:100%;min-height:50px;font-size:12px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font);resize:vertical;margin-bottom:6px" onchange="qpSetField(\''+q.id+'\',\'text\',this.value)">'+esc(q.text||'')+'</textarea>'
+    h+='<textarea data-field="qtxt-'+q.id+'" placeholder="Question text ($..$ math, |..| underline)" style="width:100%;min-height:50px;font-size:12px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);font-family:var(--font);resize:vertical;margin-bottom:6px" onchange="qpSetField(\''+q.id+'\',\'text\',this.value)">'+esc(q.text||'')+'</textarea>'
   }
 
   // Image upload (all types)
