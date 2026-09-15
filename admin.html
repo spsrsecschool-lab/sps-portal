@@ -10497,8 +10497,9 @@ function renderQPQuestionCard(q,seqNum){
         h+='</div>'
       }
       if(kids.length){
+        const _ol=_qpL('optLabels')
         kids.forEach((kid,ki)=>{
-          const kidLabel=String.fromCharCode(97+ki)+')'
+          const kidLabel=_ol[ki]||(String.fromCharCode(97+ki)+')')
           h+='<div class="qp-nested-subpart-row" data-nid="'+kid.id+'">'
           h+='<span class="sp-label">'+kidLabel+'</span>'
           h+='<textarea data-field="ntxt-'+kid.id+'" placeholder="Sub-item text" onchange="qpSetNestedField(\''+q.id+'\',\''+sp.id+'\',\''+kid.id+'\',\'text\',this.value)">'+esc(kid.text||'')+'</textarea>'
@@ -11260,7 +11261,7 @@ async function previewQP(){
         // Nested children (no individual marks on sub-items)
         const kids=sp.children||[]
         kids.forEach((kid,ki)=>{
-          const kidLabel=String.fromCharCode(97+ki)+')'
+          const kidLabel=ll.optLabels[ki]||(String.fromCharCode(97+ki)+')')
           qh+='<div class="qp-nested"><div class="qp-nested-head"><span>'+kidLabel+' <span class="qp-math-render">'+esc(kid.text||'').replace(/\n/g,'<br>')+'</span></span>'
           qh+='</div>'
           // Nested MCQ options based on subpart type
@@ -11357,15 +11358,16 @@ async function _qpRenderPaperToBlob(paperHtml){
   const wrapper=document.createElement('div')
   wrapper.innerHTML=paperHtml
   wrapper.className='qp-preview'
-  wrapper.style.cssText='width:190mm;position:fixed;left:0;top:0;z-index:-9999;opacity:0;pointer-events:none;background:#fff;color:#000;padding:0.2in'
+  wrapper.style.cssText='width:190mm;position:fixed;left:0;top:0;z-index:-9999;visibility:hidden;background:#fff;color:#000;padding:0.2in'
   wrapper.querySelectorAll('.qp-math-render').forEach(el=>renderQPMath(el))
   document.body.appendChild(wrapper)
   await new Promise(r=>setTimeout(r,500))
+  wrapper.style.visibility='visible'
   const blob=await html2pdf().set({
     margin:[0.2,0.2,0.2,0.2],
     filename:'paper.pdf',
     image:{type:'jpeg',quality:0.98},
-    html2canvas:{scale:2,useCORS:true,letterRendering:true,backgroundColor:'#ffffff'},
+    html2canvas:{scale:2,useCORS:true,letterRendering:true,backgroundColor:'#ffffff',scrollY:0},
     jsPDF:{unit:'in',format:'a4',orientation:'portrait'},
     pagebreak:{mode:['css','legacy']}
   }).from(wrapper).outputPdf('blob')
@@ -11389,20 +11391,14 @@ async function qpDownloadPDF(){
     const previewEl=$('qpPreviewContent')
     if(!previewEl||!previewEl.innerHTML.trim()){toast('No preview content','warn');return}
     const fname=await _qpFileName(_qpCurrent)
-    const wrapper=previewEl.cloneNode(true)
-    wrapper.id=''
-    wrapper.style.cssText='width:190mm;position:fixed;left:0;top:0;z-index:-9999;opacity:0;pointer-events:none;background:#fff;color:#000;padding:0.2in'
-    document.body.appendChild(wrapper)
-    await new Promise(r=>setTimeout(r,500))
     await html2pdf().set({
       margin:[0.2,0.2,0.2,0.2],
       filename:fname+'.pdf',
       image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,letterRendering:true,backgroundColor:'#ffffff'},
+      html2canvas:{scale:2,useCORS:true,letterRendering:true,backgroundColor:'#ffffff',scrollY:0,windowWidth:previewEl.scrollWidth},
       jsPDF:{unit:'in',format:'a4',orientation:'portrait'},
       pagebreak:{mode:['css','legacy']}
-    }).from(wrapper).save()
-    document.body.removeChild(wrapper)
+    }).from(previewEl).save()
     toast('PDF downloaded','ok')
   }catch(e){console.error(e);toast('PDF generation failed: '+e.message,'error')}
 }
@@ -11560,7 +11556,7 @@ function _qpRenderOnePaper(c){
           }
           const kids=sp.children||[]
           kids.forEach((kid,ki)=>{
-            const kidLabel=String.fromCharCode(97+ki)+')'
+            const kidLabel=ll.optLabels[ki]||(String.fromCharCode(97+ki)+')')
             qh+='<div class="qp-nested"><div class="qp-nested-head"><span>'+kidLabel+' <span class="qp-math-render">'+esc(kid.text||'').replace(/\n/g,'<br>')+'</span></span></div>'
             if(spType==='mcq'&&kid.options&&kid.options.length){
               const oLabels2=ll.optLabels
