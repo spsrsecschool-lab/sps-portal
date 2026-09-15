@@ -608,10 +608,11 @@ tbody tr:hover td{background:var(--lav-50)}
   .ec-admit-card .ac-school{font-weight:700;font-size:16px;margin:0}
   .ec-admit-card .ac-title{font-weight:700;font-size:13px;text-transform:uppercase;margin:1px 0 0}
   .ec-admit-card .ac-content{padding:4mm 6mm;display:flex;flex-direction:column;flex:1;min-height:0}
-  .ec-admit-card .ac-info{display:flex;flex-direction:column;gap:1px;margin-bottom:3px;font-size:14px}
+  .ec-admit-card .ac-info{display:flex;gap:16px;margin-bottom:3px;font-size:14px}
+  .ec-admit-card .ac-info-left{display:flex;flex-direction:column;gap:2px;flex:1}
+  .ec-admit-card .ac-info-right{display:flex;align-items:flex-start;justify-content:flex-end;flex:1}
   .ec-admit-card .ac-info .ac-lbl{font-weight:700}
-  .ec-admit-card .ac-badges{display:flex;gap:8px;margin-top:3px}
-  .ec-admit-card .ac-badge{font-size:13px;font-weight:700;text-transform:uppercase;background:#eee;border:1.5px solid #333;padding:2px 8px;white-space:nowrap;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ec-admit-card .ac-room{font-size:14px;font-weight:700;text-transform:uppercase;background:#eee;border:1.5px solid #333;padding:4px 10px;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .ec-admit-card .ac-body{display:flex;gap:10px;flex:1;min-height:0;margin-top:6px}
   .ec-admit-card .ac-ds{flex:0 0 auto;width:42%}
   .ec-admit-card .ac-ds-title{text-align:center;font-weight:700;font-size:13px;text-transform:uppercase;margin-bottom:3px}
@@ -12148,12 +12149,13 @@ async function ecGenerateAdmitCards(){
     f+='<div class="ac-title">'+esc(assessName)+'-Admit Card</div></div>'
     f+='<div class="ac-content">'
     f+='<div class="ac-info">'
+    f+='<div class="ac-info-left">'
     f+='<div><span class="ac-lbl">Name:</span> '+esc(c.name)+'</div>'
     f+='<div><span class="ac-lbl">Father\'s Name:</span> '+esc(c.father)+'</div>'
     f+='<div><span class="ac-lbl">Class:</span> '+esc(clsLabel)+'</div>'
-    f+='<div class="ac-badges">'
-    f+='<div class="ac-badge">Roll No: '+c.roll+'</div>'
-    f+='<div class="ac-badge">Room Allotted: '+esc(c.room)+'</div>'
+    f+='</div>'
+    f+='<div class="ac-info-right">'
+    f+='<div class="ac-room">Roll No: '+c.roll+'<br>Room: '+esc(c.room)+'</div>'
     f+='</div>'
     f+='</div>'
     f+='<div class="ac-body">'
