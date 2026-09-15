@@ -3628,7 +3628,7 @@ const TQP_LABELS={
   sanskrit:{qPrefix:'प्र०',classLabel:'कक्षा',subjectLabel:'विषय',mmLabel:'पू.अं.',timeLabel:'समय',hrUnit:'घंटा',minUnit:'मिनट',colA:'स्तम्भ अ',colB:'स्तम्भ ब',optLabels:['(क)','(ख)','(ग)','(घ)']}
 }
 function _tqpRoman(n){return['i','ii','iii','iv','v','vi','vii','viii','ix','x','xi','xii','xiii','xiv','xv','xvi','xvii','xviii','xix','xx'][n-1]||String(n)}
-function _tqpFmt(s){return esc(s).replace(/__(.+?)__/g,'<u>$1</u>')}
+function _tqpFmt(s){return esc(s).replace(/\|(.+?)\|/g,'<u>$1</u>')}
 
 let _tqpPapers=[],_tqpCurrent=null,_tqpKatexLoaded=false
 async function _tqpLoadKaTeX(){
