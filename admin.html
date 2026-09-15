@@ -11807,7 +11807,7 @@ async function ecRenderAttendance(){
   const examDates=[]
   ;(dsData?.schedule||[]).forEach(row=>{
     if(!row.date)return
-    const hasExam=classIds.some(cid=>row.entries?.[cid]&&row.entries[cid].trim()&&row.entries[cid].trim()!=='-')
+    const hasExam=classIds.some(cid=>{const v=(row.entries?.[cid]||'').trim().toLowerCase();return v&&v!=='-'&&!v.includes('preparation')})
     if(hasExam) examDates.push(row.date)
   })
   examDates.sort()
