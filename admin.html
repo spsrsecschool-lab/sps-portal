@@ -11874,22 +11874,46 @@ function ecPrintAttendance(){
 }
 
 // — Datesheet —
-let _ecDsSchedule=[],_ecDsId=null
+let _ecDsSchedule=[],_ecDsId=null,_ecDsSubjects={}
 async function ecLoadDatesheet(){
   const assessId=$('ecAssess').value
   const el=$('ecDsBody')
   if(!assessId){el.innerHTML='';_ecDsSchedule=[];_ecDsId=null;return}
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const{data}=await sb.from('exam_datesheets').select('*').eq('assessment_id',assessId).maybeSingle()
+  const[{data},{data:mapData}]=await Promise.all([
+    sb.from('exam_datesheets').select('*').eq('assessment_id',assessId).maybeSingle(),
+    sb.from('teacher_subject_class_map').select('class_id,subjects(name)').eq('session_id',SESS.session_id)
+  ])
   _ecDsId=data?.datesheet_id||null
   _ecDsSchedule=data?.schedule||[]
+  _ecDsSubjects={}
+  ;(mapData||[]).forEach(m=>{
+    const cid=m.class_id,sn=m.subjects?.name
+    if(!cid||!sn)return
+    if(!_ecDsSubjects[cid])_ecDsSubjects[cid]=new Set()
+    _ecDsSubjects[cid].add(sn)
+  })
+  Object.keys(_ecDsSubjects).forEach(cid=>{_ecDsSubjects[cid]=[..._ecDsSubjects[cid]].sort()})
   ecRenderDatesheet()
 }
 function ecRenderDatesheet(){
   const el=$('ecDsBody')
   const classes=(ALL_CLASSES||[]).filter(c=>c.is_active)
   if(!classes.length){el.innerHTML='<p style="color:var(--ink-faint)">No active classes found.</p>';return}
-  let h='<div class="ec-ds-wrap"><table class="ec-ds-tbl"><thead><tr><th style="width:40px"></th><th>Date</th><th>Day</th>'
+  const juniors=new Set(['nur','lkg','ukg'])
+  let h=''
+  classes.forEach(c=>{
+    const subs=_ecDsSubjects[c.class_id]||[]
+    const isJr=juniors.has(c.name.toLowerCase())
+    h+='<datalist id="ec-ds-dl-'+c.class_id+'">'
+    subs.forEach(s=>{
+      h+='<option value="'+esc(s)+'">'
+      if(isJr) h+='<option value="'+esc(s)+' (O)">'
+    })
+    h+='<option value="Preparation Day">'
+    h+='</datalist>'
+  })
+  h+='<div class="ec-ds-wrap"><table class="ec-ds-tbl"><thead><tr><th style="width:40px"></th><th>Date</th><th>Day</th>'
   classes.forEach(c=>{h+='<th>'+esc(c.name)+'</th>'})
   h+='</tr></thead><tbody>'
   _ecDsSchedule.forEach((row,ri)=>{
@@ -11900,7 +11924,7 @@ function ecRenderDatesheet(){
     h+='<td class="ec-ds-day">'+esc(dayName)+'</td>'
     classes.forEach(c=>{
       const val=row.entries?.[c.class_id]||''
-      h+='<td><input type="text" value="'+esc(val)+'" placeholder="-" data-ri="'+ri+'" data-cid="'+c.class_id+'" onchange="ecDsCellChange(this)"></td>'
+      h+='<td><input type="text" value="'+esc(val)+'" placeholder="-" list="ec-ds-dl-'+c.class_id+'" data-ri="'+ri+'" data-cid="'+c.class_id+'" onchange="ecDsCellChange(this)"></td>'
     })
     h+='</tr>'
   })
