@@ -592,6 +592,13 @@ tbody tr:hover td{background:var(--lav-50)}
   .ec-ds-tbl .ec-ds-day{font-size:11px;color:var(--ink-soft);min-width:50px}
   .ec-ds-del{color:var(--red);cursor:pointer;background:none;border:none;font-size:14px;padding:2px 4px}
   .ec-ds-del:hover{background:var(--danger-soft);border-radius:var(--radius-sm)}
+  .ec-ds-cell{position:relative;min-width:90px}
+  .ec-ds-pick{cursor:pointer;padding:2px 4px;min-height:20px;font-size:12px}
+  .ec-ds-pick:hover{background:var(--indigo-50)}
+  .ec-ds-dd{position:absolute;top:100%;left:0;z-index:10;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:6px;box-shadow:var(--shadow);min-width:160px;max-height:200px;overflow-y:auto}
+  .ec-ds-dd label{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 4px;cursor:pointer;white-space:nowrap}
+  .ec-ds-dd label:hover{background:var(--lav-50);border-radius:var(--radius-sm)}
+  .ec-ds-dd input[type="checkbox"]{accent-color:var(--indigo);width:14px;height:14px}
 
   .ec-att-header{text-align:center;font-weight:700;font-size:15px;margin-bottom:10px}
   .ec-attend-tbl{width:100%;border-collapse:collapse;font-size:13px}
@@ -11900,7 +11907,7 @@ async function ecRenderAttendance(){
       return true
     })
     matched.forEach(e=>{
-      students.push({name:e.students?.full_name||'—',father:e.students?.father_name||'—',roll:parseInt(e.roll_no)||0,className:e.classes?.name||'',section:e.class_sections?.name||''})
+      students.push({name:(e.students?.full_name||'—').toUpperCase(),father:(e.students?.father_name||'—').toUpperCase(),roll:parseInt(e.roll_no)||0,className:e.classes?.name||'',section:e.class_sections?.name||''})
     })
   })
   students.sort((a,b)=>{
@@ -11977,19 +11984,7 @@ function ecRenderDatesheet(){
   const el=$('ecDsBody')
   const classes=(ALL_CLASSES||[]).filter(c=>c.is_active)
   if(!classes.length){el.innerHTML='<p style="color:var(--ink-faint)">No active classes found.</p>';return}
-  const juniors=new Set(['nur','lkg','ukg'])
   let h=''
-  classes.forEach(c=>{
-    const subs=_ecDsSubjects[c.class_id]||[]
-    const isJr=juniors.has(c.name.toLowerCase())
-    h+='<datalist id="ec-ds-dl-'+c.class_id+'">'
-    subs.forEach(s=>{
-      h+='<option value="'+esc(s)+'">'
-      if(isJr) h+='<option value="'+esc(s)+' (O)">'
-    })
-    h+='<option value="Preparation Day">'
-    h+='</datalist>'
-  })
   h+='<div class="ec-ds-wrap"><table class="ec-ds-tbl"><thead><tr><th style="width:40px"></th><th>Date</th><th>Day</th>'
   classes.forEach(c=>{h+='<th>'+esc(c.name)+'</th>'})
   h+='</tr></thead><tbody>'
@@ -12001,7 +11996,17 @@ function ecRenderDatesheet(){
     h+='<td class="ec-ds-day">'+esc(dayName)+'</td>'
     classes.forEach(c=>{
       const val=row.entries?.[c.class_id]||''
-      h+='<td><input type="text" value="'+esc(val)+'" placeholder="-" list="ec-ds-dl-'+c.class_id+'" data-ri="'+ri+'" data-cid="'+c.class_id+'" onchange="ecDsCellChange(this)"></td>'
+      const subs=_ecDsSubjects[c.class_id]||[]
+      const selVals=val?val.split(/[,\/]/).map(s=>s.trim()).filter(Boolean):[]
+      h+='<td class="ec-ds-cell"><div class="ec-ds-pick" data-ri="'+ri+'" data-cid="'+c.class_id+'" onclick="ecDsTogglePick(this)">'
+      h+='<span class="ec-ds-val">'+(val||'<span style="color:var(--ink-faint)">-</span>')+'</span></div>'
+      h+='<div class="ec-ds-dd" style="display:none">'
+      subs.forEach(s=>{
+        const chk=selVals.includes(s)?' checked':''
+        h+='<label><input type="checkbox" value="'+esc(s)+'"'+chk+' onchange="ecDsPickChange(this)">'+esc(s)+'</label>'
+      })
+      h+='<label><input type="checkbox" value="Preparation Day"'+(selVals.includes('Preparation Day')?' checked':'')+' onchange="ecDsPickChange(this)">Preparation Day</label>'
+      h+='</div></td>'
     })
     h+='</tr>'
   })
@@ -12035,6 +12040,25 @@ function ecDsCellChange(input){
   _ecDsSchedule[ri].entries[cid]=input.value.trim()
   ecSaveDatesheet()
 }
+function ecDsTogglePick(el){
+  const dd=el.nextElementSibling
+  const wasOpen=dd.style.display!=='none'
+  document.querySelectorAll('.ec-ds-dd').forEach(d=>d.style.display='none')
+  if(!wasOpen) dd.style.display='block'
+}
+function ecDsPickChange(chk){
+  const dd=chk.closest('.ec-ds-dd')
+  const pick=dd.previousElementSibling
+  const ri=parseInt(pick.dataset.ri)
+  const cid=pick.dataset.cid
+  const checked=[...dd.querySelectorAll('input:checked')].map(c=>c.value)
+  const val=checked.join(', ')
+  if(!_ecDsSchedule[ri].entries)_ecDsSchedule[ri].entries={}
+  _ecDsSchedule[ri].entries[cid]=val
+  pick.querySelector('.ec-ds-val').innerHTML=val||'<span style="color:var(--ink-faint)">-</span>'
+  ecSaveDatesheet()
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.ec-ds-cell'))document.querySelectorAll('.ec-ds-dd').forEach(d=>d.style.display='none')})
 let _ecDsSaveTimer=null
 function ecSaveDatesheet(){
   clearTimeout(_ecDsSaveTimer)
@@ -12070,13 +12094,14 @@ async function ecOnAdmitClassChange(){
 function ecResolveSubject(rawSubj,studentSubjectIds){
   if(!rawSubj||rawSubj==='-')return null
   if(rawSubj.toLowerCase().includes('preparation'))return null
-  if(!rawSubj.includes('/'))return rawSubj
   if(!studentSubjectIds.length)return rawSubj
-  const parts=rawSubj.split('/').map(s=>s.trim())
-  const subName=id=>{const s=ALL_SUBJECTS.find(x=>x.subject_id===id);return s?s.name.toLowerCase():''}
-  const stuNames=studentSubjectIds.map(sid=>subName(sid))
-  const matched=parts.filter(p=>stuNames.includes(p.toLowerCase()))
+  const subName=id=>{const s=ALL_SUBJECTS.find(x=>x.subject_id===id);return s?s.name:''}
+  const stuNames=studentSubjectIds.map(sid=>subName(sid)).filter(Boolean)
+  if(!stuNames.length)return rawSubj
+  const rawLow=rawSubj.toLowerCase()
+  const matched=stuNames.filter(n=>rawLow.includes(n.toLowerCase()))
   if(matched.length===1)return matched[0]
+  if(matched.length>1)return matched.join(', ')
   return rawSubj
 }
 async function ecGenerateAdmitCards(){
@@ -12091,14 +12116,19 @@ async function ecGenerateAdmitCards(){
   if(secId) enrollQ=enrollQ.eq('section_id',secId)
   const{data:students}=await enrollQ
   const eids=(students||[]).map(e=>e.enrollment_id)
-  const[{data:dsData},{data:assessData},{data:allotData},{data:stuSubsData}]=await Promise.all([
+  const secIds=[...new Set((students||[]).map(e=>e.section_id).filter(Boolean))]
+  const streamIds=secIds.map(sid=>_sectionToStream[sid]).filter(Boolean)
+  const[{data:dsData},{data:assessData},{data:allotData},{data:stuSubsData},{data:stplData}]=await Promise.all([
     sb.from('exam_datesheets').select('schedule').eq('assessment_id',assessId).maybeSingle(),
     sb.from('assessments').select('name').eq('assessment_id',assessId).single(),
     sb.from('exam_room_allotments').select('*,exam_rooms(name)').eq('assessment_id',assessId),
-    eids.length?sb.from('student_subjects').select('enrollment_id,subject_id').in('enrollment_id',eids):{data:[]}
+    eids.length?sb.from('student_subjects').select('enrollment_id,subject_id').in('enrollment_id',eids):{data:[]},
+    streamIds.length?sb.from('stream_subject_template').select('stream_id,subject_id').in('stream_id',streamIds):{data:[]}
   ])
   const assessName=assessData?.name||'Examination'
   const schedule=dsData?.schedule||[]
+  const stplMap={}
+  ;(stplData||[]).forEach(t=>{if(!stplMap[t.stream_id])stplMap[t.stream_id]=[];stplMap[t.stream_id].push(t.subject_id)})
   const stuSubMap={}
   ;(stuSubsData||[]).forEach(ss=>{
     if(!stuSubMap[ss.enrollment_id])stuSubMap[ss.enrollment_id]=[]
@@ -12123,7 +12153,11 @@ async function ecGenerateAdmitCards(){
   const instructions=($('ecAdmitInstructions')?.value||'').trim()
   const instrLines=instructions?instructions.split('\n').filter(l=>l.trim()):[]
   const cards=students.map(s=>{
-    const subIds=stuSubMap[s.enrollment_id]||[]
+    let subIds=stuSubMap[s.enrollment_id]||[]
+    if(!subIds.length&&s.section_id){
+      const stId=_sectionToStream[s.section_id]
+      if(stId&&stplMap[stId])subIds=stplMap[stId]
+    }
     const examDates=[]
     schedule.forEach(row=>{
       if(!row.date)return
@@ -12133,8 +12167,8 @@ async function ecGenerateAdmitCards(){
     })
     examDates.sort((a,b)=>a.date.localeCompare(b.date))
     return{
-      name:s.students?.full_name||'—',
-      father:s.students?.father_name||'—',
+      name:(s.students?.full_name||'—').toUpperCase(),
+      father:(s.students?.father_name||'—').toUpperCase(),
       cls:s.classes?.name||'',
       sec:s.class_sections?.name||'',
       roll:s.roll_no,
