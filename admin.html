@@ -603,34 +603,36 @@ tbody tr:hover td{background:var(--lav-50)}
   .ec-admit-page{page-break-after:always;break-after:page;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;width:297mm;height:210mm;box-sizing:border-box;padding:0}
   .ec-admit-page:last-child{page-break-after:auto;break-after:auto}
   .ec-admit-cell{width:148.5mm;height:105mm;box-sizing:border-box;padding:0;overflow:hidden}
-  .ec-admit-card{width:100%;height:100%;border:1px solid #333;box-sizing:border-box;padding:4mm 5mm;font-size:12.5px;display:flex;flex-direction:column}
-  .ec-admit-card .ac-school{text-align:center;font-weight:700;font-size:15px;margin-bottom:0}
-  .ec-admit-card .ac-title{text-align:center;font-weight:700;font-size:13px;text-transform:uppercase;margin-bottom:4px}
-  .ec-admit-card .ac-info{display:flex;justify-content:space-between;margin-bottom:4px;font-size:12.5px;gap:10px}
-  .ec-admit-card .ac-info-left,.ec-admit-card .ac-info-right{display:flex;flex-direction:column;gap:1px}
+  .ec-admit-card{width:100%;height:100%;border:1px solid #333;box-sizing:border-box;padding:5mm 6mm;font-size:14px;display:flex;flex-direction:column}
+  .ec-admit-card .ac-school{text-align:center;font-weight:700;font-size:16px;margin-bottom:1px}
+  .ec-admit-card .ac-title{text-align:center;font-weight:700;font-size:14px;text-transform:uppercase;margin-bottom:8px}
+  .ec-admit-card .ac-info{display:flex;gap:0;margin-bottom:3px;font-size:14px}
+  .ec-admit-card .ac-info-left{display:flex;flex-direction:column;gap:2px;flex:1}
+  .ec-admit-card .ac-info-right{display:flex;flex-direction:column;gap:2px;flex:1;align-items:flex-end}
   .ec-admit-card .ac-info .ac-lbl{font-weight:700}
-  .ec-admit-card .ac-body{display:flex;gap:8px;flex:1;min-height:0}
+  .ec-admit-card .ac-room{font-size:14px;font-weight:700;margin-bottom:6px;text-transform:uppercase}
+  .ec-admit-card .ac-body{display:flex;gap:10px;flex:1;min-height:0;margin-top:4px}
   .ec-admit-card .ac-ds{flex:0 0 auto;width:42%}
-  .ec-admit-card .ac-ds-title{text-align:center;font-weight:700;font-size:12px;text-transform:uppercase;margin-bottom:2px}
-  .ec-admit-card .ac-ds table{width:100%;border-collapse:collapse;font-size:11.5px}
-  .ec-admit-card .ac-ds th,.ec-admit-card .ac-ds td{border:1px solid #333;padding:2px 4px;text-align:left}
-  .ec-admit-card .ac-ds th{font-weight:700;font-size:11px}
+  .ec-admit-card .ac-ds-title{text-align:center;font-weight:700;font-size:13px;text-transform:uppercase;margin-bottom:3px}
+  .ec-admit-card .ac-ds table{width:100%;border-collapse:collapse;font-size:13px}
+  .ec-admit-card .ac-ds th,.ec-admit-card .ac-ds td{border:1px solid #333;padding:3px 6px;text-align:left}
+  .ec-admit-card .ac-ds th{font-weight:700;font-size:12px}
   .ec-admit-card .ac-instr{flex:1}
-  .ec-admit-card .ac-instr-title{font-weight:700;font-size:12px;text-transform:uppercase;margin-bottom:2px}
-  .ec-admit-card .ac-instr ul{margin:0;padding-left:14px;font-size:11px;line-height:1.5}
-  .ec-admit-card .ac-sign{display:flex;justify-content:center;gap:40px;font-size:11.5px;margin-top:auto;padding-top:3px}
+  .ec-admit-card .ac-instr-title{font-weight:700;font-size:13px;text-transform:uppercase;margin-bottom:3px}
+  .ec-admit-card .ac-instr ul{margin:0;padding-left:16px;font-size:12px;line-height:1.55}
+  .ec-admit-card .ac-sign{display:flex;justify-content:center;gap:50px;font-size:12px;margin-top:auto;padding-top:6px}
   .ec-admit-card .ac-sign span{text-align:center}
-  .ec-admit-card .ac-sign .ac-sline{display:block;width:90px;border-top:1px solid #333;margin:0 auto 2px;margin-top:10px}
-  .ec-admit-back{width:100%;height:100%;border:1px solid #333;box-sizing:border-box;padding:4mm 5mm;font-size:12.5px;display:flex;flex-direction:column}
-  .ec-admit-back .ab-title{text-align:center;font-weight:700;font-size:15px;margin-bottom:2px}
-  .ec-admit-back .ab-sub{text-align:center;font-size:10.5px;text-transform:uppercase;font-weight:600;margin-bottom:6px}
+  .ec-admit-card .ac-sign .ac-sline{display:block;width:100px;border-top:1px solid #333;margin:0 auto 2px;margin-top:12px}
+  .ec-admit-back{width:100%;height:100%;border:1px solid #333;box-sizing:border-box;padding:5mm 6mm;font-size:14px;display:flex;flex-direction:column}
+  .ec-admit-back .ab-title{text-align:center;font-weight:700;font-size:16px;margin-bottom:2px}
+  .ec-admit-back .ab-sub{text-align:center;font-size:11px;text-transform:uppercase;font-weight:600;margin-bottom:10px}
   .ec-admit-back .ab-dues{margin-bottom:auto}
-  .ec-admit-back .ab-dues table{width:100%;border-collapse:collapse;font-size:12px}
-  .ec-admit-back .ab-dues th,.ec-admit-back .ab-dues td{border:1px solid #333;padding:4px 6px;text-align:left}
-  .ec-admit-back .ab-dues th{font-weight:700;font-size:11px;text-transform:uppercase}
-  .ec-admit-back .ab-dues td{height:28px}
-  .ec-admit-back .ab-princ{text-align:left;font-size:11.5px;margin-top:16px}
-  .ec-admit-back .ab-princ .ab-line{display:block;width:110px;border-top:1px solid #333;margin-bottom:2px}
+  .ec-admit-back .ab-dues table{width:100%;border-collapse:collapse;font-size:14px}
+  .ec-admit-back .ab-dues th,.ec-admit-back .ab-dues td{border:1px solid #333;padding:6px 8px;text-align:left}
+  .ec-admit-back .ab-dues th{font-weight:700;font-size:13px;text-transform:uppercase}
+  .ec-admit-back .ab-dues td{height:36px}
+  .ec-admit-back .ab-princ{text-align:left;font-size:12px;margin-top:20px}
+  .ec-admit-back .ab-princ .ab-line{display:block;width:120px;border-top:1px solid #333;margin-bottom:2px}
 
   @media print{
     body>*:not(#main){display:none!important}
@@ -12149,7 +12151,7 @@ async function ecGenerateAdmitCards(){
     f+='</div>'
     f+='<div class="ac-info-right">'
     f+='<div><span class="ac-lbl">Father\'s Name:</span> '+esc(c.father)+'</div>'
-    f+='<div><span class="ac-lbl">Room Allotted:</span> '+esc(c.room)+'</div>'
+    f+='<div class="ac-room"><span class="ac-lbl">Room Allotted:</span> '+esc(c.room)+'</div>'
     f+='</div>'
     f+='</div>'
     f+='<div class="ac-body">'
