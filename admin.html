@@ -1794,11 +1794,14 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="page-head">
           <div><h2>Exam Conduct</h2><p>Manage rooms, seating allotment &amp; attendance sheets</p></div>
         </div>
+        <div class="form-row" style="margin-bottom:14px;align-items:flex-end">
+          <div class="fg" style="max-width:300px"><label>Assessment</label><select id="ecAssess" onchange="ecOnAssessChange()"><option value="">— Select Assessment —</option></select></div>
+        </div>
         <div class="tab-row" style="margin-bottom:16px">
-          <button class="tab-btn active" onclick="switchTab('ectab','rooms',this)">Rooms</button>
-          <button class="tab-btn" onclick="switchTab('ectab','allot',this)">Room Allotment</button>
-          <button class="tab-btn" onclick="switchTab('ectab','datesheet',this)">Datesheet</button>
-          <button class="tab-btn" onclick="switchTab('ectab','attend',this)">Attendance Sheet</button>
+          <button class="tab-btn active" onclick="ecSwitchTab('rooms',this)">Rooms</button>
+          <button class="tab-btn" onclick="ecSwitchTab('allot',this)">Room Allotment</button>
+          <button class="tab-btn" onclick="ecSwitchTab('datesheet',this)">Datesheet</button>
+          <button class="tab-btn" onclick="ecSwitchTab('attend',this)">Attendance Sheet</button>
         </div>
 
         <!-- ROOMS TAB -->
@@ -1813,17 +1816,13 @@ tbody tr:hover td{background:var(--lav-50)}
 
         <!-- ALLOTMENT TAB -->
         <div id="ectab-allot" style="display:none">
-          <div class="form-row" style="margin-bottom:12px;align-items:flex-end">
-            <div class="fg" style="max-width:280px"><label>Assessment</label><select id="ecAllotAssess" onchange="ecLoadAllotment()"><option value="">— Select —</option></select></div>
-          </div>
           <div id="ecAllotBody"></div>
         </div>
 
         <!-- DATESHEET TAB -->
         <div id="ectab-datesheet" style="display:none">
-          <div class="form-row" style="margin-bottom:12px;align-items:flex-end">
-            <div class="fg" style="max-width:280px"><label>Assessment</label><select id="ecDsAssess" onchange="ecLoadDatesheet()"><option value="">— Select —</option></select></div>
-            <button class="btn btn-soft btn-sm" onclick="ecAddDateRow()" style="margin-bottom:1px">+ Add Date</button>
+          <div style="margin-bottom:12px">
+            <button class="btn btn-soft btn-sm" onclick="ecAddDateRow()">+ Add Date</button>
           </div>
           <div id="ecDsBody"></div>
         </div>
@@ -1832,12 +1831,8 @@ tbody tr:hover td{background:var(--lav-50)}
         <div id="ectab-attend" style="display:none">
           <div id="ecAttendControls">
             <div class="form-row" style="margin-bottom:12px;align-items:flex-end">
-              <div class="fg" style="max-width:280px"><label>Assessment</label><select id="ecAttendAssess" onchange="ecLoadAttendRooms()"><option value="">— Select —</option></select></div>
               <div class="fg" style="max-width:200px"><label>Room</label><select id="ecAttendRoom" onchange="ecRenderAttendance()"><option value="">— Select Room —</option></select></div>
               <button class="btn btn-dark btn-sm" style="margin-left:auto;margin-bottom:1px" onclick="ecPrintAttendance()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
-            </div>
-            <div class="form-row" style="margin-bottom:12px">
-              <div class="fg"><label>Exam Dates (comma-separated, e.g. 15 Sep, 17 Sep)</label><input type="text" id="ecAttendDates" placeholder="15 Sep, 17 Sep, 19 Sep, 22 Sep" onchange="ecRenderAttendance()"></div>
             </div>
           </div>
           <div id="ecAttendBody" style="overflow-x:auto"></div>
@@ -11596,14 +11591,23 @@ function _qpRenderOnePaper(c){
 }
 
 // ═══════════ EXAM CONDUCT ═══════════
-let _ecRooms=[],_ecAllotData={}
+let _ecRooms=[],_ecAllotData={},_ecActiveTab='rooms'
 async function loadExamConduct(){
   await ecLoadRooms()
-  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  const opts=(asmts||[]).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
-  $('ecAllotAssess').innerHTML='<option value="">— Select —</option>'+opts
-  $('ecDsAssess').innerHTML='<option value="">— Select —</option>'+opts
-  $('ecAttendAssess').innerHTML='<option value="">— Select —</option>'+opts
+  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,created_by_teacher_id').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+  const official=(asmts||[]).filter(a=>!a.created_by_teacher_id)
+  const opts=official.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
+  $('ecAssess').innerHTML='<option value="">— Select Assessment —</option>'+opts
+}
+function ecSwitchTab(key,btn){
+  switchTab('ectab',key,btn)
+  _ecActiveTab=key
+  if(key!=='rooms') ecOnAssessChange()
+}
+function ecOnAssessChange(){
+  if(_ecActiveTab==='allot') ecLoadAllotment()
+  else if(_ecActiveTab==='datesheet') ecLoadDatesheet()
+  else if(_ecActiveTab==='attend') ecLoadAttendRooms()
 }
 
 // — Rooms —
@@ -11656,7 +11660,7 @@ async function ecDeleteRoom(id){
 // — Allotment —
 let _ecAllSections={}
 async function ecLoadAllotment(){
-  const assessId=$('ecAllotAssess').value
+  const assessId=$('ecAssess').value
   const el=$('ecAllotBody')
   if(!assessId){el.innerHTML='';return}
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
@@ -11748,7 +11752,7 @@ function ecUpdateSeatedCount(roomId){
   if(el) el.innerHTML='Seated: <b>'+total+'</b>'+(total>cap?' <span style="color:var(--red)">(over capacity!)</span>':'')
 }
 async function ecSaveAllotment(roomId){
-  const assessId=$('ecAllotAssess').value
+  const assessId=$('ecAssess').value
   if(!assessId)return
   const cap=parseInt($('ecCap_'+roomId)?.value)||30
   const container=$('ecEntries_'+roomId)
@@ -11774,7 +11778,7 @@ async function ecSaveAllotment(roomId){
 
 // — Attendance Sheet —
 async function ecLoadAttendRooms(){
-  const assessId=$('ecAttendAssess').value
+  const assessId=$('ecAssess').value
   const sel=$('ecAttendRoom')
   sel.innerHTML='<option value="">— Select Room —</option>'
   $('ecAttendBody').innerHTML=''
@@ -11788,15 +11792,25 @@ async function ecLoadAttendRooms(){
 }
 let _ecAttendAllots={}
 async function ecRenderAttendance(){
+  const assessId=$('ecAssess').value
   const roomId=$('ecAttendRoom').value
   const el=$('ecAttendBody')
-  if(!roomId){el.innerHTML='';return}
+  if(!roomId||!assessId){el.innerHTML='';return}
   const allot=_ecAttendAllots[roomId]
   if(!allot||!allot.allotments?.length){el.innerHTML='<p style="color:var(--ink-faint)">No students allotted to this room.</p>';return}
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const dates=($('ecAttendDates').value||'').split(',').map(d=>d.trim()).filter(Boolean)
   const classIds=[...new Set(allot.allotments.map(e=>e.class_id))]
-  const{data:enrollments}=await sb.from('student_enrollments').select('enrollment_id,roll_no,section_id,class_id,students(full_name),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).in('class_id',classIds).eq('status','active').eq('relieved',false).order('roll_no')
+  const[{data:dsData},{data:enrollments}]=await Promise.all([
+    sb.from('exam_datesheets').select('schedule').eq('assessment_id',assessId).maybeSingle(),
+    sb.from('student_enrollments').select('enrollment_id,roll_no,section_id,class_id,students(full_name,father_name),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).in('class_id',classIds).eq('status','active').eq('relieved',false).order('roll_no')
+  ])
+  const examDates=[]
+  ;(dsData?.schedule||[]).forEach(row=>{
+    if(!row.date)return
+    const hasExam=classIds.some(cid=>row.entries?.[cid]&&row.entries[cid].trim()&&row.entries[cid].trim()!=='-')
+    if(hasExam) examDates.push(row.date)
+  })
+  examDates.sort()
   const students=[]
   allot.allotments.forEach(entry=>{
     const secLower=(entry.section||'').toLowerCase()
@@ -11809,7 +11823,7 @@ async function ecRenderAttendance(){
       return true
     })
     matched.forEach(e=>{
-      students.push({name:e.students?.full_name||'—',roll:parseInt(e.roll_no)||0,className:e.classes?.name||'',section:e.class_sections?.name||''})
+      students.push({name:e.students?.full_name||'—',father:e.students?.father_name||'—',roll:parseInt(e.roll_no)||0,className:e.classes?.name||'',section:e.class_sections?.name||''})
     })
   })
   students.sort((a,b)=>{
@@ -11817,29 +11831,33 @@ async function ecRenderAttendance(){
     if(a.section!==b.section)return a.section.localeCompare(b.section)
     return a.roll-b.roll
   })
-  const assessName=($('ecAttendAssess').selectedOptions[0]?.text)||'Exam'
+  const assessName=($('ecAssess').selectedOptions[0]?.text)||'Exam'
   const roomName=($('ecAttendRoom').selectedOptions[0]?.text)||'Room'
   let h='<div class="ec-att-header">'+esc(assessName)+' — '+esc(roomName)+' ('+students.length+' students)</div>'
-  h+='<table class="ec-attend-tbl"><thead><tr><th>Student Name</th><th style="width:80px">Class</th><th style="width:50px">Roll</th>'
-  dates.forEach(d=>{h+='<th style="min-width:70px;text-align:center">'+esc(d)+'</th>'})
+  h+='<table class="ec-attend-tbl"><thead><tr><th style="width:50px">Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="width:80px">Class</th>'
+  examDates.forEach(d=>{h+='<th style="min-width:70px;text-align:center">'+ecFmtDate(d)+'</th>'})
   h+='</tr></thead><tbody>'
   let prevClass=''
   students.forEach(s=>{
     const clsLabel=s.className+(s.section?' '+s.section:'')
     if(clsLabel!==prevClass&&prevClass){
-      h+='<tr class="ec-class-sep"><td colspan="'+(3+dates.length)+'"></td></tr>'
+      h+='<tr class="ec-class-sep"><td colspan="'+(4+examDates.length)+'"></td></tr>'
     }
     prevClass=clsLabel
-    h+='<tr><td>'+esc(s.name)+'</td><td>'+esc(clsLabel)+'</td><td>'+s.roll+'</td>'
-    dates.forEach(()=>{h+='<td class="ec-sign-cell"></td>'})
+    h+='<tr><td>'+s.roll+'</td><td>'+esc(s.name)+'</td><td>'+esc(s.father)+'</td><td>'+esc(clsLabel)+'</td>'
+    examDates.forEach(()=>{h+='<td class="ec-sign-cell"></td>'})
     h+='</tr>'
   })
   h+='</tbody></table>'
   if(!students.length) h='<p style="color:var(--ink-faint)">No students found matching the allotment criteria.</p>'
+  if(!examDates.length&&students.length) h='<p style="color:var(--ink-faint)">No exam dates found. Add dates in the Datesheet tab first.</p>'
   el.innerHTML=h
 }
+function ecFmtDate(iso){
+  try{const d=new Date(iso+'T00:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getDate()+' '+m[d.getMonth()]}catch(e){return iso}
+}
 function ecPrintAttendance(){
-  const assessName=($('ecAttendAssess').selectedOptions[0]?.text)||'Exam'
+  const assessName=($('ecAssess').selectedOptions[0]?.text)||'Exam'
   const roomName=($('ecAttendRoom').selectedOptions[0]?.text)||'Room'
   document.title=assessName+'_'+roomName+'_Attendance'
   const style=document.createElement('style')
@@ -11858,7 +11876,7 @@ function ecPrintAttendance(){
 // — Datesheet —
 let _ecDsSchedule=[],_ecDsId=null
 async function ecLoadDatesheet(){
-  const assessId=$('ecDsAssess').value
+  const assessId=$('ecAssess').value
   const el=$('ecDsBody')
   if(!assessId){el.innerHTML='';_ecDsSchedule=[];_ecDsId=null;return}
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
@@ -11894,7 +11912,7 @@ function ecDayName(dateStr){
   try{const d=new Date(dateStr);return['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()]||''}catch(e){return''}
 }
 function ecAddDateRow(){
-  if(!$('ecDsAssess').value){toast('Select an assessment first','error');return}
+  if(!$('ecAssess').value){toast('Select an assessment first','error');return}
   _ecDsSchedule.push({date:'',entries:{}})
   ecRenderDatesheet()
 }
@@ -11920,7 +11938,7 @@ let _ecDsSaveTimer=null
 function ecSaveDatesheet(){
   clearTimeout(_ecDsSaveTimer)
   _ecDsSaveTimer=setTimeout(async()=>{
-    const assessId=$('ecDsAssess').value
+    const assessId=$('ecAssess').value
     if(!assessId)return
     if(_ecDsId){
       await sb.from('exam_datesheets').update({schedule:_ecDsSchedule,updated_at:new Date().toISOString()}).eq('datesheet_id',_ecDsId)
