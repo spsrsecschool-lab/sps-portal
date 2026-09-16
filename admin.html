@@ -2825,7 +2825,8 @@ async function renderTodayPanel(){
   html+='</div></div></div>'
 
   el.innerHTML=html
-  if(_liveSnap) renderSlotView(_liveSnap.defaultIdx)
+  if(_examSnap) renderExamDayView(_examSnap.viewIdx)
+  else if(_liveSnap) renderSlotView(_liveSnap.defaultIdx)
   scheduleLiveRefresh()
 }
 
@@ -2837,9 +2838,14 @@ function scheduleLiveRefresh(){
     if($('page-dashboard')?.classList.contains('active'))renderTodayPanel()
   },(s+1)*1000)
 }
-let _liveSnap=null
+let _liveSnap=null,_examSnap=null
 async function buildLiveClassSnapshot(iso,off){
   if(off)return ''
+
+  _examSnap=null
+  const examH=await buildExamDayView(iso)
+  if(examH) return examH
+
   const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(iso+'T12:00:00').getDay()]
   if(dow==='Sun')return ''
   const roster=await getActiveRoster()
@@ -2876,13 +2882,90 @@ async function buildLiveClassSnapshot(iso,off){
   })
   const defaultIdx=curIdx>=0?curIdx:(nextIdx>=0?nextIdx:todaySlots.length-1)
 
-  // Cache everything for renderSlotView
   _liveSnap={slots:todaySlots,entries,adjs,subs,subMap,absentIds,schedMap,defShift,defShiftEnd,motherIds,dow,curIdx,defaultIdx}
 
-  // Outer container
   let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px;overflow:hidden">'
     +'<div id="liveSnapInner" style="transition:opacity .25s ease,transform .25s ease"></div></div>'
   return h
+}
+
+async function buildExamDayView(iso){
+  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,end_date').eq('session_id',SESS?.session_id||'').lte('commencement_date',iso).gte('end_date',iso)
+  if(!asmts?.length)return null
+  const asmt=asmts[0]
+  const{data:dsData}=await sb.from('exam_datesheets').select('schedule').eq('assessment_id',asmt.assessment_id).maybeSingle()
+  const schedule=dsData?.schedule||[]
+  if(!schedule.length)return null
+  const examDates=schedule.filter(r=>r.date).sort((a,b)=>a.date.localeCompare(b.date))
+  if(!examDates.length)return null
+  let todayIdx=examDates.findIndex(r=>r.date===iso)
+  if(todayIdx<0){
+    const closest=examDates.reduce((best,r,i)=>Math.abs(new Date(r.date)-new Date(iso))<Math.abs(new Date(best.date)-new Date(iso))?{date:r.date,i}:best,{date:examDates[0].date,i:0})
+    todayIdx=closest.i
+  }
+  _examSnap={dates:examDates,assessName:asmt.name,assessId:asmt.assessment_id,viewIdx:todayIdx}
+  let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px;overflow:hidden">'
+    +'<div id="liveSnapInner" style="transition:opacity .25s ease,transform .25s ease"></div></div>'
+  return h
+}
+
+function renderExamDayView(idx,dir){
+  const d=_examSnap;if(!d)return
+  const el=$('liveSnapInner');if(!el)return
+  if(idx<0)idx=0;if(idx>=d.dates.length)idx=d.dates.length-1
+  d.viewIdx=idx
+  const row=d.dates[idx]
+  const iso=row.date
+  const todayIso=(()=>{const n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')})()
+  const isToday=iso===todayIso
+  const dt=new Date(iso+'T00:00:00')
+  const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+  const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const dateLabel=dayNames[dt.getDay()]+', '+dt.getDate()+'-'+mn[dt.getMonth()]+' '+dt.getFullYear()
+  const label=isToday?"Today's Exam":"Exam on "+dateLabel
+
+  const arrStyle='width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0'
+  const arrSvg=(path)=>'<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:var(--ink-soft);fill:none;stroke-width:2">'+path+'</svg>'
+  const prevBtn=idx>0?'<div style="'+arrStyle+'" onclick="renderExamDayView('+(idx-1)+',\'prev\')">'+arrSvg('<polyline points="15 18 9 12 15 6"/>')+'</div>':'<div style="'+arrStyle+';opacity:.3;cursor:default">'+arrSvg('<polyline points="15 18 9 12 15 6"/>')+'</div>'
+  const nextBtn=idx<d.dates.length-1?'<div style="'+arrStyle+'" onclick="renderExamDayView('+(idx+1)+',\'next\')">'+arrSvg('<polyline points="9 6 15 12 9 18"/>')+'</div>':'<div style="'+arrStyle+';opacity:.3;cursor:default">'+arrSvg('<polyline points="9 6 15 12 9 18"/>')+'</div>'
+
+  let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+    +prevBtn
+    +(isToday?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#E8A23D;box-shadow:0 0 6px #E8A23D;flex-shrink:0"></span>':'')
+    +'<span style="font-size:12px;font-weight:700;color:var(--ink-soft)">'+esc(label)+'</span>'
+    +'<span class="mono" style="font-size:11px;color:var(--ink-faint)">'+(isToday?esc(dateLabel):'')+'</span>'
+    +'<span style="margin-left:auto;display:flex;align-items:center;gap:6px">'
+    +'<span style="font-size:10px;font-weight:700;color:var(--indigo);background:var(--indigo-100);padding:3px 8px;border-radius:999px;white-space:nowrap">'+esc(d.assessName)+'</span>'
+    +nextBtn+'</span></div>'
+
+  const entries=row.entries||{}
+  const classes=(ALL_CLASSES||[]).filter(c=>c.is_active)
+  h+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
+  classes.forEach(c=>{
+    const subj=(entries[c.class_id]||'').trim()
+    if(!subj||subj==='-')return
+    const isPrep=subj.toLowerCase().includes('preparation')
+    const borderCol=isPrep?'#E8A23D40':'var(--indigo-100,#6366F140)'
+    const bgCol=isPrep?'#E8A23D08':'#6366F108'
+    const badge=isPrep?'<span style="font-size:8px;font-weight:800;color:#fff;background:var(--warn,#E8A23D);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">PREP</span>':''
+    h+='<div style="border:1px solid '+borderCol+';background:'+bgCol+';border-radius:8px;padding:6px 10px;min-width:100px;flex:0 0 auto">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc(c.name)+badge+'</div>'
+      +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(subj)+'</div>'
+      +'</div>'
+  })
+  h+='</div>'
+
+  if(dir){
+    const tx=dir==='next'?'40px':'-40px'
+    el.style.transition='none'
+    el.style.transform='translateX('+tx+')'
+    el.style.opacity='0'
+    el.innerHTML=h
+    void el.offsetHeight
+    el.style.transition='opacity .25s ease,transform .25s ease'
+    el.style.transform='translateX(0)'
+    el.style.opacity='1'
+  }else{el.innerHTML=h}
 }
 
 function renderSlotView(idx,dir){
