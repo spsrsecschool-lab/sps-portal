@@ -609,12 +609,11 @@ tbody tr:hover td{background:var(--lav-50)}
 
   .ec-admit-page{page-break-after:always;break-after:page;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr;width:210mm;height:297mm;box-sizing:border-box;padding:0}
   .ec-admit-page:last-child{page-break-after:auto;break-after:auto}
-  .ec-admit-cell{width:105mm;height:99mm;box-sizing:border-box;padding:0.2in;overflow:hidden}
+  .ec-admit-cell{width:105mm;height:99mm;box-sizing:border-box;padding:0;overflow:hidden}
   .ec-admit-card{width:100%;height:100%;border:1.5px solid #222;box-sizing:border-box;font-size:12px;display:flex;flex-direction:column;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .ec-admit-card .ac-header{background:#555;color:#fff;text-align:center;padding:3px 4mm;margin:0}
   .ec-admit-card .ac-school{font-weight:700;font-size:13px;margin:0}
   .ec-admit-card .ac-title{font-weight:700;font-size:11px;text-transform:uppercase;margin:1px 0 0}
-  .ec-admit-card .ac-timing{text-align:center;font-size:10px;font-weight:600;padding:2px 0;border-bottom:1px solid #ccc}
   .ec-admit-card .ac-content{padding:2mm 4mm;display:flex;flex-direction:column;flex:1;min-height:0}
   .ec-admit-card .ac-info{display:flex;gap:8px;margin-bottom:2px;font-size:11.5px}
   .ec-admit-card .ac-info-left{display:flex;flex-direction:column;gap:1px;flex:1}
@@ -627,7 +626,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .ec-admit-card .ac-ds table{width:100%;border-collapse:collapse;font-size:10.5px}
   .ec-admit-card .ac-ds th,.ec-admit-card .ac-ds td{border:1px solid #333;padding:2px 4px;text-align:left}
   .ec-admit-card .ac-ds th{font-weight:700;font-size:10px;background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .ec-admit-card .ac-note{text-align:center;font-size:9px;font-style:italic;color:#444;margin-top:auto;padding-top:2px}
+  .ec-admit-card .ac-note{text-align:left;font-size:9px;font-style:italic;color:#444;margin-top:3px}
   .ec-admit-card .ac-sign{display:flex;justify-content:center;gap:30px;font-size:10px;margin-top:auto;padding-top:4px}
   .ec-admit-card .ac-sign span{text-align:center}
   .ec-admit-card .ac-sign .ac-sline{display:block;width:70px;border-top:1px solid #333;margin:0 auto 1px;margin-top:8px}
@@ -1924,7 +1923,7 @@ tbody tr:hover td{background:var(--lav-50)}
             <button class="btn btn-dark btn-sm" style="margin-bottom:1px" onclick="ecGenerateAdmitCards()">Generate</button>
             <button class="btn btn-soft btn-sm" style="margin-bottom:1px" onclick="ecPrintAdmitCards()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
           </div>
-          <div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:220px"><label>Exam Timing</label><input id="ecAdmitTiming" type="text" placeholder="e.g. 9:00 AM - 12:00 PM" style="font-size:13px;padding:8px;border:1.5px solid var(--line);border-radius:var(--radius-sm)" onchange="ecSaveAdmitSettings()"></div></div>
+          <div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:150px"><label>Exam Time From</label><input id="ecAdmitTimeFrom" type="time" style="font-size:13px;padding:8px;border:1.5px solid var(--line);border-radius:var(--radius-sm)" onchange="ecSaveAdmitSettings()"></div><div class="fg" style="max-width:150px"><label>Exam Time To</label><input id="ecAdmitTimeTo" type="time" style="font-size:13px;padding:8px;border:1.5px solid var(--line);border-radius:var(--radius-sm)" onchange="ecSaveAdmitSettings()"></div></div>
           <div class="fg" style="max-width:100%;margin-bottom:12px"><label>Instructions (printed on admit card back)</label><textarea id="ecAdmitInstructions" rows="4" style="width:100%;font-size:13px;padding:8px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical" placeholder="Enter instructions for students..." onchange="ecSaveAdmitSettings()"></textarea></div>
         </div>
         <div id="ecAdmitBody"></div>
@@ -11876,12 +11875,13 @@ async function ecLoadAdmitSettings(){
   const{data}=await sb.from('assessments').select('admit_card_settings').eq('assessment_id',assessId).maybeSingle()
   const s=data?.admit_card_settings||{}
   if($('ecAdmitInstructions'))$('ecAdmitInstructions').value=s.instructions||''
-  if($('ecAdmitTiming'))$('ecAdmitTiming').value=s.timing||''
+  if($('ecAdmitTimeFrom'))$('ecAdmitTimeFrom').value=s.timeFrom||''
+  if($('ecAdmitTimeTo'))$('ecAdmitTimeTo').value=s.timeTo||''
 }
 async function ecSaveAdmitSettings(){
   const assessId=$('ecAssess').value
   if(!assessId)return
-  const settings={instructions:($('ecAdmitInstructions')?.value||'').trim(),timing:($('ecAdmitTiming')?.value||'').trim()}
+  const settings={instructions:($('ecAdmitInstructions')?.value||'').trim(),timeFrom:($('ecAdmitTimeFrom')?.value||'').trim(),timeTo:($('ecAdmitTimeTo')?.value||'').trim()}
   await sb.from('assessments').update({admit_card_settings:settings}).eq('assessment_id',assessId)
 }
 function ecBackToMenu(){openSub('examconduct','sub-ec-menu')}
@@ -12345,7 +12345,10 @@ async function ecGenerateAdmitCards(){
   const schoolName='SHIV PUBLIC SR. SEC. SCHOOL'
   const instructions=($('ecAdmitInstructions')?.value||'').trim()
   const instrLines=instructions?instructions.split('\n').filter(l=>l.trim()):[]
-  const timing=($('ecAdmitTiming')?.value||'').trim()
+  const tFrom=$('ecAdmitTimeFrom')?.value||''
+  const tTo=$('ecAdmitTimeTo')?.value||''
+  function fmtTime12(v){if(!v)return '';const[h,m]=v.split(':');const hr=parseInt(h);const ampm=hr>=12?'PM':'AM';const h12=hr%12||12;return h12+':'+m+' '+ampm}
+  const timing=(tFrom&&tTo)?fmtTime12(tFrom)+' - '+fmtTime12(tTo):(tFrom?fmtTime12(tFrom):'')
   const cards=students.map(s=>{
     let subIds=stuSubMap[s.enrollment_id]||[]
     if(!subIds.length&&s.section_id){
@@ -12375,7 +12378,6 @@ async function ecGenerateAdmitCards(){
     let f='<div class="ec-admit-card">'
     f+='<div class="ac-header"><div class="ac-school">'+esc(schoolName)+'</div>'
     f+='<div class="ac-title">'+esc(assessName)+' — Admit Card</div></div>'
-    if(timing) f+='<div class="ac-timing">Timing: '+esc(timing)+'</div>'
     f+='<div class="ac-content">'
     f+='<div class="ac-info">'
     f+='<div class="ac-info-left">'
@@ -12389,14 +12391,16 @@ async function ecGenerateAdmitCards(){
     f+='</div>'
     f+='<div class="ac-body">'
     if(c.examDates.length){
-      f+='<div class="ac-ds"><div class="ac-ds-title">Datesheet</div><table><thead><tr><th>Date</th><th>Subject</th></tr></thead><tbody>'
+      const dsTitle=timing?'Datesheet ('+timing+')':'Datesheet'
+      f+='<div class="ac-ds"><div class="ac-ds-title">'+esc(dsTitle)+'</div><table><thead><tr><th>Date</th><th>Subject</th></tr></thead><tbody>'
       c.examDates.forEach(ed=>{
         f+='<tr><td>'+ecFmtDate(ed.date)+'</td><td>'+esc(ed.subject)+'</td></tr>'
       })
-      f+='</tbody></table></div>'
+      f+='</tbody></table>'
+      f+='<div class="ac-note">Note: Bring this admit card to every examination</div>'
+      f+='</div>'
     }
     f+='</div>'
-    f+='<div class="ac-note">Bring this admit card to every examination</div>'
     f+='<div class="ac-sign"><span><span class="ac-sline"></span>Principal</span><span><span class="ac-sline"></span>Examination Head</span></div>'
     f+='</div></div>'
     return f
