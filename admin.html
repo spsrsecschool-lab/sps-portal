@@ -1040,6 +1040,10 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="assessStatusContent"></div>
       </div>
+      <div class="sub-page" id="sub-assess-feecollection">
+        <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="assessFeeCollectionContent"></div>
+      </div>
       <div class="sub-page" id="sub-assess-classes">
         <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="assessClassesContent"></div>
@@ -2549,7 +2553,7 @@ function admPickFather(e,fatherEnc,familyEnc){
   showAdmFamilyStudents(family, father)   // show this father's siblings in the family
 }
 function goTo(id,el){if(_qpDirty&&!confirm('You have unsaved changes in the question paper. Leave without saving?')){return}_qpDirty=false;_qpSavedSnap=null;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
-function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active')}
+function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active');if(page==='assessments'&&sub!=='sub-assess-feecollection'&&window._fcSub){window._fcSub.unsubscribe();window._fcSub=null}}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
 function closeMobileSidebar(){$('sidebar').classList.remove('show');$('scrim').classList.remove('show')}
 function switchTab(prefix,key,btn){document.querySelectorAll('[id^="'+prefix+'-"]').forEach(t=>t.style.display='none');$(prefix+'-'+key).style.display='block';btn.closest('.tab-row').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}
@@ -4794,7 +4798,7 @@ let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
   if(a.created_by_teacher_id){openClassTestDetail(a);return}
-  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, max/pass marks, class groups</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div></div>'
+  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, max/pass marks, class groups</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div>'+(a.exam_fees?.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')+'</div>'
 }
 async function openClassTestDetail(a){
   const el=$('assessEditContent')
@@ -5064,6 +5068,104 @@ async function openSubmissionStatus(){
   }
 
   el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div>'+table+defHtml
+}
+window._fcSub=null
+async function openFeeCollection(){
+  if(!_currentAssess)return;const a=_currentAssess
+  openSub('assessments','sub-assess-feecollection')
+  const el=$('assessFeeCollectionContent')
+  el.innerHTML='<div class="page-head"><div><h2>Fee Collection — '+esc(a.name)+'</h2><p>Real-time exam fee collection across all classes</p></div></div><div class="loading-row"><div class="spinner"></div></div>'
+  const fees=a.exam_fees||[]
+  if(!fees.length){el.innerHTML+='<div class="empty-state"><p>No exam fees configured.</p></div>';return}
+  const feeIds=fees.map(f=>f.exam_fee_id)
+  const{data:acRows}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',a.assessment_id)
+  const classIds=(acRows||[]).map(r=>r.class_id)
+  if(!classIds.length){el.innerHTML+='<div class="empty-state"><p>No classes linked.</p></div>';return}
+  const{data:enrollments}=await sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,students(full_name,father_name),classes(name),class_sections(name)').eq('session_id',SESS.session_id).in('class_id',classIds).eq('status','active').eq('relieved',false).order('roll_no')
+  const{data:payments}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',feeIds)
+  _fcData={fees,enrollments:enrollments||[],payments:payments||[],assessName:a.name,feeIds}
+  renderFeeCollection()
+  if(window._fcSub)window._fcSub.unsubscribe()
+  window._fcSub=sb.channel('fc-'+a.assessment_id).on('postgres_changes',{event:'*',schema:'public',table:'exam_fee_payments',filter:'exam_fee_id=in.('+feeIds.join(',')+')'},async()=>{
+    const{data:p}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',feeIds)
+    _fcData.payments=p||[];renderFeeCollection()
+  }).subscribe()
+}
+let _fcData=null,_fcFilter=''
+function renderFeeCollection(){
+  if(!_fcData)return
+  const{fees,enrollments,payments,assessName}=_fcData
+  const el=$('assessFeeCollectionContent')
+  const paidMap={}
+  payments.forEach(p=>{const k=p.exam_fee_id+'_'+p.enrollment_id;if(p.is_paid)paidMap[k]=p})
+  const feeForStudent=(eid)=>{
+    for(const f of fees){
+      const p=parseEFGroup(f.class_group)
+      const s=enrollments.find(e=>e.enrollment_id===eid)
+      if(!s)continue
+      if(p.class_ids.length&&!p.class_ids.includes(s.class_id))continue
+      return f
+    }
+    return fees[0]
+  }
+  let totalDue=0,totalCollected=0,totalPending=0
+  const classStat={}
+  enrollments.forEach(e=>{
+    const f=feeForStudent(e.enrollment_id)
+    if(!f)return
+    const amt=f.amount||0
+    const paid=!!paidMap[f.exam_fee_id+'_'+e.enrollment_id]
+    totalDue+=amt
+    if(paid){totalCollected+=amt}else{totalPending+=amt}
+    const cls=e.classes?.name||'?'
+    if(!classStat[cls])classStat[cls]={total:0,paid:0,pending:0,amt}
+    classStat[cls].total++
+    if(paid)classStat[cls].paid++;else classStat[cls].pending++
+  })
+  let h='<div class="page-head"><div><h2>Fee Collection — '+esc(assessName)+'</h2><p>Real-time exam fee collection across all classes</p></div></div>'
+  h+='<div class="grid-3" style="margin-bottom:16px">'
+  h+='<div class="stat-card"><span class="lbl">Total Due</span><span class="val">₹'+totalDue.toLocaleString('en-IN')+'</span><span class="sub">'+enrollments.length+' students</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--success)">Collected</span><span class="val" style="color:var(--success)">₹'+totalCollected.toLocaleString('en-IN')+'</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">₹'+totalPending.toLocaleString('en-IN')+'</span></div></div>'
+  h+='<div class="card" style="margin-bottom:16px"><h3 style="margin-top:0">Class-wise Collection</h3><div class="table-wrap"><table><thead><tr><th>Class</th><th>Students</th><th>Amount</th><th style="color:var(--success)">Paid</th><th style="color:var(--danger)">Pending</th><th>Collected</th><th>Progress</th></tr></thead><tbody>'
+  const clsArr=Object.entries(classStat).sort((a,b)=>{const ai=(ALL_CLASSES||[]).find(c=>c.name===a[0]);const bi=(ALL_CLASSES||[]).find(c=>c.name===b[0]);return((ai?.sort_order||0)-(bi?.sort_order||0))})
+  clsArr.forEach(([cls,s])=>{
+    const pct=s.total?Math.round(s.paid/s.total*100):0
+    h+='<tr><td style="font-weight:700">'+esc(cls)+'</td><td>'+s.total+'</td><td>₹'+s.amt+'</td><td style="color:var(--success);font-weight:700">'+s.paid+'</td><td style="color:var(--danger);font-weight:700">'+s.pending+'</td><td>₹'+(s.paid*s.amt).toLocaleString('en-IN')+'</td><td><div style="background:var(--line);border-radius:4px;height:8px;width:100px;overflow:hidden"><div style="background:var(--success);height:100%;width:'+pct+'%"></div></div><span style="font-size:10px;color:var(--ink-soft);margin-left:4px">'+pct+'%</span></td></tr>'
+  })
+  h+='</tbody></table></div></div>'
+  h+='<div class="card"><h3 style="margin-top:0">Student-wise Details</h3>'
+  h+='<div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:200px"><select id="fcClassFilter" onchange="_fcFilter=this.value;renderFeeCollection()"><option value="">All Classes</option>'
+  const clsList=[...new Set(enrollments.map(e=>e.classes?.name||''))].sort()
+  clsList.forEach(c=>{h+='<option value="'+esc(c)+'"'+(_fcFilter===c?' selected':'')+'>'+esc(c)+'</option>'})
+  h+='</select></div></div>'
+  h+='<div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Class</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'
+  let filtered=enrollments
+  if(_fcFilter)filtered=enrollments.filter(e=>(e.classes?.name||'')===_fcFilter)
+  filtered.forEach(e=>{
+    const f=feeForStudent(e.enrollment_id)
+    if(!f)return
+    const k=f.exam_fee_id+'_'+e.enrollment_id
+    const paid=!!paidMap[k]
+    const pRec=paidMap[k]
+    const byAdmin=pRec?.collected_by_type==='admin'
+    const statusPill=paid?(byAdmin?'<span class="pill pill-neutral">Admin</span>':'<span class="pill pill-success">Paid</span>'):'<span class="pill pill-danger">Pending</span>'
+    const action=paid?'<button class="btn btn-ghost btn-xs" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>':'<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Mark Paid</button>'
+    h+='<tr><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>'+esc((e.classes?.name||'')+(e.class_sections?.name?' '+e.class_sections.name:''))+'</td><td>₹'+f.amount+'</td><td>'+statusPill+'</td><td>'+action+'</td></tr>'
+  })
+  h+='</tbody></table></div></div>'
+  el.innerHTML=h
+}
+async function adminToggleFee(enrollmentId,feeId,markPaid){
+  const{error}=await sb.from('exam_fee_payments').upsert({
+    exam_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,
+    collected_by_type:'admin',collected_by_id:null,
+    paid_at:markPaid?new Date().toISOString():null
+  },{onConflict:'exam_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(markPaid?'Marked as paid':'Marked as unpaid','success')
+  const{data:p}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',_fcData.feeIds)
+  _fcData.payments=p||[];renderFeeCollection()
 }
 async function openMarkOverrides(){
   if(!_currentAssess)return
