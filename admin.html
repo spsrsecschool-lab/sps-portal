@@ -5091,7 +5091,7 @@ async function openFeeCollection(){
     _fcData.payments=p||[];renderFeeCollection()
   }).subscribe()
 }
-let _fcData=null,_fcTab='overview',_fcClass='',_fcSec='',_fcOwed=true
+let _fcData=null,_fcTab='overview',_fcClass='',_fcSec='',_fcOwedMap={}
 function fcFeeForStudent(eid){
   const{fees,enrollments}=_fcData
   for(const f of fees){
@@ -5145,19 +5145,31 @@ function renderFeeCollection(){
   if(_fcTab==='overview')fcRenderOverview();else fcRenderStudents()
 }
 function fcSwitchTab(tab){_fcTab=tab;renderFeeCollection()}
-function fcToggleOwed(){_fcOwed=!_fcOwed;fcRenderOverview()}
+function fcToggleOwed(key){
+  _fcOwedMap[key]=!(_fcOwedMap[key]!==false)
+  const td=document.getElementById('fc-pend-'+key)
+  const tog=document.getElementById('fc-tog-'+key)
+  if(!td||!tog)return
+  const owed=_fcOwedMap[key]!==false
+  td.style.color=owed?'var(--danger)':'var(--success)'
+  tog.querySelector('.fc-track').style.background=owed?'var(--danger)':'var(--success)'
+  tog.querySelector('.fc-thumb').style.left=owed?'18px':'2px'
+}
 function fcRenderOverview(){
   const{secStat}=fcComputeStats()
   const el=$('fcTabContent')
   const rows=Object.values(secStat).sort((a,b)=>{const ai=(ALL_CLASSES||[]).find(c=>c.name===a.cls);const bi=(ALL_CLASSES||[]).find(c=>c.name===b.cls);const so=((ai?.sort_order||0)-(bi?.sort_order||0));return so||a.sec.localeCompare(b.sec)})
-  const pendClr=_fcOwed?'var(--danger)':'var(--success)'
-  const owedLabel=_fcOwed?'Owed to Admin':'Not Owed'
-  let h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;justify-content:flex-end"><span style="font-size:12px;color:var(--ink-soft)">'+owedLabel+'</span><label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer"><input type="checkbox" onchange="fcToggleOwed()" '+ (_fcOwed?'checked':'')+' style="opacity:0;width:0;height:0"><span style="position:absolute;inset:0;background:'+(_fcOwed?'var(--danger)':'var(--success)')+';border-radius:10px;transition:.2s"></span><span style="position:absolute;left:'+(_fcOwed?'18px':'2px')+';top:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s"></span></label></div>'
-  h+='<div class="card"><div class="table-wrap"><table><thead><tr><th>Class</th><th>Section</th><th>Students</th><th>Amount</th><th style="color:var(--success)">Paid</th><th style="color:var(--danger)">Pending</th><th style="color:var(--ink-soft)">Not Appearing</th><th>Collected</th><th style="color:'+pendClr+'">Pending Amt</th><th>Progress</th></tr></thead><tbody>'
-  rows.forEach(s=>{
+  let h='<div class="card"><div class="table-wrap"><table><thead><tr><th>Class</th><th>Section</th><th>Students</th><th>Amount</th><th style="color:var(--success)">Paid</th><th style="color:var(--danger)">Pending</th><th style="color:var(--ink-soft)">Not Appearing</th><th>Collected</th><th>Pending Amt</th><th></th><th>Progress</th></tr></thead><tbody>'
+  rows.forEach((s,i)=>{
+    const key=s.cls+'_'+s.sec
+    const owed=_fcOwedMap[key]!==false
+    const pendClr=owed?'var(--danger)':'var(--success)'
     const effective=s.total-s.na
     const pct=effective?Math.round(s.paid/effective*100):0
-    h+='<tr><td style="font-weight:700">'+esc(s.cls)+'</td><td>'+esc(s.sec||'—')+'</td><td>'+s.total+'</td><td>₹'+s.amt+'</td><td style="color:var(--success);font-weight:700">'+s.paid+'</td><td style="color:var(--danger);font-weight:700">'+s.pending+'</td><td style="color:var(--ink-soft)">'+s.na+'</td><td>₹'+(s.paid*s.amt).toLocaleString('en-IN')+'</td><td style="color:'+pendClr+';font-weight:700">₹'+(s.pending*s.amt).toLocaleString('en-IN')+'</td><td><div style="display:flex;align-items:center;gap:4px"><div style="background:var(--line);border-radius:4px;height:8px;width:80px;overflow:hidden"><div style="background:var(--success);height:100%;width:'+pct+'%"></div></div><span style="font-size:10px;color:var(--ink-soft)">'+pct+'%</span></div></td></tr>'
+    h+='<tr><td style="font-weight:700">'+esc(s.cls)+'</td><td>'+esc(s.sec||'—')+'</td><td>'+s.total+'</td><td>₹'+s.amt+'</td><td style="color:var(--success);font-weight:700">'+s.paid+'</td><td style="color:var(--danger);font-weight:700">'+s.pending+'</td><td style="color:var(--ink-soft)">'+s.na+'</td><td>₹'+(s.paid*s.amt).toLocaleString('en-IN')+'</td>'
+    h+='<td id="fc-pend-'+key+'" style="color:'+pendClr+';font-weight:700">₹'+(s.pending*s.amt).toLocaleString('en-IN')+'</td>'
+    h+='<td id="fc-tog-'+key+'"><label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer" onclick="fcToggleOwed(\''+key+'\')"><span class="fc-track" style="position:absolute;inset:0;background:'+pendClr+';border-radius:10px;transition:.2s"></span><span class="fc-thumb" style="position:absolute;left:'+(owed?'18px':'2px')+';top:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s"></span></label></td>'
+    h+='<td><div style="display:flex;align-items:center;gap:4px"><div style="background:var(--line);border-radius:4px;height:8px;width:80px;overflow:hidden"><div style="background:var(--success);height:100%;width:'+pct+'%"></div></div><span style="font-size:10px;color:var(--ink-soft)">'+pct+'%</span></div></td></tr>'
   })
   h+='</tbody></table></div></div>'
   el.innerHTML=h
