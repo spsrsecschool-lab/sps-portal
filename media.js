@@ -26,17 +26,21 @@ window.SPSMedia = (function () {
   }
 
   // Low-level: open a single file input, optionally forcing the camera.
-  function grabFile({ accept = 'image/*', capture = false } = {}) {
+  function grabFile({ accept = 'image/*', capture = false, multiple = false } = {}) {
     return new Promise((resolve) => {
       const inp = document.createElement('input')
       inp.type = 'file'
       inp.accept = accept
       if (capture) inp.setAttribute('capture', 'environment')
+      if (multiple) inp.multiple = true
       inp.style.position = 'fixed'
       inp.style.left = '-9999px'
       let settled = false
       const finish = (f) => { if (!settled) { settled = true; resolve(f || null); setTimeout(() => inp.remove(), 300) } }
-      inp.onchange = () => finish(inp.files && inp.files[0])
+      inp.onchange = () => {
+        if (multiple) { finish(inp.files && inp.files.length ? [...inp.files] : null) }
+        else { finish(inp.files && inp.files[0]) }
+      }
       // Fallback: if the picker is dismissed with no file, resolve null when the
       // window regains focus (best-effort; not all browsers fire reliably).
       const onFocus = () => { setTimeout(() => { if (!settled && (!inp.files || !inp.files.length)) finish(null); window.removeEventListener('focus', onFocus) }, 600) }
@@ -176,10 +180,25 @@ window.SPSMedia = (function () {
     const _wrap = async (r) => { return r }
     const pages = MULTI[type]
     if (pages) {
-      const first = await chooseOne({ accept: 'image/*', prompt: (type || 'Document') + ' — photo' })
-      if (!first) return null // cancelled
+      if (!isMobile()) {
+        // Desktop: single file picker — select 1 or 2 images (front+back) or a PDF
+        const files = await grabFile({ accept: 'image/*,.pdf,application/pdf', multiple: true })
+        if (!files || !files.length) return null
+        // If a PDF was picked, use it as-is
+        if (files.some(f => /pdf/i.test(f.type))) return { file: files[0], pages: 1, merged: false }
+        if (files.length === 1) return { file: files[0], pages: 1, merged: false }
+        // 2+ images: merge first two into one
+        const toMerge = files.slice(0, 2).filter(f => /^image\//.test(f.type))
+        if (toMerge.length === 2) {
+          const merged = await mergeImages(toMerge, { name: String(type).replace(/\s+/g, '_') + '.jpg' })
+          return await _wrap({ file: merged, pages: 2, merged: true })
+        }
+        return { file: files[0], pages: 1, merged: false }
+      }
+      // Mobile: existing camera/choose flow
+      const first = await chooseOne({ accept: 'image/*', allowPdf: true, prompt: (type || 'Document') + ' — photo' })
+      if (!first) return null
       if (!/^image\//.test(first.type)) {
-        // A PDF/non-image for an Aadhaar-type: just use it as-is (can't merge).
         return { file: first, pages: 1, merged: false }
       }
       const addBack = await askYesNo({
@@ -189,7 +208,7 @@ window.SPSMedia = (function () {
       })
       if (!addBack) return await _wrap({ file: first, pages: 1, merged: false })
       const back = await chooseOne({ accept: 'image/*', prompt: (type || 'Document') + ' — back side' })
-      if (!back) return await _wrap({ file: first, pages: 1, merged: false }) // they skipped the back
+      if (!back) return await _wrap({ file: first, pages: 1, merged: false })
       if (!/^image\//.test(back.type)) { alert('The back side must be an image so it can be combined. Keeping the first page only.'); return await _wrap({ file: first, pages: 1, merged: false }) }
       const merged = await mergeImages([first, back], { name: String(type).replace(/\s+/g, '_') + '.jpg' })
       return await _wrap({ file: merged, pages: 2, merged: true })
