@@ -137,6 +137,15 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .sb-item.active{background:var(--indigo-100);color:var(--indigo-dark);font-weight:700}
 .sb-item .bc{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px}
 .sb-link .ext{margin-left:auto;width:12px;height:12px;stroke:var(--ink-faint);fill:none}
+.sb-group-head{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--ink-soft);font-size:12.5px;font-weight:500;cursor:pointer;margin-bottom:2px;transition:background .14s,color .14s}
+.sb-group-head svg{width:16px;height:16px;stroke:currentColor;fill:none;flex-shrink:0;stroke-width:1.8}
+.sb-group-head:hover{background:var(--lav-100);color:var(--ink)}
+.sb-group-head.open{color:var(--ink);font-weight:600}
+.sb-group-head .sb-chev{margin-left:auto;width:14px;height:14px;stroke:var(--ink-faint);fill:none;transition:transform .2s}
+.sb-group-head.open .sb-chev{transform:rotate(90deg)}
+.sb-group-items{display:none;padding-left:16px}
+.sb-group-head.open+.sb-group-items{display:block}
+.sb-group-items .sb-item{font-size:12px;padding:7px 12px 7px 14px}
 .sb-foot{padding:14px 16px 18px;border-top:1px solid var(--line)}
 .sb-logout{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:1px solid var(--line);color:var(--ink-soft);font-family:var(--font);font-size:12px;font-weight:600;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer}
 .sb-logout svg{width:14px;height:14px;stroke:currentColor;fill:none}
@@ -696,32 +705,48 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item" onclick="goTo('messages',this)"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Messages<span class="bc" id="msgBadge" style="display:none">0</span></div>
     <div class="sb-item" onclick="goTo('requests',this)"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Requests<span class="bc" id="reqBadge" style="display:none">0</span></div>
     <div class="sb-item" onclick="goTo('activitylog',this)"><svg viewBox="0 0 24 24" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Activity Log</div>
+
     <div class="sb-label">People</div>
-    <div class="sb-item" onclick="goTo('staff',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Staff &amp; Teachers</div>
-    <div class="sb-item" onclick="goTo('students',this)"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>Students</div>
-    <div class="sb-item" onclick="goTo('admission',this)"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg>New Admission</div>
-    <div class="sb-item" onclick="goTo('bulkimport',this)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Bulk Import</div>
-    <div class="sb-label">Student Lifecycle</div>
-    <div class="sb-item" onclick="goTo('promotion',this)"><svg viewBox="0 0 24 24"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 21 3 17 7 13"/><line x1="3" y1="17" x2="15" y2="17"/></svg>Promotion</div>
-    <div class="sb-item" onclick="goTo('relieving',this)"><svg viewBox="0 0 24 24"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M12 19a7 7 0 1 1 0-14"/></svg>Student Relieving</div>
-    <div class="sb-item" onclick="goTo('readmission',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Re-admission</div>
+    <div class="sb-group-head" onclick="sbToggle(this)"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>Students<svg class="sb-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <div class="sb-group-items">
+      <div class="sb-item" onclick="goTo('students',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>All Students</div>
+      <div class="sb-item" onclick="goTo('admission',this)"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg>New Admission</div>
+      <div class="sb-item" onclick="goTo('promotion',this)"><svg viewBox="0 0 24 24"><polyline points="17 11 21 7 17 3"/><line x1="21" y1="7" x2="9" y2="7"/><polyline points="7 21 3 17 7 13"/><line x1="3" y1="17" x2="15" y2="17"/></svg>Promotion</div>
+      <div class="sb-item" onclick="goTo('relieving',this)"><svg viewBox="0 0 24 24"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M12 19a7 7 0 1 1 0-14"/></svg>Student Relieving</div>
+      <div class="sb-item" onclick="goTo('readmission',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Re-admission</div>
+      <div class="sb-item" onclick="goTo('bulkimport',this)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Bulk Import</div>
+    </div>
+    <div class="sb-group-head" onclick="sbToggle(this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Staff &amp; Teachers<svg class="sb-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <div class="sb-group-items">
+      <div class="sb-item" onclick="goTo('staff',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>All Staff</div>
+      <div class="sb-item" onclick="goTo('declaration',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>Teacher Declaration</div>
+      <div class="sb-item" onclick="goTo('staffatt',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3 3-1.5-1.5"/></svg>Staff Attendance</div>
+    </div>
+
     <div class="sb-label">Academics</div>
-    <div class="sb-item" onclick="goTo('mapping',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Class &amp; Subject Mapping</div>
-    <div class="sb-item" onclick="goTo('subjcombos',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Subject Combinations</div>
-    <div class="sb-item" onclick="goTo('assessments',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Assessments &amp; Exam Fees</div>
-    <div class="sb-item" onclick="goTo('marksoverview',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg>Marks Overview</div>
-    <div class="sb-item" onclick="goTo('reportcards',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Report Card Templates</div>
+    <div class="sb-group-head" onclick="sbToggle(this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Classes &amp; Subjects<svg class="sb-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <div class="sb-group-items">
+      <div class="sb-item" onclick="goTo('mapping',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Class &amp; Subject Mapping</div>
+      <div class="sb-item" onclick="goTo('subjcombos',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Subject Combinations</div>
+    </div>
+    <div class="sb-group-head" onclick="sbToggle(this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Examinations<svg class="sb-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <div class="sb-group-items">
+      <div class="sb-item" onclick="goTo('assessments',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Assessments &amp; Exam Fees</div>
+      <div class="sb-item" onclick="goTo('examconduct',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="22"/></svg>Examination</div>
+      <div class="sb-item" onclick="goTo('marksoverview',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg>Marks Overview</div>
+      <div class="sb-item" onclick="goTo('reportcards',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Report Card Templates</div>
+      <div class="sb-item" onclick="goTo('questionpapers',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Question Papers</div>
+    </div>
     <div class="sb-item" onclick="goTo('timetable',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="16" x2="21" y2="16"/></svg>School Timetable</div>
-    <div class="sb-item" onclick="goTo('questionpapers',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Question Papers</div>
-    <div class="sb-item" onclick="goTo('examconduct',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="22"/></svg>Examination</div>
-    <div class="sb-label">Finance</div>
-    <div class="sb-item" onclick="goTo('miscfees',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.5 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/></svg>Misc Fees</div>
-    <a class="sb-link" href="fee.html" target="_blank"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.5 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/></svg>Fee Portal<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-    <div class="sb-label">Attendance &amp; Calendar</div>
+
+    <div class="sb-label">Attendance</div>
     <div class="sb-item" onclick="goTo('classatt',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Class Attendance</div>
     <div class="sb-item" onclick="goTo('calendar',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Holiday Calendar</div>
-    <div class="sb-item" onclick="goTo('staffatt',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3 3-1.5-1.5"/></svg>Staff Attendance</div>
-    <div class="sb-item" onclick="goTo('declaration',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>Teacher Declaration</div>
+
+    <div class="sb-label">Finance</div>
+    <a class="sb-link" href="fee.html" target="_blank"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.5 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/></svg>Fee Portal<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+    <div class="sb-item" onclick="goTo('miscfees',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.5 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/></svg>Misc Fees</div>
+
     <div class="sb-label">System</div>
     <div class="sb-item" onclick="goTo('settings',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg>Settings</div>
   </div>
@@ -2556,10 +2581,11 @@ function admPickFather(e,fatherEnc,familyEnc){
   const box=$('adm_father_suggest');if(box)box.style.display='none'
   showAdmFamilyStudents(family, father)   // show this father's siblings in the family
 }
-function goTo(id,el){if(_qpDirty&&!confirm('You have unsaved changes in the question paper. Leave without saving?')){return}_qpDirty=false;_qpSavedSnap=null;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el)el.classList.add('active');$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
+function goTo(id,el){if(_qpDirty&&!confirm('You have unsaved changes in the question paper. Leave without saving?')){return}_qpDirty=false;_qpSavedSnap=null;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(('page-'+id))?.classList.add('active');document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));if(el){el.classList.add('active');const gi=el.closest('.sb-group-items');if(gi){const gh=gi.previousElementSibling;if(gh&&gh.classList.contains('sb-group-head'))gh.classList.add('open')}}$('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Admin Portal</span>';if(window.innerWidth<=760)closeMobileSidebar();if(LAZY[id])LAZY[id]()}
 function openSub(page,sub){document.querySelectorAll('#page-'+page+' .sub-page').forEach(s=>s.classList.remove('active'));$(sub)?.classList.add('active');if(page==='assessments'&&sub!=='sub-assess-feecollection'&&window._fcSub){window._fcSub.unsubscribe();window._fcSub=null}}
 function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
 function closeMobileSidebar(){$('sidebar').classList.remove('show');$('scrim').classList.remove('show')}
+function sbToggle(el){el.classList.toggle('open')}
 function switchTab(prefix,key,btn){document.querySelectorAll('[id^="'+prefix+'-"]').forEach(t=>t.style.display='none');$(prefix+'-'+key).style.display='block';btn.closest('.tab-row').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')}
 
 // ═══════════ GLOBALS LOAD ═══════════
@@ -3099,7 +3125,12 @@ async function buildRecentFeed(){
   await resolveTeachers(acts.filter(a=>['teacher','class_teacher','mother_teacher'].includes(a.user_type)).map(a=>a.user_id))
   const whoOf=(type,id)=> tName[id] ? tName[id] : type==='admin'?'Admin' : type==='coordinator'?'Coordinator' : type
   // 1) logged actions (attendance, marks, exam fees, tests, profile edits, access requests…)
-  acts.forEach(a=>items.push({t:a.created_at, color:'var(--indigo)', who:whoOf(a.user_type,a.user_id), text:a.message||a.action_type||'did something'}))
+  acts.forEach(a=>{
+    const who=whoOf(a.user_type,a.user_id)
+    const msg=a.message||a.action_type||'did something'
+    const rest=who&&msg.toLowerCase().startsWith(who.toLowerCase())?msg.slice(who.length).replace(/^\s+/,''):msg
+    items.push({t:a.created_at, color:'var(--indigo)', who:who, text:rest})
+  })
   // 2) new admissions / re-admissions
   adms.forEach(e=>items.push({t:e.readmission_date, color:'var(--success)', who:'', text:'New admission: '+(e.students?.full_name||'student')+' — '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')}))
   items.sort((a,b)=>new Date(b.t)-new Date(a.t))
