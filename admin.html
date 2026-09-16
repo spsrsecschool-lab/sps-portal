@@ -5105,36 +5105,38 @@ function fcFeeForStudent(eid){
 }
 function fcComputeStats(){
   const{fees,enrollments,payments}=_fcData
-  const paidMap={}
-  payments.forEach(p=>{const k=p.exam_fee_id+'_'+p.enrollment_id;if(p.is_paid)paidMap[k]=p})
-  let totalDue=0,totalCollected=0,totalPending=0
+  const paidMap={},naMap={}
+  payments.forEach(p=>{const k=p.exam_fee_id+'_'+p.enrollment_id;if(p.is_paid)paidMap[k]=p;if(p.not_appearing)naMap[k]=true})
+  let totalDue=0,totalCollected=0,totalPending=0,totalNA=0
   const secStat={}
   enrollments.forEach(e=>{
     const f=fcFeeForStudent(e.enrollment_id)
     if(!f)return
     const amt=f.amount||0
-    const paid=!!paidMap[f.exam_fee_id+'_'+e.enrollment_id]
-    totalDue+=amt
-    if(paid)totalCollected+=amt;else totalPending+=amt
+    const k=f.exam_fee_id+'_'+e.enrollment_id
+    const paid=!!paidMap[k]
+    const na=!!naMap[k]
     const cls=e.classes?.name||'?'
     const sec=e.class_sections?.name||''
     const key=cls+'|'+sec
-    if(!secStat[key])secStat[key]={cls,sec,classId:e.class_id,secId:e.section_id,total:0,paid:0,pending:0,amt}
+    if(!secStat[key])secStat[key]={cls,sec,classId:e.class_id,secId:e.section_id,total:0,paid:0,pending:0,na:0,amt}
     secStat[key].total++
-    if(paid)secStat[key].paid++;else secStat[key].pending++
+    if(na){totalNA++;secStat[key].na++}
+    else{totalDue+=amt;if(paid){totalCollected+=amt;secStat[key].paid++}else{totalPending+=amt;secStat[key].pending++}}
   })
-  return{paidMap,totalDue,totalCollected,totalPending,secStat}
+  return{paidMap,naMap,totalDue,totalCollected,totalPending,totalNA,secStat}
 }
 function renderFeeCollection(){
   if(!_fcData)return
   const{assessName}=_fcData
   const el=$('assessFeeCollectionContent')
-  const{totalDue,totalCollected,totalPending}=fcComputeStats()
+  const{totalDue,totalCollected,totalPending,totalNA}=fcComputeStats()
   let h='<div class="page-head"><div><h2>Fee Collection — '+esc(assessName)+'</h2><p>Real-time exam fee collection across all classes</p></div></div>'
-  h+='<div class="grid-3" style="margin-bottom:16px">'
-  h+='<div class="stat-card"><span class="lbl">Total Due</span><span class="val">₹'+totalDue.toLocaleString('en-IN')+'</span><span class="sub">'+_fcData.enrollments.length+' students</span></div>'
+  h+='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(4,1fr)">'
+  h+='<div class="stat-card"><span class="lbl">Total Due</span><span class="val">₹'+totalDue.toLocaleString('en-IN')+'</span><span class="sub">'+(_fcData.enrollments.length-totalNA)+' students</span></div>'
   h+='<div class="stat-card"><span class="lbl" style="color:var(--success)">Collected</span><span class="val" style="color:var(--success)">₹'+totalCollected.toLocaleString('en-IN')+'</span></div>'
-  h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">₹'+totalPending.toLocaleString('en-IN')+'</span></div></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">₹'+totalPending.toLocaleString('en-IN')+'</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--ink-soft)">Not Appearing</span><span class="val" style="color:var(--ink-soft)">'+totalNA+'</span></div></div>'
   h+='<div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--line)">'
   h+='<button class="btn btn-ghost fcTab" onclick="fcSwitchTab(\'overview\')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;margin-bottom:-2px;border-bottom:2px solid '+(_fcTab==='overview'?'var(--indigo)':'transparent')+';'+(_fcTab==='overview'?'font-weight:700;color:var(--indigo)':'')+'">Overview</button>'
   h+='<button class="btn btn-ghost fcTab" onclick="fcSwitchTab(\'students\')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;margin-bottom:-2px;border-bottom:2px solid '+(_fcTab==='students'?'var(--indigo)':'transparent')+';'+(_fcTab==='students'?'font-weight:700;color:var(--indigo)':'')+'">Student-wise</button></div>'
@@ -5147,16 +5149,17 @@ function fcRenderOverview(){
   const{secStat}=fcComputeStats()
   const el=$('fcTabContent')
   const rows=Object.values(secStat).sort((a,b)=>{const ai=(ALL_CLASSES||[]).find(c=>c.name===a.cls);const bi=(ALL_CLASSES||[]).find(c=>c.name===b.cls);const so=((ai?.sort_order||0)-(bi?.sort_order||0));return so||a.sec.localeCompare(b.sec)})
-  let h='<div class="card"><div class="table-wrap"><table><thead><tr><th>Class</th><th>Section</th><th>Students</th><th>Amount</th><th style="color:var(--success)">Paid</th><th style="color:var(--danger)">Pending</th><th>Collected</th><th>Progress</th></tr></thead><tbody>'
+  let h='<div class="card"><div class="table-wrap"><table><thead><tr><th>Class</th><th>Section</th><th>Students</th><th>Amount</th><th style="color:var(--success)">Paid</th><th style="color:var(--danger)">Pending</th><th style="color:var(--ink-soft)">Not Appearing</th><th>Collected</th><th style="color:var(--danger)">Pending Amt</th><th>Progress</th></tr></thead><tbody>'
   rows.forEach(s=>{
-    const pct=s.total?Math.round(s.paid/s.total*100):0
-    h+='<tr><td style="font-weight:700">'+esc(s.cls)+'</td><td>'+esc(s.sec||'—')+'</td><td>'+s.total+'</td><td>₹'+s.amt+'</td><td style="color:var(--success);font-weight:700">'+s.paid+'</td><td style="color:var(--danger);font-weight:700">'+s.pending+'</td><td>₹'+(s.paid*s.amt).toLocaleString('en-IN')+'</td><td><div style="display:flex;align-items:center;gap:4px"><div style="background:var(--line);border-radius:4px;height:8px;width:80px;overflow:hidden"><div style="background:var(--success);height:100%;width:'+pct+'%"></div></div><span style="font-size:10px;color:var(--ink-soft)">'+pct+'%</span></div></td></tr>'
+    const effective=s.total-s.na
+    const pct=effective?Math.round(s.paid/effective*100):0
+    h+='<tr><td style="font-weight:700">'+esc(s.cls)+'</td><td>'+esc(s.sec||'—')+'</td><td>'+s.total+'</td><td>₹'+s.amt+'</td><td style="color:var(--success);font-weight:700">'+s.paid+'</td><td style="color:var(--danger);font-weight:700">'+s.pending+'</td><td style="color:var(--ink-soft)">'+s.na+'</td><td>₹'+(s.paid*s.amt).toLocaleString('en-IN')+'</td><td style="color:var(--danger);font-weight:700">₹'+(s.pending*s.amt).toLocaleString('en-IN')+'</td><td><div style="display:flex;align-items:center;gap:4px"><div style="background:var(--line);border-radius:4px;height:8px;width:80px;overflow:hidden"><div style="background:var(--success);height:100%;width:'+pct+'%"></div></div><span style="font-size:10px;color:var(--ink-soft)">'+pct+'%</span></div></td></tr>'
   })
   h+='</tbody></table></div></div>'
   el.innerHTML=h
 }
 function fcRenderStudents(){
-  const{paidMap,secStat}=fcComputeStats()
+  const{paidMap,naMap,secStat}=fcComputeStats()
   const{enrollments}=_fcData
   const el=$('fcTabContent')
   const clsList=[...new Set(enrollments.map(e=>e.class_id))].map(cid=>{const c=(ALL_CLASSES||[]).find(x=>x.class_id===cid);return c||{class_id:cid,name:'?',sort_order:0}}).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
@@ -5176,17 +5179,22 @@ function fcRenderStudents(){
   if(_fcSec)filtered=filtered.filter(e=>e.section_id===_fcSec)
   filtered.sort((a,b)=>(parseInt(a.roll_no)||0)-(parseInt(b.roll_no)||0))
   const paidCount=filtered.filter(e=>{const f=fcFeeForStudent(e.enrollment_id);return f&&paidMap[f.exam_fee_id+'_'+e.enrollment_id]}).length
-  h+='<div style="margin-bottom:10px;font-size:13px;color:var(--ink-soft)"><b>'+filtered.length+'</b> students · <span style="color:var(--success);font-weight:700">'+paidCount+' paid</span> · <span style="color:var(--danger);font-weight:700">'+(filtered.length-paidCount)+' pending</span></div>'
+  const naCount=filtered.filter(e=>{const f=fcFeeForStudent(e.enrollment_id);return f&&naMap[f.exam_fee_id+'_'+e.enrollment_id]}).length
+  const effectiveCount=filtered.length-naCount
+  h+='<div style="margin-bottom:10px;font-size:13px;color:var(--ink-soft)"><b>'+filtered.length+'</b> students · <span style="color:var(--success);font-weight:700">'+paidCount+' paid</span> · <span style="color:var(--danger);font-weight:700">'+(effectiveCount-paidCount)+' pending</span> · <span style="color:var(--ink-soft)">'+naCount+' not appearing</span></div>'
   h+='<div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'
   filtered.forEach(e=>{
     const f=fcFeeForStudent(e.enrollment_id)
     if(!f)return
     const k=f.exam_fee_id+'_'+e.enrollment_id
     const paid=!!paidMap[k]
+    const na=!!naMap[k]
     const pRec=paidMap[k]
     const byAdmin=pRec?.collected_by_type==='admin'
-    const statusPill=paid?(byAdmin?'<span class="pill pill-neutral">Admin</span>':'<span class="pill pill-success">Paid</span>'):'<span class="pill pill-danger">Pending</span>'
-    const action=paid?'<button class="btn btn-ghost btn-xs" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>':'<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Mark Paid</button>'
+    let statusPill,action
+    if(na){statusPill='<span class="pill pill-neutral">Not Appearing</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleNA(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>'}
+    else if(paid){statusPill=byAdmin?'<span class="pill pill-neutral">Admin</span>':'<span class="pill pill-success">Paid</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>'}
+    else{statusPill='<span class="pill pill-danger">Pending</span>';action='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Mark Paid</button> <button class="btn btn-soft btn-xs" style="color:var(--ink-soft)" onclick="adminToggleNA(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Not Appearing</button>'}
     h+='<tr><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>₹'+f.amount+'</td><td>'+statusPill+'</td><td>'+action+'</td></tr>'
   })
   h+='</tbody></table></div></div>'
@@ -5194,12 +5202,23 @@ function fcRenderStudents(){
 }
 async function adminToggleFee(enrollmentId,feeId,markPaid){
   const{error}=await sb.from('exam_fee_payments').upsert({
-    exam_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,
+    exam_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,not_appearing:false,
     collected_by_type:'admin',collected_by_id:null,
     paid_at:markPaid?new Date().toISOString():null
   },{onConflict:'exam_fee_id,enrollment_id'})
   if(error){toast('Failed: '+error.message,'error');return}
   toast(markPaid?'Marked as paid':'Marked as unpaid','success')
+  const{data:p}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',_fcData.feeIds)
+  _fcData.payments=p||[];renderFeeCollection()
+}
+async function adminToggleNA(enrollmentId,feeId,mark){
+  const{error}=await sb.from('exam_fee_payments').upsert({
+    exam_fee_id:feeId,enrollment_id:enrollmentId,is_paid:false,not_appearing:mark,
+    collected_by_type:'admin',collected_by_id:null,
+    paid_at:null
+  },{onConflict:'exam_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(mark?'Marked as not appearing':'Unmarked','success')
   const{data:p}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',_fcData.feeIds)
   _fcData.payments=p||[];renderFeeCollection()
 }
