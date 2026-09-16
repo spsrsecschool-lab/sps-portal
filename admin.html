@@ -637,17 +637,17 @@ tbody tr:hover td{background:var(--lav-50)}
   .ec-admit-back .ab-header{background:#555;color:#fff;text-align:center;padding:4px 4mm}
   .ec-admit-back .ab-title{font-weight:700;font-size:13.5px;margin:0}
   .ec-admit-back .ab-sub{font-size:9.5px;text-transform:uppercase;font-weight:600;margin:1px 0 0}
-  .ec-admit-back .ab-content{padding:2.5mm 4mm;display:flex;flex-direction:column;flex:1}
-  .ec-admit-back .ab-instr{margin-bottom:6px}
-  .ec-admit-back .ab-instr-title{font-weight:700;font-size:11.5px;text-transform:uppercase;margin-bottom:2px}
-  .ec-admit-back .ab-instr ul{margin:0;padding-left:14px;font-size:10.5px;line-height:1.45}
-  .ec-admit-back .ab-dues{margin-bottom:auto}
+  .ec-admit-back .ab-content{padding:2.5mm 4mm;display:flex;flex-direction:column;flex:1;overflow:hidden}
+  .ec-admit-back .ab-dues{margin-bottom:0}
   .ec-admit-back .ab-dues table{width:100%;border-collapse:collapse;font-size:11.5px}
   .ec-admit-back .ab-dues th,.ec-admit-back .ab-dues td{border:1px solid #333;padding:3px 5px;text-align:left}
   .ec-admit-back .ab-dues th{font-weight:700;font-size:10.5px;text-transform:uppercase;background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .ec-admit-back .ab-dues td{height:32px}
-  .ec-admit-back .ab-princ{text-align:left;font-size:10.5px;margin-top:12px}
+  .ec-admit-back .ab-princ{text-align:left;font-size:10.5px;margin-top:10px;margin-bottom:8px}
   .ec-admit-back .ab-princ .ab-line{display:block;width:100px;border-top:1px solid #333;margin-bottom:2px}
+  .ec-admit-back .ab-instr{flex:1;overflow:hidden}
+  .ec-admit-back .ab-instr-title{font-weight:700;font-size:11.5px;text-transform:uppercase;margin-bottom:2px}
+  .ec-admit-back .ab-instr ul{margin:0;padding-left:14px;font-size:10.5px;line-height:1.45}
 
   @media print{
     body>*:not(#main){display:none!important}
@@ -12552,13 +12552,13 @@ async function ecGenerateAdmitCards(){
     b+='<div class="ab-header"><div class="ab-title">Uncleared Dues</div>'
     b+='<div class="ab-sub">To be filled by school authorities</div></div>'
     b+='<div class="ab-content">'
-    if(instrLines.length){
-      b+='<div class="ab-instr"><div class="ab-instr-title">Instructions</div><ul>'
-      instrLines.forEach(l=>{b+='<li>'+esc(l)+'</li>'})
-      b+='</ul></div>'
-    }
     b+='<div class="ab-dues"><table><thead><tr><th style="width:55%">Pending Fees</th><th>Pending Balance</th></tr></thead><tbody><tr><td></td><td></td></tr></tbody></table></div>'
     b+='<div class="ab-princ"><div class="ab-line"></div>Principal</div>'
+    if(instrLines.length){
+      b+='<div class="ab-instr"><div class="ab-instr-title">Instructions</div><ul>'
+      instrLines.forEach(l=>{b+='<li>'+esc(l).replace(/\*([^*]+)\*/g,'<b>$1</b>')+'</li>'})
+      b+='</ul></div>'
+    }
     b+='</div></div>'
     return b
   }
