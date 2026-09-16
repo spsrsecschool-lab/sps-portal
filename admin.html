@@ -5084,7 +5084,7 @@ async function openFeeCollection(){
   const{data:enrollments}=await sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,students(full_name,father_name),classes(name),class_sections(name)').eq('session_id',SESS.session_id).in('class_id',classIds).eq('status','active').eq('relieved',false).order('roll_no')
   const{data:payments}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',feeIds)
   _fcData={fees,enrollments:enrollments||[],payments:payments||[],assessName:a.name,feeIds,assessId:a.assessment_id}
-  try{_fcOwedMap=JSON.parse(localStorage.getItem('fc_owed_'+a.assessment_id))||{}}catch(e){_fcOwedMap={}}
+  _fcOwedMap=a.fee_owed_map||{}
   renderFeeCollection()
   if(window._fcSub)window._fcSub.unsubscribe()
   window._fcSub=sb.channel('fc-'+a.assessment_id).on('postgres_changes',{event:'*',schema:'public',table:'exam_fee_payments',filter:'exam_fee_id=in.('+feeIds.join(',')+')'},async()=>{
@@ -5148,7 +5148,7 @@ function renderFeeCollection(){
 function fcSwitchTab(tab){_fcTab=tab;renderFeeCollection()}
 function fcToggleOwed(key){
   _fcOwedMap[key]=!(_fcOwedMap[key]!==false)
-  try{localStorage.setItem('fc_owed_'+_fcData.assessId,JSON.stringify(_fcOwedMap))}catch(e){}
+  sb.from('assessments').update({fee_owed_map:_fcOwedMap}).eq('assessment_id',_fcData.assessId).then()
   const td=document.getElementById('fc-pend-'+key)
   const tog=document.getElementById('fc-tog-'+key)
   if(!td||!tog)return
