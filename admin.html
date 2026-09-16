@@ -5194,7 +5194,7 @@ function fcRenderStudents(){
     let statusPill,action
     if(na){statusPill='<span class="pill pill-neutral">Not Appearing</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleNA(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>'}
     else if(paid){statusPill=byAdmin?'<span class="pill pill-neutral">Admin</span>':'<span class="pill pill-success">Paid</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>'}
-    else{statusPill='<span class="pill pill-danger">Pending</span>';action='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Mark Paid</button> <button class="btn btn-soft btn-xs" style="color:var(--ink-soft)" onclick="adminToggleNA(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Not Appearing</button>'}
+    else{statusPill='<span class="pill pill-danger">Pending</span>';action='<div style="display:flex;align-items:center;gap:10px"><button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Mark Paid</button><a href="#" style="font-size:11px;color:var(--ink-faint);white-space:nowrap" onclick="event.preventDefault();adminToggleNA(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Not Appearing</a></div>'}
     h+='<tr><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>₹'+f.amount+'</td><td>'+statusPill+'</td><td>'+action+'</td></tr>'
   })
   h+='</tbody></table></div></div>'
