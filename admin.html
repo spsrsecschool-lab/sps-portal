@@ -582,23 +582,25 @@ tbody tr:hover td{background:var(--lav-50)}
   .inp{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:8px 11px;outline:none;transition:border-color .15s}
   .inp:focus{border-color:var(--indigo);background:#fff}
 
-  .ec-ds-wrap{overflow-x:auto;margin-top:12px}
-  .ec-ds-tbl{border-collapse:collapse;font-size:12px;min-width:100%}
-  .ec-ds-tbl th,.ec-ds-tbl td{border:1px solid var(--line);padding:4px 6px;white-space:nowrap}
-  .ec-ds-tbl th{background:var(--lav-50);font-weight:700;font-size:11px;text-transform:uppercase;position:sticky;top:0;z-index:1}
-  .ec-ds-tbl td input{border:none;background:transparent;width:100%;font-family:var(--font);font-size:12px;color:var(--ink);padding:2px 0;outline:none;min-width:80px}
-  .ec-ds-tbl td input:focus{background:var(--indigo-50)}
-  .ec-ds-tbl td input[type="date"]{min-width:120px}
-  .ec-ds-tbl .ec-ds-day{font-size:11px;color:var(--ink-soft);min-width:50px}
-  .ec-ds-del{color:var(--red);cursor:pointer;background:none;border:none;font-size:14px;padding:2px 4px}
-  .ec-ds-del:hover{background:var(--danger-soft);border-radius:var(--radius-sm)}
-  .ec-ds-cell{position:relative;min-width:90px}
-  .ec-ds-pick{cursor:pointer;padding:2px 4px;min-height:20px;font-size:12px}
-  .ec-ds-pick:hover{background:var(--indigo-50)}
+  .ec-ds-wrap{margin-top:12px;display:flex;flex-direction:column;gap:12px}
+  .ec-ds-card{background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius);padding:14px 16px;position:relative}
+  .ec-ds-card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .ec-ds-card-head input[type="date"]{border:1px solid var(--line);border-radius:var(--radius-sm);padding:5px 8px;font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white)}
+  .ec-ds-card-head input[type="date"]:focus{border-color:var(--indigo);outline:none}
+  .ec-ds-card-day{font-size:12px;font-weight:700;color:var(--indigo);background:var(--indigo-100);padding:3px 10px;border-radius:999px}
+  .ec-ds-del{color:var(--red);cursor:pointer;background:none;border:none;font-size:14px;padding:4px 6px;border-radius:var(--radius-sm);margin-left:auto}
+  .ec-ds-del:hover{background:var(--danger-soft)}
+  .ec-ds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px}
+  .ec-ds-cell{position:relative;border:1px solid var(--line);border-radius:var(--radius-sm);padding:6px 8px;background:var(--lav-50);min-height:44px}
+  .ec-ds-cell-cls{font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin-bottom:3px}
+  .ec-ds-pick{cursor:pointer;font-size:12px;color:var(--ink);min-height:18px}
+  .ec-ds-pick:hover{color:var(--indigo)}
   .ec-ds-dd{position:absolute;top:100%;left:0;z-index:10;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:6px;box-shadow:var(--shadow);min-width:160px;max-height:200px;overflow-y:auto}
   .ec-ds-dd label{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 4px;cursor:pointer;white-space:nowrap}
   .ec-ds-dd label:hover{background:var(--lav-50);border-radius:var(--radius-sm)}
   .ec-ds-dd input[type="checkbox"]{accent-color:var(--indigo);width:14px;height:14px}
+  .ec-ds-val-prep{color:var(--warn,#E8A23D);font-weight:600}
+  .ec-ds-val-dash{color:var(--ink-faint)}
 
   .ec-att-header{text-align:center;font-weight:700;font-size:15px;margin-bottom:10px}
   .ec-attend-tbl{width:100%;border-collapse:collapse;font-size:12px;color:#000;table-layout:auto}
@@ -2677,12 +2679,13 @@ async function renderTodayPanel(){
   const enrById={}; (enr||[]).forEach(e=>{enrById[e.enrollment_id]=e})
   const totalStudents=(enr||[]).length
 
-  const[attR,tchAttR,reqR,tchAllR,holR]=await Promise.all([
+  const[attR,tchAttR,reqR,tchAllR,holR,_todayEPH]=await Promise.all([
     sb.from('student_attendance').select('enrollment_id,status').eq('date',iso),
     sb.from('teacher_attendance').select('teacher_id,status').eq('date',iso),
     sb.from('access_requests').select('*',{count:'exact',head:true}).eq('status','pending'),
     sb.from('teachers').select('teacher_id',{count:'exact',head:true}).eq('is_active',true),
-    sb.from('holidays').select('label,applies_to').eq('session_id',sid).eq('date',iso).maybeSingle()
+    sb.from('holidays').select('label,applies_to').eq('session_id',sid).eq('date',iso).maybeSingle(),
+    getExamPrepHolidays(iso,iso)
   ])
   const holidayToday=holR?.data||null
   const isHoliday=!!holidayToday
@@ -2698,10 +2701,10 @@ async function renderTodayPanel(){
   const pctPresent=marked?Math.round(presentTotal/marked*100):0
 
   // Class-wise present/total, and which sections haven't marked at all.
-  const bySection={}   // section_id -> {class, sec, total, marked, present}
+  const bySection={}   // section_id -> {class, sec, total, marked, present, class_id}
   ;(enr||[]).forEach(e=>{
     const k=e.section_id
-    if(!bySection[k])bySection[k]={cls:e.classes?.name||'?',sec:e.class_sections?.name||'?',total:0,marked:0,present:0}
+    if(!bySection[k])bySection[k]={cls:e.classes?.name||'?',sec:e.class_sections?.name||'?',class_id:e.class_id,total:0,marked:0,present:0}
     bySection[k].total++
   })
   att.forEach(a=>{
@@ -2711,7 +2714,7 @@ async function renderTodayPanel(){
   })
   const _classRank=n=>{const m={'nur':0,'nursery':0,'lkg':1,'ukg':2,'kg':1};const l=String(n).toLowerCase().trim();if(m[l]!=null)return m[l];const num=parseInt(l);return isNaN(num)?50+l.charCodeAt(0):2+num}
   const sections=Object.values(bySection).sort((x,y)=>(_classRank(x.cls)-_classRank(y.cls))||(x.sec||'').localeCompare(y.sec||''))
-  const notMarked=sections.filter(s=>s.marked===0)
+  const notMarked=sections.filter(s=>s.marked===0&&!(_todayEPH[s.class_id]&&_todayEPH[s.class_id].has(iso)))
 
   // Staff present / absent today
   const tchToday=tchAttR.data||[]
@@ -5618,18 +5621,20 @@ async function loadMarksTable(){
   let classStart=SESS?.start_date||null
   try{const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS.session_id).eq('class_id',classId).maybeSingle();if(cs?.start_date)classStart=cs.start_date}catch(e){}
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
-  const[{data:hols},{data:attRows},{data:monthly}]=await Promise.all([
+  const[{data:hols},{data:attRows},{data:monthly},examPrepHols]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
     sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
-    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo)
+    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo),
+    getExamPrepHolidays(attFrom,attTo)
   ])
   const holSet=new Set((hols||[]).map(h=>h.date))
+  const epSet=examPrepHols[classId]
   const monthPeriods={}, presentMap={}
   ;(monthly||[]).forEach(mr=>{(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});presentMap[mr.enrollment_id]=(presentMap[mr.enrollment_id]||0)+(mr.present_count||0)})
   const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
   ;(attRows||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1})
   const wdCache={}
-  const wdFor=adm=>{const k=adm||'_';if(wdCache[k]!=null)return wdCache[k];let start=attFrom;if(adm&&adm>attTo)return(wdCache[k]=0);if(adm&&adm>attFrom)start=adm;let n=0;const c=new Date(start+'T12:00:00'),e=new Date(attTo+'T12:00:00');while(c<=e){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)}return(wdCache[k]=n)}
+  const wdFor=adm=>{const k=adm||'_';if(wdCache[k]!=null)return wdCache[k];let start=attFrom;if(adm&&adm>attTo)return(wdCache[k]=0);if(adm&&adm>attFrom)start=adm;let n=0;const c=new Date(start+'T12:00:00'),e=new Date(attTo+'T12:00:00');while(c<=e){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds)&&!(epSet&&epSet.has(ds)))n++;c.setDate(c.getDate()+1)}return(wdCache[k]=n)}
   const attMap={}; studs.forEach(s=>{const adm=((s.is_new_admission||s.att_from_admission)&&s.students?.admission_date)?s.students.admission_date:null; attMap[s.enrollment_id]={present:presentMap[s.enrollment_id]||0, working:wdFor(adm)}})
 
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
@@ -6009,12 +6014,14 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   const attTo=aRow?.end_date||aRow?.commencement_date||today()
   const attCutoffSet=!!(aRow?.end_date||aRow?.commencement_date)   // was a date actually set?
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
-  const[{data:hols},{data:att},{data:monthly}]=await Promise.all([
+  const[{data:hols},{data:att},{data:monthly},_epHols]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
     sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
-    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo)
+    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo),
+    getExamPrepHolidays(attFrom,attTo)
   ])
   const holSet=new Set((hols||[]).map(h=>h.date))
+  const epSet=_epHols[classId]
   // Monthly (Previous Attendance) OVERRIDES daily for its period. Build each
   // student's monthly periods so we can drop daily records that fall inside them,
   // then add the monthly present_count — otherwise those days get counted twice.
@@ -6032,7 +6039,7 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   // Working days per student (cached by effective start date).
   const admBy={}; studs.forEach(s=>{admBy[s.enrollment_id]=((s.is_new_admission||s.att_from_admission)&&s.students?.admission_date)?s.students.admission_date:null})
   const wdCache={}
-  const wdFor=adm=>{const key=adm||'_';if(wdCache[key]!=null)return wdCache[key];let start=attFrom;if(adm&&adm>attTo)return(wdCache[key]=0);if(adm&&adm>attFrom)start=adm;let n=0;const c=new Date(start+'T12:00:00'),e2=new Date(attTo+'T12:00:00');while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)}return(wdCache[key]=n)}
+  const wdFor=adm=>{const key=adm||'_';if(wdCache[key]!=null)return wdCache[key];let start=attFrom;if(adm&&adm>attTo)return(wdCache[key]=0);if(adm&&adm>attFrom)start=adm;let n=0;const c=new Date(start+'T12:00:00'),e2=new Date(attTo+'T12:00:00');while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds)&&!(epSet&&epSet.has(ds)))n++;c.setDate(c.getDate()+1)}return(wdCache[key]=n)}
 
   // Class teacher name for the header.
   let classTeacher=''
@@ -6504,6 +6511,42 @@ async function removeHolidayGroup(label){
   })
 }
 
+// ═══════════ EXAM-DAY HOLIDAYS (class-specific) ═══════════
+// During active exams, dates where a class has '-' or blank in the datesheet
+// are treated as holidays for that class only (excluded from working days).
+async function getExamPrepHolidays(fromDate,toDate){
+  const sid=SESS?.session_id||''
+  if(!sid)return{}
+  const{data:asmts}=await sb.from('assessments').select('assessment_id,commencement_date,end_date').eq('session_id',sid)
+  const active=(asmts||[]).filter(a=>a.commencement_date<=toDate&&a.end_date>=fromDate)
+  if(!active.length)return{}
+  const byClass={}
+  for(const a of active){
+    const{data:dsData}=await sb.from('exam_datesheets').select('schedule').eq('assessment_id',a.assessment_id).maybeSingle()
+    const sched=dsData?.schedule||[]
+    sched.forEach(row=>{
+      if(!row.date||row.date<fromDate||row.date>toDate)return
+      const entries=row.entries||{}
+      const hasAnyExam=Object.values(entries).some(v=>{const t=(v||'').trim();return t&&t!=='-'})
+      if(!hasAnyExam)return
+      Object.keys(entries).forEach(cid=>{
+        const v=(entries[cid]||'').trim()
+        if(!v||v==='-'){
+          if(!byClass[cid])byClass[cid]=new Set()
+          byClass[cid].add(row.date)
+        }
+      })
+      ;(ALL_CLASSES||[]).filter(c=>c.is_active).forEach(c=>{
+        if(!(c.class_id in entries)){
+          if(!byClass[c.class_id])byClass[c.class_id]=new Set()
+          byClass[c.class_id].add(row.date)
+        }
+      })
+    })
+  }
+  return byClass
+}
+
 // ═══════════ CLASS ATTENDANCE ═══════════
 async function caLoadSections(){const cid=$('ca_class')?.value,sel=$('ca_section');if(sel)sel.innerHTML='<option value="">Select class first</option>';if(!cid||!SESS)return;const{data}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name');if(sel)sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')}
 async function debugAttendance(){
@@ -6566,11 +6609,12 @@ async function loadPendingAttendance(){
   let toStr=monthEndStr
   if(toStr>todayStr)toStr=todayStr
   const sid=SESS?.session_id||''
-  const [enrR,holR,cssR,ctR]=await Promise.all([
+  const [enrR,holR,cssR,ctR,examPrepHols]=await Promise.all([
     sb.from('student_enrollments').select('enrollment_id,class_id,section_id,is_new_admission,att_from_admission,students(student_id,admission_date),classes(name,sort_order),class_sections(name)').eq('session_id',sid).eq('status','active').eq('relieved',false),
     sb.from('holidays').select('date,applies_to').eq('session_id',sid).gte('date',fromStr).lte('date',toStr),
     sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
-    sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid)
+    sb.from('class_teacher_map').select('section_id,teacher_id,teachers(full_name)').eq('session_id',sid),
+    getExamPrepHolidays(fromStr,toStr)
   ])
   const enrs=enrR.data||[]
   const holSet=new Set((holR.data||[]).filter(h=>(h.applies_to||'both')!=='staff_only').map(h=>h.date))
@@ -6632,7 +6676,8 @@ async function loadPendingAttendance(){
   const MONTHS=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   Object.values(groups).forEach(g=>{
     const cs=classStarts[g.class_id]||sessStart
-    const workDays=allDays.filter(d=>d>=cs)
+    const epSet=examPrepHols[g.class_id]
+    const workDays=allDays.filter(d=>d>=cs&&!(epSet&&epSet.has(d)))
     const missing=[]
     workDays.forEach(d=>{
       const expected=g.eids.filter(eid=>!eidStartMap[eid]||d>=eidStartMap[eid])
@@ -6922,21 +6967,24 @@ async function loadClassAttendance(){
   const monthStr=String(month).padStart(2,'0')
   const from=year+'-'+monthStr+'-01', to=year+'-'+monthStr+'-'+String(daysInMonth).padStart(2,'0')
 
-  const[{data:att},{data:hols},{data:monthly},{data:hdRecs}]=await Promise.all([
+  const[{data:att},{data:hols},{data:monthly},{data:hdRecs},_caEPH]=await Promise.all([
     sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',from).lte('date',to),
     sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to),
     sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to),
-    sb.from('student_half_days').select('enrollment_id,date').in('enrollment_id',eids).gte('date',from).lte('date',to).eq('session_id',SESS?.session_id||'')
+    sb.from('student_half_days').select('enrollment_id,date').in('enrollment_id',eids).gte('date',from).lte('date',to).eq('session_id',SESS?.session_id||''),
+    getExamPrepHolidays(from,to)
   ])
   const attMap={}; (att||[]).forEach(a=>{if(!attMap[a.enrollment_id])attMap[a.enrollment_id]={};attMap[a.enrollment_id][a.date]=a.status})
   const hdSet=new Set(); (hdRecs||[]).forEach(r=>hdSet.add(r.enrollment_id+'|'+r.date))
   const holSet=new Set((hols||[]).map(h=>h.date))
+  const caEPSet=_caEPH[classId]
 
   const days=[]
   for(let d=1;d<=daysInMonth;d++){
     const dateStr=year+'-'+monthStr+'-'+String(d).padStart(2,'0')
     const dow=new Date(dateStr+'T12:00:00').getDay()
-    days.push({dateStr,dayLabel:String(d).padStart(2,'0')+'/'+monthStr,dayName:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow],isSun:dow===0,isHol:holSet.has(dateStr)})
+    const isEP=!!(caEPSet&&caEPSet.has(dateStr))
+    days.push({dateStr,dayLabel:String(d).padStart(2,'0')+'/'+monthStr,dayName:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow],isSun:dow===0,isHol:holSet.has(dateStr)||isEP})
   }
   const workingDays=days.filter(d=>!d.isSun&&!d.isHol&&(!classStart||d.dateStr>=classStart)).length
   const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year
@@ -10165,8 +10213,12 @@ _dlBuild.student_attendance=async function(){
   const[y,m]=ym.split('-').map(Number)
   const daysInMonth=new Date(y,m,0).getDate()
   const fromD=ym+'-01',toD=ym+'-'+String(daysInMonth).padStart(2,'0')
-  const{data:hols}=await sb.from('holidays').select('date').eq('session_id',sid).gte('date',fromD).lte('date',toD)
+  const[{data:hols},_epHols2]=await Promise.all([
+    sb.from('holidays').select('date').eq('session_id',sid).gte('date',fromD).lte('date',toD),
+    getExamPrepHolidays(fromD,toD)
+  ])
   const holSet=new Set((hols||[]).map(h=>h.date))
+  const epSet=_epHols2[cid]
   const att=[]
   for(let i=0;i<eids.length;i+=500){
     const{data}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids.slice(i,i+500)).gte('date',fromD).lte('date',toD)
@@ -10179,7 +10231,7 @@ _dlBuild.student_attendance=async function(){
   for(let d=1;d<=daysInMonth;d++){
     const dt=ym+'-'+String(d).padStart(2,'0')
     const dow=new Date(dt+'T12:00:00').getDay()
-    if(dow!==0&&!holSet.has(dt))workingDays++
+    if(dow!==0&&!holSet.has(dt)&&!(epSet&&epSet.has(dt)))workingDays++
   }
   const hdr=['Roll','Student Name','Class','Section',...dayHdrs.map(d=>String(d)),'Present','Working Days','%']
   const rows=[_csvRow(hdr)]
@@ -10191,6 +10243,7 @@ _dlBuild.student_attendance=async function(){
       const dow=new Date(dt+'T12:00:00').getDay()
       if(dow===0)return 'Sun'
       if(holSet.has(dt))return 'H'
+      if(epSet&&epSet.has(dt))return 'H'
       const st=sa[dt]
       if(st==='P'||st==='L'){present++;return st}
       if(st==='A')return 'A'
@@ -12262,34 +12315,39 @@ function ecRenderDatesheet(){
   const el=$('ecDsBody')
   const classes=(ALL_CLASSES||[]).filter(c=>c.is_active)
   if(!classes.length){el.innerHTML='<p style="color:var(--ink-faint)">No active classes found.</p>';return}
-  let h=''
-  h+='<div class="ec-ds-wrap"><table class="ec-ds-tbl"><thead><tr><th style="width:40px"></th><th>Date</th><th>Day</th>'
-  classes.forEach(c=>{h+='<th>'+esc(c.name)+'</th>'})
-  h+='</tr></thead><tbody>'
+  if(!_ecDsSchedule.length){el.innerHTML='<p style="color:var(--ink-faint)">No dates added yet. Click "+ Add Date" to start building the datesheet.</p>';return}
+  let h='<div class="ec-ds-wrap">'
   _ecDsSchedule.forEach((row,ri)=>{
     const dayName=row.date?ecDayName(row.date):''
-    h+='<tr>'
-    h+='<td><button class="ec-ds-del" onclick="ecRemoveDateRow('+ri+')" title="Remove row">✕</button></td>'
-    h+='<td><input type="date" value="'+(row.date||'')+'" onchange="ecDsDateChange('+ri+',this)"></td>'
-    h+='<td class="ec-ds-day">'+esc(dayName)+'</td>'
+    h+='<div class="ec-ds-card">'
+    h+='<div class="ec-ds-card-head">'
+    h+='<input type="date" value="'+(row.date||'')+'" onchange="ecDsDateChange('+ri+',this)">'
+    if(dayName) h+='<span class="ec-ds-card-day">'+esc(dayName)+'</span>'
+    h+='<button class="ec-ds-del" onclick="ecRemoveDateRow('+ri+')" title="Remove this date">✕</button>'
+    h+='</div>'
+    h+='<div class="ec-ds-grid">'
     classes.forEach(c=>{
       const val=row.entries?.[c.class_id]||''
       const subs=_ecDsSubjects[c.class_id]||[]
       const selVals=val?val.split(/[,\/]/).map(s=>s.trim()).filter(Boolean):[]
-      h+='<td class="ec-ds-cell"><div class="ec-ds-pick" data-ri="'+ri+'" data-cid="'+c.class_id+'" onclick="ecDsTogglePick(this)">'
-      h+='<span class="ec-ds-val">'+(val||'<span style="color:var(--ink-faint)">-</span>')+'</span></div>'
+      const isPrep=val.toLowerCase().includes('preparation')
+      const isDash=!val||val.trim()==='-'
+      const valCls=isPrep?' ec-ds-val-prep':(isDash?' ec-ds-val-dash':'')
+      h+='<div class="ec-ds-cell">'
+      h+='<div class="ec-ds-cell-cls">'+esc(c.name)+'</div>'
+      h+='<div class="ec-ds-pick" data-ri="'+ri+'" data-cid="'+c.class_id+'" onclick="ecDsTogglePick(this)">'
+      h+='<span class="ec-ds-val'+valCls+'">'+(val||'<span style="color:var(--ink-faint)">—</span>')+'</span></div>'
       h+='<div class="ec-ds-dd" style="display:none">'
       subs.forEach(s=>{
         const chk=selVals.includes(s)?' checked':''
         h+='<label><input type="checkbox" value="'+esc(s)+'"'+chk+' onchange="ecDsPickChange(this)">'+esc(s)+'</label>'
       })
       h+='<label><input type="checkbox" value="Preparation Day"'+(selVals.includes('Preparation Day')?' checked':'')+' onchange="ecDsPickChange(this)">Preparation Day</label>'
-      h+='</div></td>'
+      h+='</div></div>'
     })
-    h+='</tr>'
+    h+='</div></div>'
   })
-  h+='</tbody></table></div>'
-  if(!_ecDsSchedule.length) h='<p style="color:var(--ink-faint)">No dates added yet. Click "+ Add Date" to start building the datesheet.</p>'
+  h+='</div>'
   el.innerHTML=h
 }
 function ecDayName(dateStr){

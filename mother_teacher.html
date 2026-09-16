@@ -865,6 +865,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 <script>
 // ═══════════ GLOBALS ═══════════
 let sb, TEACHER=null, SESS=null, MY_CLASS=null, MY_CLASS_START=null
+let MY_EXAM_PREP_HOLS=null
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 // Profile display globals (mother teacher context)
 let _isClassTeacher=true, _myClassTeacher=null, MY_MAPPINGS=[]
@@ -1189,6 +1190,30 @@ SPS.ready().then(async()=>{
     if(cs?.start_date)MY_CLASS_START=cs.start_date
   }catch(e){}
 
+  // Load exam-day holidays for this class (dates with - or blank in datesheet)
+  MY_EXAM_PREP_HOLS=null
+  try{
+    const sid=SESS?.session_id||''
+    const{data:asmts}=await sb.from('assessments').select('assessment_id,commencement_date,end_date').eq('session_id',sid)
+    const st=SESS?.start_date||(new Date().getFullYear()+'-04-01'),en=SESS?.end_date||(new Date().getFullYear()+1+'-03-31')
+    const active=(asmts||[]).filter(a=>a.commencement_date<=en&&a.end_date>=st)
+    if(active.length){
+      const epSet=new Set()
+      for(const a of active){
+        const{data:dsData}=await sb.from('exam_datesheets').select('schedule').eq('assessment_id',a.assessment_id).maybeSingle()
+        ;(dsData?.schedule||[]).forEach(row=>{
+          if(!row.date)return
+          const entries=row.entries||{}
+          const hasAnyExam=Object.values(entries).some(v=>{const t=(v||'').trim();return t&&t!=='-'})
+          if(!hasAnyExam)return
+          const v=(entries[ct.class_id]||'').trim()
+          if(!v||v==='-') epSet.add(row.date)
+        })
+      }
+      if(epSet.size) MY_EXAM_PREP_HOLS=epSet
+    }
+  }catch(e){console.warn('[examPrepHols]',e)}
+
   // Update UI
   const av=$('topAvatar'),nm=$('topName'),rl=$('topRole'),lbl=$('sbClassLabel')
   if(av)av.textContent=initials(TEACHER.full_name)
@@ -1314,7 +1339,8 @@ async function renderDashboard(){
   const isSunday=new Date(todayStr).getDay()===0
   // Check if today is a holiday
   const{data:todayHoliday}=await sb.from('holidays').select('label').eq('date',todayStr).eq('session_id',SESS?.session_id||'').maybeSingle()
-  const isHoliday=!!todayHoliday
+  const isExamPrep=!!(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(todayStr))
+  const isHoliday=!!todayHoliday||isExamPrep
 
   if(eids.length){
     const{data:todayAtt}=await sb.from('student_attendance')
@@ -1332,7 +1358,7 @@ async function renderDashboard(){
       renderTipBanner('✓ Attendance marked today — '+present+' present, '+absent+' absent')
     } else {
       // Sunday or holiday — show a tip
-      renderTipBanner(isHoliday?('🏖️ Holiday today: '+(todayHoliday.label||'Holiday')):(isSunday?'☀️ It\'s Sunday — no attendance needed':''))
+      renderTipBanner(isHoliday?(isExamPrep&&!todayHoliday?'📝 No exam today for this class — no attendance needed':'🏖️ Holiday today: '+(todayHoliday?.label||'Holiday')):(isSunday?'☀️ It\'s Sunday — no attendance needed':''))
     }
 
     // Month avg attendance
@@ -1619,6 +1645,7 @@ function countWorkingDays(from,to,holSet){
     const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
     if(d.getDay()===0)continue
     if(holSet.has(ds))continue
+    if(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(ds))continue
     if(MY_CLASS_START&&ds<MY_CLASS_START)continue
     if(SESS?.end_date&&ds>SESS.end_date)continue
     n++
@@ -1791,7 +1818,8 @@ async function loadAttReport(){
     const dow=new Date(dateStr).getDay()
     const dayLabel=String(d).padStart(2,'0')+'/'+monthStr
     const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow]
-    days.push({dateStr,dayLabel,dayName,isSun:dow===0,isHol:holSet.has(dateStr)})
+    const isEP=!!(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(dateStr))
+    days.push({dateStr,dayLabel,dayName,isSun:dow===0,isHol:holSet.has(dateStr)||isEP})
   }
   const workingDays=days.filter(d=>!d.isSun&&!d.isHol&&(!MY_CLASS_START||d.dateStr>=MY_CLASS_START)).length
   const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year
