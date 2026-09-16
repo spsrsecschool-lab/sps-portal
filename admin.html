@@ -12131,7 +12131,7 @@ async function ecRenderAttendance(){
   el.innerHTML=h
 }
 function ecFmtDate(iso){
-  try{const d=new Date(iso+'T00:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getDate()+' '+m[d.getMonth()]}catch(e){return iso}
+  try{const d=new Date(iso+'T00:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getDate()+'-'+m[d.getMonth()]+' '+d.getFullYear()}catch(e){return iso}
 }
 function ecPrintAttendance(){
   const assessName=($('ecAssess').selectedOptions[0]?.text)||'Exam'
@@ -12381,9 +12381,9 @@ async function ecGenerateAdmitCards(){
     f+='<div class="ac-content">'
     f+='<div class="ac-info">'
     f+='<div class="ac-info-left">'
-    f+='<div><span class="ac-lbl">Name:</span> '+esc(c.name)+'</div>'
-    f+='<div><span class="ac-lbl">Father\'s Name:</span> '+esc(c.father)+'</div>'
-    f+='<div><span class="ac-lbl">Class:</span> '+esc(clsLabel)+'</div>'
+    f+='<div style="display:flex"><span class="ac-lbl" style="white-space:nowrap">Name:&nbsp;</span><span>'+esc(c.name)+'</span></div>'
+    f+='<div style="display:flex"><span class="ac-lbl" style="white-space:nowrap">Father\'s Name:&nbsp;</span><span>'+esc(c.father)+'</span></div>'
+    f+='<div style="display:flex"><span class="ac-lbl" style="white-space:nowrap">Class:&nbsp;</span><span>'+esc(clsLabel)+'</span></div>'
     f+='</div>'
     f+='<div class="ac-info-right">'
     f+='<div class="ac-room">Roll No: '+c.roll+'<br>Room: '+esc(c.room)+'</div>'
@@ -12433,7 +12433,7 @@ async function ecGenerateAdmitCards(){
     h+='<div class="ec-admit-page">'
     for(let i=0;i<6;i++){
       h+='<div class="ec-admit-cell">'
-      h+=renderBack()
+      if(batch[i]) h+=renderBack()
       h+='</div>'
     }
     h+='</div>'
