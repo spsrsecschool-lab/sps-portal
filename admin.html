@@ -6511,9 +6511,9 @@ async function removeHolidayGroup(label){
   })
 }
 
-// ═══════════ EXAM-PREP HOLIDAYS (class-specific) ═══════════
-// During active exams, dates where a class has '-', blank, or 'Preparation Day'
-// in the datesheet are treated as holidays for that class only.
+// ═══════════ EXAM-DAY HOLIDAYS (class-specific) ═══════════
+// During active exams, dates where a class has '-' or blank in the datesheet
+// are treated as holidays for that class only (excluded from working days).
 async function getExamPrepHolidays(fromDate,toDate){
   const sid=SESS?.session_id||''
   if(!sid)return{}
@@ -6527,11 +6527,11 @@ async function getExamPrepHolidays(fromDate,toDate){
     sched.forEach(row=>{
       if(!row.date||row.date<fromDate||row.date>toDate)return
       const entries=row.entries||{}
-      const hasAnyExam=Object.values(entries).some(v=>{const t=(v||'').trim().toLowerCase();return t&&t!=='-'&&!t.includes('preparation')})
+      const hasAnyExam=Object.values(entries).some(v=>{const t=(v||'').trim();return t&&t!=='-'})
       if(!hasAnyExam)return
       Object.keys(entries).forEach(cid=>{
-        const v=(entries[cid]||'').trim().toLowerCase()
-        if(!v||v==='-'||v.includes('preparation')){
+        const v=(entries[cid]||'').trim()
+        if(!v||v==='-'){
           if(!byClass[cid])byClass[cid]=new Set()
           byClass[cid].add(row.date)
         }

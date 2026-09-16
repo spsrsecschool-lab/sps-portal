@@ -729,7 +729,7 @@ async function loadClass(ct){
     if(cs?.start_date)MY_CLASS_START=cs.start_date
   }catch(e){}
 
-  // Load exam-prep holidays for this class (dates with - / blank / Preparation Day in datesheet)
+  // Load exam-day holidays for this class (dates with - or blank in datesheet)
   MY_EXAM_PREP_HOLS=null
   try{
     const sid=SESS?.session_id||''
@@ -743,10 +743,10 @@ async function loadClass(ct){
         ;(dsData?.schedule||[]).forEach(row=>{
           if(!row.date)return
           const entries=row.entries||{}
-          const hasAnyExam=Object.values(entries).some(v=>{const t=(v||'').trim().toLowerCase();return t&&t!=='-'&&!t.includes('preparation')})
+          const hasAnyExam=Object.values(entries).some(v=>{const t=(v||'').trim();return t&&t!=='-'})
           if(!hasAnyExam)return
-          const v=(entries[ct.class_id]||'').trim().toLowerCase()
-          if(!v||v==='-'||v.includes('preparation')) epSet.add(row.date)
+          const v=(entries[ct.class_id]||'').trim()
+          if(!v||v==='-') epSet.add(row.date)
         })
       }
       if(epSet.size) MY_EXAM_PREP_HOLS=epSet
@@ -1102,7 +1102,7 @@ async function renderDashboard(){
       renderTipBanner('✓ Attendance marked today — '+present+' present, '+absent+' absent')
     } else {
       // Sunday or holiday — show a tip
-      renderTipBanner(isHoliday?(isExamPrep&&!todayHoliday?'📝 Exam Preparation Day — no attendance needed':'🏖️ Holiday today: '+(todayHoliday?.label||'Holiday')):(isSunday?'☀️ It\'s Sunday — no attendance needed':''))
+      renderTipBanner(isHoliday?(isExamPrep&&!todayHoliday?'📝 No exam today for this class — no attendance needed':'🏖️ Holiday today: '+(todayHoliday?.label||'Holiday')):(isSunday?'☀️ It\'s Sunday — no attendance needed':''))
     }
 
     // Month avg attendance
