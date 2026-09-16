@@ -2665,7 +2665,7 @@ async function renderDashboard(){
 // ═══════════ TODAY AT SCHOOL ═══════════
 async function renderTodayPanel(){
   const el=$('todayPanel'); if(!el)return
-  const today=new Date(); const iso=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0')
+  const today=new Date(); const iso=window._debugDate||(today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0'))
   const lbl=$('todayDateLbl'); if(lbl)lbl.textContent=today.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})
   const sid=SESS.session_id
 
