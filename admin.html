@@ -639,8 +639,6 @@ tbody tr:hover td{background:var(--lav-50)}
   .ec-admit-back .ab-instr-title{font-weight:700;font-size:11.5px;text-transform:uppercase;margin-bottom:2px}
   .ec-admit-back .ab-instr ul{margin:0;padding-left:14px;font-size:10.5px;line-height:1.45}
   .ec-admit-back .ab-dues{margin-bottom:auto}
-  .ec-admit-back .ab-dues-title{font-weight:700;font-size:12px;text-transform:uppercase;text-align:center;margin-bottom:1px}
-  .ec-admit-back .ab-dues-sub{font-size:9px;text-transform:uppercase;text-align:center;color:#555;margin-bottom:3px}
   .ec-admit-back .ab-dues table{width:100%;border-collapse:collapse;font-size:11.5px}
   .ec-admit-back .ab-dues th,.ec-admit-back .ab-dues td{border:1px solid #333;padding:3px 5px;text-align:left}
   .ec-admit-back .ab-dues th{font-weight:700;font-size:10.5px;text-transform:uppercase;background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -12411,15 +12409,15 @@ async function ecGenerateAdmitCards(){
   }
   const renderBack=()=>{
     let b='<div class="ec-admit-back">'
-    b+='<div class="ab-header"><div class="ab-title">'+esc(schoolName)+'</div>'
-    b+='<div class="ab-sub">'+esc(assessName)+'</div></div>'
+    b+='<div class="ab-header"><div class="ab-title">Uncleared Dues</div>'
+    b+='<div class="ab-sub">To be filled by school authorities</div></div>'
     b+='<div class="ab-content">'
     if(instrLines.length){
       b+='<div class="ab-instr"><div class="ab-instr-title">Instructions</div><ul>'
       instrLines.forEach(l=>{b+='<li>'+esc(l)+'</li>'})
       b+='</ul></div>'
     }
-    b+='<div class="ab-dues"><div class="ab-dues-title">Uncleared Dues</div><div class="ab-dues-sub">To be filled by school authorities</div><table><thead><tr><th style="width:55%">Pending Fees</th><th>Pending Balance</th></tr></thead><tbody><tr><td></td><td></td></tr></tbody></table></div>'
+    b+='<div class="ab-dues"><table><thead><tr><th style="width:55%">Pending Fees</th><th>Pending Balance</th></tr></thead><tbody><tr><td></td><td></td></tr></tbody></table></div>'
     b+='<div class="ab-princ"><div class="ab-line"></div>Principal</div>'
     b+='</div></div>'
     return b
