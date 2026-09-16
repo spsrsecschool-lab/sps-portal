@@ -582,20 +582,20 @@ tbody tr:hover td{background:var(--lav-50)}
   .inp{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:8px 11px;outline:none;transition:border-color .15s}
   .inp:focus{border-color:var(--indigo);background:#fff}
 
-  .ec-ds-wrap{margin-top:12px;display:flex;flex-direction:column;gap:12px}
-  .ec-ds-card{background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius);padding:14px 16px;position:relative}
-  .ec-ds-card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-  .ec-ds-card-head input[type="date"]{border:1px solid var(--line);border-radius:var(--radius-sm);padding:5px 8px;font-family:var(--font);font-size:13px;color:var(--ink);background:var(--white)}
-  .ec-ds-card-head input[type="date"]:focus{border-color:var(--indigo);outline:none}
-  .ec-ds-card-day{font-size:12px;font-weight:700;color:var(--indigo);background:var(--indigo-100);padding:3px 10px;border-radius:999px}
-  .ec-ds-del{color:var(--red);cursor:pointer;background:none;border:none;font-size:14px;padding:4px 6px;border-radius:var(--radius-sm);margin-left:auto}
+  .ec-ds-wrap{overflow-x:auto;margin-top:12px}
+  .ec-ds-tbl{border-collapse:collapse;font-size:12px;min-width:100%}
+  .ec-ds-tbl th,.ec-ds-tbl td{border:1px solid var(--line);padding:6px 8px;white-space:nowrap;vertical-align:middle}
+  .ec-ds-tbl th{background:var(--indigo);color:#fff;font-weight:700;font-size:11px;text-transform:uppercase;position:sticky;top:0;z-index:2;letter-spacing:.3px}
+  .ec-ds-tbl tr:nth-child(even) td{background:var(--lav-50)}
+  .ec-ds-tbl input[type="date"]{border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px 6px;font-family:var(--font);font-size:12px;color:var(--ink);background:#fff}
+  .ec-ds-tbl input[type="date"]:focus{border-color:var(--indigo);outline:none}
+  .ec-ds-day{font-weight:600;color:var(--indigo);font-size:11px}
+  .ec-ds-del{color:var(--red);cursor:pointer;background:none;border:none;font-size:14px;padding:4px 6px;border-radius:var(--radius-sm)}
   .ec-ds-del:hover{background:var(--danger-soft)}
-  .ec-ds-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px}
-  .ec-ds-cell{position:relative;border:1px solid var(--line);border-radius:var(--radius-sm);padding:6px 8px;background:var(--lav-50);min-height:44px}
-  .ec-ds-cell-cls{font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin-bottom:3px}
-  .ec-ds-pick{cursor:pointer;font-size:12px;color:var(--ink);min-height:18px}
+  .ec-ds-cell{position:relative}
+  .ec-ds-pick{cursor:pointer;font-size:12px;color:var(--ink);min-height:18px;padding:2px 0}
   .ec-ds-pick:hover{color:var(--indigo)}
-  .ec-ds-dd{position:absolute;top:100%;left:0;z-index:10;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:6px;box-shadow:var(--shadow);min-width:160px;max-height:200px;overflow-y:auto}
+  .ec-ds-dd{position:absolute;top:100%;left:0;z-index:10;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:6px;box-shadow:var(--shadow);min-width:160px;max-height:200px;overflow-y:auto}
   .ec-ds-dd label{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 4px;cursor:pointer;white-space:nowrap}
   .ec-ds-dd label:hover{background:var(--lav-50);border-radius:var(--radius-sm)}
   .ec-ds-dd input[type="checkbox"]{accent-color:var(--indigo);width:14px;height:14px}
@@ -12316,16 +12316,14 @@ function ecRenderDatesheet(){
   const classes=(ALL_CLASSES||[]).filter(c=>c.is_active)
   if(!classes.length){el.innerHTML='<p style="color:var(--ink-faint)">No active classes found.</p>';return}
   if(!_ecDsSchedule.length){el.innerHTML='<p style="color:var(--ink-faint)">No dates added yet. Click "+ Add Date" to start building the datesheet.</p>';return}
-  let h='<div class="ec-ds-wrap">'
+  let h='<div class="ec-ds-wrap"><table class="ec-ds-tbl"><thead><tr><th style="width:30px"></th><th>Date</th><th>Day</th>'
+  classes.forEach(c=>{h+='<th>'+esc(c.name)+'</th>'})
+  h+='</tr></thead><tbody>'
   _ecDsSchedule.forEach((row,ri)=>{
     const dayName=row.date?ecDayName(row.date):''
-    h+='<div class="ec-ds-card">'
-    h+='<div class="ec-ds-card-head">'
-    h+='<input type="date" value="'+(row.date||'')+'" onchange="ecDsDateChange('+ri+',this)">'
-    if(dayName) h+='<span class="ec-ds-card-day">'+esc(dayName)+'</span>'
-    h+='<button class="ec-ds-del" onclick="ecRemoveDateRow('+ri+')" title="Remove this date">✕</button>'
-    h+='</div>'
-    h+='<div class="ec-ds-grid">'
+    h+='<tr><td><button class="ec-ds-del" onclick="ecRemoveDateRow('+ri+')" title="Remove">✕</button></td>'
+    h+='<td><input type="date" value="'+(row.date||'')+'" onchange="ecDsDateChange('+ri+',this)"></td>'
+    h+='<td class="ec-ds-day">'+esc(dayName)+'</td>'
     classes.forEach(c=>{
       const val=row.entries?.[c.class_id]||''
       const subs=_ecDsSubjects[c.class_id]||[]
@@ -12333,8 +12331,7 @@ function ecRenderDatesheet(){
       const isPrep=val.toLowerCase().includes('preparation')
       const isDash=!val||val.trim()==='-'
       const valCls=isPrep?' ec-ds-val-prep':(isDash?' ec-ds-val-dash':'')
-      h+='<div class="ec-ds-cell">'
-      h+='<div class="ec-ds-cell-cls">'+esc(c.name)+'</div>'
+      h+='<td class="ec-ds-cell">'
       h+='<div class="ec-ds-pick" data-ri="'+ri+'" data-cid="'+c.class_id+'" onclick="ecDsTogglePick(this)">'
       h+='<span class="ec-ds-val'+valCls+'">'+(val||'<span style="color:var(--ink-faint)">—</span>')+'</span></div>'
       h+='<div class="ec-ds-dd" style="display:none">'
@@ -12343,11 +12340,11 @@ function ecRenderDatesheet(){
         h+='<label><input type="checkbox" value="'+esc(s)+'"'+chk+' onchange="ecDsPickChange(this)">'+esc(s)+'</label>'
       })
       h+='<label><input type="checkbox" value="Preparation Day"'+(selVals.includes('Preparation Day')?' checked':'')+' onchange="ecDsPickChange(this)">Preparation Day</label>'
-      h+='</div></div>'
+      h+='</div></td>'
     })
-    h+='</div></div>'
+    h+='</tr>'
   })
-  h+='</div>'
+  h+='</tbody></table></div>'
   el.innerHTML=h
 }
 function ecDayName(dateStr){
