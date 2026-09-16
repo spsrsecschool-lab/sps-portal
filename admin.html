@@ -643,7 +643,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .ec-admit-back .ab-dues th,.ec-admit-back .ab-dues td{border:1px solid #333;padding:3px 5px;text-align:left}
   .ec-admit-back .ab-dues th{font-weight:700;font-size:10.5px;text-transform:uppercase;background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .ec-admit-back .ab-dues td{height:32px}
-  .ec-admit-back .ab-princ{text-align:left;font-size:10.5px;margin-top:6px;padding-top:28px;margin-bottom:6px}
+  .ec-admit-back .ab-princ{float:right;text-align:center;font-size:10.5px;padding-top:20px;margin-left:8px}
   .ec-admit-back .ab-princ .ab-line{display:block;width:100px;border-top:1px solid #333;margin-bottom:2px}
   .ec-admit-back .ab-instr{flex:1;overflow:hidden}
   .ec-admit-back .ab-instr-title{font-weight:700;font-size:11.5px;text-transform:uppercase;margin-bottom:2px}
@@ -12553,11 +12553,14 @@ async function ecGenerateAdmitCards(){
     b+='<div class="ab-sub">To be filled by school authorities</div></div>'
     b+='<div class="ab-content">'
     b+='<div class="ab-dues"><table><thead><tr><th style="width:55%">Pending Fees</th><th>Pending Balance</th></tr></thead><tbody><tr><td></td><td></td></tr></tbody></table></div>'
-    b+='<div class="ab-princ"><div class="ab-line"></div>Principal</div>'
     if(instrLines.length){
-      b+='<div class="ab-instr"><div class="ab-instr-title">Instructions</div><ul>'
+      b+='<div class="ab-instr">'
+      b+='<div class="ab-princ"><div class="ab-line"></div>Principal</div>'
+      b+='<div class="ab-instr-title">Instructions</div><ul>'
       instrLines.forEach(l=>{b+='<li>'+esc(l).replace(/\*([^*]+)\*/g,'<b>$1</b>')+'</li>'})
       b+='</ul></div>'
+    } else {
+      b+='<div class="ab-princ"><div class="ab-line"></div>Principal</div>'
     }
     b+='</div></div>'
     return b
