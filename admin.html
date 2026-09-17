@@ -5020,13 +5020,36 @@ async function saveAssessClasses(assessId){
 function cmClassOpts(selId){
   return '<option value="">—</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>'<option value="'+c.class_id+'"'+(c.class_id===selId?' selected':'')+'>'+esc(c.name)+'</option>').join('')
 }
-function cmRenderRow(id,fromId,toId,maxM,passM){
+function cmSubOpts(selId){
+  return '<option value="">Select subject</option>'+(ALL_SUBJECTS||[]).filter(s=>s.is_active).map(s=>'<option value="'+s.subject_id+'"'+(s.subject_id===selId?' selected':'')+'>'+esc(s.name)+'</option>').join('')
+}
+function cmSubRow(gid,idx,subId,maxM,passM){
+  const sid=gid+'_s'+idx
+  return '<div class="form-row" style="margin-bottom:6px" data-cmsub="'+sid+'">'
+    +'<div class="fg"><label>Subject</label><select id="cmss_'+sid+'" style="font-size:12px">'+cmSubOpts(subId)+'</select></div>'
+    +'<div class="fg"><label>Max</label><input type="number" inputmode="decimal" id="cmsm_'+sid+'" value="'+(maxM!=null?maxM:'')+'" min="1" style="font-size:12px"></div>'
+    +'<div class="fg"><label>Pass</label><input type="number" inputmode="decimal" id="cmsp_'+sid+'" value="'+(passM!=null?passM:'')+'" min="0" style="font-size:12px"></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmsub]\').remove()">×</button></div>'
+    +'</div>'
+}
+function toggleCmSubs(id){const el=$('cms_'+id);if(el)el.style.display=el.style.display==='none'?'block':'none'}
+function addCmSubRow(gid){const wrap=document.createElement('div');wrap.innerHTML=cmSubRow(gid,Date.now(),'','','');$('cmsr_'+gid).appendChild(wrap.firstChild)}
+function cmRenderRow(id,fromId,toId,maxM,passM,subjectMarks){
+  subjectMarks=subjectMarks||[]
+  const subRows=subjectMarks.map((sm,i)=>cmSubRow(id,i,sm.subject_id,sm.max_marks,sm.pass_marks)).join('')
   return '<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px" data-cmrow="'+id+'">'
     +'<div class="form-row" style="margin-bottom:0"><div class="fg"><label>From Class</label><select id="cmf_'+id+'" style="font-size:12px">'+cmClassOpts(fromId)+'</select></div>'
     +'<div class="fg"><label>To Class</label><select id="cmt_'+id+'" style="font-size:12px">'+cmClassOpts(toId)+'</select></div>'
     +'<div class="fg"><label>Max Marks *</label><input type="number" inputmode="decimal" id="cmm_'+id+'" value="'+(maxM!=null?maxM:'')+'" min="1"></div>'
     +'<div class="fg"><label>Pass Marks *</label><input type="number" inputmode="decimal" id="cmp_'+id+'" value="'+(passM!=null?passM:'')+'" min="0"></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmrow]\').remove()">×</button></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px;gap:4px">'
+    +'<button class="btn btn-ghost btn-xs" title="Per-subject marks" onclick="toggleCmSubs(\''+id+'\')">Subjects</button>'
+    +'<button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmrow]\').remove()">×</button>'
+    +'</div></div>'
+    +'<div id="cms_'+id+'" style="display:'+(subjectMarks.length?'block':'none')+';margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">'
+    +'<div style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:6px">Per-Subject Marks <span style="font-weight:400">(override the group default above for specific subjects)</span></div>'
+    +'<div id="cmsr_'+id+'">'+subRows+'</div>'
+    +'<button class="btn btn-ghost btn-xs" onclick="addCmSubRow(\''+id+'\')">+ Add Subject</button>'
     +'</div></div>'
 }
 function classIdsInRange(fromId,toId){
@@ -5045,7 +5068,10 @@ async function openAssessSettings(){
   if(!_currentAssess)return;const a=_currentAssess
   openSub('assessments','sub-assess-settings')
   $('assessSettingsContent').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const{data:cgOvs}=await sb.from('assessment_mark_overrides').select('override_id,class_id,max_marks,pass_marks').eq('assessment_id',a.assessment_id).is('subject_id',null)
+  const[{data:cgOvs},{data:subOvs}]=await Promise.all([
+    sb.from('assessment_mark_overrides').select('override_id,class_id,max_marks,pass_marks').eq('assessment_id',a.assessment_id).is('subject_id',null),
+    sb.from('assessment_mark_overrides').select('class_id,subject_id,max_marks,pass_marks').eq('assessment_id',a.assessment_id).not('subject_id','is',null)
+  ])
   const sorted=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
   const classOrder={};sorted.forEach((c,i)=>classOrder[c.class_id]=i)
   const groups=[]
@@ -5058,13 +5084,20 @@ async function openAssessSettings(){
       for(let i=1;i<=arr.length;i++){
         if(i===arr.length||(classOrder[arr[i]?.class_id]??99)!==(classOrder[arr[i-1].class_id]??99)+1){
           const range=arr.slice(start,i)
-          groups.push({from:range[0].class_id,to:range[range.length-1].class_id,max:range[0].max_marks,pass:range[0].pass_marks})
+          groups.push({from:range[0].class_id,to:range[range.length-1].class_id,max:range[0].max_marks,pass:range[0].pass_marks,subjects:[]})
           start=i
         }
       }
     })
   }
-  let cmHtml=groups.map((g,i)=>cmRenderRow('cg'+i,g.from,g.to,g.max,g.pass)).join('')
+  if(subOvs&&subOvs.length){
+    groups.forEach(g=>{
+      const subs=(subOvs||[]).filter(o=>o.class_id===g.from)
+      const seen=new Set()
+      subs.forEach(s=>{if(!seen.has(s.subject_id)){seen.add(s.subject_id);g.subjects.push(s)}})
+    })
+  }
+  let cmHtml=groups.map((g,i)=>cmRenderRow('cg'+i,g.from,g.to,g.max,g.pass,g.subjects)).join('')
   if(!cmHtml)cmHtml='<div style="color:var(--ink-faint);font-size:13px;padding:4px 0">No class-group overrides — all classes use the default above.</div>'
   $('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div>'
     +'<div class="card" style="max-width:700px">'
@@ -5460,7 +5493,15 @@ async function createAssessment(){
     const fromId=$('cmf_'+rid)?.value,toId=$('cmt_'+rid)?.value
     const mx=parseInt($('cmm_'+rid)?.value),ps=parseInt($('cmp_'+rid)?.value)
     if(!fromId||!toId||!(mx>0))return
-    classIdsInRange(fromId,toId).forEach(cid=>cgIns.push({assessment_id:asmtData.assessment_id,class_id:cid,subject_id:null,max_marks:mx,pass_marks:ps>=0?ps:Math.round(mx*0.33)}))
+    const cids=classIdsInRange(fromId,toId)
+    cids.forEach(cid=>cgIns.push({assessment_id:asmtData.assessment_id,class_id:cid,subject_id:null,max_marks:mx,pass_marks:ps>=0?ps:Math.round(mx*0.33)}))
+    row.querySelectorAll('[data-cmsub]').forEach(sr=>{
+      const sid=sr.dataset.cmsub
+      const subjectId=$('cmss_'+sid)?.value
+      const smx=parseInt($('cmsm_'+sid)?.value),sps=parseInt($('cmsp_'+sid)?.value)
+      if(!subjectId||!(smx>0))return
+      cids.forEach(cid=>cgIns.push({assessment_id:asmtData.assessment_id,class_id:cid,subject_id:subjectId,max_marks:smx,pass_marks:sps>=0?sps:Math.round(smx*0.33)}))
+    })
   })
   if(cgIns.length){
     const{error:cgErr}=await sb.from('assessment_mark_overrides').insert(cgIns)
@@ -5475,16 +5516,31 @@ async function saveAssess(id){
   if(error){toast('Failed: '+error.message,'error');return}
   await sb.from('assessment_mark_overrides').delete().eq('assessment_id',id).is('subject_id',null)
   const cmRows=document.querySelectorAll('[data-cmrow]')
-  const inserts=[]
+  const inserts=[],subInserts=[],groupedClassIds=new Set()
   cmRows.forEach(row=>{
     const rid=row.dataset.cmrow
     const fromId=$('cmf_'+rid)?.value,toId=$('cmt_'+rid)?.value
     const mx=parseInt($('cmm_'+rid)?.value),ps=parseInt($('cmp_'+rid)?.value)
     if(!fromId||!toId||!(mx>0))return
-    classIdsInRange(fromId,toId).forEach(cid=>inserts.push({assessment_id:id,class_id:cid,subject_id:null,max_marks:mx,pass_marks:ps>=0?ps:Math.round(mx*0.33)}))
+    const cids=classIdsInRange(fromId,toId)
+    cids.forEach(cid=>{
+      groupedClassIds.add(cid)
+      inserts.push({assessment_id:id,class_id:cid,subject_id:null,max_marks:mx,pass_marks:ps>=0?ps:Math.round(mx*0.33)})
+    })
+    row.querySelectorAll('[data-cmsub]').forEach(sr=>{
+      const sid=sr.dataset.cmsub
+      const subjectId=$('cmss_'+sid)?.value
+      const smx=parseInt($('cmsm_'+sid)?.value),sps=parseInt($('cmsp_'+sid)?.value)
+      if(!subjectId||!(smx>0))return
+      cids.forEach(cid=>subInserts.push({assessment_id:id,class_id:cid,subject_id:subjectId,max_marks:smx,pass_marks:sps>=0?sps:Math.round(smx*0.33)}))
+    })
   })
-  if(inserts.length){
-    const{error:ie}=await sb.from('assessment_mark_overrides').insert(inserts)
+  if(groupedClassIds.size){
+    await sb.from('assessment_mark_overrides').delete().eq('assessment_id',id).not('subject_id','is',null).in('class_id',[...groupedClassIds])
+  }
+  const allIns=inserts.concat(subInserts)
+  if(allIns.length){
+    const{error:ie}=await sb.from('assessment_mark_overrides').insert(allIns)
     if(ie){toast('Class group marks failed: '+ie.message,'error');return}
   }
   toast('Saved','success');loadAssessments()
