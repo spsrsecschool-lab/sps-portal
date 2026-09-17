@@ -1080,6 +1080,10 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="assessSubjectsContent"></div>
       </div>
+      <div class="sub-page" id="sub-assess-marksallot">
+        <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="assessMarksAllotContent"></div>
+      </div>
     </div>
 
     <!-- MARKS OVERVIEW -->
@@ -4922,7 +4926,7 @@ let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
   if(a.created_by_teacher_id){openClassTestDetail(a);return}
-  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, deadline & marks unlock</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openSubjectCoverage()" style="cursor:pointer"><div class="top"><h4>Subject Coverage</h4></div><div class="meta">Subjects, max/pass marks & components per class group</div><div class="arow"><span>Configure</span><span>→</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div>'+(a.exam_fees?.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')+'</div>'
+  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, deadline & marks unlock</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openSubjectCoverage()" style="cursor:pointer"><div class="top"><h4>Subject Coverage</h4></div><div class="meta">Choose which subjects each class covers</div><div class="arow"><span>Configure</span><span>→</span></div></div><div class="assess-card" onclick="openMarksAllotment()" style="cursor:pointer"><div class="top"><h4>Marks Allotment</h4></div><div class="meta">Max marks, pass marks & components per subject</div><div class="arow"><span>Configure</span><span>→</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div>'+(a.exam_fees?.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')+'</div>'
 }
 async function openClassTestDetail(a){
   const el=$('assessEditContent')
@@ -5022,41 +5026,63 @@ async function saveAssessClasses(assessId){
   proceed()
 }
 let _sc={classes:[],subsByClass:{},ovsMap:{},inclMap:{},linkedIds:new Set(),assessId:''}
-async function openSubjectCoverage(){
-  if(!_currentAssess)return;const a=_currentAssess
+async function _scLoadData(){
+  const a=_currentAssess;if(!a)return false
   _sc.assessId=a.assessment_id
-  openSub('assessments','sub-assess-subjects')
-  const el=$('assessSubjectsContent')
-  el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   const[{data:acRows},{data:maps},{data:ovs}]=await Promise.all([
     sb.from('assessment_classes').select('class_id,included_subjects').eq('assessment_id',a.assessment_id),
     sb.from('teacher_subject_class_map').select('class_id,subject_id,subjects(name,subject_id)').eq('session_id',SESS?.session_id||''),
     sb.from('assessment_mark_overrides').select('class_id,subject_id,max_marks,pass_marks,components').eq('assessment_id',a.assessment_id).not('subject_id','is',null)
   ])
-  if(!acRows?.length){el.innerHTML='<div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
+  if(!acRows?.length)return false
   _sc.linkedIds=new Set(acRows.map(r=>r.class_id))
   _sc.inclMap={};acRows.forEach(r=>{_sc.inclMap[r.class_id]=r.included_subjects})
   _sc.subsByClass={};(maps||[]).forEach(m=>{if(!_sc.linkedIds.has(m.class_id))return;if(!_sc.subsByClass[m.class_id])_sc.subsByClass[m.class_id]={};_sc.subsByClass[m.class_id][m.subject_id]=m.subjects?.name||'?'})
   _sc.ovsMap={};(ovs||[]).forEach(o=>{if(!_sc.ovsMap[o.class_id])_sc.ovsMap[o.class_id]={};_sc.ovsMap[o.class_id][o.subject_id]={max:o.max_marks,pass:o.pass_marks,components:o.components}})
   _sc.classes=(ALL_CLASSES||[]).filter(c=>_sc.linkedIds.has(c.class_id)).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
+  return true
+}
+async function openSubjectCoverage(){
+  if(!_currentAssess)return;const a=_currentAssess
+  openSub('assessments','sub-assess-subjects')
+  const el=$('assessSubjectsContent')
+  el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const ok=await _scLoadData()
+  if(!ok){el.innerHTML='<div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
   const groups=_scDetectGroups()
-  let html='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>Configure subjects, marks and components for each class group.</p></div></div>'
+  let html='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>Select which subjects each class group covers in this assessment.</p></div></div>'
   html+='<div id="scGroups">'+(groups.length?groups.map((g,i)=>scRenderGroup('sg'+i,g.from,g.to)).join(''):'')+'</div>'
   html+='<button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="scAddGroup()">+ Add Class Group</button>'
   html+='<div style="margin-top:10px"><button class="btn btn-dark" onclick="saveSubjectCoverage(\''+esc(a.assessment_id)+'\')">Save Coverage</button></div>'
   html+='<div style="font-size:11px;color:var(--ink-soft);margin-top:8px">Unchecked subjects won\'t appear in marksheets or affect percentages. Existing marks are kept.</div>'
   el.innerHTML=html
 }
+async function openMarksAllotment(){
+  if(!_currentAssess)return;const a=_currentAssess
+  openSub('assessments','sub-assess-marksallot')
+  const el=$('assessMarksAllotContent')
+  el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const ok=await _scLoadData()
+  if(!ok){el.innerHTML='<div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
+  const groups=_scDetectGroups()
+  let html='<div class="page-head"><div><h2>Marks Allotment — '+esc(a.name)+'</h2><p>Set max marks, pass marks and components (e.g. Oral + Written) per subject for each class group.</p></div></div>'
+  html+='<div id="maGroups">'+(groups.length?groups.map((g,i)=>maRenderGroup('mg'+i,g.from,g.to)).join(''):'')+'</div>'
+  html+='<button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="maAddGroup()">+ Add Class Group</button>'
+  html+='<div style="margin-top:10px"><button class="btn btn-dark" onclick="saveMarksAllotment(\''+esc(a.assessment_id)+'\')">Save Marks Allotment</button></div>'
+  el.innerHTML=html
+}
 function _scDetectGroups(){
   const groups=[]
   const sig=cid=>{
-    const ov=_sc.ovsMap[cid];if(!ov)return'_none_'
-    return Object.keys(ov).sort().map(sid=>{const o=ov[sid];return sid+':'+o.max+':'+o.pass+':'+(o.components?JSON.stringify(o.components):'')}).join('|')
+    const incl=_sc.inclMap[cid]
+    const inclKey=Array.isArray(incl)?[...incl].sort().join(','):'all'
+    const ov=_sc.ovsMap[cid]
+    const ovKey=ov?Object.keys(ov).sort().map(sid=>{const o=ov[sid];return sid+':'+o.max+':'+o.pass+':'+(o.components?JSON.stringify(o.components):'')}).join('|'):'_none_'
+    return inclKey+'||'+ovKey
   }
   let i=0
   while(i<_sc.classes.length){
     const c=_sc.classes[i],s=sig(c.class_id)
-    if(s==='_none_'){i++;continue}
     let j=i+1;while(j<_sc.classes.length&&sig(_sc.classes[j].class_id)===s)j++
     groups.push({from:c.class_id,to:_sc.classes[j-1].class_id})
     i=j
@@ -5078,68 +5104,34 @@ function _scClassOpts(selId){
 }
 function scRenderGroup(gid,fromId,toId){
   const subs=_scSubsForRange(fromId,toId)
-  const refOv=_sc.ovsMap[fromId]||{}
   const refIncl=_sc.inclMap[fromId]
   const incSet=Array.isArray(refIncl)?new Set(refIncl):null
   let subHtml=subs.map(s=>{
-    const ov=refOv[s.subject_id]||{}
     const checked=!incSet||incSet.has(s.subject_id)
-    return scSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components,checked)
+    return '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px" data-scsub="'+gid+'_'+s.subject_id+'" data-sid="'+s.subject_id+'">'
+      +'<input type="checkbox" class="sc_chk"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)">'
+      +'<span style="flex:1;font-weight:600">'+esc(s.name)+'</span></label>'
   }).join('')
-  return '<div class="card" style="max-width:750px;margin-bottom:12px" data-scgrp="'+gid+'">'
+  return '<div class="card" style="max-width:560px;margin-bottom:12px" data-scgrp="'+gid+'">'
     +'<div class="form-row" style="margin-bottom:10px">'
     +'<div class="fg"><label>From Class</label><select id="scf_'+gid+'" onchange="scReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(fromId)+'</select></div>'
     +'<div class="fg"><label>To Class</label><select id="sct_'+gid+'" onchange="scReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(toId)+'</select></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-scgrp]\').remove()">×</button></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-scgrp]\').remove()">x</button></div>'
     +'</div>'
-    +'<div id="scsubs_'+gid+'" style="border-top:1px solid var(--line);padding-top:8px">'
-    +'<div class="form-row" style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em"><div style="width:28px"></div><div style="flex:1">Subject</div><div style="width:70px">Max</div><div style="width:70px">Pass</div><div style="width:60px"></div></div>'
-    +subHtml
-    +'</div></div>'
-}
-function scSubRow(gid,sid,sname,max,pass,comps,checked){
-  const rid=gid+'_'+sid
-  comps=(Array.isArray(comps)&&comps.length)?comps:null
-  const compRows=comps?comps.map((c,ci)=>scCompRow(rid,ci,c.name,c.max)).join(''):''
-  return '<div data-scsub="'+rid+'" data-sid="'+sid+'" style="margin-bottom:4px">'
-    +'<div class="form-row" style="margin-bottom:0;align-items:center">'
-    +'<div style="width:28px;display:flex;justify-content:center"><input type="checkbox" class="sc_chk" data-rid="'+rid+'"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)"></div>'
-    +'<div style="flex:1;font-size:12.5px;font-weight:600">'+esc(sname)+'</div>'
-    +'<div style="width:70px"><input type="number" inputmode="decimal" id="scmx_'+rid+'" value="'+(max||'')+'" min="1" placeholder="100" style="font-size:12px;width:100%"'+(comps?' readonly':'')+'></div>'
-    +'<div style="width:70px"><input type="number" inputmode="decimal" id="scps_'+rid+'" value="'+(pass||'')+'" min="0" placeholder="33" style="font-size:12px;width:100%"></div>'
-    +'<div style="width:60px;text-align:right"><button class="btn btn-ghost btn-xs" onclick="scToggleParts(\''+rid+'\')">Parts</button></div>'
-    +'</div>'
-    +'<div id="scpc_'+rid+'" style="display:'+(comps?'block':'none')+';margin:2px 0 4px 28px;padding:4px 8px;border-left:2px solid var(--indigo-200);font-size:12px">'
-    +'<div id="scpcr_'+rid+'">'+compRows+'</div>'
-    +'<button class="btn btn-ghost btn-xs" onclick="scAddComp(\''+rid+'\')">+ Add Part</button>'
-    +'</div></div>'
-}
-function scCompRow(parentRid,idx,name,max){
-  const cid=parentRid+'_c'+idx
-  return '<div class="form-row" style="margin-bottom:3px" data-sccomp="'+cid+'">'
-    +'<div class="fg"><label style="font-size:10px">Name</label><input id="sccn_'+cid+'" value="'+esc(name||'')+'" placeholder="e.g. Oral" style="font-size:12px"></div>'
-    +'<div class="fg"><label style="font-size:10px">Max</label><input type="number" inputmode="decimal" id="sccm_'+cid+'" value="'+(max!=null?max:'')+'" min="1" style="font-size:12px" oninput="scCompSum(\''+parentRid+'\')"></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-sccomp]\').remove();scCompSum(\''+parentRid+'\')">×</button></div>'
-    +'</div>'
-}
-function scToggleParts(rid){const el=$('scpc_'+rid);if(el)el.style.display=el.style.display==='none'?'block':'none'}
-function scAddComp(rid){const w=document.createElement('div');w.innerHTML=scCompRow(rid,Date.now(),'','');$('scpcr_'+rid).appendChild(w.firstChild)}
-function scCompSum(rid){
-  const wrap=document.querySelector('[data-scsub="'+rid+'"]');if(!wrap)return
-  const comps=wrap.querySelectorAll('[data-sccomp]')
-  if(!comps.length){const mi=$('scmx_'+rid);if(mi)mi.readOnly=false;return}
-  let total=0;comps.forEach(c=>{total+=parseInt($('sccm_'+c.dataset.sccomp)?.value)||0})
-  const mi=$('scmx_'+rid);if(mi){mi.value=total;mi.readOnly=true}
+    +'<div id="scsubs_'+gid+'" style="border-top:1px solid var(--line);padding-top:8px">'+subHtml+'</div></div>'
 }
 function scReloadSubs(gid){
   const fromId=$('scf_'+gid)?.value,toId=$('sct_'+gid)?.value
   if(!fromId||!toId){$('scsubs_'+gid).innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px 0">Select From and To classes</div>';return}
   const subs=_scSubsForRange(fromId,toId)
-  const refOv=_sc.ovsMap[fromId]||{}
   const refIncl=_sc.inclMap[fromId]
   const incSet=Array.isArray(refIncl)?new Set(refIncl):null
-  let h='<div class="form-row" style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em"><div style="width:28px"></div><div style="flex:1">Subject</div><div style="width:70px">Max</div><div style="width:70px">Pass</div><div style="width:60px"></div></div>'
-  h+=subs.map(s=>{const ov=refOv[s.subject_id]||{};const checked=!incSet||incSet.has(s.subject_id);return scSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components,checked)}).join('')
+  let h=subs.map(s=>{
+    const checked=!incSet||incSet.has(s.subject_id)
+    return '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px" data-scsub="'+gid+'_'+s.subject_id+'" data-sid="'+s.subject_id+'">'
+      +'<input type="checkbox" class="sc_chk"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)">'
+      +'<span style="flex:1;font-weight:600">'+esc(s.name)+'</span></label>'
+  }).join('')
   $('scsubs_'+gid).innerHTML=h
 }
 function scAddGroup(){
@@ -5152,9 +5144,7 @@ async function saveSubjectCoverage(assessId){
   const grps=document.querySelectorAll('[data-scgrp]')
   if(!grps.length){toast('Add at least one class group','error');return}
   const sorted=_sc.classes
-  const classOrder={};sorted.forEach((c,i)=>classOrder[c.class_id]=i)
   const allTouchedCids=new Set()
-  const overrideInserts=[]
   const inclUpdates=[]
   grps.forEach(grp=>{
     const gid=grp.dataset.scgrp
@@ -5167,20 +5157,107 @@ async function saveSubjectCoverage(assessId){
     const allSubs=grp.querySelectorAll('[data-scsub]')
     const totalSubs=allSubs.length
     allSubs.forEach(sr=>{
-      const rid=sr.dataset.scsub,sid=sr.dataset.sid
       const chk=sr.querySelector('.sc_chk')
-      if(!chk?.checked)return
-      checkedSids.push(sid)
-      const mx=parseInt($('scmx_'+rid)?.value)||100
-      const ps=parseInt($('scps_'+rid)?.value)
-      const passVal=ps>=0?ps:Math.round(mx*0.33)
-      const compEls=sr.querySelectorAll('[data-sccomp]')
-      let comps=null
-      if(compEls.length){comps=[];compEls.forEach(ce=>{const cn=$('sccn_'+ce.dataset.sccomp)?.value?.trim(),cm=parseInt($('sccm_'+ce.dataset.sccomp)?.value);if(cn&&cm>0)comps.push({name:cn,max:cm})});if(!comps.length)comps=null}
-      cids.forEach(cid=>overrideInserts.push({assessment_id:assessId,class_id:cid,subject_id:sid,max_marks:mx,pass_marks:passVal,components:comps}))
+      if(chk?.checked)checkedSids.push(sr.dataset.sid)
     })
     const allChecked=checkedSids.length>=totalSubs
     cids.forEach(cid=>{allTouchedCids.add(cid);inclUpdates.push({cid,val:allChecked?null:checkedSids})})
+  })
+  if(!allTouchedCids.size){toast('No classes configured','error');return}
+  for(const u of inclUpdates){
+    await sb.from('assessment_classes').update({included_subjects:u.val}).eq('assessment_id',assessId).eq('class_id',u.cid)
+  }
+  toast('Subject coverage saved for '+[...allTouchedCids].length+' class(es)','success')
+}
+function maRenderGroup(gid,fromId,toId){
+  const subs=_scSubsForRange(fromId,toId)
+  const refOv=_sc.ovsMap[fromId]||{}
+  let subHtml=subs.map(s=>{
+    const ov=refOv[s.subject_id]||{}
+    return maSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components)
+  }).join('')
+  return '<div class="card" style="max-width:750px;margin-bottom:12px" data-magrp="'+gid+'">'
+    +'<div class="form-row" style="margin-bottom:10px">'
+    +'<div class="fg"><label>From Class</label><select id="maf_'+gid+'" onchange="maReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(fromId)+'</select></div>'
+    +'<div class="fg"><label>To Class</label><select id="mat_'+gid+'" onchange="maReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(toId)+'</select></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-magrp]\').remove()">x</button></div>'
+    +'</div>'
+    +'<div id="masubs_'+gid+'" style="border-top:1px solid var(--line);padding-top:8px">'
+    +'<div class="form-row" style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em"><div style="flex:1">Subject</div><div style="width:70px">Max</div><div style="width:70px">Pass</div><div style="width:60px"></div></div>'
+    +subHtml
+    +'</div></div>'
+}
+function maSubRow(gid,sid,sname,max,pass,comps){
+  const rid=gid+'_'+sid
+  comps=(Array.isArray(comps)&&comps.length)?comps:null
+  const compRows=comps?comps.map((c,ci)=>maCompRow(rid,ci,c.name,c.max)).join(''):''
+  return '<div data-masub="'+rid+'" data-sid="'+sid+'" style="margin-bottom:4px">'
+    +'<div class="form-row" style="margin-bottom:0;align-items:center">'
+    +'<div style="flex:1;font-size:12.5px;font-weight:600">'+esc(sname)+'</div>'
+    +'<div style="width:70px"><input type="number" inputmode="decimal" id="mamx_'+rid+'" value="'+(max||'')+'" min="1" placeholder="100" style="font-size:12px;width:100%"'+(comps?' readonly':'')+'></div>'
+    +'<div style="width:70px"><input type="number" inputmode="decimal" id="maps_'+rid+'" value="'+(pass||'')+'" min="0" placeholder="33" style="font-size:12px;width:100%"></div>'
+    +'<div style="width:60px;text-align:right"><button class="btn btn-ghost btn-xs" onclick="maToggleParts(\''+rid+'\')">Parts</button></div>'
+    +'</div>'
+    +'<div id="mapc_'+rid+'" style="display:'+(comps?'block':'none')+';margin:2px 0 4px 0;padding:4px 8px;border-left:2px solid var(--indigo-200);font-size:12px">'
+    +'<div id="mapcr_'+rid+'">'+compRows+'</div>'
+    +'<button class="btn btn-ghost btn-xs" onclick="maAddComp(\''+rid+'\')">+ Add Part</button>'
+    +'</div></div>'
+}
+function maCompRow(parentRid,idx,name,max){
+  const cid=parentRid+'_c'+idx
+  return '<div class="form-row" style="margin-bottom:3px" data-macomp="'+cid+'">'
+    +'<div class="fg"><label style="font-size:10px">Name</label><input id="macn_'+cid+'" value="'+esc(name||'')+'" placeholder="e.g. Oral" style="font-size:12px"></div>'
+    +'<div class="fg"><label style="font-size:10px">Max</label><input type="number" inputmode="decimal" id="macm_'+cid+'" value="'+(max!=null?max:'')+'" min="1" style="font-size:12px" oninput="maCompSum(\''+parentRid+'\')"></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-macomp]\').remove();maCompSum(\''+parentRid+'\')">x</button></div>'
+    +'</div>'
+}
+function maToggleParts(rid){const el=$('mapc_'+rid);if(el)el.style.display=el.style.display==='none'?'block':'none'}
+function maAddComp(rid){const w=document.createElement('div');w.innerHTML=maCompRow(rid,Date.now(),'','');$('mapcr_'+rid).appendChild(w.firstChild)}
+function maCompSum(rid){
+  const wrap=document.querySelector('[data-masub="'+rid+'"]');if(!wrap)return
+  const comps=wrap.querySelectorAll('[data-macomp]')
+  if(!comps.length){const mi=$('mamx_'+rid);if(mi)mi.readOnly=false;return}
+  let total=0;comps.forEach(c=>{total+=parseInt($('macm_'+c.dataset.macomp)?.value)||0})
+  const mi=$('mamx_'+rid);if(mi){mi.value=total;mi.readOnly=true}
+}
+function maReloadSubs(gid){
+  const fromId=$('maf_'+gid)?.value,toId=$('mat_'+gid)?.value
+  if(!fromId||!toId){$('masubs_'+gid).innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px 0">Select From and To classes</div>';return}
+  const subs=_scSubsForRange(fromId,toId)
+  const refOv=_sc.ovsMap[fromId]||{}
+  let h='<div class="form-row" style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em"><div style="flex:1">Subject</div><div style="width:70px">Max</div><div style="width:70px">Pass</div><div style="width:60px"></div></div>'
+  h+=subs.map(s=>{const ov=refOv[s.subject_id]||{};return maSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components)}).join('')
+  $('masubs_'+gid).innerHTML=h
+}
+function maAddGroup(){
+  const gid='mg'+Date.now()
+  const w=document.createElement('div')
+  w.innerHTML=maRenderGroup(gid,'','')
+  $('maGroups').appendChild(w.firstChild)
+}
+async function saveMarksAllotment(assessId){
+  const grps=document.querySelectorAll('[data-magrp]')
+  if(!grps.length){toast('Add at least one class group','error');return}
+  const sorted=_sc.classes
+  const allTouchedCids=new Set()
+  const overrideInserts=[]
+  grps.forEach(grp=>{
+    const gid=grp.dataset.magrp
+    const fromId=$('maf_'+gid)?.value,toId=$('mat_'+gid)?.value
+    if(!fromId||!toId)return
+    const fi=sorted.findIndex(c=>c.class_id===fromId),ti=sorted.findIndex(c=>c.class_id===toId)
+    if(fi<0||ti<0)return
+    const cids=sorted.slice(Math.min(fi,ti),Math.max(fi,ti)+1).map(c=>c.class_id)
+    grp.querySelectorAll('[data-masub]').forEach(sr=>{
+      const rid=sr.dataset.masub,sid=sr.dataset.sid
+      const mx=parseInt($('mamx_'+rid)?.value)||100
+      const ps=parseInt($('maps_'+rid)?.value)
+      const passVal=ps>=0?ps:Math.round(mx*0.33)
+      const compEls=sr.querySelectorAll('[data-macomp]')
+      let comps=null
+      if(compEls.length){comps=[];compEls.forEach(ce=>{const cn=$('macn_'+ce.dataset.macomp)?.value?.trim(),cm=parseInt($('macm_'+ce.dataset.macomp)?.value);if(cn&&cm>0)comps.push({name:cn,max:cm})});if(!comps.length)comps=null}
+      cids.forEach(cid=>{allTouchedCids.add(cid);overrideInserts.push({assessment_id:assessId,class_id:cid,subject_id:sid,max_marks:mx,pass_marks:passVal,components:comps})})
+    })
   })
   if(!allTouchedCids.size){toast('No classes configured','error');return}
   const cidArr=[...allTouchedCids]
@@ -5190,10 +5267,7 @@ async function saveSubjectCoverage(assessId){
     const{error}=await sb.from('assessment_mark_overrides').insert(overrideInserts)
     if(error){toast('Save failed: '+error.message,'error');return}
   }
-  for(const u of inclUpdates){
-    await sb.from('assessment_classes').update({included_subjects:u.val}).eq('assessment_id',assessId).eq('class_id',u.cid)
-  }
-  toast('Coverage saved for '+cidArr.length+' class(es)','success')
+  toast('Marks allotment saved for '+cidArr.length+' class(es)','success')
 }
 async function openAssessSettings(){
   if(!_currentAssess)return;const a=_currentAssess
