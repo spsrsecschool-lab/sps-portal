@@ -5077,20 +5077,48 @@ function cmClassOpts(selId){
 function cmSubOpts(selId){
   return '<option value="">Select subject</option>'+(ALL_SUBJECTS||[]).filter(s=>s.is_active).map(s=>'<option value="'+s.subject_id+'"'+(s.subject_id===selId?' selected':'')+'>'+esc(s.name)+'</option>').join('')
 }
-function cmSubRow(gid,idx,subId,maxM,passM){
+function cmSubRow(gid,idx,subId,maxM,passM,comps){
   const sid=gid+'_s'+idx
-  return '<div class="form-row" style="margin-bottom:6px" data-cmsub="'+sid+'">'
+  comps=comps||[]
+  const hasComps=comps.length>0
+  const compRows=comps.map((c,ci)=>cmCompRow(sid,ci,c.name,c.max)).join('')
+  return '<div style="margin-bottom:6px" data-cmsub="'+sid+'">'
+    +'<div class="form-row" style="margin-bottom:0">'
     +'<div class="fg"><label>Subject</label><select id="cmss_'+sid+'" style="font-size:12px">'+cmSubOpts(subId)+'</select></div>'
-    +'<div class="fg"><label>Max</label><input type="number" inputmode="decimal" id="cmsm_'+sid+'" value="'+(maxM!=null?maxM:'')+'" min="1" style="font-size:12px"></div>'
+    +'<div class="fg"><label>Max</label><input type="number" inputmode="decimal" id="cmsm_'+sid+'" value="'+(maxM!=null?maxM:'')+'" min="1" style="font-size:12px"'+(hasComps?' readonly':'')+'>'+( hasComps?'<span style="font-size:9px;color:var(--ink-faint)">auto from components</span>':'')+'</div>'
     +'<div class="fg"><label>Pass</label><input type="number" inputmode="decimal" id="cmsp_'+sid+'" value="'+(passM!=null?passM:'')+'" min="0" style="font-size:12px"></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmsub]\').remove()">×</button></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px;gap:4px">'
+    +'<button class="btn btn-ghost btn-xs" title="Oral/Written components" onclick="toggleCmComps(\''+sid+'\')">Parts</button>'
+    +'<button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmsub]\').remove()">×</button>'
+    +'</div></div>'
+    +'<div id="cmcc_'+sid+'" style="display:'+(hasComps?'block':'none')+';margin:4px 0 0 20px;padding:6px 8px;border-left:2px solid var(--indigo-200);font-size:12px">'
+    +'<div style="font-size:10px;font-weight:600;color:var(--ink-soft);margin-bottom:4px">Components <span style="font-weight:400">(e.g. Oral 20 + Written 80)</span></div>'
+    +'<div id="cmccr_'+sid+'">'+compRows+'</div>'
+    +'<button class="btn btn-ghost btn-xs" onclick="addCmCompRow(\''+sid+'\')">+ Add Component</button>'
+    +'</div></div>'
+}
+function cmCompRow(parentSid,idx,name,max){
+  const cid=parentSid+'_c'+idx
+  return '<div class="form-row" style="margin-bottom:4px" data-cmcomp="'+cid+'">'
+    +'<div class="fg"><label>Name</label><input id="cmcn_'+cid+'" value="'+esc(name||'')+'" placeholder="e.g. Oral" style="font-size:12px"></div>'
+    +'<div class="fg"><label>Max</label><input type="number" inputmode="decimal" id="cmcm_'+cid+'" value="'+(max!=null?max:'')+'" min="1" style="font-size:12px" oninput="cmCompSum(\''+parentSid+'\')"></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmcomp]\').remove();cmCompSum(\''+parentSid+'\')">×</button></div>'
     +'</div>'
 }
+function cmCompSum(sid){
+  const wrap=document.querySelector('[data-cmsub="'+sid+'"]');if(!wrap)return
+  const comps=wrap.querySelectorAll('[data-cmcomp]')
+  if(!comps.length){const mi=$('cmsm_'+sid);if(mi)mi.readOnly=false;return}
+  let total=0;comps.forEach(c=>{total+=parseInt($('cmcm_'+c.dataset.cmcomp)?.value)||0})
+  const mi=$('cmsm_'+sid);if(mi){mi.value=total;mi.readOnly=true}
+}
+function toggleCmComps(sid){const el=$('cmcc_'+sid);if(el)el.style.display=el.style.display==='none'?'block':'none'}
+function addCmCompRow(sid){const wrap=document.createElement('div');wrap.innerHTML=cmCompRow(sid,Date.now(),'','');$('cmccr_'+sid).appendChild(wrap.firstChild)}
 function toggleCmSubs(id){const el=$('cms_'+id);if(el)el.style.display=el.style.display==='none'?'block':'none'}
 function addCmSubRow(gid){const wrap=document.createElement('div');wrap.innerHTML=cmSubRow(gid,Date.now(),'','','');$('cmsr_'+gid).appendChild(wrap.firstChild)}
 function cmRenderRow(id,fromId,toId,maxM,passM,subjectMarks){
   subjectMarks=subjectMarks||[]
-  const subRows=subjectMarks.map((sm,i)=>cmSubRow(id,i,sm.subject_id,sm.max_marks,sm.pass_marks)).join('')
+  const subRows=subjectMarks.map((sm,i)=>cmSubRow(id,i,sm.subject_id,sm.max_marks,sm.pass_marks,sm.components)).join('')
   return '<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px" data-cmrow="'+id+'">'
     +'<div class="form-row" style="margin-bottom:0"><div class="fg"><label>From Class</label><select id="cmf_'+id+'" style="font-size:12px">'+cmClassOpts(fromId)+'</select></div>'
     +'<div class="fg"><label>To Class</label><select id="cmt_'+id+'" style="font-size:12px">'+cmClassOpts(toId)+'</select></div>'
@@ -5124,7 +5152,7 @@ async function openAssessSettings(){
   $('assessSettingsContent').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   const[{data:cgOvs},{data:subOvs}]=await Promise.all([
     sb.from('assessment_mark_overrides').select('override_id,class_id,max_marks,pass_marks').eq('assessment_id',a.assessment_id).is('subject_id',null),
-    sb.from('assessment_mark_overrides').select('class_id,subject_id,max_marks,pass_marks').eq('assessment_id',a.assessment_id).not('subject_id','is',null)
+    sb.from('assessment_mark_overrides').select('class_id,subject_id,max_marks,pass_marks,components').eq('assessment_id',a.assessment_id).not('subject_id','is',null)
   ])
   const sorted=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
   const classOrder={};sorted.forEach((c,i)=>classOrder[c.class_id]=i)
@@ -5554,7 +5582,10 @@ async function createAssessment(){
       const subjectId=$('cmss_'+sid)?.value
       const smx=parseInt($('cmsm_'+sid)?.value),sps=parseInt($('cmsp_'+sid)?.value)
       if(!subjectId||!(smx>0))return
-      cids.forEach(cid=>cgIns.push({assessment_id:asmtData.assessment_id,class_id:cid,subject_id:subjectId,max_marks:smx,pass_marks:sps>=0?sps:Math.round(smx*0.33)}))
+      const compEls=sr.querySelectorAll('[data-cmcomp]')||[]
+      let comps=null
+      if(compEls.length){comps=[];compEls.forEach(ce=>{const cn=$('cmcn_'+ce.dataset.cmcomp)?.value?.trim(),cm=parseInt($('cmcm_'+ce.dataset.cmcomp)?.value);if(cn&&cm>0)comps.push({name:cn,max:cm})});if(!comps.length)comps=null}
+      cids.forEach(cid=>cgIns.push({assessment_id:asmtData.assessment_id,class_id:cid,subject_id:subjectId,max_marks:smx,pass_marks:sps>=0?sps:Math.round(smx*0.33),components:comps}))
     })
   })
   if(cgIns.length){
@@ -5586,7 +5617,10 @@ async function saveAssess(id){
       const subjectId=$('cmss_'+sid)?.value
       const smx=parseInt($('cmsm_'+sid)?.value),sps=parseInt($('cmsp_'+sid)?.value)
       if(!subjectId||!(smx>0))return
-      cids.forEach(cid=>subInserts.push({assessment_id:id,class_id:cid,subject_id:subjectId,max_marks:smx,pass_marks:sps>=0?sps:Math.round(smx*0.33)}))
+      const compEls=sr.closest('[data-cmsub]')?.querySelectorAll('[data-cmcomp]')||[]
+      let comps=null
+      if(compEls.length){comps=[];compEls.forEach(ce=>{const cn=$('cmcn_'+ce.dataset.cmcomp)?.value?.trim(),cm=parseInt($('cmcm_'+ce.dataset.cmcomp)?.value);if(cn&&cm>0)comps.push({name:cn,max:cm})});if(!comps.length)comps=null}
+      cids.forEach(cid=>subInserts.push({assessment_id:id,class_id:cid,subject_id:subjectId,max_marks:smx,pass_marks:sps>=0?sps:Math.round(smx*0.33),components:comps}))
     })
   })
   if(groupedClassIds.size){

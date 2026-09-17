@@ -2598,10 +2598,11 @@ async function loadAssessMarks(){
   if(!uniqueSubs.length){emp(el,'No subjects configured for your class.');return}
   // Per-subject max/pass overrides for this assessment + class (fall back to the
   // assessment default when a subject has no override).
-  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
-  const ovMap={}; (ovs||[]).forEach(o=>{ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks,components').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
+  const ovMap={}; (ovs||[]).forEach(o=>{ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks,components:o.components}})
   const maxFor=sid=>{const o=ovMap[sid]||ovMap[null];return (o&&o.max!=null)?o.max:(assess?.max_marks||100)}
   const passFor=sid=>{const o=ovMap[sid]||ovMap[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return (assess?.pass_marks!=null?assess.pass_marks:Math.round((assess?.max_marks||100)*0.33))}
+  const compFor=sid=>{const o=ovMap[sid];return (o&&Array.isArray(o.components)&&o.components.length)?o.components:null}
 
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   // Get marks for all students in this assessment
@@ -2644,18 +2645,29 @@ async function loadAssessMarks(){
   }
 
   // Render table
+  const _hasAnyCompsM=uniqueSubs.some(m=>!!compFor(m.subject_id))
+  const _rsH=_hasAnyCompsM?' rowspan="2"':''
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table class="msheet" style="min-width:800px"><thead><tr>'
-    +'<th class="rollfix" style="min-width:50px">Roll</th>'
-    +'<th style="min-width:140px">Name</th>'
-    +'<th style="min-width:130px">Father\'s Name</th>'
+    +'<th'+_rsH+' class="rollfix" style="min-width:50px">Roll</th>'
+    +'<th'+_rsH+' style="min-width:140px">Name</th>'
+    +'<th'+_rsH+' style="min-width:130px">Father\'s Name</th>'
   uniqueSubs.forEach(m=>{
-    const mx=maxFor(m.subject_id)
-    html+='<th style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')
-      +'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+mx+'</span>'
-      +'</th>'
+    const mx=maxFor(m.subject_id),cp=compFor(m.subject_id)
+    if(cp){
+      html+='<th colspan="'+(cp.length+1)+'" style="text-align:center;white-space:nowrap;border-bottom:none">'+esc(m.subjects?.name||'?')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Total: '+mx+'</span></th>'
+    }else{
+      html+='<th'+(_hasAnyCompsM?' rowspan="2"':'')+' style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+mx+'</span></th>'
+    }
   })
-  html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att. Days</th><th style="text-align:center">Att. %</th></tr></thead><tbody>'
+  const _rs=_hasAnyCompsM?' rowspan="2"':''
+  html+='<th'+_rs+' style="text-align:center">Total</th><th'+_rs+' style="text-align:center">%</th><th'+_rs+' style="text-align:center">Att. Days</th><th'+_rs+' style="text-align:center">Att. %</th></tr>'
+  if(_hasAnyCompsM){
+    html+='<tr>'
+    uniqueSubs.forEach(m=>{const cp=compFor(m.subject_id);if(cp){cp.forEach(c=>{html+='<th style="text-align:center;font-size:10px;font-weight:500;padding:2px 4px">'+esc(c.name)+'<br><span style="font-size:9px;color:var(--ink-faint)">'+c.max+'</span></th>'});html+='<th style="text-align:center;font-size:10px;font-weight:600;padding:2px 4px">Total</th>'}})
+    html+='</tr>'
+  }
+  html+='</thead><tbody>'
 
   const fullMax=uniqueSubs.reduce((t,m)=>t+maxFor(m.subject_id),0)
   CLASS_STUDENTS.forEach(s=>{
@@ -2676,12 +2688,18 @@ async function loadAssessMarks(){
     html+='<td style="white-space:nowrap;color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
     uniqueSubs.forEach(m=>{
       const mk=sMarks[m.subject_id]
-      const maxM=maxFor(m.subject_id)
       const pass=passFor(m.subject_id)
-      if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
-      if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';return}
+      const cp=compFor(m.subject_id)
+      if(!mk){const span=cp?(cp.length+1):1;for(let i=0;i<span;i++)html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';return}
+      if(mk.is_absent){const span=cp?(cp.length+1):1;for(let i=0;i<span;i++)html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';return}
       const fail=parseFloat(mk.marks_obtained)<pass
-      html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+mk.marks_obtained+'</td>'
+      if(cp){
+        const savedComps=(mk.components&&typeof mk.components==='object')?mk.components:{}
+        cp.forEach(c=>{const cv=savedComps[c.name];html+='<td style="text-align:center;font-size:12px">'+(cv!=null?Math.round(cv):'—')+'</td>'})
+        html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+mk.marks_obtained+'</td>'
+      }else{
+        html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+mk.marks_obtained+'</td>'
+      }
     })
     html+='<td style="text-align:center;font-weight:700">'+(hasAbsent?'—':total)+'</td>'
     html+='<td class="'+(pct!==null&&pct<33?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+(pct!==null?pct+'%':'—')+'</td>'
@@ -3452,16 +3470,32 @@ async function loadViewMarks(){
   // Overrides are strictly per (assessment, class, subject) — the same subject
   // can legitimately have different max/pass in different classes, so we must
   // NOT fall back across classes.
-  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
-  const ovMapV={}; (ovs||[]).forEach(o=>{ovMapV[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks,components').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
+  const ovMapV={}; (ovs||[]).forEach(o=>{ovMapV[o.subject_id]={max:o.max_marks,pass:o.pass_marks,components:o.components}})
   const maxFor=sid=>{const o=ovMapV[sid]||ovMapV[null];return (o&&o.max!=null)?o.max:maxM}
   const passFor=sid=>{const o=ovMapV[sid]||ovMapV[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
+  const compFor=sid=>{const o=ovMapV[sid];return (o&&Array.isArray(o.components)&&o.components.length)?o.components:null}
+  const _hasAnyCompsV=_viewSubs.some(s=>!!compFor(s.subject_id))
+  const _rsV=_hasAnyCompsV?' rowspan="2"':''
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table class="msheet" style="min-width:800px"><thead><tr>'
-    +'<th class="rollfix" style="min-width:50px">Roll</th>'
-    +'<th style="min-width:150px">Name</th>'
-  _viewSubs.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.short_code||s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max '+maxFor(s.subject_id)+' · Pass '+passFor(s.subject_id)+'</span></th>'})
-  html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att.</th><th style="text-align:center">Att.%</th></tr></thead><tbody>'
+    +'<th'+_rsV+' class="rollfix" style="min-width:50px">Roll</th>'
+    +'<th'+_rsV+' style="min-width:150px">Name</th>'
+  _viewSubs.forEach(s=>{
+    const cp=compFor(s.subject_id)
+    if(cp){
+      html+='<th colspan="'+(cp.length+1)+'" style="text-align:center;white-space:nowrap;border-bottom:none">'+esc(s.short_code||s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max '+maxFor(s.subject_id)+' · Pass '+passFor(s.subject_id)+'</span></th>'
+    }else{
+      html+='<th'+(_hasAnyCompsV?' rowspan="2"':'')+' style="text-align:center;white-space:nowrap">'+esc(s.short_code||s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max '+maxFor(s.subject_id)+' · Pass '+passFor(s.subject_id)+'</span></th>'
+    }
+  })
+  html+='<th'+(_hasAnyCompsV?' rowspan="2"':'')+' style="text-align:center">Total</th><th'+(_hasAnyCompsV?' rowspan="2"':'')+' style="text-align:center">%</th><th'+(_hasAnyCompsV?' rowspan="2"':'')+' style="text-align:center">Att.</th><th'+(_hasAnyCompsV?' rowspan="2"':'')+' style="text-align:center">Att.%</th></tr>'
+  if(_hasAnyCompsV){
+    html+='<tr>'
+    _viewSubs.forEach(s=>{const cp=compFor(s.subject_id);if(cp){cp.forEach(c=>{html+='<th style="text-align:center;font-size:10px;font-weight:500;padding:2px 4px">'+esc(c.name)+'<br><span style="font-size:9px;color:var(--ink-faint)">'+c.max+'</span></th>'});html+='<th style="text-align:center;font-size:10px;font-weight:600;padding:2px 4px">Total</th>'}})
+    html+='</tr>'
+  }
+  html+='</thead><tbody>'
 
   const fullMaxV=_viewSubs.reduce((t,s)=>t+maxFor(s.subject_id),0)
   const rndV=v=>Math.round(v)
@@ -3473,13 +3507,32 @@ async function loadViewMarks(){
     html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
     _viewSubs.forEach(sub=>{
       const mk=sMarks[sub.subject_id]
-      if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';hasMissing=true;return}
-      if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';hasAbsent=true;return}
-      if(mk.marks_obtained==null){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';hasMissing=true;return}
+      const cp=compFor(sub.subject_id)
+      if(!mk){
+        const span=cp?(cp.length+1):1
+        for(let i=0;i<span;i++)html+='<td style="text-align:center;color:var(--ink-faint)">—</td>'
+        hasMissing=true;return
+      }
+      if(mk.is_absent){
+        const span=cp?(cp.length+1):1
+        for(let i=0;i<span;i++)html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>'
+        hasAbsent=true;return
+      }
+      if(mk.marks_obtained==null){
+        const span=cp?(cp.length+1):1
+        for(let i=0;i<span;i++)html+='<td style="text-align:center;color:var(--ink-faint)">—</td>'
+        hasMissing=true;return
+      }
       const raw=parseFloat(mk.marks_obtained)
       total+=rndV(raw)
       const fail=raw<passFor(sub.subject_id); if(fail)failCount++
-      html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+rndV(raw)+'</td>'
+      if(cp){
+        const savedComps=(mk.components&&typeof mk.components==='object')?mk.components:{}
+        cp.forEach(c=>{const cv=savedComps[c.name];html+='<td style="text-align:center;font-size:12px">'+(cv!=null?rndV(cv):'—')+'</td>'})
+        html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+rndV(raw)+'</td>'
+      }else{
+        html+='<td class="'+(fail?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+rndV(raw)+'</td>'
+      }
     })
     // Rules: absent OR any unentered mark → no total/%; failing → total only.
     const blocked=hasAbsent||hasMissing
@@ -3552,10 +3605,11 @@ async function loadAssessMarksEditable(){
   const _mkSel=$('mk_subject')
   if(_mkSel){const _prev=_mkSel.value;_mkSel.innerHTML='<option value="">All Subjects</option>'+_editSubs.map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('');_mkSel.value=_prev}
   // Per-subject max/pass overrides for this assessment + class.
-  const{data:_ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
-  const _ovMap={}; (_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
+  const{data:_ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks,components').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
+  const _ovMap={}; (_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks,components:o.components}})
   const maxFor=sid=>{const o=_ovMap[sid]||_ovMap[null];return (o&&o.max!=null)?o.max:maxM}
   const passFor=sid=>{const o=_ovMap[sid]||_ovMap[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
+  const compFor=sid=>{const o=_ovMap[sid];return (o&&Array.isArray(o.components)&&o.components.length)?o.components:null}
   // Subject filter: if a subject is chosen, show only that column
   const selSub=$('mk_subject')?.value
   const cols=selSub?_editSubs.filter(s=>s.subject_id===selSub):_editSubs
@@ -3576,11 +3630,29 @@ async function loadAssessMarksEditable(){
     : ''
   let html='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px"><h3 style="margin:0">'+esc(assess?.name||'Assessment')+' — Enter Marks</h3><button class="btn btn-primary btn-sm" onclick="saveAllMarks(\''+assessId+'\')">Save All Marks</button></div>'
   html+=lockNoticeHtml
+  const hasAnyComps=cols.some(s=>!!compFor(s.subject_id))
+  const _rsE=hasAnyComps?' rowspan="2"':''
   html+='<div style="overflow-x:auto"><table class="msheet" style="width:100%'+(single?'':';min-width:520px')+'"><thead><tr>'
-    +'<th class="rollfix" style="min-width:42px">Roll</th>'
-    +'<th style="min-width:96px">Name</th>'
-  cols.forEach(s=>{const lk=lockedSet.has(s.subject_id);html+='<th style="text-align:center;white-space:nowrap">'+esc(s.name)+(lk?' 🔒':'')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+(lk?' · locked':'')+'</span></th>'})
-  html+='</tr></thead><tbody>'
+    +'<th'+_rsE+' class="rollfix" style="min-width:42px">Roll</th>'
+    +'<th'+_rsE+' style="min-width:96px">Name</th>'
+  cols.forEach(s=>{
+    const lk=lockedSet.has(s.subject_id),cp=compFor(s.subject_id)
+    if(cp){
+      html+='<th colspan="'+cp.length+'" style="text-align:center;white-space:nowrap;border-bottom:none">'+esc(s.name)+(lk?' 🔒':'')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Total: '+maxFor(s.subject_id)+(lk?' · locked':'')+'</span></th>'
+    }else{
+      html+='<th'+(hasAnyComps?' rowspan="2"':'')+' style="text-align:center;white-space:nowrap">'+esc(s.name)+(lk?' 🔒':'')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+(lk?' · locked':'')+'</span></th>'
+    }
+  })
+  html+='</tr>'
+  if(hasAnyComps){
+    html+='<tr>'
+    cols.forEach(s=>{
+      const cp=compFor(s.subject_id)
+      if(cp) cp.forEach(c=>{html+='<th style="text-align:center;font-size:10px;font-weight:500;padding:2px 4px">'+esc(c.name)+'<br><span style="font-size:9px;color:var(--ink-faint)">'+c.max+'</span></th>'})
+    })
+    html+='</tr>'
+  }
+  html+='</thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
@@ -3591,14 +3663,25 @@ async function loadAssessMarksEditable(){
       const mk=sMarks[sub.subject_id]
       const isAbs=!!mk?.is_absent
       const lk=lockedSet.has(sub.subject_id)
-      const val=isAbs?'':(mk?.marks_obtained!=null?mk.marks_obtained:'')
       const sMax=maxFor(sub.subject_id), sPass=passFor(sub.subject_id)
       const dis=(isAbs||lk)?' disabled':''
-      html+='<td style="text-align:center;white-space:nowrap;padding:6px 4px'+(lk?';opacity:.6':'')+'">'
-        +'<div style="display:inline-flex;align-items:center;gap:5px">'
-        +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-max="'+sMax+'" data-pass="'+sPass+'"'+(lk?' data-locked="1"':'')+' inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(lk?'🔒':(isAbs?'A':'—'))+'"'+dis+' oninput="mkMarkChanged(this)" style="width:56px;text-align:center;'+(isAbs?'background:var(--warn-soft);':'')+(lk?'background:var(--lav-100);':'')+'">'
-        +(lk?'':'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this)" style="font-size:12px;font-weight:800;padding:6px 11px;border-radius:7px;cursor:pointer;border:1.5px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">A</button>')
-        +'</div></td>'
+      const cp=compFor(sub.subject_id)
+      if(cp){
+        const savedComps=(mk?.components&&typeof mk.components==='object')?mk.components:{}
+        cp.forEach(c=>{
+          const cVal=isAbs?'':(savedComps[c.name]!=null?savedComps[c.name]:'')
+          html+='<td style="text-align:center;padding:6px 3px'+(lk?';opacity:.6':'')+'">'
+            +'<input class="mk-comp-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-comp="'+esc(c.name)+'" data-cmax="'+c.max+'" data-max="'+sMax+'" data-pass="'+sPass+'"'+(lk?' data-locked="1"':'')+' inputmode="decimal" value="'+esc(String(cVal))+'" placeholder="'+(lk?'🔒':(isAbs?'A':'—'))+'"'+dis+' oninput="mkCompChanged(this)" style="width:48px;text-align:center;'+(isAbs?'background:var(--warn-soft);':'')+(lk?'background:var(--lav-100);':'')+'">'
+            +'</td>'
+        })
+      }else{
+        const val=isAbs?'':(mk?.marks_obtained!=null?mk.marks_obtained:'')
+        html+='<td style="text-align:center;white-space:nowrap;padding:6px 4px'+(lk?';opacity:.6':'')+'">'
+          +'<div style="display:inline-flex;align-items:center;gap:5px">'
+          +'<input class="mk-mark-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-max="'+sMax+'" data-pass="'+sPass+'"'+(lk?' data-locked="1"':'')+' inputmode="decimal" value="'+esc(String(val))+'" placeholder="'+(lk?'🔒':(isAbs?'A':'—'))+'"'+dis+' oninput="mkMarkChanged(this)" style="width:56px;text-align:center;'+(isAbs?'background:var(--warn-soft);':'')+(lk?'background:var(--lav-100);':'')+'">'
+          +(lk?'':'<button type="button" class="mk-abs-chip" title="Toggle absent" onclick="mkToggleAbsent(this)" style="font-size:12px;font-weight:800;padding:6px 11px;border-radius:7px;cursor:pointer;border:1.5px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">A</button>')
+          +'</div></td>'
+      }
     })
     html+='</tr>'
   })
@@ -3638,13 +3721,27 @@ function mkMarkChanged(input){
   mkRecomputeRow(input.closest('tr'))
 }
 
+function mkCompChanged(input){
+  input.value=input.value.replace(/[^0-9.]/g,'')
+  const cmax=parseFloat(input.dataset.cmax)||999
+  const v=parseFloat(input.value)
+  if(!isNaN(v)&&v>cmax){input.style.borderColor='var(--danger)'}else{input.style.borderColor=''}
+  mkRecomputeRow(input.closest('tr'))
+}
 function mkRecomputeRow(row){
   let total=0,possible=0
+  const compSums={}
+  row.querySelectorAll('.mk-comp-input').forEach(inp=>{
+    if(inp.classList.contains('is-abs'))return
+    const sid=inp.dataset.sid,v=inp.value.trim()
+    if(v!==''){const n=parseFloat(v);if(!isNaN(n)){compSums[sid]=(compSums[sid]||0)+n}}
+  })
   row.querySelectorAll('.mk-mark-input').forEach(inp=>{
     if(inp.classList.contains('is-abs'))return
     const v=inp.value.trim()
     if(v!==''){const n=parseFloat(v);if(!isNaN(n)){total+=n;possible+=(parseFloat(inp.dataset.max)||0)}}
   })
+  Object.keys(compSums).forEach(sid=>{total+=compSums[sid];const inp=row.querySelector('.mk-comp-input[data-sid="'+sid+'"]');if(inp)possible+=(parseFloat(inp.dataset.max)||0)})
   const pct=possible>0?Math.round(total/possible*100):null
   const tc=row.querySelector('.mk-total'),pc=row.querySelector('.mk-pct')
   if(tc)tc.textContent=possible>0?total:'—'
@@ -3659,13 +3756,30 @@ async function saveAllMarks(assessId){
     const eid=inp.dataset.eid,sid=inp.dataset.sid
     const sMax=parseFloat(inp.dataset.max)||100
     if(inp.classList.contains('is-abs')){
-      rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:true,marks_obtained:null})
+      rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:true,marks_obtained:null,components:null})
       return
     }
     const v=inp.value.trim()
     if(v==='')return
     const n=parseFloat(v);if(isNaN(n)||n<0||n>sMax){invalid=true;inp.style.borderColor='var(--danger)';return}
-    rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:false,marks_obtained:n})
+    rows.push({enrollment_id:eid,subject_id:sid,assessment_id:assessId,is_absent:false,marks_obtained:n,components:null})
+  })
+  // Collect component inputs and aggregate per student+subject
+  const compInputs=document.querySelectorAll('#mkAssessWrap .mk-comp-input')
+  const compAgg={}
+  compInputs.forEach(inp=>{
+    const eid=inp.dataset.eid,sid=inp.dataset.sid,cname=inp.dataset.comp
+    const cmax=parseFloat(inp.dataset.cmax)||999
+    const k=eid+'_'+sid
+    if(!compAgg[k])compAgg[k]={eid,sid,sMax:parseFloat(inp.dataset.max)||100,comps:{},total:0,hasVal:false,isAbs:inp.classList.contains('is-abs')}
+    const v=inp.value.trim()
+    if(v!==''){const n=parseFloat(v);if(isNaN(n)||n<0||n>cmax){invalid=true;inp.style.borderColor='var(--danger)';return};compAgg[k].comps[cname]=n;compAgg[k].total+=n;compAgg[k].hasVal=true}
+  })
+  Object.values(compAgg).forEach(a=>{
+    if(a.isAbs){rows.push({enrollment_id:a.eid,subject_id:a.sid,assessment_id:assessId,is_absent:true,marks_obtained:null,components:null});return}
+    if(!a.hasVal)return
+    if(a.total>a.sMax){invalid=true;return}
+    rows.push({enrollment_id:a.eid,subject_id:a.sid,assessment_id:assessId,is_absent:false,marks_obtained:a.total,components:a.comps})
   })
   if(invalid){toast('Some marks exceed that subject\'s max (or are negative). Fix the highlighted cells.','error');return}
   if(!rows.length){toast('No marks to save','error');return}
