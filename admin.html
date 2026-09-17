@@ -5133,50 +5133,50 @@ async function saveSubjectCoverage(assessId){
 function maRenderGroup(gid,fromId,toId){
   const subs=_scSubsForRange(fromId,toId)
   const refOv=_sc.ovsMap[fromId]||{}
-  let subHtml=subs.map(s=>{
+  let rows=subs.map(s=>{
     const ov=refOv[s.subject_id]||{}
     return maSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components)
   }).join('')
-  return '<div class="card" style="max-width:750px;margin-bottom:12px" data-magrp="'+gid+'">'
+  return '<div class="card" style="max-width:600px;margin-bottom:12px;padding:12px" data-magrp="'+gid+'">'
     +'<div class="form-row" style="margin-bottom:10px">'
     +'<div class="fg"><label>From Class</label><select id="maf_'+gid+'" onchange="maReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(fromId)+'</select></div>'
     +'<div class="fg"><label>To Class</label><select id="mat_'+gid+'" onchange="maReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(toId)+'</select></div>'
     +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-magrp]\').remove()">x</button></div>'
     +'</div>'
-    +'<div id="masubs_'+gid+'" style="border-top:1px solid var(--line);padding-top:8px">'
-    +'<div class="form-row" style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em"><div style="flex:1">Subject</div><div style="width:70px">Max</div><div style="width:70px">Pass</div><div style="width:60px"></div></div>'
-    +subHtml
-    +'</div></div>'
+    +'<div id="masubs_'+gid+'"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+    +'<thead><tr style="border-bottom:2px solid var(--line)"><th style="text-align:left;padding:6px 4px;font-size:11px;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em">Subject</th><th style="width:64px;padding:6px 4px;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Max</th><th style="width:64px;padding:6px 4px;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Pass</th><th style="width:50px"></th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div></div>'
 }
 function maSubRow(gid,sid,sname,max,pass,comps){
   const rid=gid+'_'+sid
   comps=(Array.isArray(comps)&&comps.length)?comps:null
   const compRows=comps?comps.map((c,ci)=>maCompRow(rid,ci,c.name,c.max)).join(''):''
-  return '<div data-masub="'+rid+'" data-sid="'+sid+'" style="margin-bottom:4px">'
-    +'<div class="form-row" style="margin-bottom:0;align-items:center">'
-    +'<div style="flex:1;font-size:12.5px;font-weight:600">'+esc(sname)+'</div>'
-    +'<div style="width:70px"><input type="number" inputmode="decimal" id="mamx_'+rid+'" value="'+(max||'')+'" min="1" placeholder="100" style="font-size:12px;width:100%"'+(comps?' readonly':'')+'></div>'
-    +'<div style="width:70px"><input type="number" inputmode="decimal" id="maps_'+rid+'" value="'+(pass||'')+'" min="0" placeholder="33" style="font-size:12px;width:100%"></div>'
-    +'<div style="width:60px;text-align:right"><button class="btn btn-ghost btn-xs" onclick="maToggleParts(\''+rid+'\')">Parts</button></div>'
-    +'</div>'
-    +'<div id="mapc_'+rid+'" style="display:'+(comps?'block':'none')+';margin:2px 0 4px 0;padding:4px 8px;border-left:2px solid var(--indigo-200);font-size:12px">'
+  return '<tr data-masub="'+rid+'" data-sid="'+sid+'" style="border-bottom:1px solid var(--line)">'
+    +'<td style="padding:8px 4px;font-weight:600">'+esc(sname)+'</td>'
+    +'<td style="padding:8px 2px"><input type="number" inputmode="decimal" id="mamx_'+rid+'" value="'+(max||'')+'" min="1" placeholder="100" style="font-size:12px;width:56px;padding:4px 6px;border:1.5px solid var(--line);border-radius:6px"'+(comps?' readonly':'')+'></td>'
+    +'<td style="padding:8px 2px"><input type="number" inputmode="decimal" id="maps_'+rid+'" value="'+(pass||'')+'" min="0" placeholder="33" style="font-size:12px;width:56px;padding:4px 6px;border:1.5px solid var(--line);border-radius:6px"></td>'
+    +'<td style="padding:8px 2px;text-align:center"><button class="btn btn-ghost btn-xs" onclick="maToggleParts(\''+rid+'\')">Parts</button></td>'
+    +'</tr>'
+    +(comps||true?'<tr id="mapc_tr_'+rid+'" style="display:'+(comps?'table-row':'none')+'"><td colspan="4" style="padding:0 4px 8px 16px">'
+    +'<div style="border-left:2px solid var(--indigo-200);padding:4px 8px;font-size:12px">'
     +'<div id="mapcr_'+rid+'">'+compRows+'</div>'
     +'<button class="btn btn-ghost btn-xs" onclick="maAddComp(\''+rid+'\')">+ Add Part</button>'
-    +'</div></div>'
+    +'</div></td></tr>':'')
 }
 function maCompRow(parentRid,idx,name,max){
   const cid=parentRid+'_c'+idx
-  return '<div class="form-row" style="margin-bottom:3px" data-macomp="'+cid+'">'
-    +'<div class="fg"><label style="font-size:10px">Name</label><input id="macn_'+cid+'" value="'+esc(name||'')+'" placeholder="e.g. Oral" style="font-size:12px"></div>'
-    +'<div class="fg"><label style="font-size:10px">Max</label><input type="number" inputmode="decimal" id="macm_'+cid+'" value="'+(max!=null?max:'')+'" min="1" style="font-size:12px" oninput="maCompSum(\''+parentRid+'\')"></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-macomp]\').remove();maCompSum(\''+parentRid+'\')">x</button></div>'
+  return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px" data-macomp="'+cid+'">'
+    +'<input id="macn_'+cid+'" value="'+esc(name||'')+'" placeholder="e.g. Oral" style="font-size:12px;width:100px;padding:3px 6px;border:1.5px solid var(--line);border-radius:6px">'
+    +'<input type="number" inputmode="decimal" id="macm_'+cid+'" value="'+(max!=null?max:'')+'" min="1" placeholder="Max" style="font-size:12px;width:56px;padding:3px 6px;border:1.5px solid var(--line);border-radius:6px" oninput="maCompSum(\''+parentRid+'\')">'
+    +'<button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-macomp]\').remove();maCompSum(\''+parentRid+'\')">x</button>'
     +'</div>'
 }
-function maToggleParts(rid){const el=$('mapc_'+rid);if(el)el.style.display=el.style.display==='none'?'block':'none'}
+function maToggleParts(rid){const el=$('mapc_tr_'+rid);if(el)el.style.display=el.style.display==='none'?'table-row':'none'}
 function maAddComp(rid){const w=document.createElement('div');w.innerHTML=maCompRow(rid,Date.now(),'','');$('mapcr_'+rid).appendChild(w.firstChild)}
 function maCompSum(rid){
-  const wrap=document.querySelector('[data-masub="'+rid+'"]');if(!wrap)return
-  const comps=wrap.querySelectorAll('[data-macomp]')
+  const tr=document.querySelector('[data-masub="'+rid+'"]');if(!tr)return
+  const nextTr=$('mapc_tr_'+rid);if(!nextTr)return
+  const comps=nextTr.querySelectorAll('[data-macomp]')
   if(!comps.length){const mi=$('mamx_'+rid);if(mi)mi.readOnly=false;return}
   let total=0;comps.forEach(c=>{total+=parseInt($('macm_'+c.dataset.macomp)?.value)||0})
   const mi=$('mamx_'+rid);if(mi){mi.value=total;mi.readOnly=true}
@@ -5186,9 +5186,10 @@ function maReloadSubs(gid){
   if(!fromId||!toId){$('masubs_'+gid).innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px 0">Select From and To classes</div>';return}
   const subs=_scSubsForRange(fromId,toId)
   const refOv=_sc.ovsMap[fromId]||{}
-  let h='<div class="form-row" style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em"><div style="flex:1">Subject</div><div style="width:70px">Max</div><div style="width:70px">Pass</div><div style="width:60px"></div></div>'
-  h+=subs.map(s=>{const ov=refOv[s.subject_id]||{};return maSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components)}).join('')
-  $('masubs_'+gid).innerHTML=h
+  let rows=subs.map(s=>{const ov=refOv[s.subject_id]||{};return maSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components)}).join('')
+  $('masubs_'+gid).innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+    +'<thead><tr style="border-bottom:2px solid var(--line)"><th style="text-align:left;padding:6px 4px;font-size:11px;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em">Subject</th><th style="width:64px;padding:6px 4px;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Max</th><th style="width:64px;padding:6px 4px;font-size:11px;text-transform:uppercase;color:var(--ink-soft)">Pass</th><th style="width:50px"></th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table>'
 }
 function maAddGroup(){
   const gid='mg'+Date.now()
@@ -5214,7 +5215,8 @@ async function saveMarksAllotment(assessId){
       const mx=parseInt($('mamx_'+rid)?.value)||100
       const ps=parseInt($('maps_'+rid)?.value)
       const passVal=ps>=0?ps:Math.round(mx*0.33)
-      const compEls=sr.querySelectorAll('[data-macomp]')
+      const compTr=$('mapc_tr_'+rid)
+      const compEls=compTr?compTr.querySelectorAll('[data-macomp]'):[]
       let comps=null
       if(compEls.length){comps=[];compEls.forEach(ce=>{const cn=$('macn_'+ce.dataset.macomp)?.value?.trim(),cm=parseInt($('macm_'+ce.dataset.macomp)?.value);if(cn&&cm>0)comps.push({name:cn,max:cm})});if(!comps.length)comps=null}
       cids.forEach(cid=>{allTouchedCids.add(cid);overrideInserts.push({assessment_id:assessId,class_id:cid,subject_id:sid,max_marks:mx,pass_marks:passVal,components:comps})})
