@@ -3597,6 +3597,10 @@ async function loadAssessMarksEditable(){
   if(!assessId){el.innerHTML='';return}
   ldg(el,'Loading marks matrix…')
   const assess=MK_ASSESSMENTS.find(a=>a.assessment_id===assessId)
+  if(assess&&!assess.is_marks_unlocked){
+    el.innerHTML='<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:10px;padding:16px 20px;font-size:13px"><b>Marks entry not yet opened</b><div style="margin-top:4px;color:var(--ink-soft)">Admin has not unlocked marks entry for this assessment yet.</div></div>'
+    return
+  }
   const maxM=assess?.max_marks||100
   const passM=assess?.pass_marks||Math.round(maxM*0.33)
   if(!MK_SUBJECTS.length)await loadClassSubjects()
@@ -3638,7 +3642,7 @@ async function loadAssessMarksEditable(){
   cols.forEach(s=>{
     const lk=lockedSet.has(s.subject_id),cp=compFor(s.subject_id)
     if(cp){
-      html+='<th colspan="'+cp.length+'" style="text-align:center;white-space:nowrap;border-bottom:none">'+esc(s.name)+(lk?' 🔒':'')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Total: '+maxFor(s.subject_id)+(lk?' · locked':'')+'</span></th>'
+      html+='<th colspan="'+(cp.length+(lk?0:1))+'" style="text-align:center;white-space:nowrap;border-bottom:none">'+esc(s.name)+(lk?' 🔒':'')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Total: '+maxFor(s.subject_id)+(lk?' · locked':'')+'</span></th>'
     }else{
       html+='<th'+(hasAnyComps?' rowspan="2"':'')+' style="text-align:center;white-space:nowrap">'+esc(s.name)+(lk?' 🔒':'')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+maxFor(s.subject_id)+(lk?' · locked':'')+'</span></th>'
     }
@@ -3647,8 +3651,8 @@ async function loadAssessMarksEditable(){
   if(hasAnyComps){
     html+='<tr>'
     cols.forEach(s=>{
-      const cp=compFor(s.subject_id)
-      if(cp) cp.forEach(c=>{html+='<th style="text-align:center;font-size:10px;font-weight:500;padding:2px 4px">'+esc(c.name)+'<br><span style="font-size:9px;color:var(--ink-faint)">'+c.max+'</span></th>'})
+      const lk=lockedSet.has(s.subject_id),cp=compFor(s.subject_id)
+      if(cp){cp.forEach(c=>{html+='<th style="text-align:center;font-size:10px;font-weight:500;padding:2px 4px">'+esc(c.name)+'<br><span style="font-size:9px;color:var(--ink-faint)">'+c.max+'</span></th>'});if(!lk)html+='<th style="padding:2px;font-size:9px;color:var(--ink-faint)"></th>'}
     })
     html+='</tr>'
   }
@@ -3671,9 +3675,12 @@ async function loadAssessMarksEditable(){
         cp.forEach(c=>{
           const cVal=isAbs?'':(savedComps[c.name]!=null?savedComps[c.name]:'')
           html+='<td style="text-align:center;padding:6px 3px'+(lk?';opacity:.6':'')+'">'
-            +'<input class="mk-comp-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-comp="'+esc(c.name)+'" data-cmax="'+c.max+'" data-max="'+sMax+'" data-pass="'+sPass+'"'+(lk?' data-locked="1"':'')+' inputmode="decimal" value="'+esc(String(cVal))+'" placeholder="'+(lk?'🔒':(isAbs?'A':'—'))+'"'+dis+' oninput="mkCompChanged(this)" style="width:48px;text-align:center;'+(isAbs?'background:var(--warn-soft);':'')+(lk?'background:var(--lav-100);':'')+'">'
+            +'<input class="mk-comp-input'+(isAbs?' is-abs':'')+'" data-eid="'+s.enrollment_id+'" data-sid="'+sub.subject_id+'" data-comp="'+esc(c.name)+'" data-cmax="'+c.max+'" data-max="'+sMax+'" data-pass="'+sPass+'"'+(lk?' data-locked="1"':'')+' inputmode="decimal" value="'+esc(String(cVal))+'" placeholder="'+(lk?'🔒':(isAbs?'A':'—'))+'"'+dis+' oninput="mkCompChanged(this)" style="width:56px;text-align:center;padding:6px 4px;border:1.5px solid var(--line);border-radius:7px;'+(isAbs?'background:var(--warn-soft);':'')+(lk?'background:var(--lav-100);':'')+'">'
             +'</td>'
         })
+        if(!lk){
+          html+='<td style="text-align:center;padding:6px 2px"><button type="button" class="mk-abs-chip" data-sid="'+sub.subject_id+'" title="Toggle absent" onclick="mkToggleAbsentComp(this)" style="font-size:12px;font-weight:800;padding:6px 11px;border-radius:7px;cursor:pointer;border:1.5px solid '+(isAbs?'var(--warn)':'var(--line)')+';background:'+(isAbs?'var(--warn)':'transparent')+';color:'+(isAbs?'#fff':'var(--ink-soft)')+'">A</button></td>'
+        }
       }else{
         const val=isAbs?'':(mk?.marks_obtained!=null?mk.marks_obtained:'')
         html+='<td style="text-align:center;white-space:nowrap;padding:6px 4px'+(lk?';opacity:.6':'')+'">'
@@ -3706,6 +3713,29 @@ function mkToggleAbsent(btn){
     btn.style.border='1px solid var(--line)';btn.style.background='transparent';btn.style.color='var(--ink-faint)'
   }
   mkRecomputeRow(inp.closest('tr'))
+}
+
+function mkToggleAbsentComp(btn){
+  const row=btn.closest('tr')
+  const sid=btn.dataset.sid
+  if(!row||!sid)return
+  const inps=row.querySelectorAll('.mk-comp-input[data-sid="'+sid+'"]')
+  if(!inps.length)return
+  const nowAbs=!inps[0].classList.contains('is-abs')
+  inps.forEach(inp=>{
+    inp.classList.toggle('is-abs',nowAbs)
+    if(nowAbs){
+      inp.value='';inp.disabled=true;inp.placeholder='A';inp.style.background='var(--warn-soft)';inp.style.borderColor=''
+    }else{
+      inp.disabled=false;inp.placeholder='—';inp.style.background=''
+    }
+  })
+  if(nowAbs){
+    btn.style.border='1.5px solid var(--warn)';btn.style.background='var(--warn)';btn.style.color='#fff'
+  }else{
+    btn.style.border='1.5px solid var(--line)';btn.style.background='transparent';btn.style.color='var(--ink-soft)'
+  }
+  mkRecomputeRow(row)
 }
 
 function mkMarkChanged(input){
