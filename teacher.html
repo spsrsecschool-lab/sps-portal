@@ -2487,11 +2487,15 @@ async function loadMarksTable(){
   let maxM=(assessMeta.max_marks||assessData?.max_marks||100)
   let passM=Math.round(maxM*0.33)
   try{
-    const{data:ov}=await sb.from('assessment_mark_overrides')
-      .select('max_marks,pass_marks')
-      .eq('assessment_id',assessId).eq('class_id',classId).eq('subject_id',subId).maybeSingle()
+    const{data:ovs}=await sb.from('assessment_mark_overrides')
+      .select('subject_id,max_marks,pass_marks')
+      .eq('assessment_id',assessId).eq('class_id',classId)
+      .or('subject_id.eq.'+subId+',subject_id.is.null')
+    const exact=(ovs||[]).find(o=>o.subject_id===subId)
+    const group=(ovs||[]).find(o=>o.subject_id===null)
+    const ov=exact||group
     if(ov){maxM=ov.max_marks; passM=ov.pass_marks}
-  }catch(e){/* no override table or none set — use defaults */}
+  }catch(e){}
 
   let html='<div class="card">'
   if(isTeacherTest){
@@ -2567,11 +2571,14 @@ async function confirmMarks(){
   const assessObj=ALL_ASSESSMENTS.find(a=>a.assessment_id===assessId)||{}
   let maxM=assessObj.max_marks||100
   let passM=Math.round(maxM*0.33)
-  // Honour a per-subject override so validation caps at the right max.
   try{
-    const{data:ov}=await sb.from('assessment_mark_overrides')
-      .select('max_marks,pass_marks')
-      .eq('assessment_id',assessId).eq('class_id',classId).eq('subject_id',subId).maybeSingle()
+    const{data:ovs}=await sb.from('assessment_mark_overrides')
+      .select('subject_id,max_marks,pass_marks')
+      .eq('assessment_id',assessId).eq('class_id',classId)
+      .or('subject_id.eq.'+subId+',subject_id.is.null')
+    const exact=(ovs||[]).find(o=>o.subject_id===subId)
+    const group=(ovs||[]).find(o=>o.subject_id===null)
+    const ov=exact||group
     if(ov){maxM=ov.max_marks; passM=ov.pass_marks}
   }catch(e){}
   const inserts=[];let valid=true
@@ -2801,15 +2808,15 @@ async function loadStudentPerfAnalysis(enrollmentId, name, classId, sectionId){
   // Per-subject overrides: this view is ONE subject across assessments, so an
   // override for (assessment, this class, this subject) changes that column's
   // max/pass. Map assessment_id -> {max,pass}; fall back to the assessment default.
-  let _ovByAssess={}
+  let _ovByAssess={},_cgByAssess={}
   try{
     const{data:_ovs}=await sb.from('assessment_mark_overrides')
-      .select('assessment_id,max_marks,pass_marks')
-      .eq('class_id',actualClassId).eq('subject_id',subId).in('assessment_id',assessIds)
-    ;(_ovs||[]).forEach(o=>{_ovByAssess[o.assessment_id]={max:o.max_marks,pass:o.pass_marks}})
+      .select('assessment_id,subject_id,max_marks,pass_marks')
+      .eq('class_id',actualClassId).or('subject_id.eq.'+subId+',subject_id.is.null').in('assessment_id',assessIds)
+    ;(_ovs||[]).forEach(o=>{if(o.subject_id)_ovByAssess[o.assessment_id]={max:o.max_marks,pass:o.pass_marks};else _cgByAssess[o.assessment_id]={max:o.max_marks,pass:o.pass_marks}})
   }catch(e){}
-  const aMax=a=>_ovByAssess[a.assessment_id]?_ovByAssess[a.assessment_id].max:(a.max_marks||100)
-  const aPass=a=>_ovByAssess[a.assessment_id]?_ovByAssess[a.assessment_id].pass:Math.round((a.max_marks||100)*0.33)
+  const aMax=a=>{const o=_ovByAssess[a.assessment_id]||_cgByAssess[a.assessment_id];return o?o.max:(a.max_marks||100)}
+  const aPass=a=>{const o=_ovByAssess[a.assessment_id]||_cgByAssess[a.assessment_id];return o?o.pass:Math.round((a.max_marks||100)*0.33)}
 
   // Get student marks
   const{data:studentMarks}=await sb.from('marks').select('*')

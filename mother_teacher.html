@@ -3442,8 +3442,8 @@ async function loadViewMarks(){
   // NOT fall back across classes.
   const{data:ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
   const ovMapV={}; (ovs||[]).forEach(o=>{ovMapV[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
-  const maxFor=sid=>{const o=ovMapV[sid];return (o&&o.max!=null)?o.max:maxM}
-  const passFor=sid=>{const o=ovMapV[sid];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
+  const maxFor=sid=>{const o=ovMapV[sid]||ovMapV[null];return (o&&o.max!=null)?o.max:maxM}
+  const passFor=sid=>{const o=ovMapV[sid]||ovMapV[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table class="msheet" style="min-width:800px"><thead><tr>'
     +'<th class="rollfix" style="min-width:50px">Roll</th>'
