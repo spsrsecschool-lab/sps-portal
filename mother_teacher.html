@@ -2574,6 +2574,14 @@ async function loadAssessDropdown(){
   sel.innerHTML='<option value="">Select assessment</option>'+assessments.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
 }
 
+async function _getIncludedSubjects(assessId,classId){
+  try{
+    const{data}=await sb.from('assessment_classes').select('included_subjects').eq('assessment_id',assessId).eq('class_id',classId).maybeSingle()
+    if(data?.included_subjects&&Array.isArray(data.included_subjects))return new Set(data.included_subjects)
+  }catch(e){}
+  return null
+}
+
 async function loadAssessMarks(){
   const assessId=$('am_assess')?.value,el=$('assessMarksWrap')
   if(!assessId){el.innerHTML='';return}
@@ -2584,7 +2592,9 @@ async function loadAssessMarks(){
   const{data:subMaps}=await sb.from('teacher_subject_class_map')
     .select('subject_id,subjects(name,subject_id)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id).eq('session_id',SESS?.session_id||'')
-  const uniqueSubs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
+  let uniqueSubs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
+  const _incSet=await _getIncludedSubjects(assessId,MY_CLASS.class_id)
+  if(_incSet)uniqueSubs=uniqueSubs.filter(m=>_incSet.has(m.subject_id))
   if(!uniqueSubs.length){emp(el,'No subjects configured for your class.');return}
   // Per-subject max/pass overrides for this assessment + class (fall back to the
   // assessment default when a subject has no override).
@@ -3408,6 +3418,8 @@ async function loadViewMarks(){
   const maxM=assess?.max_marks||100
   const passM=assess?.pass_marks||Math.round(maxM*0.33)
   if(!MK_SUBJECTS.length)await loadClassSubjects()
+  const _incSet2=await _getIncludedSubjects(assessId,MY_CLASS.class_id)
+  const _viewSubs=_incSet2?MK_SUBJECTS.filter(s=>_incSet2.has(s.subject_id)):MK_SUBJECTS
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   const{data:marks}=await sb.from('marks').select('*').in('enrollment_id',eids).eq('assessment_id',assessId)
   const marksMap={};(marks||[]).forEach(mk=>{if(!marksMap[mk.enrollment_id])marksMap[mk.enrollment_id]={};marksMap[mk.enrollment_id][mk.subject_id]=mk})
@@ -3448,10 +3460,10 @@ async function loadViewMarks(){
     +'<table class="msheet" style="min-width:800px"><thead><tr>'
     +'<th class="rollfix" style="min-width:50px">Roll</th>'
     +'<th style="min-width:150px">Name</th>'
-  MK_SUBJECTS.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.short_code||s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max '+maxFor(s.subject_id)+' · Pass '+passFor(s.subject_id)+'</span></th>'})
+  _viewSubs.forEach(s=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(s.short_code||s.name)+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max '+maxFor(s.subject_id)+' · Pass '+passFor(s.subject_id)+'</span></th>'})
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th><th style="text-align:center">Att.</th><th style="text-align:center">Att.%</th></tr></thead><tbody>'
 
-  const fullMaxV=MK_SUBJECTS.reduce((t,s)=>t+maxFor(s.subject_id),0)
+  const fullMaxV=_viewSubs.reduce((t,s)=>t+maxFor(s.subject_id),0)
   const rndV=v=>Math.round(v)
   CLASS_STUDENTS.forEach(s=>{
     const sMarks=marksMap[s.enrollment_id]||{}
@@ -3459,7 +3471,7 @@ async function loadViewMarks(){
     html+='<tr>'
     html+='<td class="rollfix" style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
     html+='<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
-    MK_SUBJECTS.forEach(sub=>{
+    _viewSubs.forEach(sub=>{
       const mk=sMarks[sub.subject_id]
       if(!mk){html+='<td style="text-align:center;color:var(--ink-faint)">—</td>';hasMissing=true;return}
       if(mk.is_absent){html+='<td style="text-align:center;background:var(--warn-soft);font-weight:700;color:var(--warn)">A</td>';hasAbsent=true;return}
@@ -3535,6 +3547,10 @@ async function loadAssessMarksEditable(){
   const maxM=assess?.max_marks||100
   const passM=assess?.pass_marks||Math.round(maxM*0.33)
   if(!MK_SUBJECTS.length)await loadClassSubjects()
+  const _incSet3=await _getIncludedSubjects(assessId,MY_CLASS.class_id)
+  const _editSubs=_incSet3?MK_SUBJECTS.filter(s=>_incSet3.has(s.subject_id)):MK_SUBJECTS
+  const _mkSel=$('mk_subject')
+  if(_mkSel){const _prev=_mkSel.value;_mkSel.innerHTML='<option value="">All Subjects</option>'+_editSubs.map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('');_mkSel.value=_prev}
   // Per-subject max/pass overrides for this assessment + class.
   const{data:_ovs}=await sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId).eq('class_id',MY_CLASS.class_id)
   const _ovMap={}; (_ovs||[]).forEach(o=>{_ovMap[o.subject_id]={max:o.max_marks,pass:o.pass_marks}})
@@ -3542,7 +3558,7 @@ async function loadAssessMarksEditable(){
   const passFor=sid=>{const o=_ovMap[sid]||_ovMap[null];if(o&&o.pass!=null)return o.pass;if(o&&o.max!=null)return Math.round(o.max*0.33);return passM}
   // Subject filter: if a subject is chosen, show only that column
   const selSub=$('mk_subject')?.value
-  const cols=selSub?MK_SUBJECTS.filter(s=>s.subject_id===selSub):MK_SUBJECTS
+  const cols=selSub?_editSubs.filter(s=>s.subject_id===selSub):_editSubs
   const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
   const{data:marks}=await sb.from('marks').select('*').in('enrollment_id',eids).eq('assessment_id',assessId)
   const marksMap={}
