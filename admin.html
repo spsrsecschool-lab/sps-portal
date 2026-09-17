@@ -4922,7 +4922,7 @@ let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
   if(a.created_by_teacher_id){openClassTestDetail(a);return}
-  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, max/pass marks, class groups</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openSubjectCoverage()" style="cursor:pointer"><div class="top"><h4>Subject Coverage</h4></div><div class="meta">Choose which subjects each class covers in this assessment</div><div class="arow"><span>Configure</span><span>→</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div>'+(a.exam_fees?.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')+'</div>'
+  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, deadline & marks unlock</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openSubjectCoverage()" style="cursor:pointer"><div class="top"><h4>Subject Coverage</h4></div><div class="meta">Subjects, max/pass marks & components per class group</div><div class="arow"><span>Configure</span><span>→</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div>'+(a.exam_fees?.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')+'</div>'
 }
 async function openClassTestDetail(a){
   const el=$('assessEditContent')
@@ -5021,180 +5021,192 @@ async function saveAssessClasses(assessId){
   if(!toAdd.length&&!toRemove.length){toast('No changes','error');return}
   proceed()
 }
+let _sc={classes:[],subsByClass:{},ovsMap:{},inclMap:{},linkedIds:new Set(),assessId:''}
 async function openSubjectCoverage(){
   if(!_currentAssess)return;const a=_currentAssess
+  _sc.assessId=a.assessment_id
   openSub('assessments','sub-assess-subjects')
   const el=$('assessSubjectsContent')
-  el.innerHTML='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>For each class, tick the subjects this assessment covers. Unticked subjects won\'t appear in the marksheet or affect percentages.</p></div></div><div class="loading-row"><div class="spinner"></div></div>'
-  const{data:acRows}=await sb.from('assessment_classes').select('class_id,included_subjects').eq('assessment_id',a.assessment_id)
-  if(!acRows?.length){el.innerHTML+='<div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
-  const classIds=acRows.map(r=>r.class_id)
-  const inclMap={};acRows.forEach(r=>{inclMap[r.class_id]=r.included_subjects})
-  const{data:maps}=await sb.from('teacher_subject_class_map').select('class_id,subject_id,subjects(name)').eq('session_id',SESS?.session_id||'').in('class_id',classIds)
-  const byClass={};(maps||[]).forEach(m=>{const k=m.class_id;if(!byClass[k])byClass[k]={};byClass[k][m.subject_id]=m.subjects?.name||'?'})
-  const classes=(ALL_CLASSES||[]).filter(c=>classIds.includes(c.class_id)).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
-  let html=''
-  classes.forEach(c=>{
-    const subs=byClass[c.class_id]
-    if(!subs||!Object.keys(subs).length)return
-    const inc=inclMap[c.class_id]
-    const incSet=Array.isArray(inc)?new Set(inc):null
-    html+='<div class="card" style="max-width:600px;margin-bottom:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px">'+esc(c.name)+'</div>'
-    html+='<div style="display:flex;flex-wrap:wrap;gap:6px 18px">'
-    Object.entries(subs).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([sid,sname])=>{
-      const checked=!incSet||incSet.has(sid)
-      html+='<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" class="sc_chk" data-cid="'+c.class_id+'" value="'+sid+'"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)"><span>'+esc(sname)+'</span></label>'
-    })
-    html+='</div></div>'
-  })
-  html+='<button class="btn btn-dark" style="margin-top:6px" onclick="saveSubjectCoverage(\''+a.assessment_id+'\')">Save Coverage</button>'
-  html+='<div style="font-size:11px;color:var(--ink-soft);margin-top:8px">If all subjects are checked for a class, that class uses all mapped subjects (same as before). Unchecking a subject hides it from the marksheet and percentage calculation — existing marks are kept.</div>'
-  el.innerHTML='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>For each class, tick the subjects this assessment covers. Unticked subjects won\'t appear in the marksheet or affect percentages.</p></div></div>'+html
+  el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const[{data:acRows},{data:maps},{data:ovs}]=await Promise.all([
+    sb.from('assessment_classes').select('class_id,included_subjects').eq('assessment_id',a.assessment_id),
+    sb.from('teacher_subject_class_map').select('class_id,subject_id,subjects(name,subject_id)').eq('session_id',SESS?.session_id||''),
+    sb.from('assessment_mark_overrides').select('class_id,subject_id,max_marks,pass_marks,components').eq('assessment_id',a.assessment_id).not('subject_id','is',null)
+  ])
+  if(!acRows?.length){el.innerHTML='<div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
+  _sc.linkedIds=new Set(acRows.map(r=>r.class_id))
+  _sc.inclMap={};acRows.forEach(r=>{_sc.inclMap[r.class_id]=r.included_subjects})
+  _sc.subsByClass={};(maps||[]).forEach(m=>{if(!_sc.linkedIds.has(m.class_id))return;if(!_sc.subsByClass[m.class_id])_sc.subsByClass[m.class_id]={};_sc.subsByClass[m.class_id][m.subject_id]=m.subjects?.name||'?'})
+  _sc.ovsMap={};(ovs||[]).forEach(o=>{if(!_sc.ovsMap[o.class_id])_sc.ovsMap[o.class_id]={};_sc.ovsMap[o.class_id][o.subject_id]={max:o.max_marks,pass:o.pass_marks,components:o.components}})
+  _sc.classes=(ALL_CLASSES||[]).filter(c=>_sc.linkedIds.has(c.class_id)).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
+  const groups=_scDetectGroups()
+  let html='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>Configure subjects, marks and components for each class group.</p></div></div>'
+  html+='<div id="scGroups">'+(groups.length?groups.map((g,i)=>scRenderGroup('sg'+i,g.from,g.to)).join(''):'')+'</div>'
+  html+='<button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="scAddGroup()">+ Add Class Group</button>'
+  html+='<div style="margin-top:10px"><button class="btn btn-dark" onclick="saveSubjectCoverage(\''+esc(a.assessment_id)+'\')">Save Coverage</button></div>'
+  html+='<div style="font-size:11px;color:var(--ink-soft);margin-top:8px">Unchecked subjects won\'t appear in marksheets or affect percentages. Existing marks are kept.</div>'
+  el.innerHTML=html
 }
-async function saveSubjectCoverage(assessId){
-  const{data:acRows}=await sb.from('assessment_classes').select('class_id,included_subjects').eq('assessment_id',assessId)
-  if(!acRows?.length){toast('No classes linked','error');return}
-  const{data:maps}=await sb.from('teacher_subject_class_map').select('class_id,subject_id').eq('session_id',SESS?.session_id||'').in('class_id',acRows.map(r=>r.class_id))
-  const allSubsByClass={};(maps||[]).forEach(m=>{(allSubsByClass[m.class_id]=allSubsByClass[m.class_id]||new Set()).add(m.subject_id)})
-  const checks=document.querySelectorAll('.sc_chk')
-  const checkedByClass={}
-  checks.forEach(chk=>{const cid=chk.dataset.cid;if(!checkedByClass[cid])checkedByClass[cid]=new Set();if(chk.checked)checkedByClass[cid].add(chk.value)})
-  let updated=0
-  for(const row of acRows){
-    const cid=row.class_id
-    const allSubs=allSubsByClass[cid]||new Set()
-    const checked=checkedByClass[cid]||new Set()
-    const allChecked=allSubs.size===checked.size
-    const val=allChecked?null:[...checked]
-    const{error}=await sb.from('assessment_classes').update({included_subjects:val}).eq('assessment_id',assessId).eq('class_id',cid)
-    if(!error)updated++
+function _scDetectGroups(){
+  const groups=[]
+  const sig=cid=>{
+    const ov=_sc.ovsMap[cid];if(!ov)return'_none_'
+    return Object.keys(ov).sort().map(sid=>{const o=ov[sid];return sid+':'+o.max+':'+o.pass+':'+(o.components?JSON.stringify(o.components):'')}).join('|')
   }
-  toast(updated+' class(es) updated','success')
+  let i=0
+  while(i<_sc.classes.length){
+    const c=_sc.classes[i],s=sig(c.class_id)
+    if(s==='_none_'){i++;continue}
+    let j=i+1;while(j<_sc.classes.length&&sig(_sc.classes[j].class_id)===s)j++
+    groups.push({from:c.class_id,to:_sc.classes[j-1].class_id})
+    i=j
+  }
+  if(!groups.length&&_sc.classes.length){groups.push({from:_sc.classes[0].class_id,to:_sc.classes[_sc.classes.length-1].class_id})}
+  return groups
 }
-function cmClassOpts(selId){
-  return '<option value="">—</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>'<option value="'+c.class_id+'"'+(c.class_id===selId?' selected':'')+'>'+esc(c.name)+'</option>').join('')
+function _scSubsForRange(fromId,toId){
+  const sorted=_sc.classes
+  const fi=sorted.findIndex(c=>c.class_id===fromId),ti=sorted.findIndex(c=>c.class_id===toId)
+  if(fi<0||ti<0)return[]
+  const range=sorted.slice(Math.min(fi,ti),Math.max(fi,ti)+1)
+  const union={}
+  range.forEach(c=>{const subs=_sc.subsByClass[c.class_id]||{};Object.entries(subs).forEach(([sid,sname])=>{if(!union[sid])union[sid]=sname})})
+  return Object.entries(union).sort((a,b)=>a[1].localeCompare(b[1])).map(([sid,sname])=>({subject_id:sid,name:sname}))
 }
-function cmSubOpts(selId){
-  return '<option value="">Select subject</option>'+(ALL_SUBJECTS||[]).filter(s=>s.is_active).map(s=>'<option value="'+s.subject_id+'"'+(s.subject_id===selId?' selected':'')+'>'+esc(s.name)+'</option>').join('')
+function _scClassOpts(selId){
+  return '<option value="">—</option>'+_sc.classes.map(c=>'<option value="'+c.class_id+'"'+(c.class_id===selId?' selected':'')+'>'+esc(c.name)+'</option>').join('')
 }
-function cmSubRow(gid,idx,subId,maxM,passM,comps){
-  const sid=gid+'_s'+idx
-  comps=comps||[]
-  const hasComps=comps.length>0
-  const compRows=comps.map((c,ci)=>cmCompRow(sid,ci,c.name,c.max)).join('')
-  return '<div style="margin-bottom:6px" data-cmsub="'+sid+'">'
-    +'<div class="form-row" style="margin-bottom:0">'
-    +'<div class="fg"><label>Subject</label><select id="cmss_'+sid+'" style="font-size:12px">'+cmSubOpts(subId)+'</select></div>'
-    +'<div class="fg"><label>Max</label><input type="number" inputmode="decimal" id="cmsm_'+sid+'" value="'+(maxM!=null?maxM:'')+'" min="1" style="font-size:12px"'+(hasComps?' readonly':'')+'>'+( hasComps?'<span style="font-size:9px;color:var(--ink-faint)">auto from components</span>':'')+'</div>'
-    +'<div class="fg"><label>Pass</label><input type="number" inputmode="decimal" id="cmsp_'+sid+'" value="'+(passM!=null?passM:'')+'" min="0" style="font-size:12px"></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px;gap:4px">'
-    +'<button class="btn btn-ghost btn-xs" title="Oral/Written components" onclick="toggleCmComps(\''+sid+'\')">Parts</button>'
-    +'<button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmsub]\').remove()">×</button>'
+function scRenderGroup(gid,fromId,toId){
+  const subs=_scSubsForRange(fromId,toId)
+  const refOv=_sc.ovsMap[fromId]||{}
+  const refIncl=_sc.inclMap[fromId]
+  const incSet=Array.isArray(refIncl)?new Set(refIncl):null
+  let subHtml=subs.map(s=>{
+    const ov=refOv[s.subject_id]||{}
+    const checked=!incSet||incSet.has(s.subject_id)
+    return scSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components,checked)
+  }).join('')
+  return '<div class="card" style="max-width:750px;margin-bottom:12px" data-scgrp="'+gid+'">'
+    +'<div class="form-row" style="margin-bottom:10px">'
+    +'<div class="fg"><label>From Class</label><select id="scf_'+gid+'" onchange="scReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(fromId)+'</select></div>'
+    +'<div class="fg"><label>To Class</label><select id="sct_'+gid+'" onchange="scReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(toId)+'</select></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-scgrp]\').remove()">×</button></div>'
+    +'</div>'
+    +'<div id="scsubs_'+gid+'" style="border-top:1px solid var(--line);padding-top:8px">'
+    +'<div class="form-row" style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em"><div style="width:28px"></div><div style="flex:1">Subject</div><div style="width:70px">Max</div><div style="width:70px">Pass</div><div style="width:60px"></div></div>'
+    +subHtml
     +'</div></div>'
-    +'<div id="cmcc_'+sid+'" style="display:'+(hasComps?'block':'none')+';margin:4px 0 0 20px;padding:6px 8px;border-left:2px solid var(--indigo-200);font-size:12px">'
-    +'<div style="font-size:10px;font-weight:600;color:var(--ink-soft);margin-bottom:4px">Components <span style="font-weight:400">(e.g. Oral 20 + Written 80)</span></div>'
-    +'<div id="cmccr_'+sid+'">'+compRows+'</div>'
-    +'<button class="btn btn-ghost btn-xs" onclick="addCmCompRow(\''+sid+'\')">+ Add Component</button>'
+}
+function scSubRow(gid,sid,sname,max,pass,comps,checked){
+  const rid=gid+'_'+sid
+  comps=(Array.isArray(comps)&&comps.length)?comps:null
+  const compRows=comps?comps.map((c,ci)=>scCompRow(rid,ci,c.name,c.max)).join(''):''
+  return '<div data-scsub="'+rid+'" data-sid="'+sid+'" style="margin-bottom:4px">'
+    +'<div class="form-row" style="margin-bottom:0;align-items:center">'
+    +'<div style="width:28px;display:flex;justify-content:center"><input type="checkbox" class="sc_chk" data-rid="'+rid+'"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)"></div>'
+    +'<div style="flex:1;font-size:12.5px;font-weight:600">'+esc(sname)+'</div>'
+    +'<div style="width:70px"><input type="number" inputmode="decimal" id="scmx_'+rid+'" value="'+(max||'')+'" min="1" placeholder="100" style="font-size:12px;width:100%"'+(comps?' readonly':'')+'></div>'
+    +'<div style="width:70px"><input type="number" inputmode="decimal" id="scps_'+rid+'" value="'+(pass||'')+'" min="0" placeholder="33" style="font-size:12px;width:100%"></div>'
+    +'<div style="width:60px;text-align:right"><button class="btn btn-ghost btn-xs" onclick="scToggleParts(\''+rid+'\')">Parts</button></div>'
+    +'</div>'
+    +'<div id="scpc_'+rid+'" style="display:'+(comps?'block':'none')+';margin:2px 0 4px 28px;padding:4px 8px;border-left:2px solid var(--indigo-200);font-size:12px">'
+    +'<div id="scpcr_'+rid+'">'+compRows+'</div>'
+    +'<button class="btn btn-ghost btn-xs" onclick="scAddComp(\''+rid+'\')">+ Add Part</button>'
     +'</div></div>'
 }
-function cmCompRow(parentSid,idx,name,max){
-  const cid=parentSid+'_c'+idx
-  return '<div class="form-row" style="margin-bottom:4px" data-cmcomp="'+cid+'">'
-    +'<div class="fg"><label>Name</label><input id="cmcn_'+cid+'" value="'+esc(name||'')+'" placeholder="e.g. Oral" style="font-size:12px"></div>'
-    +'<div class="fg"><label>Max</label><input type="number" inputmode="decimal" id="cmcm_'+cid+'" value="'+(max!=null?max:'')+'" min="1" style="font-size:12px" oninput="cmCompSum(\''+parentSid+'\')"></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmcomp]\').remove();cmCompSum(\''+parentSid+'\')">×</button></div>'
+function scCompRow(parentRid,idx,name,max){
+  const cid=parentRid+'_c'+idx
+  return '<div class="form-row" style="margin-bottom:3px" data-sccomp="'+cid+'">'
+    +'<div class="fg"><label style="font-size:10px">Name</label><input id="sccn_'+cid+'" value="'+esc(name||'')+'" placeholder="e.g. Oral" style="font-size:12px"></div>'
+    +'<div class="fg"><label style="font-size:10px">Max</label><input type="number" inputmode="decimal" id="sccm_'+cid+'" value="'+(max!=null?max:'')+'" min="1" style="font-size:12px" oninput="scCompSum(\''+parentRid+'\')"></div>'
+    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-sccomp]\').remove();scCompSum(\''+parentRid+'\')">×</button></div>'
     +'</div>'
 }
-function cmCompSum(sid){
-  const wrap=document.querySelector('[data-cmsub="'+sid+'"]');if(!wrap)return
-  const comps=wrap.querySelectorAll('[data-cmcomp]')
-  if(!comps.length){const mi=$('cmsm_'+sid);if(mi)mi.readOnly=false;return}
-  let total=0;comps.forEach(c=>{total+=parseInt($('cmcm_'+c.dataset.cmcomp)?.value)||0})
-  const mi=$('cmsm_'+sid);if(mi){mi.value=total;mi.readOnly=true}
+function scToggleParts(rid){const el=$('scpc_'+rid);if(el)el.style.display=el.style.display==='none'?'block':'none'}
+function scAddComp(rid){const w=document.createElement('div');w.innerHTML=scCompRow(rid,Date.now(),'','');$('scpcr_'+rid).appendChild(w.firstChild)}
+function scCompSum(rid){
+  const wrap=document.querySelector('[data-scsub="'+rid+'"]');if(!wrap)return
+  const comps=wrap.querySelectorAll('[data-sccomp]')
+  if(!comps.length){const mi=$('scmx_'+rid);if(mi)mi.readOnly=false;return}
+  let total=0;comps.forEach(c=>{total+=parseInt($('sccm_'+c.dataset.sccomp)?.value)||0})
+  const mi=$('scmx_'+rid);if(mi){mi.value=total;mi.readOnly=true}
 }
-function toggleCmComps(sid){const el=$('cmcc_'+sid);if(el)el.style.display=el.style.display==='none'?'block':'none'}
-function addCmCompRow(sid){const wrap=document.createElement('div');wrap.innerHTML=cmCompRow(sid,Date.now(),'','');$('cmccr_'+sid).appendChild(wrap.firstChild)}
-function toggleCmSubs(id){const el=$('cms_'+id);if(el)el.style.display=el.style.display==='none'?'block':'none'}
-function addCmSubRow(gid){const wrap=document.createElement('div');wrap.innerHTML=cmSubRow(gid,Date.now(),'','','');$('cmsr_'+gid).appendChild(wrap.firstChild)}
-function cmRenderRow(id,fromId,toId,maxM,passM,subjectMarks){
-  subjectMarks=subjectMarks||[]
-  const subRows=subjectMarks.map((sm,i)=>cmSubRow(id,i,sm.subject_id,sm.max_marks,sm.pass_marks,sm.components)).join('')
-  return '<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px" data-cmrow="'+id+'">'
-    +'<div class="form-row" style="margin-bottom:0"><div class="fg"><label>From Class</label><select id="cmf_'+id+'" style="font-size:12px">'+cmClassOpts(fromId)+'</select></div>'
-    +'<div class="fg"><label>To Class</label><select id="cmt_'+id+'" style="font-size:12px">'+cmClassOpts(toId)+'</select></div>'
-    +'<div class="fg"><label>Max Marks *</label><input type="number" inputmode="decimal" id="cmm_'+id+'" value="'+(maxM!=null?maxM:'')+'" min="1"></div>'
-    +'<div class="fg"><label>Pass Marks *</label><input type="number" inputmode="decimal" id="cmp_'+id+'" value="'+(passM!=null?passM:'')+'" min="0"></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px;gap:4px">'
-    +'<button class="btn btn-ghost btn-xs" title="Per-subject marks" onclick="toggleCmSubs(\''+id+'\')">Subjects</button>'
-    +'<button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-cmrow]\').remove()">×</button>'
-    +'</div></div>'
-    +'<div id="cms_'+id+'" style="display:'+(subjectMarks.length?'block':'none')+';margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">'
-    +'<div style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:6px">Per-Subject Marks <span style="font-weight:400">(override the group default above for specific subjects)</span></div>'
-    +'<div id="cmsr_'+id+'">'+subRows+'</div>'
-    +'<button class="btn btn-ghost btn-xs" onclick="addCmSubRow(\''+id+'\')">+ Add Subject</button>'
-    +'</div></div>'
+function scReloadSubs(gid){
+  const fromId=$('scf_'+gid)?.value,toId=$('sct_'+gid)?.value
+  if(!fromId||!toId){$('scsubs_'+gid).innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px 0">Select From and To classes</div>';return}
+  const subs=_scSubsForRange(fromId,toId)
+  const refOv=_sc.ovsMap[fromId]||{}
+  const refIncl=_sc.inclMap[fromId]
+  const incSet=Array.isArray(refIncl)?new Set(refIncl):null
+  let h='<div class="form-row" style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em"><div style="width:28px"></div><div style="flex:1">Subject</div><div style="width:70px">Max</div><div style="width:70px">Pass</div><div style="width:60px"></div></div>'
+  h+=subs.map(s=>{const ov=refOv[s.subject_id]||{};const checked=!incSet||incSet.has(s.subject_id);return scSubRow(gid,s.subject_id,s.name,ov.max||'',ov.pass||'',ov.components,checked)}).join('')
+  $('scsubs_'+gid).innerHTML=h
 }
-function classIdsInRange(fromId,toId){
-  const sorted=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
-  const fi=fromId?sorted.findIndex(c=>c.class_id===fromId):-1
-  const ti=toId?sorted.findIndex(c=>c.class_id===toId):-1
-  if(fi<0||ti<0)return[]
-  return sorted.slice(Math.min(fi,ti),Math.max(fi,ti)+1).map(c=>c.class_id)
+function scAddGroup(){
+  const gid='sg'+Date.now()
+  const w=document.createElement('div')
+  w.innerHTML=scRenderGroup(gid,'','')
+  $('scGroups').appendChild(w.firstChild)
 }
-function addCMRow(containerId){
-  const id='cm'+Date.now()
-  const wrap=document.createElement('div');wrap.innerHTML=cmRenderRow(id,'','','','')
-  $(containerId||'cmRows').appendChild(wrap.firstChild)
+async function saveSubjectCoverage(assessId){
+  const grps=document.querySelectorAll('[data-scgrp]')
+  if(!grps.length){toast('Add at least one class group','error');return}
+  const sorted=_sc.classes
+  const classOrder={};sorted.forEach((c,i)=>classOrder[c.class_id]=i)
+  const allTouchedCids=new Set()
+  const overrideInserts=[]
+  const inclUpdates=[]
+  grps.forEach(grp=>{
+    const gid=grp.dataset.scgrp
+    const fromId=$('scf_'+gid)?.value,toId=$('sct_'+gid)?.value
+    if(!fromId||!toId)return
+    const fi=sorted.findIndex(c=>c.class_id===fromId),ti=sorted.findIndex(c=>c.class_id===toId)
+    if(fi<0||ti<0)return
+    const cids=sorted.slice(Math.min(fi,ti),Math.max(fi,ti)+1).map(c=>c.class_id)
+    const checkedSids=[]
+    const allSubs=grp.querySelectorAll('[data-scsub]')
+    const totalSubs=allSubs.length
+    allSubs.forEach(sr=>{
+      const rid=sr.dataset.scsub,sid=sr.dataset.sid
+      const chk=sr.querySelector('.sc_chk')
+      if(!chk?.checked)return
+      checkedSids.push(sid)
+      const mx=parseInt($('scmx_'+rid)?.value)||100
+      const ps=parseInt($('scps_'+rid)?.value)
+      const passVal=ps>=0?ps:Math.round(mx*0.33)
+      const compEls=sr.querySelectorAll('[data-sccomp]')
+      let comps=null
+      if(compEls.length){comps=[];compEls.forEach(ce=>{const cn=$('sccn_'+ce.dataset.sccomp)?.value?.trim(),cm=parseInt($('sccm_'+ce.dataset.sccomp)?.value);if(cn&&cm>0)comps.push({name:cn,max:cm})});if(!comps.length)comps=null}
+      cids.forEach(cid=>overrideInserts.push({assessment_id:assessId,class_id:cid,subject_id:sid,max_marks:mx,pass_marks:passVal,components:comps}))
+    })
+    const allChecked=checkedSids.length>=totalSubs
+    cids.forEach(cid=>{allTouchedCids.add(cid);inclUpdates.push({cid,val:allChecked?null:checkedSids})})
+  })
+  if(!allTouchedCids.size){toast('No classes configured','error');return}
+  const cidArr=[...allTouchedCids]
+  await sb.from('assessment_mark_overrides').delete().eq('assessment_id',assessId).not('subject_id','is',null).in('class_id',cidArr)
+  await sb.from('assessment_mark_overrides').delete().eq('assessment_id',assessId).is('subject_id',null).in('class_id',cidArr)
+  if(overrideInserts.length){
+    const{error}=await sb.from('assessment_mark_overrides').insert(overrideInserts)
+    if(error){toast('Save failed: '+error.message,'error');return}
+  }
+  for(const u of inclUpdates){
+    await sb.from('assessment_classes').update({included_subjects:u.val}).eq('assessment_id',assessId).eq('class_id',u.cid)
+  }
+  toast('Coverage saved for '+cidArr.length+' class(es)','success')
 }
 async function openAssessSettings(){
   if(!_currentAssess)return;const a=_currentAssess
   openSub('assessments','sub-assess-settings')
-  $('assessSettingsContent').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const[{data:cgOvs},{data:subOvs}]=await Promise.all([
-    sb.from('assessment_mark_overrides').select('override_id,class_id,max_marks,pass_marks').eq('assessment_id',a.assessment_id).is('subject_id',null),
-    sb.from('assessment_mark_overrides').select('class_id,subject_id,max_marks,pass_marks,components').eq('assessment_id',a.assessment_id).not('subject_id','is',null)
-  ])
-  const sorted=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
-  const classOrder={};sorted.forEach((c,i)=>classOrder[c.class_id]=i)
-  const groups=[]
-  if(cgOvs&&cgOvs.length){
-    const byKey={}
-    cgOvs.forEach(o=>{const k=o.max_marks+'_'+o.pass_marks;(byKey[k]=byKey[k]||[]).push(o)})
-    Object.values(byKey).forEach(arr=>{
-      arr.sort((x,y)=>(classOrder[x.class_id]??99)-(classOrder[y.class_id]??99))
-      let start=0
-      for(let i=1;i<=arr.length;i++){
-        if(i===arr.length||(classOrder[arr[i]?.class_id]??99)!==(classOrder[arr[i-1].class_id]??99)+1){
-          const range=arr.slice(start,i)
-          groups.push({from:range[0].class_id,to:range[range.length-1].class_id,max:range[0].max_marks,pass:range[0].pass_marks,subjects:[]})
-          start=i
-        }
-      }
-    })
-  }
-  if(subOvs&&subOvs.length){
-    groups.forEach(g=>{
-      const subs=(subOvs||[]).filter(o=>o.class_id===g.from)
-      const seen=new Set()
-      subs.forEach(s=>{if(!seen.has(s.subject_id)){seen.add(s.subject_id);g.subjects.push(s)}})
-    })
-  }
-  let cmHtml=groups.map((g,i)=>cmRenderRow('cg'+i,g.from,g.to,g.max,g.pass,g.subjects)).join('')
-  if(!cmHtml)cmHtml='<div style="color:var(--ink-faint);font-size:13px;padding:4px 0">No class-group overrides — all classes use the default above.</div>'
   $('assessSettingsContent').innerHTML='<div class="page-head"><div><h2>Assessment Settings — '+esc(a.name)+'</h2></div></div>'
     +'<div class="card" style="max-width:700px">'
     +'<div class="form-row"><div class="fg"><label>Name</label><input id="ae_name" value="'+esc(a.name)+'"></div></div>'
     +'<div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="ae_date" value="'+(a.commencement_date||'')+'"></div><div class="fg"><label>End Date</label><input type="date" id="ae_enddate" value="'+(a.end_date||'')+'"></div></div>'
     +'<div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance working days are counted up to and including the <b>End Date</b>. Start date is informational.</div>'
     +'<div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="ae_dl" value="'+(a.submission_deadline?.slice(0,16)||'')+'"></div></div>'
-    +'<div class="form-row"><div class="fg"><label>Default Max Marks</label><input type="number" inputmode="decimal" id="ae_max" value="'+(a.max_marks||100)+'" min="1"></div><div class="fg"><label>Default Pass Marks</label><input type="number" inputmode="decimal" id="ae_pass" value="'+(a.pass_marks!=null?a.pass_marks:33)+'" min="0"></div></div>'
-    +'<div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Used for classes without a group override below.</div>'
-    +'<div style="margin:16px 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.05em">Class Group Marks</div>'
-    +'<div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px">Set different max/pass marks for different class ranges. Overrides the default above.</div>'
-    +'<div id="cmRows">'+cmHtml+'</div>'
-    +'<button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="addCMRow()">+ Add Class Group</button>'
     +'<div class="toggle-row"><span>Unlock marks entry for teachers</span><div class="switch '+(a.is_marks_unlocked?'on':'')+'" id="ae_unlock" onclick="this.classList.toggle(\'on\')"></div></div>'
-    +'<button class="btn btn-dark" style="margin-top:16px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'
+    +'<div style="font-size:11px;color:var(--ink-soft);margin:4px 0 12px">Marks, pass marks, and components are configured in <b>Subject Coverage</b>.</div>'
+    +'<button class="btn btn-dark" style="margin-top:8px" onclick="saveAssess(\''+a.assessment_id+'\')">Save Changes</button></div>'
 }
 function parseEFGroup(g){
   if(!g)return{label:'',class_ids:[],from:'',to:''}
@@ -5556,7 +5568,7 @@ async function deleteMarkOverride(id){
 
 function openAddAssessmentModal(){
   const clsChecks=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" value="'+c.class_id+'" class="na_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(c.name)+'</span></label>').join('')
-  openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="na_date"></div><div class="fg"><label>End Date</label><input type="date" id="na_enddate"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance is counted up to and including the End Date.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div class="form-row"><div class="fg"><label>Default Max Marks</label><input id="na_maxmarks" type="number" inputmode="decimal" value="100" min="1"></div><div class="fg"><label>Default Pass Marks</label><input id="na_passmarks" type="number" inputmode="decimal" value="33" min="1"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Used for classes without a group override below.</div><div style="margin:10px 0 6px;font-size:12px;font-weight:600;color:var(--ink-soft)">Class Group Marks (optional)</div><div style="font-size:11px;color:var(--ink-soft);margin-bottom:8px">Override max/pass marks for specific class ranges.</div><div id="naCmRows"></div><button type="button" class="btn btn-ghost btn-xs" style="margin-bottom:12px" onclick="addCMRow(\'naCmRows\')">+ Add Class Group</button><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
+  openModal('Create Assessment','<div class="form-row"><div class="fg"><label>Assessment Name *</label><input id="na_name" placeholder="e.g. UT1, Term 1"></div></div><div class="form-row"><div class="fg"><label>Start Date</label><input type="date" id="na_date"></div><div class="fg"><label>End Date</label><input type="date" id="na_enddate"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:-6px 0 8px">Attendance is counted up to and including the End Date.</div><div class="form-row"><div class="fg"><label>Submission Deadline</label><input type="datetime-local" id="na_dl"></div></div><div style="font-size:11px;color:var(--ink-soft);margin:0 0 8px">After creating, use <b>Subject Coverage</b> to set max/pass marks and components per subject.</div><div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>',
     '<button class="btn btn-dark" onclick="createAssessment()">Create Assessment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 async function createAssessment(){
@@ -5564,73 +5576,15 @@ async function createAssessment(){
   const selectedClasses=[...document.querySelectorAll('.na_cls_chk:checked')].map(el=>el.value)
   if(!name){toast('Name required','error');return}
   if(!selectedClasses.length){toast('Select at least one class','error');return}
-  const{data:asmtData,error}=await sb.from('assessments').insert({name,session_id:SESS.session_id,commencement_date:$('na_date')?.value||null,end_date:$('na_enddate')?.value||null,submission_deadline:$('na_dl')?.value?new Date($('na_dl').value).toISOString():null,is_marks_unlocked:false,max_marks:parseInt($('na_maxmarks')?.value)||100,pass_marks:parseInt($('na_passmarks')?.value)||33}).select().single()
+  const{data:asmtData,error}=await sb.from('assessments').insert({name,session_id:SESS.session_id,commencement_date:$('na_date')?.value||null,end_date:$('na_enddate')?.value||null,submission_deadline:$('na_dl')?.value?new Date($('na_dl').value).toISOString():null,is_marks_unlocked:false,max_marks:100,pass_marks:33}).select().single()
   if(error){toast('Failed: '+error.message,'error');return}
   const{error:je}=await sb.from('assessment_classes').insert(selectedClasses.map(class_id=>({assessment_id:asmtData.assessment_id,class_id})))
   if(je){toast('Assessment created but class linking failed: '+je.message,'error');return}
-  const naCmRows=document.querySelectorAll('#naCmRows [data-cmrow]')
-  const cgIns=[]
-  naCmRows.forEach(row=>{
-    const rid=row.dataset.cmrow
-    const fromId=$('cmf_'+rid)?.value,toId=$('cmt_'+rid)?.value
-    const mx=parseInt($('cmm_'+rid)?.value),ps=parseInt($('cmp_'+rid)?.value)
-    if(!fromId||!toId||!(mx>0))return
-    const cids=classIdsInRange(fromId,toId)
-    cids.forEach(cid=>cgIns.push({assessment_id:asmtData.assessment_id,class_id:cid,subject_id:null,max_marks:mx,pass_marks:ps>=0?ps:Math.round(mx*0.33)}))
-    row.querySelectorAll('[data-cmsub]').forEach(sr=>{
-      const sid=sr.dataset.cmsub
-      const subjectId=$('cmss_'+sid)?.value
-      const smx=parseInt($('cmsm_'+sid)?.value),sps=parseInt($('cmsp_'+sid)?.value)
-      if(!subjectId||!(smx>0))return
-      const compEls=sr.querySelectorAll('[data-cmcomp]')||[]
-      let comps=null
-      if(compEls.length){comps=[];compEls.forEach(ce=>{const cn=$('cmcn_'+ce.dataset.cmcomp)?.value?.trim(),cm=parseInt($('cmcm_'+ce.dataset.cmcomp)?.value);if(cn&&cm>0)comps.push({name:cn,max:cm})});if(!comps.length)comps=null}
-      cids.forEach(cid=>cgIns.push({assessment_id:asmtData.assessment_id,class_id:cid,subject_id:subjectId,max_marks:smx,pass_marks:sps>=0?sps:Math.round(smx*0.33),components:comps}))
-    })
-  })
-  if(cgIns.length){
-    const{error:cgErr}=await sb.from('assessment_mark_overrides').insert(cgIns)
-    if(cgErr)toast('Class group marks failed: '+cgErr.message,'error')
-  }
   toast('Assessment created for '+selectedClasses.length+' class(es)','success');closeModal();loadAssessments()
 }
 async function saveAssess(id){
-  const maxVal=parseInt($('ae_max')?.value)||100
-  const passVal=parseInt($('ae_pass')?.value)
-  const{error}=await sb.from('assessments').update({name:$('ae_name')?.value?.trim(),commencement_date:$('ae_date')?.value||null,end_date:$('ae_enddate')?.value||null,submission_deadline:$('ae_dl')?.value?new Date($('ae_dl').value).toISOString():null,is_marks_unlocked:$('ae_unlock')?.classList.contains('on'),max_marks:maxVal,pass_marks:passVal>=0?passVal:Math.round(maxVal*0.33)}).eq('assessment_id',id)
+  const{error}=await sb.from('assessments').update({name:$('ae_name')?.value?.trim(),commencement_date:$('ae_date')?.value||null,end_date:$('ae_enddate')?.value||null,submission_deadline:$('ae_dl')?.value?new Date($('ae_dl').value).toISOString():null,is_marks_unlocked:$('ae_unlock')?.classList.contains('on')}).eq('assessment_id',id)
   if(error){toast('Failed: '+error.message,'error');return}
-  await sb.from('assessment_mark_overrides').delete().eq('assessment_id',id).is('subject_id',null)
-  const cmRows=document.querySelectorAll('[data-cmrow]')
-  const inserts=[],subInserts=[],groupedClassIds=new Set()
-  cmRows.forEach(row=>{
-    const rid=row.dataset.cmrow
-    const fromId=$('cmf_'+rid)?.value,toId=$('cmt_'+rid)?.value
-    const mx=parseInt($('cmm_'+rid)?.value),ps=parseInt($('cmp_'+rid)?.value)
-    if(!fromId||!toId||!(mx>0))return
-    const cids=classIdsInRange(fromId,toId)
-    cids.forEach(cid=>{
-      groupedClassIds.add(cid)
-      inserts.push({assessment_id:id,class_id:cid,subject_id:null,max_marks:mx,pass_marks:ps>=0?ps:Math.round(mx*0.33)})
-    })
-    row.querySelectorAll('[data-cmsub]').forEach(sr=>{
-      const sid=sr.dataset.cmsub
-      const subjectId=$('cmss_'+sid)?.value
-      const smx=parseInt($('cmsm_'+sid)?.value),sps=parseInt($('cmsp_'+sid)?.value)
-      if(!subjectId||!(smx>0))return
-      const compEls=sr.closest('[data-cmsub]')?.querySelectorAll('[data-cmcomp]')||[]
-      let comps=null
-      if(compEls.length){comps=[];compEls.forEach(ce=>{const cn=$('cmcn_'+ce.dataset.cmcomp)?.value?.trim(),cm=parseInt($('cmcm_'+ce.dataset.cmcomp)?.value);if(cn&&cm>0)comps.push({name:cn,max:cm})});if(!comps.length)comps=null}
-      cids.forEach(cid=>subInserts.push({assessment_id:id,class_id:cid,subject_id:subjectId,max_marks:smx,pass_marks:sps>=0?sps:Math.round(smx*0.33),components:comps}))
-    })
-  })
-  if(groupedClassIds.size){
-    await sb.from('assessment_mark_overrides').delete().eq('assessment_id',id).not('subject_id','is',null).in('class_id',[...groupedClassIds])
-  }
-  const allIns=inserts.concat(subInserts)
-  if(allIns.length){
-    const{error:ie}=await sb.from('assessment_mark_overrides').insert(allIns)
-    if(ie){toast('Class group marks failed: '+ie.message,'error');return}
-  }
   toast('Saved','success');loadAssessments()
 }
 async function deleteAssessment(id,name){
