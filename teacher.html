@@ -3648,13 +3648,13 @@ function _tqpRenderMath(el){
 async function loadTeacherQPapers(){
   const el=$('tqpList');if(!el)return
   el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div>'
+  const pairs=new Set(MY_MAPPINGS.map(m=>m.class_id+'_'+m.subject_id))
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))].filter(Boolean)
-  const subjectIds=[...new Set(MY_MAPPINGS.map(m=>m.subject_id))].filter(Boolean)
-  if(!classIds.length||!subjectIds.length){el.innerHTML='<p style="color:var(--ink-faint);padding:20px">No class-subject assignments found.</p>';return}
+  if(!classIds.length){el.innerHTML='<p style="color:var(--ink-faint);padding:20px">No class-subject assignments found.</p>';return}
   const{data:papers}=await sb.from('question_papers').select('*,classes(name,sort_order),subjects(name),assessments(name)')
-    .eq('session_id',SESS?.session_id||'').in('class_id',classIds).in('subject_id',subjectIds)
+    .eq('session_id',SESS?.session_id||'').in('class_id',classIds)
     .order('updated_at',{ascending:false})
-  _tqpPapers=papers||[]
+  _tqpPapers=(papers||[]).filter(p=>pairs.has(p.class_id+'_'+p.subject_id))
   if(!_tqpPapers.length){el.innerHTML='<p style="color:var(--ink-faint);padding:20px">No question papers available for your classes yet.</p>';return}
   let h=''
   _tqpPapers.forEach(p=>{
