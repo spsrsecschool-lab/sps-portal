@@ -1076,6 +1076,10 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="assessClassesContent"></div>
       </div>
+      <div class="sub-page" id="sub-assess-subjects">
+        <button class="back-btn" onclick="openSub('assessments','sub-assess-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <div id="assessSubjectsContent"></div>
+      </div>
     </div>
 
     <!-- MARKS OVERVIEW -->
@@ -4918,7 +4922,7 @@ let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
   if(a.created_by_teacher_id){openClassTestDetail(a);return}
-  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, max/pass marks, class groups</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div>'+(a.exam_fees?.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')+'</div>'
+  $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, max/pass marks, class groups</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openSubjectCoverage()" style="cursor:pointer"><div class="top"><h4>Subject Coverage</h4></div><div class="meta">Choose which subjects each class covers in this assessment</div><div class="arow"><span>Configure</span><span>→</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div>'+(a.exam_fees?.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')+'</div>'
 }
 async function openClassTestDetail(a){
   const el=$('assessEditContent')
@@ -5016,6 +5020,56 @@ async function saveAssessClasses(assessId){
     })
   if(!toAdd.length&&!toRemove.length){toast('No changes','error');return}
   proceed()
+}
+async function openSubjectCoverage(){
+  if(!_currentAssess)return;const a=_currentAssess
+  openSub('assessments','sub-assess-subjects')
+  const el=$('assessSubjectsContent')
+  el.innerHTML='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>For each class, tick the subjects this assessment covers. Unticked subjects won\'t appear in the marksheet or affect percentages.</p></div></div><div class="loading-row"><div class="spinner"></div></div>'
+  const{data:acRows}=await sb.from('assessment_classes').select('class_id,included_subjects').eq('assessment_id',a.assessment_id)
+  if(!acRows?.length){el.innerHTML+='<div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
+  const classIds=acRows.map(r=>r.class_id)
+  const inclMap={};acRows.forEach(r=>{inclMap[r.class_id]=r.included_subjects})
+  const{data:maps}=await sb.from('teacher_subject_class_map').select('class_id,subject_id,subjects(name)').eq('session_id',SESS?.session_id||'').in('class_id',classIds)
+  const byClass={};(maps||[]).forEach(m=>{const k=m.class_id;if(!byClass[k])byClass[k]={};byClass[k][m.subject_id]=m.subjects?.name||'?'})
+  const classes=(ALL_CLASSES||[]).filter(c=>classIds.includes(c.class_id)).sort((x,y)=>(x.sort_order||0)-(y.sort_order||0))
+  let html=''
+  classes.forEach(c=>{
+    const subs=byClass[c.class_id]
+    if(!subs||!Object.keys(subs).length)return
+    const inc=inclMap[c.class_id]
+    const incSet=Array.isArray(inc)?new Set(inc):null
+    html+='<div class="card" style="max-width:600px;margin-bottom:12px"><div style="font-size:13px;font-weight:700;margin-bottom:8px">'+esc(c.name)+'</div>'
+    html+='<div style="display:flex;flex-wrap:wrap;gap:6px 18px">'
+    Object.entries(subs).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([sid,sname])=>{
+      const checked=!incSet||incSet.has(sid)
+      html+='<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" class="sc_chk" data-cid="'+c.class_id+'" value="'+sid+'"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)"><span>'+esc(sname)+'</span></label>'
+    })
+    html+='</div></div>'
+  })
+  html+='<button class="btn btn-dark" style="margin-top:6px" onclick="saveSubjectCoverage(\''+a.assessment_id+'\')">Save Coverage</button>'
+  html+='<div style="font-size:11px;color:var(--ink-soft);margin-top:8px">If all subjects are checked for a class, that class uses all mapped subjects (same as before). Unchecking a subject hides it from the marksheet and percentage calculation — existing marks are kept.</div>'
+  el.innerHTML='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>For each class, tick the subjects this assessment covers. Unticked subjects won\'t appear in the marksheet or affect percentages.</p></div></div>'+html
+}
+async function saveSubjectCoverage(assessId){
+  const{data:acRows}=await sb.from('assessment_classes').select('class_id,included_subjects').eq('assessment_id',assessId)
+  if(!acRows?.length){toast('No classes linked','error');return}
+  const{data:maps}=await sb.from('teacher_subject_class_map').select('class_id,subject_id').eq('session_id',SESS?.session_id||'').in('class_id',acRows.map(r=>r.class_id))
+  const allSubsByClass={};(maps||[]).forEach(m=>{(allSubsByClass[m.class_id]=allSubsByClass[m.class_id]||new Set()).add(m.subject_id)})
+  const checks=document.querySelectorAll('.sc_chk')
+  const checkedByClass={}
+  checks.forEach(chk=>{const cid=chk.dataset.cid;if(!checkedByClass[cid])checkedByClass[cid]=new Set();if(chk.checked)checkedByClass[cid].add(chk.value)})
+  let updated=0
+  for(const row of acRows){
+    const cid=row.class_id
+    const allSubs=allSubsByClass[cid]||new Set()
+    const checked=checkedByClass[cid]||new Set()
+    const allChecked=allSubs.size===checked.size
+    const val=allChecked?null:[...checked]
+    const{error}=await sb.from('assessment_classes').update({included_subjects:val}).eq('assessment_id',assessId).eq('class_id',cid)
+    if(!error)updated++
+  }
+  toast(updated+' class(es) updated','success')
 }
 function cmClassOpts(selId){
   return '<option value="">—</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>'<option value="'+c.class_id+'"'+(c.class_id===selId?' selected':'')+'>'+esc(c.name)+'</option>').join('')
@@ -5643,6 +5697,13 @@ async function saveMiscFee(){
 async function toggleMiscFee(id,current){const{error}=await sb.from('misc_fees').update({is_collection_unlocked:!current}).eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast(current?'Locked':'Unlocked','success');loadMiscFees()}
 async function deleteMiscFee(id,name){confirmAct('Delete "'+name+'"?','Payment records are preserved.',async()=>{const{error}=await sb.from('misc_fees').delete().eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Fee deleted','success');loadMiscFees()})}
 
+async function _getIncludedSubjects(assessId,classId){
+  try{
+    const{data}=await sb.from('assessment_classes').select('included_subjects').eq('assessment_id',assessId).eq('class_id',classId).maybeSingle()
+    if(data?.included_subjects&&Array.isArray(data.included_subjects))return new Set(data.included_subjects)
+  }catch(e){}
+  return null
+}
 // ═══════════ MARKS OVERVIEW ═══════════
 function loadMarksOverviewShell(){
   // Populate the class dropdown; the marks sheet loads on demand.
@@ -5688,7 +5749,8 @@ async function loadMarksTable(){
   let mq=sb.from('teacher_subject_class_map').select('subject_id,subjects(name,subject_id)').eq('class_id',classId).eq('session_id',SESS?.session_id||'')
   if(secId)mq=mq.eq('section_id',secId)
   const{data:subMaps}=await mq
-  const uniqueSubs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
+  const _incSet=await _getIncludedSubjects(assessId,classId)
+  const uniqueSubs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()].filter(m=>!_incSet||_incSet.has(m.subject_id))
   if(!uniqueSubs.length){emp(el,'No subjects mapped for this class in Class & Subject Mapping.');return}
 
   // Per-subject max/pass overrides.
@@ -6072,7 +6134,8 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   let mq=sb.from('teacher_subject_class_map').select('subject_id,subjects(name,short_code)').eq('class_id',classId).eq('session_id',SESS.session_id)
   if(secId)mq=mq.eq('section_id',secId)
   const{data:subMaps}=await mq
-  const subs=[...new Map((subMaps||[]).map(m=>[m.subject_id,{subject_id:m.subject_id,name:m.subjects?.name||'?',short:m.subjects?.short_code||m.subjects?.name||'?'}])).values()]
+  const _incSet2=await _getIncludedSubjects(assessId,classId)
+  const subs=[...new Map((subMaps||[]).map(m=>[m.subject_id,{subject_id:m.subject_id,name:m.subjects?.name||'?',short:m.subjects?.short_code||m.subjects?.name||'?'}])).values()].filter(s=>!_incSet2||_incSet2.has(s.subject_id))
   if(!subs.length){emp(prev,'No subjects mapped for this class.');return}
 
   // Per-student subject combination (11th/12th electives). If a student has rows
@@ -10248,7 +10311,8 @@ _dlBuild.marks=async function(){
   mq=mq.eq('session_id',sid)
   if(secId)mq=mq.eq('section_id',secId)
   const{data:subMaps}=await mq
-  const subs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()]
+  const _incSet3=cid?await _getIncludedSubjects(assessId,cid):null
+  const subs=[...new Map((subMaps||[]).map(m=>[m.subject_id,m])).values()].filter(s=>!_incSet3||_incSet3.has(s.subject_id))
   const defMax=assess.max_marks||100,defPass=assess.pass_marks||Math.round(defMax*0.33)
   let ovQ=sb.from('assessment_mark_overrides').select('subject_id,max_marks,pass_marks').eq('assessment_id',assessId)
   if(cid)ovQ=ovQ.eq('class_id',cid)

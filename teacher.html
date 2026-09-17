@@ -2417,14 +2417,21 @@ async function meLoadClassesForAssessment(){
   if(sel)sel.innerHTML='<option value="">Select class-section</option>'+opts
 }
 
-function meLoadSubjectsForClass(){
+async function meLoadSubjectsForClass(){
   const val=$('me_class')?.value,sel=$('me_subject')
   if(!sel)return
   sel.innerHTML='<option value="">Select class first</option>'
   $('marksTableWrap').innerHTML=''
   if(!val)return
   const[secId,classId]=val.split('|')
-  const maps=MY_MAPPINGS.filter(m=>m.class_id===classId&&m.section_id===secId)
+  const assessId=$('me_assessment')?.value
+  let maps=MY_MAPPINGS.filter(m=>m.class_id===classId&&m.section_id===secId)
+  if(assessId){
+    try{
+      const{data:ac}=await sb.from('assessment_classes').select('included_subjects').eq('assessment_id',assessId).eq('class_id',classId).maybeSingle()
+      if(ac?.included_subjects&&Array.isArray(ac.included_subjects)){const incSet=new Set(ac.included_subjects);maps=maps.filter(m=>incSet.has(m.subject_id))}
+    }catch(e){}
+  }
   sel.innerHTML='<option value="">Select subject</option>'+maps.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||'?')+'</option>').join('')
 }
 
