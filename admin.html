@@ -5049,10 +5049,23 @@ async function openSubjectCoverage(){
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   const ok=await _scLoadData()
   if(!ok){el.innerHTML='<div class="empty-state"><p>No classes linked to this assessment.</p></div>';return}
-  const groups=_scDetectGroups()
-  let html='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>Select which subjects each class group covers in this assessment.</p></div></div>'
-  html+='<div id="scGroups">'+(groups.length?groups.map((g,i)=>scRenderGroup('sg'+i,g.from,g.to)).join(''):'')+'</div>'
-  html+='<button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="scAddGroup()">+ Add Class Group</button>'
+  let html='<div class="page-head"><div><h2>Subject Coverage — '+esc(a.name)+'</h2><p>Select which subjects each class covers in this assessment.</p></div></div>'
+  _sc.classes.forEach(c=>{
+    const subs=_sc.subsByClass[c.class_id]
+    if(!subs||!Object.keys(subs).length)return
+    const incl=_sc.inclMap[c.class_id]
+    const incSet=Array.isArray(incl)?new Set(incl):null
+    const entries=Object.entries(subs).sort((a,b)=>a[1].localeCompare(b[1]))
+    html+='<div class="card" style="max-width:560px;margin-bottom:10px" data-scclass="'+c.class_id+'">'
+      +'<div style="font-weight:700;font-size:13px;margin-bottom:8px">'+esc(c.name)+'</div>'
+    entries.forEach(([sid,sname])=>{
+      const checked=!incSet||incSet.has(sid)
+      html+='<label style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px">'
+        +'<input type="checkbox" class="sc_chk" value="'+sid+'"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)">'
+        +'<span style="flex:1;font-weight:500">'+esc(sname)+'</span></label>'
+    })
+    html+='</div>'
+  })
   html+='<div style="margin-top:10px"><button class="btn btn-dark" onclick="saveSubjectCoverage(\''+esc(a.assessment_id)+'\')">Save Coverage</button></div>'
   html+='<div style="font-size:11px;color:var(--ink-soft);margin-top:8px">Unchecked subjects won\'t appear in marksheets or affect percentages. Existing marks are kept.</div>'
   el.innerHTML=html
@@ -5102,72 +5115,20 @@ function _scSubsForRange(fromId,toId){
 function _scClassOpts(selId){
   return '<option value="">—</option>'+_sc.classes.map(c=>'<option value="'+c.class_id+'"'+(c.class_id===selId?' selected':'')+'>'+esc(c.name)+'</option>').join('')
 }
-function scRenderGroup(gid,fromId,toId){
-  const subs=_scSubsForRange(fromId,toId)
-  const refIncl=_sc.inclMap[fromId]
-  const incSet=Array.isArray(refIncl)?new Set(refIncl):null
-  let subHtml=subs.map(s=>{
-    const checked=!incSet||incSet.has(s.subject_id)
-    return '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px" data-scsub="'+gid+'_'+s.subject_id+'" data-sid="'+s.subject_id+'">'
-      +'<input type="checkbox" class="sc_chk"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)">'
-      +'<span style="flex:1;font-weight:600">'+esc(s.name)+'</span></label>'
-  }).join('')
-  return '<div class="card" style="max-width:560px;margin-bottom:12px" data-scgrp="'+gid+'">'
-    +'<div class="form-row" style="margin-bottom:10px">'
-    +'<div class="fg"><label>From Class</label><select id="scf_'+gid+'" onchange="scReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(fromId)+'</select></div>'
-    +'<div class="fg"><label>To Class</label><select id="sct_'+gid+'" onchange="scReloadSubs(\''+gid+'\')" style="font-size:12px">'+_scClassOpts(toId)+'</select></div>'
-    +'<div style="display:flex;align-items:end;padding-bottom:2px"><button class="btn btn-ghost btn-xs" onclick="this.closest(\'[data-scgrp]\').remove()">x</button></div>'
-    +'</div>'
-    +'<div id="scsubs_'+gid+'" style="border-top:1px solid var(--line);padding-top:8px">'+subHtml+'</div></div>'
-}
-function scReloadSubs(gid){
-  const fromId=$('scf_'+gid)?.value,toId=$('sct_'+gid)?.value
-  if(!fromId||!toId){$('scsubs_'+gid).innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px 0">Select From and To classes</div>';return}
-  const subs=_scSubsForRange(fromId,toId)
-  const refIncl=_sc.inclMap[fromId]
-  const incSet=Array.isArray(refIncl)?new Set(refIncl):null
-  let h=subs.map(s=>{
-    const checked=!incSet||incSet.has(s.subject_id)
-    return '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px" data-scsub="'+gid+'_'+s.subject_id+'" data-sid="'+s.subject_id+'">'
-      +'<input type="checkbox" class="sc_chk"'+(checked?' checked':'')+' style="width:14px;height:14px;accent-color:var(--indigo)">'
-      +'<span style="flex:1;font-weight:600">'+esc(s.name)+'</span></label>'
-  }).join('')
-  $('scsubs_'+gid).innerHTML=h
-}
-function scAddGroup(){
-  const gid='sg'+Date.now()
-  const w=document.createElement('div')
-  w.innerHTML=scRenderGroup(gid,'','')
-  $('scGroups').appendChild(w.firstChild)
-}
 async function saveSubjectCoverage(assessId){
-  const grps=document.querySelectorAll('[data-scgrp]')
-  if(!grps.length){toast('Add at least one class group','error');return}
-  const sorted=_sc.classes
-  const allTouchedCids=new Set()
-  const inclUpdates=[]
-  grps.forEach(grp=>{
-    const gid=grp.dataset.scgrp
-    const fromId=$('scf_'+gid)?.value,toId=$('sct_'+gid)?.value
-    if(!fromId||!toId)return
-    const fi=sorted.findIndex(c=>c.class_id===fromId),ti=sorted.findIndex(c=>c.class_id===toId)
-    if(fi<0||ti<0)return
-    const cids=sorted.slice(Math.min(fi,ti),Math.max(fi,ti)+1).map(c=>c.class_id)
-    const checkedSids=[]
-    const allSubs=grp.querySelectorAll('[data-scsub]')
-    const totalSubs=allSubs.length
-    allSubs.forEach(sr=>{
-      const chk=sr.querySelector('.sc_chk')
-      if(chk?.checked)checkedSids.push(sr.dataset.sid)
-    })
-    const allChecked=checkedSids.length>=totalSubs
-    cids.forEach(cid=>{allTouchedCids.add(cid);inclUpdates.push({cid,val:allChecked?null:checkedSids})})
-  })
-  if(!allTouchedCids.size){toast('No classes configured','error');return}
-  for(const u of inclUpdates){
-    await sb.from('assessment_classes').update({included_subjects:u.val}).eq('assessment_id',assessId).eq('class_id',u.cid)
+  const cards=document.querySelectorAll('[data-scclass]')
+  if(!cards.length){toast('No classes to save','error');return}
+  let count=0
+  for(const card of cards){
+    const cid=card.dataset.scclass
+    const checks=card.querySelectorAll('.sc_chk')
+    const total=checks.length
+    const checkedSids=[];checks.forEach(ch=>{if(ch.checked)checkedSids.push(ch.value)})
+    const val=checkedSids.length>=total?null:checkedSids
+    await sb.from('assessment_classes').update({included_subjects:val}).eq('assessment_id',assessId).eq('class_id',cid)
+    count++
   }
-  toast('Subject coverage saved for '+[...allTouchedCids].length+' class(es)','success')
+  toast('Subject coverage saved for '+count+' class(es)','success')
 }
 function maRenderGroup(gid,fromId,toId){
   const subs=_scSubsForRange(fromId,toId)
