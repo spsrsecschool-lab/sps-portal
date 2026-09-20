@@ -6149,7 +6149,7 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   const{data:aRow}=await sb.from('assessments').select('*').eq('assessment_id',assessId).maybeSingle()
 
   // Students
-  let sq=sb.from('student_enrollments').select('enrollment_id,roll_no,students(full_name,father_name)').eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false)
+  let sq=sb.from('student_enrollments').select('enrollment_id,roll_no,is_new_admission,att_from_admission,students(full_name,father_name,admission_date)').eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false)
   if(secId)sq=sq.eq('section_id',secId)
   const{data:studs}=await sq.order('roll_no')
   if(!studs?.length){emp(prev,'No students in this class'+(secId?'/section':'')+'.');return}
@@ -6999,6 +6999,8 @@ async function loadStudentAttendance(){
     sb.from('attendance_monthly').select('from_date,to_date,working_days,present_count,absent_count').eq('enrollment_id',eid),
     sb.from('student_half_days').select('date').eq('enrollment_id',eid).eq('session_id',sid)
   ])
+  const _casEPH=await getExamPrepHolidays(sessStart,SESS?.end_date||todayStr)
+  const casEPSet=enr?(_casEPH[enr.class_id]||null):null
   if(!enr){emp(el,'Student not found.');return}
   const holMap={}; (hols||[]).filter(h=>(h.applies_to||'both')!=='staff_only').forEach(h=>{holMap[h.date]=h.label})
   const classStart=(cssD||[]).find(c=>c.class_id===enr.class_id)?.start_date||sessStart
@@ -7056,7 +7058,7 @@ async function loadStudentAttendance(){
 
     // Class has monthly records for this month but this student was skipped → infer totals
     if(classMonthlySet.has(mKey)){
-      const wdDays=[];for(let d=1;d<=mb.dim;d++){const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0');if(ds>capTo)break;const dow=new Date(ds+'T12:00:00').getDay();if(dow===0||holMap[ds]||ds<effStart)continue;wdDays.push(ds)}
+      const wdDays=[];for(let d=1;d<=mb.dim;d++){const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0');if(ds>capTo)break;const dow=new Date(ds+'T12:00:00').getDay();if(dow===0||holMap[ds]||(casEPSet&&casEPSet.has(ds))||ds<effStart)continue;wdDays.push(ds)}
       const wk=wdDays.length, dr=Object.keys(attMap).filter(d=>d>=mb.from&&d<=capTo)
       const pres=dr.filter(d=>attMap[d]==='P'||attMap[d]==='L').length
       const abs=Math.max(0,wk-pres)
@@ -7072,10 +7074,11 @@ async function loadStudentAttendance(){
       const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0')
       if(ds>capTo)break
       const dow=new Date(ds+'T12:00:00').getDay()
-      const isSun=dow===0, isHol=!!holMap[ds], beforeStart=ds<effStart
+      const isEP=!!(casEPSet&&casEPSet.has(ds))
+      const isSun=dow===0, isHol=!!holMap[ds]||isEP, beforeStart=ds<effStart
       const skip=isSun||isHol||beforeStart
       const status=attMap[ds]||null
-      days.push({ds,d,dow,isSun,isHol,holLabel:holMap[ds]||'',beforeStart,skip,status})
+      days.push({ds,d,dow,isSun,isHol,holLabel:holMap[ds]||(isEP?'Exam period':''),beforeStart,skip,status})
     }
     const workDays=days.filter(x=>!x.skip)
     const recorded=workDays.filter(x=>x.status)
