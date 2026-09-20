@@ -6692,31 +6692,41 @@ async function getExamPrepHolidays(fromDate,toDate){
   const sid=SESS?.session_id||''
   if(!sid)return{}
   const{data:asmts}=await sb.from('assessments').select('assessment_id,commencement_date,end_date').eq('session_id',sid)
-  const active=(asmts||[]).filter(a=>a.commencement_date<=toDate&&a.end_date>=fromDate)
+  const active=(asmts||[]).filter(a=>a.commencement_date&&a.end_date&&a.commencement_date<=toDate&&a.end_date>=fromDate)
   if(!active.length)return{}
   const byClass={}
+  const addHol=(cid,d)=>{if(!byClass[cid])byClass[cid]=new Set();byClass[cid].add(d)}
   for(const a of active){
     const{data:dsData}=await sb.from('exam_datesheets').select('schedule').eq('assessment_id',a.assessment_id).maybeSingle()
     const sched=dsData?.schedule||[]
+    if(!sched.length)continue
+    const examStart=a.commencement_date>fromDate?a.commencement_date:fromDate
+    const examEnd=a.end_date<toDate?a.end_date:toDate
+    const dsDates=new Set(sched.filter(r=>r.date).map(r=>r.date))
+    const examDaysByClass={}
     sched.forEach(row=>{
       if(!row.date||row.date<fromDate||row.date>toDate)return
       const entries=row.entries||{}
-      const hasAnyExam=Object.values(entries).some(v=>{const t=(v||'').trim();return t&&t!=='-'})
-      if(!hasAnyExam)return
       Object.keys(entries).forEach(cid=>{
         const v=(entries[cid]||'').trim()
-        if(!v||v==='-'){
-          if(!byClass[cid])byClass[cid]=new Set()
-          byClass[cid].add(row.date)
-        }
-      })
-      ;(ALL_CLASSES||[]).filter(c=>c.is_active).forEach(c=>{
-        if(!(c.class_id in entries)){
-          if(!byClass[c.class_id])byClass[c.class_id]=new Set()
-          byClass[c.class_id].add(row.date)
+        if(v&&v!=='-'){
+          if(!examDaysByClass[cid])examDaysByClass[cid]=new Set()
+          examDaysByClass[cid].add(row.date)
         }
       })
     })
+    const cur=new Date(examStart+'T12:00:00'),end=new Date(examEnd+'T12:00:00')
+    while(cur<=end){
+      const ds=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0')
+      const dw=cur.getDay()
+      if(dw!==0){
+        ;(ALL_CLASSES||[]).filter(c=>c.is_active).forEach(c=>{
+          const hasExam=examDaysByClass[c.class_id]&&examDaysByClass[c.class_id].has(ds)
+          if(!hasExam) addHol(c.class_id,ds)
+        })
+      }
+      cur.setDate(cur.getDate()+1)
+    }
   }
   return byClass
 }
