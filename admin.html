@@ -9961,6 +9961,12 @@ function _csvEsc(v){
     return '"'+s.replace(/"/g,'""')+'"'
   return s
 }
+function _csvText(v){
+  if(v==null||v==='')return ''
+  const s=String(v).trim()
+  if(!s)return ''
+  return '="'+s.replace(/"/g,'""')+'"'
+}
 function _csvRow(arr){return arr.map(_csvEsc).join(',')}
 function _triggerCSV(rows,filename){
   const bom='﻿'
@@ -10104,7 +10110,7 @@ _dlBuild.student_master=async function(){
   const rows=[_csvRow(hdr)]
   all.forEach(e=>{
     const s=e.students||{}
-    rows.push(_csvRow([s.student_id,s.srn,s.pen,s.apaar_id,s.gender,e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,e.classes?.name,e.class_sections?.name,e.streams?.name,s.phone,s.alt_phone,s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,s.aadhar_no,aadharSet.has(s.student_id)?'Yes':'No',s.photo_url]))
+    rows.push(_csvRow([s.student_id,_csvText(s.srn),_csvText(s.pen),_csvText(s.apaar_id),s.gender,e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,e.classes?.name,e.class_sections?.name,e.streams?.name,_csvText(s.phone),_csvText(s.alt_phone),s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,_csvText(s.aadhar_no),aadharSet.has(s.student_id)?'Yes':'No',s.photo_url]))
   })
   return rows
 }
@@ -10124,7 +10130,7 @@ _dlBuild.contact_sheet=async function(){
   }
   const hdr=['Roll','Student Name','Father Name','Mother Name','Class','Section','Phone','Alt Phone']
   const rows=[_csvRow(hdr)]
-  all.forEach(e=>{const s=e.students||{};rows.push(_csvRow([e.roll_no,s.full_name,s.father_name,s.mother_name,e.classes?.name,e.class_sections?.name,s.phone,s.alt_phone]))})
+  all.forEach(e=>{const s=e.students||{};rows.push(_csvRow([e.roll_no,s.full_name,s.father_name,s.mother_name,e.classes?.name,e.class_sections?.name,_csvText(s.phone),_csvText(s.alt_phone)]))})
   return rows
 }
 
@@ -10148,7 +10154,7 @@ _dlBuild.family_siblings=async function(){
   const hdr=['Family Code','Father Name','Phone','Student Name','Class-Section','Roll','S.No','Sibling Count']
   const rows=[_csvRow(hdr)]
   Object.values(byFam).sort((a,b)=>a.code.localeCompare(b.code)).forEach(f=>{
-    f.children.forEach(c=>{rows.push(_csvRow([f.code,f.father,f.phone,c.name,c.cls,c.roll,c.sno,f.children.length]))})
+    f.children.forEach(c=>{rows.push(_csvRow([f.code,f.father,_csvText(f.phone),c.name,c.cls,c.roll,c.sno,f.children.length]))})
   })
   return rows
 }
@@ -10435,7 +10441,7 @@ _dlBuild.teacher_master=async function(){
   const{data}=await sb.from('teachers').select('teacher_id,employee_code,full_name,designation,phone,username,is_active,joining_date')
   const hdr=['Teacher ID','Employee Code','Full Name','Designation','Phone','Username','Active','Joining Date']
   const rows=[_csvRow(hdr)]
-  ;(data||[]).forEach(t=>{rows.push(_csvRow([t.teacher_id,t.employee_code,t.full_name,t.designation,t.phone,t.username,t.is_active?'Yes':'No',t.joining_date]))})
+  ;(data||[]).forEach(t=>{rows.push(_csvRow([t.teacher_id,t.employee_code,t.full_name,t.designation,_csvText(t.phone),t.username,t.is_active?'Yes':'No',t.joining_date]))})
   return rows
 }
 
