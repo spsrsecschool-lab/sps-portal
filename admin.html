@@ -6352,7 +6352,7 @@ function buildMarksheetHTML(rows,rankPos,rules,forPrint){
       +calc.cells.map(c=>'<td class="ms-c"'+(c.red?' style="background:'+RED+'"':'')+'>'+esc(c.text)+'</td>').join('')
       +'<td class="ms-c">'+esc(calc.totalText)+'</td>'
       +'<td class="ms-c"'+(calc.pctText==='FAIL'?' style="background:'+RED+'"':'')+'>'+pctCell+'</td>'
-      +'<td class="ms-c"'+(attRed?' style="background:'+RED+'"':'')+'>'+esc(String(st.present))+'</td>'
+      +'<td class="ms-c"'+(attRed?' style="background:'+RED+'"':'')+'>'+esc(String(st.present))+'/'+esc(String(st.working))+'</td>'
       +'<td class="ms-c"></td>'
       +'</tr>'
   }
