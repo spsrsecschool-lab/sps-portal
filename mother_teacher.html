@@ -2650,7 +2650,7 @@ async function loadAssessMarks(){
     ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission||s.att_from_admission)?(s.students?.admission_date||null):null})
     const wdCache={}
-    const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
+    const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds)&&!(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(ds)))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
     CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStudent[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id])}})
   }
 
@@ -3473,7 +3473,7 @@ async function loadViewMarks(){
     ;(attData||[]).forEach(a=>{if(_inMon2(a.enrollment_id,a.date))return;if(a.status==='P')byStu[a.enrollment_id]=(byStu[a.enrollment_id]||0)+1})
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission||s.att_from_admission)?(s.students?.admission_date||null):null})
     const wdCache={}
-    const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
+    const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds)&&!(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(ds)))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
     CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStu[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id])}})
   }
 
