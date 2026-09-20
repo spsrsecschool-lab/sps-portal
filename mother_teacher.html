@@ -1190,25 +1190,35 @@ SPS.ready().then(async()=>{
     if(cs?.start_date)MY_CLASS_START=cs.start_date
   }catch(e){}
 
-  // Load exam-day holidays for this class (dates with - or blank in datesheet)
+  // Load exam-period holidays for this class: every weekday between
+  // commencement_date and end_date where this class does NOT have an exam.
   MY_EXAM_PREP_HOLS=null
   try{
     const sid=SESS?.session_id||''
     const{data:asmts}=await sb.from('assessments').select('assessment_id,commencement_date,end_date').eq('session_id',sid)
     const st=SESS?.start_date||(new Date().getFullYear()+'-04-01'),en=SESS?.end_date||(new Date().getFullYear()+1+'-03-31')
-    const active=(asmts||[]).filter(a=>a.commencement_date<=en&&a.end_date>=st)
+    const active=(asmts||[]).filter(a=>a.commencement_date&&a.end_date&&a.commencement_date<=en&&a.end_date>=st)
     if(active.length){
       const epSet=new Set()
+      const myClassId=ct.class_id
       for(const a of active){
         const{data:dsData}=await sb.from('exam_datesheets').select('schedule').eq('assessment_id',a.assessment_id).maybeSingle()
-        ;(dsData?.schedule||[]).forEach(row=>{
+        const sched=dsData?.schedule||[]
+        if(!sched.length)continue
+        const myExamDays=new Set()
+        sched.forEach(row=>{
           if(!row.date)return
-          const entries=row.entries||{}
-          const hasAnyExam=Object.values(entries).some(v=>{const t=(v||'').trim();return t&&t!=='-'})
-          if(!hasAnyExam)return
-          const v=(entries[ct.class_id]||'').trim()
-          if(!v||v==='-') epSet.add(row.date)
+          const v=(row.entries?.[myClassId]||'').trim()
+          if(v&&v!=='-') myExamDays.add(row.date)
         })
+        const examStart=a.commencement_date>st?a.commencement_date:st
+        const examEnd=a.end_date<en?a.end_date:en
+        const cur=new Date(examStart+'T12:00:00'),end2=new Date(examEnd+'T12:00:00')
+        while(cur<=end2){
+          const ds=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0')
+          if(cur.getDay()!==0&&!myExamDays.has(ds)) epSet.add(ds)
+          cur.setDate(cur.getDate()+1)
+        }
       }
       if(epSet.size) MY_EXAM_PREP_HOLS=epSet
     }
