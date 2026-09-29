@@ -3189,34 +3189,65 @@ async function submitObs(enrollmentId){
 // CRITICAL STUDENTS
 // ═══════════════════════════════════════════════════════════════
 async function loadCriticalStudents(){
-  const el=$('criticalList');ldg(el)
+  const el=$('criticalList');ldg(el,'Checking for failing students…')
   if(!MY_MAPPINGS.length){emp(el,'No assignments.');return}
   const classIds=[...new Set(MY_MAPPINGS.map(m=>m.class_id))]
   const{data:assessments}=await sb.from('assessments').select('*').eq('session_id',SESS?.session_id||'')
-  const{data:marks}=await sb.from('marks').select('*,student_enrollments(roll_no,students(full_name,father_name,student_id),class_sections(name),classes(name))').eq('entered_by',TEACHER.teacher_id)
+  const assessMap={};(assessments||[]).forEach(a=>{assessMap[a.assessment_id]=a})
+  const{data:ovs}=classIds.length?await sb.from('assessment_mark_overrides').select('assessment_id,subject_id,class_id,max_marks,pass_marks').in('class_id',classIds):{data:[]}
+  const ovMap={};(ovs||[]).forEach(o=>{ovMap[o.assessment_id+'|'+o.class_id+'|'+o.subject_id]=o})
+  const{data:marks}=await sb.from('marks').select('*,student_enrollments(roll_no,class_id,section_id,students(full_name,father_name,student_id),class_sections(name),classes(name)),subjects(name,short_code)').eq('entered_by',TEACHER.teacher_id)
   if(!marks?.length){emp(el,'No marks submitted yet — no critical students to show.');return}
-  // Group failing marks by class-subject
-  const groups={}
-  marks.forEach(m=>{
-    const assess=assessments?.find(a=>a.assessment_id===m.assessment_id)
-    if(!assess)return
-    const pass=assess.pass_marks||Math.round(assess.max_marks*0.33)
-    if(!m.is_absent&&m.marks_obtained<pass){
-      const se=m.student_enrollments
-      const key=(se?.classes?.name||'?')+'-'+(se?.class_sections?.name||'?')+'_'+m.subject_id
-      if(!groups[key])groups[key]={class:(se?.classes?.name||'?')+'‑'+(se?.class_sections?.name||'?'),rows:[]}
-      groups[key].rows.push({roll:se?.roll_no,name:se?.students?.full_name||'?',sid:se?.students?.student_id,father:se?.students?.father_name||'—',assess:assess.name,max:assess.max_marks,got:m.marks_obtained})
-    }
+  const subShort={};marks.forEach(mk=>{if(mk.subjects)subShort[mk.subject_id]=mk.subjects.short_code||mk.subjects.name||'?'})
+  const classGroups={}
+  marks.forEach(mk=>{
+    if(!mk.assessment_id||mk.is_absent||mk.marks_obtained==null)return
+    const assess=assessMap[mk.assessment_id];if(!assess)return
+    const se=mk.student_enrollments;if(!se)return
+    const clsId=se.class_id,secId=se.section_id
+    const ov=ovMap[mk.assessment_id+'|'+clsId+'|'+mk.subject_id]
+    const maxM=(ov?.max_marks!=null)?ov.max_marks:assess.max_marks||100
+    const pass=(ov?.pass_marks!=null)?ov.pass_marks:(assess.pass_marks||Math.round(maxM*0.33))
+    if(parseFloat(mk.marks_obtained)>=pass)return
+    const classKey=(clsId||'')+'_'+(secId||'')
+    const classLabel=(se.classes?.name||'?')+'‑'+(se.class_sections?.name||'?')
+    if(!classGroups[classKey])classGroups[classKey]={label:classLabel,stuFails:{},assessIds:new Set()}
+    const g=classGroups[classKey]
+    const eid=mk.enrollment_id
+    if(!g.stuFails[eid])g.stuFails[eid]={roll:se.roll_no,name:se.students?.full_name||'?',sid:se.students?.student_id,father:se.students?.father_name||'—',fails:[]}
+    g.stuFails[eid].fails.push({aid:mk.assessment_id,subId:mk.subject_id,got:mk.marks_obtained,max:maxM})
+    g.assessIds.add(mk.assessment_id)
   })
-  const keys=Object.keys(groups)
-  $('statCrit').textContent=[...new Set(Object.values(groups).flatMap(g=>g.rows.map(r=>r.name)))].length
+  const keys=Object.keys(classGroups)
+  const uniqueStudents=new Set();keys.forEach(k=>Object.keys(classGroups[k].stuFails).forEach(eid=>uniqueStudents.add(eid)))
+  $('statCrit').textContent=uniqueStudents.size
   $('critBadge').textContent=keys.length;$('critBadge').style.display=keys.length>0?'flex':'none'
   if(!keys.length){emp(el,'No students failing in your subjects. Great work!');return}
   el.innerHTML=keys.map(k=>{
-    const g=groups[k]
-    return '<div class="card" style="margin-bottom:14px"><h3>'+esc(g.class)+'</h3><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Assessment</th><th>Marks</th><th>Max</th></tr></thead><tbody>'
-      +g.rows.map(r=>'<tr><td class="mono">'+esc(r.roll||'')+'</td><td style="font-weight:600">'+nameLink(r.sid,r.name)+'</td><td>'+esc(r.father)+'</td><td>'+esc(r.assess)+'</td><td class="cell-fail mono">'+r.got+'</td><td class="mono">'+r.max+'</td></tr>').join('')
-      +'</tbody></table></div></div>'
+    const g=classGroups[k]
+    const assessCols=[...g.assessIds].map(aid=>assessMap[aid]).filter(Boolean).sort((a,b)=>(a.commencement_date||'').localeCompare(b.commencement_date||''))
+    const stuRows=Object.entries(g.stuFails).map(([eid,s])=>({eid,...s})).sort((a,b)=>(a.roll||999)-(b.roll||999))
+    let html='<div class="card" style="margin-bottom:14px"><h3>'+esc(g.label)+' <span style="font-size:12px;font-weight:400;color:var(--ink-soft)">'+stuRows.length+' student'+(stuRows.length>1?'s':'')+'</span></h3><div class="table-wrap"><table style="width:100%;font-size:12.5px;border-collapse:collapse"><thead><tr>'
+      +'<th style="text-align:left;padding:8px 6px;border-bottom:2px solid var(--line);white-space:nowrap">Roll</th>'
+      +'<th style="text-align:left;padding:8px 6px;border-bottom:2px solid var(--line);min-width:120px">Name</th>'
+      +'<th style="text-align:left;padding:8px 6px;border-bottom:2px solid var(--line);min-width:120px">Father\'s Name</th>'
+      +assessCols.map(a=>'<th style="text-align:center;padding:8px 6px;border-bottom:2px solid var(--line);white-space:nowrap">'+esc(a.name)+'</th>').join('')
+      +'</tr></thead><tbody>'
+    stuRows.forEach(st=>{
+      const byAssess={};st.fails.forEach(f=>{if(!byAssess[f.aid])byAssess[f.aid]=[];byAssess[f.aid].push(f)})
+      html+='<tr style="border-bottom:1px solid var(--line)">'
+        +'<td style="font-family:var(--mono);font-weight:700;padding:10px 6px;vertical-align:top">'+esc(String(st.roll||'—'))+'</td>'
+        +'<td style="font-weight:600;padding:10px 6px;vertical-align:top">'+nameLink(st.sid,st.name)+'</td>'
+        +'<td style="padding:10px 6px;vertical-align:top">'+esc(st.father)+'</td>'
+      assessCols.forEach(a=>{
+        const ff=byAssess[a.assessment_id]
+        if(!ff){html+='<td style="text-align:center;padding:10px 6px;vertical-align:top;color:var(--ink-faint)">—</td>';return}
+        html+='<td style="padding:10px 6px;vertical-align:top">'+ff.map(f=>'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:11px;color:var(--ink-soft);min-width:40px">'+esc(subShort[f.subId]||'?')+'</span><span style="font-family:var(--mono);font-weight:700;color:var(--danger)">'+f.got+'</span><span style="font-size:10px;color:var(--ink-faint)">/'+f.max+'</span></div>').join('')+'</td>'
+      })
+      html+='</tr>'
+    })
+    html+='</tbody></table></div></div>'
+    return html
   }).join('')
 }
 
