@@ -3844,11 +3844,24 @@ async function saveAllMarks(assessId){
     if(error){errors++; console.warn('[marks] insert failed for',sid,error.message)}
   }))
 
-  // Lock all submitted subjects in a single upsert.
+  // Lock only subjects whose marks are complete.
+  // For subjects with components, lock only when ALL components have values for every student.
   const subjIds=Object.keys(bySubject)
+  const compInputsBySubj={}
+  document.querySelectorAll('#mkAssessWrap .mk-comp-input').forEach(inp=>{
+    const sid=inp.dataset.sid
+    if(!compInputsBySubj[sid])compInputsBySubj[sid]=[]
+    compInputsBySubj[sid].push(inp)
+  })
+  const lockableSubjs=subjIds.filter(sid=>{
+    const compInps=compInputsBySubj[sid]
+    if(!compInps||!compInps.length)return true
+    return compInps.every(inp=>inp.value.trim()!==''||inp.classList.contains('is-abs'))
+  })
+  const partialSubjs=subjIds.filter(sid=>!lockableSubjs.includes(sid))
   let lockErr=null
-  if(subjIds.length){
-    const lockRows=subjIds.map(sid=>({
+  if(lockableSubjs.length){
+    const lockRows=lockableSubjs.map(sid=>({
       teacher_id:TEACHER.teacher_id, assessment_id:assessId, subject_id:sid,
       section_id:MY_CLASS.section_id, class_id:MY_CLASS.class_id, session_id:SESS?.session_id||'',
       is_locked:true, locked_at:now
@@ -3859,6 +3872,7 @@ async function saveAllMarks(assessId){
 
   if(errors)toast(errors+' subject(s) failed to save','error')
   else if(lockErr)toast('Marks saved, but locking failed: '+lockErr.message,'error')
+  else if(partialSubjs.length)toast('Marks saved. Some subjects not locked yet — fill all components to lock.','success')
   else toast('Marks submitted & locked ✓','success')
   await loadAssessMarksEditable()
 }
