@@ -643,7 +643,7 @@ async function showDeductionDetail(ym){
     +'<div style="overflow-x:auto"><table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">Date</th><th style="text-align:center">Status</th><th style="text-align:center">In</th><th style="text-align:center">Out</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
   openModal('Salary deduction · '+monthName, body, '<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
 }
-function goTo(id,el){
+function goTo(id,el,_fromPop){
   _currentTab=id
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   const pg=$('page-'+id)
@@ -651,6 +651,7 @@ function goTo(id,el){
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'))
   if(el)el.classList.add('active')
   $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb" id="pagecrumb">Class Teacher Portal</span>'
+  if(!_fromPop){if(id==='dashboard'){history.replaceState({pg:'dashboard'},'')}else{history.pushState({pg:id},'')}}
   if(window.innerWidth<=760)closeMobileSidebar()
   if(id==='daily'&&!$('att_date').value){$('att_date').value=today()}
   if(id==='attreport'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
@@ -663,6 +664,12 @@ function goTo(id,el){
   if(id==='examfees')loadExamFeeDropdown()
   if(id==='halfday')loadHalfDayRecords()
 }
+history.replaceState({pg:'dashboard'},'')
+window.addEventListener('popstate',function(e){
+  const pg=e.state&&e.state.pg
+  if(pg)goTo(pg,null,true)
+  else goTo('dashboard',null,true)
+})
 
 // ═══════════ AUTH & INIT ═══════════
 
