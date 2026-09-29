@@ -1740,7 +1740,7 @@ function injectIncomingMessage(m){
     try{if(typeof refreshTeacherState==='function')refreshTeacherState().then(()=>{
       // Re-render whichever relevant page is open
       if($('page-profile')?.classList.contains('active')&&typeof loadProfile==='function')loadProfile()
-      if($('page-marks')?.classList.contains('active')&&typeof loadMarks==='function')loadMarks()
+      if($('page-marks')?.classList.contains('active')&&typeof loadMarksTable==='function'){const _was=_marksLocked;loadMarksTable().then(()=>{if(_was&&!_marksLocked)toast('✓ Marks unlocked — you can now edit','success')})}
     })}catch(e){}
     try{if(typeof renderActivityFeed==='function')renderActivityFeed()}catch(e){}
   }
