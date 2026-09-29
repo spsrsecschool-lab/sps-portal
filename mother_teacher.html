@@ -1940,6 +1940,15 @@ async function loadAttReport(){
 // ═══════════ MANAGE MY CLASS ═══════════
 async function loadMyClass(){
   const el=$('classListWrap')
+  if(!MY_CLASS||!MY_CLASS.class_id){emp(el,'Select a class first.');return}
+  if(!CLASS_STUDENTS.length){
+    ldg(el)
+    const{data:students}=await sb.from('student_enrollments')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,address,photo_url,family_code,admission_date)')
+      .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
+      .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
+    CLASS_STUDENTS=students||[]
+  }
   if($('myClassSub'))$('myClassSub').textContent=(MY_CLASS.classes?.name||'?')+'-'+(MY_CLASS.class_sections?.name||'?')+' · '+CLASS_STUDENTS.length+' students'
   _classRaw=CLASS_STUDENTS
   renderClassList(CLASS_STUDENTS)
