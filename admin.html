@@ -748,6 +748,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item" onclick="goTo('miscfees',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.5 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/></svg>Misc Fees</div>
 
     <div class="sb-label">System</div>
+    <div class="sb-item" onclick="goTo('maintenance',this)"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Maintenance Mode</div>
     <div class="sb-item" onclick="goTo('settings',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg>Settings</div>
   </div>
   <div class="sb-foot">
@@ -1342,6 +1343,24 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
 
     <!-- SETTINGS -->
+
+    <!-- MAINTENANCE MODE -->
+    <div class="page" id="page-maintenance">
+      <div class="page-head"><div><h2>Maintenance Mode</h2><p>Temporarily block teacher portals while you fix issues</p></div></div>
+      <div class="card" style="max-width:700px">
+        <div style="font-size:13px;color:var(--ink-soft);margin-bottom:20px">When a portal is in maintenance mode, teachers will see a maintenance page instead of the portal. They cannot access any features until you turn it off.</div>
+        <div id="maintCards" style="display:flex;flex-direction:column;gap:14px">
+          <div class="loading-row"><div class="spinner"></div></div>
+        </div>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line)">
+          <label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Custom Message (optional)</label>
+          <textarea id="maintMsg" placeholder="We are experiencing a temporary issue and working to resolve it as soon as possible." style="width:100%;box-sizing:border-box;font-family:var(--font);font-size:13px;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);min-height:60px;resize:vertical;color:var(--ink);background:var(--lav-50)"></textarea>
+          <div style="font-size:11px;color:var(--ink-faint);margin-top:4px">Leave blank to use default message. Changes apply to all active maintenance portals.</div>
+          <button class="btn btn-dark" onclick="saveMaintMsg()" style="margin-top:10px">Update Message</button>
+        </div>
+      </div>
+    </div>
+
     <!-- REQUESTS PAGE -->
   <div class="page" id="page-requests">
     <div class="page-head"><div><h2>Access Requests</h2><p>Marks edit and profile edit requests from teachers</p></div></div>
@@ -2279,7 +2298,7 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log'}
 // ═══════════ TEACHER DECLARATION (admin) — section → rules ═══════════
 let _decSecs=[], _decRules={}, _decMeta=null
 async function loadDeclarationAdmin(){ decSwitch('edit') }
@@ -2438,7 +2457,7 @@ async function loadDecSigned(){
     +'</tbody></table></div>'
 }
 
-const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,questionpapers:loadQPList,examconduct:loadExamConduct,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt,declaration:loadDeclarationAdmin,activitylog:loadActivityLog}
+const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,questionpapers:loadQPList,examconduct:loadExamConduct,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,maintenance:loadMaintenance,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt,declaration:loadDeclarationAdmin,activitylog:loadActivityLog}
 
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
@@ -9735,6 +9754,49 @@ function refreshAllPortals(){
     if(ok)toast('Refresh sent — open portals will reload shortly ✓','success')
     else toast('Failed to send refresh. Did you run app_signals_setup.sql?','error')
   })
+}
+
+// ═══════════ MAINTENANCE MODE ═══════════
+const MAINT_PORTALS=[
+  {key:'teacher',label:'Teacher Portal',file:'teacher.html'},
+  {key:'mother_teacher',label:'Mother Teacher Portal',file:'mother_teacher.html'},
+  {key:'class_teacher',label:'Class Teacher Portal',file:'class_teacher.html'}
+]
+async function loadMaintenance(){
+  const wrap=$('maintCards')
+  const{data:rows,error}=await sb.from('portal_maintenance').select('*')
+  if(error){wrap.innerHTML='<div style="color:var(--danger);font-size:13px">Failed to load: '+esc(error.message)+'<br><span style="font-size:11px;color:var(--ink-faint)">Run the portal_maintenance table setup SQL first.</span></div>';return}
+  const map={}
+  ;(rows||[]).forEach(r=>map[r.portal]=r)
+  if(rows?.length&&rows[0].message)$('maintMsg').value=rows[0].message||''
+  wrap.innerHTML=MAINT_PORTALS.map(p=>{
+    const r=map[p.key]
+    const on=r?.is_active===true
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:1.5px solid '+(on?'var(--danger)':'var(--line)')+';border-radius:var(--radius);background:'+(on?'#FEF2F2':'var(--white)')+'">'+
+      '<div><div style="font-size:14px;font-weight:700;color:var(--ink)">'+esc(p.label)+'</div>'+
+      '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px">'+esc(p.file)+(on?' · <span style="color:var(--danger);font-weight:700">ACTIVE since '+new Date(r.activated_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+'</span>':'')+'</div></div>'+
+      '<button class="btn '+(on?'btn-danger':'btn-dark')+' btn-sm" onclick="toggleMaint(\''+p.key+'\','+!on+')">'+
+      (on?'Turn OFF':'Turn ON')+'</button></div>'
+  }).join('')
+}
+async function toggleMaint(portal,activate){
+  const msg=$('maintMsg')?.value?.trim()||null
+  const row={portal:portal,is_active:activate,message:msg,activated_at:activate?new Date().toISOString():null,activated_by:ADMIN?.admin_id||null}
+  const{error}=await sb.from('portal_maintenance').upsert(row,{onConflict:'portal'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(activate?'Maintenance mode ON — teachers will see the maintenance page':'Maintenance mode OFF — portal is accessible again',activate?'error':'success')
+  loadMaintenance()
+}
+async function saveMaintMsg(){
+  const msg=$('maintMsg')?.value?.trim()||null
+  const{data:rows}=await sb.from('portal_maintenance').select('portal').eq('is_active',true)
+  if(!rows?.length){toast('No portals are in maintenance mode','info');return}
+  let ok=0
+  for(const r of rows){
+    const{error}=await sb.from('portal_maintenance').update({message:msg}).eq('portal',r.portal)
+    if(!error)ok++
+  }
+  toast('Message updated for '+ok+' active portal(s)','success')
 }
 
 // ═══════════ SETTINGS PAGE INIT ═══════════

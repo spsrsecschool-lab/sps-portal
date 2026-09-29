@@ -1620,7 +1620,7 @@ function openSub(subId){
 // AUTH & INIT
 // ═══════════════════════════════════════════════════════════════
 
-(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},3000)
+const _initTimer=setTimeout(()=>{console.warn('[SPS] Init timed out — clearing cache');Object.keys(localStorage).forEach(k=>{if(k.startsWith('sb-')||k==='sps_user')localStorage.removeItem(k)});sessionStorage.clear();window.location.href='login.html'},12000)
 
 // ═══════════ NOTIFICATIONS ═══════════
 let _notifSound=null
@@ -1799,7 +1799,17 @@ function rerenderMessages(){
 initNotifications()
 
 SPS.ready().then(async()=>{
+  clearTimeout(_initTimer)
   sb=window.sb
+
+  // Check maintenance mode before anything else
+  try{
+    const{data:maint}=await sb.from('portal_maintenance').select('is_active,message').eq('portal','teacher').maybeSingle()
+    if(maint?.is_active){
+      document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f8fafc,#e2e8f0);font-family:system-ui,sans-serif;padding:20px"><div style="max-width:480px;text-align:center"><div style="width:80px;height:80px;margin:0 auto 24px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:20px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:#fff;fill:none;stroke-width:2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><h1 style="font-size:24px;font-weight:800;color:#1e293b;margin:0 0 12px">Under Maintenance</h1><p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px">'+(maint.message||'We are experiencing a temporary issue and working to resolve it as soon as possible. Please check back shortly.')+'</p><button onclick="location.reload()" style="padding:10px 24px;background:#3b82f6;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Try Again</button></div></div>'
+      return
+    }
+  }catch(e){}
 
   // Use the session auth.js already validated — never call getSession() again here
   // (a second concurrent getSession deadlocks on supabase-js navigator.locks during token refresh)
@@ -1859,7 +1869,7 @@ SPS.ready().then(async()=>{
   // Also populate create test class dropdown
 
   await Promise.all([renderDashboard(), checkUnreadMessages(), loadBroadcasts()])
-})
+}).catch(err=>{clearTimeout(_initTimer);console.error('[SPS] Init failed:',err);toast('Failed to load portal: '+err.message,'error')})
 
 // ═══════════════════════════════════════════════════════════════
 // DASHBOARD
