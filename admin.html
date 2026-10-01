@@ -5825,7 +5825,7 @@ async function loadMarksTable(){
   const[{data:hols},{data:attRows},{data:monthly},examPrepHols]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
     sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
-    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo),
+    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('from_date',attTo),
     getExamPrepHolidays(attFrom,attTo)
   ])
   const holSet=new Set((hols||[]).map(h=>h.date))
@@ -6219,7 +6219,7 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   const[{data:hols},{data:att},{data:monthly},_epHols]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
     sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
-    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('to_date',attTo),
+    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('from_date',attTo),
     getExamPrepHolidays(attFrom,attTo)
   ])
   const holSet=new Set((hols||[]).map(h=>h.date))

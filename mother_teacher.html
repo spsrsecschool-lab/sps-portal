@@ -2675,7 +2675,7 @@ async function loadAssessMarks(){
     const byStudent={}
     let monthPeriods={}
     try{
-      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
+      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',sessStart).lte('from_date',attToStr)
       ;(monthly||[]).forEach(mr=>{(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
     const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
@@ -3530,7 +3530,7 @@ async function loadViewMarks(){
     const byStu={}
     let _mp={}
     try{
-      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',attToStr)
+      const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',sessStart).lte('from_date',attToStr)
       ;(monthly||[]).forEach(mr=>{(_mp[mr.enrollment_id]=_mp[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStu[mr.enrollment_id]=(byStu[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){}
     const _inMon2=(eid,d)=>(_mp[eid]||[]).some(p=>d>=p.from&&d<=p.to)
