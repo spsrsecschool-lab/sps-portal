@@ -6,7 +6,8 @@
 #   3. Create R2 bucket:  wrangler r2 bucket create school-files
 #   4. Enable public access for the bucket in Cloudflare Dashboard → R2 → school-files → Settings → Public Access
 #   5. Set secrets:
-#        wrangler secret put SUPABASE_JWT_SECRET
+#        wrangler secret put SUPABASE_URL
+#        wrangler secret put SUPABASE_ANON_KEY
 #        wrangler secret put ALLOWED_ORIGIN
 #   6. Deploy:  npx wrangler deploy
 

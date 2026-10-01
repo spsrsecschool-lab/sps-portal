@@ -9,8 +9,9 @@
  *   bucket_name = "school-files"
  *
  * Environment variables (set via wrangler secret put):
- *   SUPABASE_JWT_SECRET — Supabase project JWT secret (Dashboard → Settings → API)
- *   ALLOWED_ORIGIN      — portal origin (e.g. https://spsrsecschool-lab.github.io)
+ *   SUPABASE_URL       — Supabase project URL (e.g. https://xxx.supabase.co)
+ *   SUPABASE_ANON_KEY  — Supabase anon/public key (Dashboard → Settings → API)
+ *   ALLOWED_ORIGIN     — portal origin (e.g. https://spsrsecschool-lab.github.io)
  *
  * The bucket stays PRIVATE. Files are served through GET /file?path=...
  * (no auth required — anyone with the URL can view, same as Supabase public buckets).
@@ -48,7 +49,7 @@ export default {
     if (!auth.startsWith('Bearer ')) {
       return resp({ error: 'Missing authorization' }, 401, cors)
     }
-    const valid = await verifyJWT(auth.slice(7), env.SUPABASE_JWT_SECRET)
+    const valid = await verifyJWT(auth.slice(7), env)
     if (!valid) {
       return resp({ error: 'Invalid or expired token' }, 403, cors)
     }
@@ -113,19 +114,19 @@ function resp(data, status, headers) {
   })
 }
 
-async function verifyJWT(token, secret) {
-  if (!secret) return true
+async function verifyJWT(token, env) {
+  if (!env.SUPABASE_URL) return true
   try {
     const parts = token.split('.')
     if (parts.length !== 3) return false
     const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return false
-    const enc = new TextEncoder()
-    const key = await crypto.subtle.importKey(
-      'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
-    )
-    const data = enc.encode(parts[0] + '.' + parts[1])
-    const sig = Uint8Array.from(atob(parts[2].replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
-    return await crypto.subtle.verify('HMAC', key, sig, data)
+    const res = await fetch(env.SUPABASE_URL + '/auth/v1/user', {
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'apikey': env.SUPABASE_ANON_KEY
+      }
+    })
+    return res.ok
   } catch (_) { return false }
 }
