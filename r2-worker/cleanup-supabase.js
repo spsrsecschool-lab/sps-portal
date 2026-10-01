@@ -2,7 +2,8 @@
 /**
  * cleanup-supabase.js — Delete all files from Supabase Storage bucket
  *
- * Uses the Supabase JS client (Storage API) so it bypasses the SQL restriction.
+ * Scans the entire bucket (all folders), paginates properly,
+ * and deletes in small batches with retries.
  *
  * Usage:
  *   Set SUPABASE_URL and SUPABASE_SERVICE_KEY, then:
@@ -21,46 +22,57 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 const BUCKET = 'school-files'
 
-async function listAll(folder, prefix) {
-  const fullPath = prefix ? folder + '/' + prefix : folder
+async function listAll(path) {
   const all = []
-  const { data, error } = await sb.storage.from(BUCKET).list(fullPath, { limit: 200 })
-  if (error) { console.error('  List error:', fullPath, error.message); return all }
-  for (const item of (data || [])) {
-    const itemPath = fullPath + '/' + item.name
-    if (item.id) {
-      all.push(itemPath)
-    } else {
-      const sub = await listAll(folder, prefix ? prefix + '/' + item.name : item.name)
-      all.push(...sub)
+  let offset = 0
+  while (true) {
+    const { data, error } = await sb.storage.from(BUCKET).list(path || '', { limit: 100, offset })
+    if (error) { console.error('  List error:', path || '(root)', error.message); break }
+    if (!data || data.length === 0) break
+    for (const item of data) {
+      const itemPath = path ? path + '/' + item.name : item.name
+      if (item.id) {
+        all.push(itemPath)
+      } else {
+        const sub = await listAll(itemPath)
+        all.push(...sub)
+      }
     }
+    if (data.length < 100) break
+    offset += data.length
   }
   return all
 }
 
 async function main() {
-  const folders = ['student-photos', 'student-docs', 'students', 'question-papers']
+  console.log('Scanning entire bucket...')
+  const files = await listAll('')
+  console.log('Found ' + files.length + ' total files\n')
 
-  for (const folder of folders) {
-    console.log('Scanning ' + folder + '...')
-    const files = await listAll(folder, '')
-    console.log('  Found ' + files.length + ' files')
-
-    // Delete in batches of 20 with a small delay to avoid rate limiting
-    for (let i = 0; i < files.length; i += 20) {
-      const batch = files.slice(i, i + 20)
-      const { error } = await sb.storage.from(BUCKET).remove(batch)
-      if (error) {
-        console.error('  Delete error at batch ' + i + ':', error.message)
-      } else {
-        console.log('  Deleted ' + (i + batch.length) + '/' + files.length)
-      }
-      // Small delay to avoid rate limiting
-      await new Promise(r => setTimeout(r, 500))
-    }
+  if (files.length === 0) {
+    console.log('Bucket is already empty!')
+    return
   }
 
-  console.log('\nAll files deleted. You can now delete the empty bucket from the Dashboard.')
+  let deleted = 0
+  for (let i = 0; i < files.length; i += 10) {
+    const batch = files.slice(i, i + 10)
+    const { error } = await sb.storage.from(BUCKET).remove(batch)
+    if (error) {
+      console.error('  Delete error:', error.message, '- retrying in 3s...')
+      await new Promise(r => setTimeout(r, 3000))
+      const { error: e2 } = await sb.storage.from(BUCKET).remove(batch)
+      if (e2) console.error('  Retry failed:', e2.message)
+      else deleted += batch.length
+    } else {
+      deleted += batch.length
+    }
+    console.log('  Deleted ' + deleted + '/' + files.length)
+    await new Promise(r => setTimeout(r, 300))
+  }
+
+  console.log('\nDone. Deleted ' + deleted + ' files.')
+  console.log('You can now delete the empty bucket from the Dashboard.')
 }
 
 main().catch(e => { console.error(e); process.exit(1) })
