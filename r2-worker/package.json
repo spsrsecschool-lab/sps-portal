@@ -1,0 +1,9 @@
+{
+  "name": "sps-r2-worker",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "^2",
+    "@aws-sdk/client-s3": "^3"
+  }
+}
