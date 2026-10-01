@@ -29,6 +29,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="r2-storage.js"></script>
 <script src="ai-chat.js"></script>
 <script src="push.js"></script>
 <script src="media.js"></script>
@@ -929,7 +930,7 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="fg"><label>Aadhar / Document (optional)</label><input type="file" id="adm_doc" accept="image/*,.pdf"></div>
           </div>
           <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:10px 13px;font-size:11.5px;color:var(--ink-soft)">
-            Files require a <b>school-files</b> bucket in Supabase Storage. If not created, files are skipped but the student is still admitted.
+            Files are stored in Cloudflare R2. If R2 is not configured, files are skipped but the student is still admitted.
           </div>
         </div>
         <div class="card" style="max-width:760px;margin-bottom:18px">
@@ -3639,8 +3640,8 @@ async function deleteStudentDoc(sid,fileUrl,fileType,btn){
   const{error}=await sb.from('student_documents').delete().eq('student_id',sid).eq('file_url',fileUrl)
   if(error){toast('Delete failed: '+error.message,'error');return}
   try{
-    const m=(fileUrl||'').split('/school-files/')[1];const p=m?m.split('?')[0]:null
-    if(p)await sb.storage.from('school-files').remove([p])
+    const p=R2.extractPath(fileUrl)
+    if(p)await R2.remove([p])
   }catch(e){}
   toast((fileType||'Document')+' deleted','success')
   const chip=btn&&btn.closest('span');if(chip)chip.remove()
@@ -3649,7 +3650,7 @@ function closeProfile(){$('profileModal').classList.remove('show');_profileEnrol
 function openUploadPhotoModal(){
   _photoPicked=null
   openModal('Change Profile Photo',
-    '<div style="margin-bottom:14px;text-align:center"><div id="photoPreview" style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);margin:0 auto 10px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--indigo-dark)">'+($('pm_av')?.textContent||'?')+'</div></div><div class="form-row"><div class="fg"><label>Photo</label><button type="button" class="btn btn-ghost" style="justify-content:flex-start" onclick="pickProfilePhoto()"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span id="ppPickLabel">Select / Capture Photo</span></button></div></div><div id="ppPickInfo" style="font-size:12px;color:var(--ink-faint);margin-top:-6px;margin-bottom:8px">Choose a photo, or take one on mobile.</div><div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px;font-size:11.5px;color:var(--ink-soft)">Requires <b>school-files</b> bucket in Supabase Storage → set to Public.</div>',
+    '<div style="margin-bottom:14px;text-align:center"><div id="photoPreview" style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);margin:0 auto 10px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--indigo-dark)">'+($('pm_av')?.textContent||'?')+'</div></div><div class="form-row"><div class="fg"><label>Photo</label><button type="button" class="btn btn-ghost" style="justify-content:flex-start" onclick="pickProfilePhoto()"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span id="ppPickLabel">Select / Capture Photo</span></button></div></div><div id="ppPickInfo" style="font-size:12px;color:var(--ink-faint);margin-top:-6px;margin-bottom:8px">Choose a photo, or take one on mobile.</div><div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:10px;font-size:11.5px;color:var(--ink-soft)">Files are stored in Cloudflare R2.</div>',
     '<button class="btn btn-dark" onclick="uploadProfilePhoto()">Upload Photo</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 async function pickProfilePhoto(){
@@ -3670,14 +3671,14 @@ async function uploadProfilePhoto(){
   // Remove any previously uploaded photo for this student (any extension) so we
   // don't leave orphaned files in the bucket when the extension changes.
   try{
-    const{data:old}=await sb.storage.from('school-files').list('student-photos',{search:sid})
+    const{data:old}=await R2.list('student-photos',{search:sid})
     const del=(old||[]).filter(f=>f.name.startsWith(sid+'.')).map(f=>'student-photos/'+f.name)
-    if(del.length)await sb.storage.from('school-files').remove(del)
+    if(del.length)await R2.remove(del)
   }catch(_){}
   const path='student-photos/'+sid+'.'+((file.name.split('.').pop()||'jpg').toLowerCase())
-  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
-  if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create "school-files" bucket in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
-  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{error:upErr}=await R2.upload(path,file,{upsert:true})
+  if(upErr){hideUploadOverlay();toast('Upload failed: '+upErr.message,'error');return}
+  const{data:{publicUrl}}=R2.getPublicUrl(path)
   const{error:dbErr}=await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',sid)
   if(dbErr){hideUploadOverlay();toast('Photo uploaded but DB update failed: '+dbErr.message,'error');return}
   _photoPicked=null
@@ -3922,7 +3923,7 @@ async function saveEditDemo(){
 function openUploadDocModal(){
   _docPicked=null
   openModal('Upload Document',
-    '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:11px;font-size:12px;margin-bottom:14px">Requires a storage bucket named <b>school-files</b> in Supabase → Storage → New bucket → Public → Save.</div>'
+    '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:11px;font-size:12px;margin-bottom:14px">Files are stored in Cloudflare R2. Ensure R2 is configured in config.js.</div>'
     +'<div class="form-row"><div class="fg"><label>Document Type</label><select id="doc_type" onchange="_docPicked=null;refreshDocPick()"><option>Aadhar Card</option><option>Birth Certificate</option><option>Transfer Certificate</option><option>Other</option></select></div></div>'
     +'<div class="form-row"><div class="fg"><label>File</label><button type="button" class="btn btn-ghost" style="justify-content:flex-start" onclick="pickDocFile()"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span id="docPickLabel">Select / Capture</span></button></div></div>'
     +'<div id="docPickInfo" style="font-size:12px;color:var(--ink-faint);margin-top:-6px"></div>',
@@ -3959,9 +3960,9 @@ async function uploadDoc(){
   const safeType=String(type||'Document').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
   const ts=Date.now()
   const path='student-docs/'+sid+'/'+safeType+'_'+sid+'_'+ts+'.'+ext
-  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
-  if(upErr){hideUploadOverlay();toast(upErr.message?.includes('Bucket')||upErr.statusCode==='404'?'Create a bucket called "school-files" in Supabase Storage first':'Upload failed: '+upErr.message,'error');return}
-  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{error:upErr}=await R2.upload(path,file,{upsert:true})
+  if(upErr){hideUploadOverlay();toast('Upload failed: '+upErr.message,'error');return}
+  const{data:{publicUrl}}=R2.getPublicUrl(path)
   await sb.from('student_documents').insert({student_id:sid,file_url:publicUrl,file_type:type,uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id,uploaded_at:new Date().toISOString()})
   _docPicked=null
   hideUploadOverlay();toast('Document uploaded','success');closeModal();openProfile(_profileEnrollId)
@@ -4026,13 +4027,13 @@ async function submitAdmission(e){
       try{
         if(photoFile){
           const photoPath='student-photos/'+studentId+'.'+photoFile.name.split('.').pop()
-          const{error:pe}=await sb.storage.from('school-files').upload(photoPath,photoFile)
-          if(!pe){const{data:{publicUrl:pu}}=sb.storage.from('school-files').getPublicUrl(photoPath);await sb.from('students').update({photo_url:pu}).eq('student_id',studentId)}
+          const{error:pe}=await R2.upload(photoPath,photoFile)
+          if(!pe){const{data:{publicUrl:pu}}=R2.getPublicUrl(photoPath);await sb.from('students').update({photo_url:pu}).eq('student_id',studentId)}
         }
         if(docFile){
           const docPath='student-docs/'+studentId+'/admission-doc.'+docFile.name.split('.').pop()
-          const{error:de}=await sb.storage.from('school-files').upload(docPath,docFile)
-          if(!de){const{data:{publicUrl:du}}=sb.storage.from('school-files').getPublicUrl(docPath);await sb.from('student_documents').insert({student_id:studentId,file_url:du,file_type:'Aadhar / Admission Doc',uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id,uploaded_at:new Date().toISOString()})}
+          const{error:de}=await R2.upload(docPath,docFile)
+          if(!de){const{data:{publicUrl:du}}=R2.getPublicUrl(docPath);await sb.from('student_documents').insert({student_id:studentId,file_url:du,file_type:'Aadhar / Admission Doc',uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id,uploaded_at:new Date().toISOString()})}
         }
       }catch(ue){console.warn('File upload error (non-fatal):', ue)}
     }
@@ -11811,9 +11812,9 @@ async function uploadQPImage(input,elementId,elementType,parentQId){
   try{
     const ext=file.name.split('.').pop()||'jpg'
     const path='question-papers/'+_qpCurrent.paper_id+'/'+elementId+'.'+ext
-    const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
+    const{error:upErr}=await R2.upload(path,file,{upsert:true})
     if(upErr)throw upErr
-    const{data:urlData}=sb.storage.from('school-files').getPublicUrl(path)
+    const{data:urlData}=R2.getPublicUrl(path)
     const url=urlData.publicUrl+'?t='+Date.now()
     if(elementType==='question'){
       const q=_qpCurrent.content.questions.find(x=>x.id===elementId)
@@ -11908,9 +11909,9 @@ async function deleteQP(paperId){
   if(!confirm('Delete this question paper? This cannot be undone.'))return
   try{
     // cleanup storage images
-    const{data:files}=await sb.storage.from('school-files').list('question-papers/'+paperId)
+    const{data:files}=await R2.list('question-papers/'+paperId)
     if(files&&files.length){
-      await sb.storage.from('school-files').remove(files.map(f=>'question-papers/'+paperId+'/'+f.name))
+      await R2.remove(files.map(f=>'question-papers/'+paperId+'/'+f.name))
     }
     const{error}=await sb.from('question_papers').delete().eq('paper_id',paperId)
     if(error)throw error

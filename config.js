@@ -42,6 +42,12 @@
 const SUPABASE_URL      = 'https://aafigohphcegnvvcojby.supabase.co'
 const SUPABASE_ANON     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhZmlnb2hwaGNlZ252dmNvamJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MTMyODksImV4cCI6MjA5ODQ4OTI4OX0.6xeG33em-_XfCetcqAyleBMBUyk1c5B4dDYuM_AWLu8'
 const AUTH_EMAIL_DOMAIN = 'spsrsec.school'
+
+// ── CLOUDFLARE R2 STORAGE ────────────────────────────────────
+// After deploying the R2 worker (see r2-worker/wrangler.toml),
+// paste your Worker URL and R2 public bucket URL below.
+const R2_WORKER_URL = ''   // e.g. 'https://sps-storage.your-subdomain.workers.dev'
+const R2_PUBLIC_URL = ''   // e.g. 'https://pub-abc123.r2.dev' or custom domain
 // ──────────────────────────────────────────────────────────────
 
 /**
