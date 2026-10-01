@@ -1,0 +1,19 @@
+# sps-r2-worker — Cloudflare Worker config
+#
+# Setup:
+#   1. npm install -g wrangler
+#   2. wrangler login
+#   3. Create R2 bucket:  wrangler r2 bucket create school-files
+#   4. Enable public access for the bucket in Cloudflare Dashboard → R2 → school-files → Settings → Public Access
+#   5. Set secrets:
+#        wrangler secret put SUPABASE_JWT_SECRET
+#        wrangler secret put ALLOWED_ORIGIN
+#   6. Deploy:  npx wrangler deploy
+
+name = "sps-storage"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "school-files"

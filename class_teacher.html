@@ -21,6 +21,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="r2-storage.js"></script>
 <script src="ai-chat.js"></script>
 <script src="push.js"></script>
 <script src="media.js"></script>
@@ -1985,9 +1986,9 @@ async function uploadStudentPhoto(sid,input){
   if(wrap)wrap.innerHTML='<div style="width:80px;height:80px;border-radius:50%;background:var(--lav-200);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-faint)">Uploading...</div>'
   const ext=file.name.split('.').pop()
   const path='students/'+sid+'/photo.'+ext
-  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
+  const{error:upErr}=await R2.upload(path,file,{upsert:true})
   if(upErr){toast('Upload failed: '+upErr.message,'error');return}
-  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{data:{publicUrl}}=R2.getPublicUrl(path)
   await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',sid)
   if(wrap)wrap.innerHTML='<img src="'+publicUrl+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:3px solid var(--grn)">'
   toast('Photo updated','success')
@@ -2047,12 +2048,12 @@ async function confirmDocUpload(){
     const safeType=String(docType||type||'Document').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
     const ts=Date.now()
     const path='student-docs/'+sid+'/'+safeType+'_'+sid+'_'+ts+'.'+ext
-    const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
+    const{error:upErr}=await R2.upload(path,file,{upsert:true})
     if(upErr){
       if(sp)sp.style.display='none'
       toast('Upload failed: '+upErr.message,'error');return
     }
-    const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+    const{data:{publicUrl}}=R2.getPublicUrl(path)
     const{error}=await sb.from('student_documents').insert({
       student_id:sid,file_url:publicUrl,file_type:docType,
       uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,
@@ -2143,8 +2144,8 @@ async function deleteStudentDoc(sid,fileUrl,fileType,btn){
   const{error}=await sb.from('student_documents').delete().eq('student_id',sid).eq('file_url',fileUrl)
   if(error){toast('Delete failed: '+error.message,'error');return}
   try{
-    const m=(fileUrl||'').split('/school-files/')[1];const p=m?m.split('?')[0]:null
-    if(p)await sb.storage.from('school-files').remove([p])
+    const p=R2.extractPath(fileUrl)
+    if(p)await R2.remove([p])
   }catch(e){}
   toast((fileType||'Document')+' deleted','success')
   const chip=btn&&btn.closest('span');if(chip)chip.remove()
@@ -2166,13 +2167,13 @@ async function _ctDoPhotoUpload(studentId,file){
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path='students/'+studentId+'/photo.'+ext
   // Remove any previous photo(s) for this student so old-extension files don't orphan.
   try{
-    const{data:old}=await sb.storage.from('school-files').list('students/'+studentId,{search:'photo'})
+    const{data:old}=await R2.list('students/'+studentId,{search:'photo'})
     const del=(old||[]).filter(o=>o.name.startsWith('photo.')).map(o=>'students/'+studentId+'/'+o.name)
-    if(del.length)await sb.storage.from('school-files').remove(del)
+    if(del.length)await R2.remove(del)
   }catch(_){}
-  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:true})
+  const{error:upErr}=await R2.upload(path,file,{upsert:true})
   if(upErr){toast('Upload failed: '+upErr.message,'error');return}
-  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{data:{publicUrl}}=R2.getPublicUrl(path)
   const{error}=await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',studentId)
   if(error){toast('Photo uploaded but DB update failed','error');return}
   if(wrap)wrap.innerHTML='<img src="'+publicUrl+'?t='+Date.now()+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:3px solid var(--grn)">'
@@ -2183,9 +2184,9 @@ async function uploadStudentDoc(studentId, input){
   const file=input.files?.[0];if(!file)return
   toast('Uploading document…','info')
   const path='students/'+studentId+'/docs/'+Date.now()+'_'+file.name
-  const{error:upErr}=await sb.storage.from('school-files').upload(path,file,{upsert:false})
+  const{error:upErr}=await R2.upload(path,file,{upsert:false})
   if(upErr){toast('Upload failed: '+upErr.message,'error');return}
-  const{data:{publicUrl}}=sb.storage.from('school-files').getPublicUrl(path)
+  const{data:{publicUrl}}=R2.getPublicUrl(path)
   const{error}=// Delete existing doc of same type first
   await sb.from('student_documents').delete().eq('student_id',studentId).eq('file_type',file.name.split('.').pop().toUpperCase())
   const{error:de2}=await sb.from('student_documents').insert({student_id:studentId,file_url:publicUrl,file_type:file.name.split('.').pop().toUpperCase(),uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
