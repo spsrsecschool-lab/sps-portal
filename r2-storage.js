@@ -6,7 +6,9 @@
  *
  * config.js must define:
  *   R2_WORKER_URL  — deployed Cloudflare Worker URL
- *   R2_PUBLIC_URL  — R2 bucket's public access URL
+ *
+ * The R2 bucket stays PRIVATE. Files are served via the Worker's
+ * /file?path=... endpoint (no auth needed for viewing, same as before).
  */
 ;(function(){
 'use strict'
@@ -32,7 +34,7 @@ window.R2={
   },
 
   getPublicUrl(path){
-    return{data:{publicUrl:R2_PUBLIC_URL+'/'+path}}
+    return{data:{publicUrl:R2_WORKER_URL+'/file?path='+encodeURIComponent(path)}}
   },
 
   async remove(paths){
@@ -61,10 +63,13 @@ window.R2={
 
   extractPath(fileUrl){
     if(!fileUrl)return null
-    if(typeof R2_PUBLIC_URL!=='undefined'&&R2_PUBLIC_URL&&fileUrl.startsWith(R2_PUBLIC_URL)){
-      const p=fileUrl.slice(R2_PUBLIC_URL.length+1).split('?')[0]
-      return p||null
-    }
+    // R2 Worker URL: .../file?path=student-photos/STU-0001.jpg
+    try{
+      const u=new URL(fileUrl)
+      const p=u.searchParams.get('path')
+      if(p)return p
+    }catch(_){}
+    // Legacy Supabase storage URL
     const m=fileUrl.split('/school-files/')[1]
     return m?m.split('?')[0]:null
   }

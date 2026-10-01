@@ -45,9 +45,9 @@ const AUTH_EMAIL_DOMAIN = 'spsrsec.school'
 
 // ── CLOUDFLARE R2 STORAGE ────────────────────────────────────
 // After deploying the R2 worker (see r2-worker/wrangler.toml),
-// paste your Worker URL and R2 public bucket URL below.
+// paste your Worker URL below. The bucket stays private — files
+// are served through the Worker's /file endpoint.
 const R2_WORKER_URL = ''   // e.g. 'https://sps-storage.your-subdomain.workers.dev'
-const R2_PUBLIC_URL = ''   // e.g. 'https://pub-abc123.r2.dev' or custom domain
 // ──────────────────────────────────────────────────────────────
 
 /**

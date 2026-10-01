@@ -11,6 +11,10 @@
  * Environment variables (set via wrangler secret put):
  *   SUPABASE_JWT_SECRET — Supabase project JWT secret (Dashboard → Settings → API)
  *   ALLOWED_ORIGIN      — portal origin (e.g. https://spsrsecschool-lab.github.io)
+ *
+ * The bucket stays PRIVATE. Files are served through GET /file?path=...
+ * (no auth required — anyone with the URL can view, same as Supabase public buckets).
+ * Upload, delete and list require a valid Supabase JWT.
  */
 
 export default {
@@ -22,6 +26,24 @@ export default {
       return new Response(null, { status: 204, headers: cors })
     }
 
+    const url = new URL(request.url)
+
+    // ── Serve file (public, no auth) ────────────────────────────
+    if (url.pathname === '/file' && request.method === 'GET') {
+      const key = url.searchParams.get('path')
+      if (!key) return new Response('Missing path', { status: 400, headers: cors })
+      const obj = await env.BUCKET.get(key)
+      if (!obj) return new Response('Not found', { status: 404, headers: cors })
+      return new Response(obj.body, {
+        headers: {
+          ...cors,
+          'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream',
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        }
+      })
+    }
+
+    // ── Auth required for everything below ──────────────────────
     const auth = request.headers.get('Authorization') || ''
     if (!auth.startsWith('Bearer ')) {
       return resp({ error: 'Missing authorization' }, 401, cors)
@@ -30,8 +52,6 @@ export default {
     if (!valid) {
       return resp({ error: 'Invalid or expired token' }, 403, cors)
     }
-
-    const url = new URL(request.url)
 
     // ── Upload ──────────────────────────────────────────────────
     if (url.pathname === '/upload' && request.method === 'PUT') {
