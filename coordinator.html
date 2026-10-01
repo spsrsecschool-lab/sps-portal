@@ -14,6 +14,7 @@
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="auth.js"></script>
+  <script src="r2-storage.js"></script>
   <script src="push.js"></script>
 <style>
 :root{
@@ -701,7 +702,7 @@ function viewStudent(eid){
   const inp='width:100%;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);box-sizing:border-box'
   const fields=[['full_name','Full Name'],['father_name','Father\'s Name'],['mother_name','Mother\'s Name'],['phone','Phone'],['alt_phone','Alt Phone'],['aadhar_no','Aadhaar No'],['address','Address']]
   const body='<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">'
-    +(s.photo_url?'<img src="'+esc(s.photo_url)+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover">':'<div style="width:64px;height:64px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800">'+ini(s.full_name)+'</div>')
+    +(s.photo_url?'<img src="'+esc(R2.url(s.photo_url))+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover">':'<div style="width:64px;height:64px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800">'+ini(s.full_name)+'</div>')
     +'<div><div style="font-size:17px;font-weight:800">'+esc(s.full_name||'?')+'</div><div style="font-size:12px;color:var(--ink-soft)">Roll '+esc(enr.roll_no||'—')+' · S.No '+esc(enr.s_no||'—')+' · '+esc((CLASS_NAME[enr.class_id]||'?')+'-'+(SECTION_INFO[enr.section_id]?.name||'?'))+'</div></div></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'
     +fields.map(([k,l])=>'<div style="margin-bottom:12px'+(k==='address'?';grid-column:1/-1':'')+'"><label style="'+lbl+'">'+l+'</label>'

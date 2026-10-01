@@ -20,6 +20,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
+<script src="r2-storage.js"></script>
 <script src="ai-chat.js"></script>
 <script src="push.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -1277,7 +1278,7 @@ async function viewStudentProfile(studentId){
   const e=enr&&enr[0]
   const cls=e?((e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')):'—'
   const avatar=stu.photo_url
-    ?'<img src="'+esc(stu.photo_url)+'" style="width:82px;height:82px;border-radius:50%;object-fit:cover;border:3px solid var(--indigo-100)">'
+    ?'<img src="'+esc(R2.url(stu.photo_url))+'" style="width:82px;height:82px;border-radius:50%;object-fit:cover;border:3px solid var(--indigo-100)">'
     :'<div style="width:82px;height:82px;border-radius:50%;background:var(--lav-200);margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:var(--indigo-dark)">'+initials(stu.full_name)+'</div>'
   const row=(label,val)=>'<div style="display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft)">'+label+'</span><span style="font-size:13px;color:var(--ink);text-align:right;word-break:break-word">'+esc(val||'—')+'</span></div>'
   $('modal-body').innerHTML=
@@ -3597,7 +3598,7 @@ async function loadProfile(){
   TEACHER={...TEACHER,...t}
   const ctInfo=_isClassTeacher?'Class Teacher: '+(_myClassTeacher?.classes?.name||'?')+'‑'+(_myClassTeacher?.class_sections?.name||'?'):'Not a Class Teacher'
   const av=initials(t.full_name)
-  const photoHtml=t.photo_url?'<img src="'+esc(t.photo_url)+'" alt="photo">':av
+  const photoHtml=t.photo_url?'<img src="'+esc(R2.url(t.photo_url))+'" alt="photo">':av
 
   const canEdit=t.can_edit_own_profile
   const mapTags=MY_MAPPINGS.map(m=>'<span class="map-tag">'+esc(m.subjects?.name||'?')+' · '+esc((m.classes?.name||'?')+'‑'+(m.class_sections?.name||'?'))+'</span>').join('')
@@ -3793,7 +3794,7 @@ async function tqpPreview(paperId){
       const note=lang==='hindi'||lang==='sanskrit'?'कोई '+q.attempt_any+' प्रश्न हल कीजिए (कुल '+sps.length+' में से)':'Attempt any '+q.attempt_any+' out of '+sps.length+'.'
       qh+='<div class="qp-attempt-note">'+note+'</div>'
     }
-    if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
+    if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(R2.url(q.image_url))+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
       qh+='<table class="qp-match-tbl"><thead><tr><th>'+ll.colA+'</th><th>'+ll.colB+'</th></tr></thead><tbody>'
       q.match_pairs.forEach((p,pi)=>{qh+='<tr><td class="qp-math-render">('+_tqpRoman(pi+1)+') '+_tqpFmt(p.col_a||'')+'</td><td class="qp-math-render">'+(ll.optLabels[pi]||'('+(String.fromCharCode(97+pi))+')')+' '+_tqpFmt(p.col_b||'')+'</td></tr>'})
@@ -3815,7 +3816,7 @@ async function tqpPreview(paperId){
           qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+_tqpFmt(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
           if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
           qh+='</div>'
-          if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
+          if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(R2.url(sp.image_url))+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
           const spType=sp.type||q.type
           if(spType==='mcq'&&sp.options&&sp.options.length){
             const oLabels=ll.optLabels

@@ -63,15 +63,23 @@ window.R2={
 
   extractPath(fileUrl){
     if(!fileUrl)return null
-    // R2 Worker URL: .../file?path=student-photos/STU-0001.jpg
     try{
       const u=new URL(fileUrl)
       const p=u.searchParams.get('path')
       if(p)return p
     }catch(_){}
-    // Legacy Supabase storage URL
     const m=fileUrl.split('/school-files/')[1]
     return m?m.split('?')[0]:null
+  },
+
+  url(rawUrl){
+    if(!rawUrl)return rawUrl
+    if(rawUrl.includes(R2_WORKER_URL))return rawUrl
+    if(rawUrl.includes('/school-files/')){
+      const p=rawUrl.split('/school-files/')[1]
+      if(p){const clean=p.split('?')[0];return R2_WORKER_URL+'/file?path='+encodeURIComponent(clean)}
+    }
+    return rawUrl
   }
 }
 })()
