@@ -3608,12 +3608,12 @@ async function openProfile(enrollId){
   const{data:e}=await sb.from('student_enrollments').select('*,students(*),classes(name),class_sections(name),streams(name)').eq('enrollment_id',enrollId).maybeSingle()
   if(!e){$('pm_name').textContent='Not found';return}
   const s=e.students
-  if(s?.photo_url){$('pm_av').innerHTML='<img src="'+s.photo_url+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'}else{$('pm_av').textContent=ini(s?.full_name||'')}; $('pm_name').textContent=s?.full_name||'Unknown'
+  if(s?.photo_url){$('pm_av').innerHTML='<img src="'+R2.url(s.photo_url)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'}else{$('pm_av').textContent=ini(s?.full_name||'')}; $('pm_name').textContent=s?.full_name||'Unknown'
   $('pm_class').textContent='Class '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')+(e.streams?.name?' · '+e.streams.name:'')+' · Roll '+(e.roll_no||'—')
   $('pm_tags').innerHTML='<span class="pill pill-neutral">'+esc(s?.student_id||'')+'</span><span class="pill pill-neutral">S.No '+esc(e.s_no||'—')+'</span><span class="pill '+(e.status==='active'?'pill-success':'pill-warn')+'">'+esc(e.status||'')+'</span>'
   $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">PEN</span><span class="fv">'+esc(s?.pen||'—')+'</span></div><div class="field-row"><span class="fk">APAAR ID</span><span class="fv">'+esc(s?.apaar_id||'—')+'</span></div><div class="field-row"><span class="fk">Gender</span><span class="fv">'+esc(s?.gender||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
-  if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a class="map-tag" href="'+esc(d.file_url)+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_url||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button></span>').join('')+'</div>'
+  if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a class="map-tag" href="'+esc(R2.url(d.file_url))+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_url||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button></span>').join('')+'</div>'
   else $('pm_docs').innerHTML=''
   // Siblings — other students sharing this family code with the same father.
   if($('pm_siblings'))$('pm_siblings').innerHTML=''
@@ -11195,7 +11195,7 @@ function renderQPQuestionCard(q,seqNum){
 
   // Image upload (all types)
   h+='<div style="margin-bottom:6px">'
-  if(q.image_url)h+='<img src="'+esc(q.image_url)+'" class="qp-img-thumb" onclick="window.open(this.src)"> '
+  if(q.image_url)h+='<img src="'+esc(R2.url(q.image_url))+'" class="qp-img-thumb" onclick="window.open(this.src)"> '
   h+='<label class="btn btn-soft btn-xs" style="cursor:pointer"><input type="file" accept="image/*" style="display:none" onchange="uploadQPImage(this,\''+q.id+'\',\'question\')"> '+(q.image_url?'Replace Image':'+ Image')+'</label>'
   if(q.image_url)h+=' <button class="btn btn-ghost btn-xs" onclick="qpRemoveImage(\''+q.id+'\',\'question\')">Remove</button>'
   if(q.image_url){
@@ -11238,7 +11238,7 @@ function renderQPQuestionCard(q,seqNum){
       h+='</div>'
       if(sp.image_url){
         const spSz=sp.image_size||100
-        h+='<div style="margin:0 0 4px 52px"><img src="'+esc(sp.image_url)+'" class="qp-img-thumb" onclick="window.open(this.src)"> <button class="btn btn-ghost btn-xs" onclick="qpRemoveImage(\''+sp.id+'\',\'subpart\',\''+q.id+'\')">Remove</button>'
+        h+='<div style="margin:0 0 4px 52px"><img src="'+esc(R2.url(sp.image_url))+'" class="qp-img-thumb" onclick="window.open(this.src)"> <button class="btn btn-ghost btn-xs" onclick="qpRemoveImage(\''+sp.id+'\',\'subpart\',\''+q.id+'\')">Remove</button>'
         h+=' <span style="display:inline-flex;align-items:center;gap:2px;margin-left:6px;font-size:11px;color:var(--ink-soft)">'
         h+='<button class="btn btn-ghost btn-xs" onclick="qpImageSize(\''+sp.id+'\',\'subpart\',\''+q.id+'\',-1)" title="Smaller">&#9660;</button>'
         h+='<span style="min-width:32px;text-align:center">'+spSz+'%</span>'
@@ -11989,7 +11989,7 @@ async function previewQP(){
       qh+='<div class="qp-attempt-note">'+note+'</div>'
     }
 
-    if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
+    if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(R2.url(q.image_url))+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
 
     // Match table at question level
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
@@ -12016,7 +12016,7 @@ async function previewQP(){
         qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+_qpFmt(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
         if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
         qh+='</div>'
-        if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
+        if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(R2.url(sp.image_url))+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
 
         // MCQ options — use subpart type (sp.type) or fall back to question type
         const spType=sp.type||q.type
@@ -12209,7 +12209,7 @@ function _qpRenderOnePaper(c){
       const note=lang==='hindi'||lang==='sanskrit'?'कोई '+q.attempt_any+' प्रश्न हल कीजिए (कुल '+sps.length+' में से)':'Attempt any '+q.attempt_any+' out of '+sps.length+'.'
       qh+='<div class="qp-attempt-note">'+note+'</div>'
     }
-    if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(q.image_url)+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
+    if(q.image_url){const qSz=q.image_size||100;qh+='<img src="'+esc(R2.url(q.image_url))+'" class="qp-img-preview" style="margin-left:28px'+(qSz!==100?';max-width:'+(qSz*3)+'px;max-height:none':'')+'">'}
     if(isMatch&&q.match_pairs&&q.match_pairs.length){
       qh+='<table class="qp-match-tbl"><thead><tr><th>'+ll.colA+'</th><th>'+ll.colB+'</th></tr></thead><tbody>'
       q.match_pairs.forEach((p,pi)=>{qh+='<tr><td class="qp-math-render">('+toRoman(pi+1)+') '+_qpFmt(p.col_a||'')+'</td><td class="qp-math-render">'+(ll.optLabels[pi]||'('+(String.fromCharCode(97+pi))+')')+' '+_qpFmt(p.col_b||'')+'</td></tr>'})
@@ -12231,7 +12231,7 @@ function _qpRenderOnePaper(c){
           qh+='<div class="qp-sp"><div class="qp-sp-head"><span class="sp-label">'+spLabel+'</span><span style="flex:1;min-width:0"><span class="qp-math-render">'+_qpFmt(sp.text||'').replace(/\n/g,'<br>')+'</span></span>'
           if(spMarks)qh+='<span class="sp-marks">'+spMarks+'</span>'
           qh+='</div>'
-          if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(sp.image_url)+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
+          if(sp.image_url){const spSz=sp.image_size||100;qh+='<img src="'+esc(R2.url(sp.image_url))+'" class="qp-img-preview"'+(spSz!==100?' style="max-width:'+(spSz*3)+'px;max-height:none"':'')+'>'}
           const spType=sp.type||q.type
           if(spType==='mcq'&&sp.options&&sp.options.length){
             const oLabels=ll.optLabels
