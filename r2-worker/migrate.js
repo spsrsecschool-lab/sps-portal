@@ -2,12 +2,12 @@
 /**
  * migrate.js — One-time migration from Supabase Storage to Cloudflare R2
  *
- * Copies all files from your Supabase "school-files" bucket to R2,
- * then updates the URLs in your database (students.photo_url,
- * student_documents.file_url, and question paper image URLs).
+ * Copies all files from your Supabase "school-files" bucket to R2
+ * using the Supabase JS client (no S3 keys needed), then updates
+ * the URLs in your database.
  *
  * Prerequisites:
- *   npm install @supabase/supabase-js @aws-sdk/client-s3
+ *   npm install
  *
  * Usage:
  *   Set the environment variables below, then:
@@ -15,28 +15,20 @@
  *
  * Environment variables:
  *   SUPABASE_URL          — your Supabase project URL
- *   SUPABASE_SERVICE_KEY  — service_role key (has full access)
- *   SUPABASE_S3_ENDPOINT  — S3 endpoint from Supabase Dashboard → Storage → S3
- *   SUPABASE_S3_ACCESS_KEY — S3 access key from Supabase Dashboard → Storage → S3
- *   SUPABASE_S3_SECRET_KEY — S3 secret key from Supabase Dashboard → Storage → S3
- *   SUPABASE_S3_REGION     — S3 region (usually your project region, e.g. ap-south-1)
- *   R2_ACCOUNT_ID         — Cloudflare account ID
+ *   SUPABASE_SERVICE_KEY  — service_role key (Dashboard → Settings → API)
+ *   R2_ACCOUNT_ID         — Cloudflare account ID (Dashboard → R2)
  *   R2_ACCESS_KEY         — R2 API token access key
  *   R2_SECRET_KEY         — R2 API token secret key
  *   R2_BUCKET             — R2 bucket name (default: school-files)
- *   R2_WORKER_URL         — your deployed Worker URL (for the new file URLs)
+ *   R2_WORKER_URL         — your deployed Worker URL
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 
 const {
   SUPABASE_URL,
   SUPABASE_SERVICE_KEY,
-  SUPABASE_S3_ENDPOINT,
-  SUPABASE_S3_ACCESS_KEY,
-  SUPABASE_S3_SECRET_KEY,
-  SUPABASE_S3_REGION = 'ap-south-1',
   R2_ACCOUNT_ID,
   R2_ACCESS_KEY,
   R2_SECRET_KEY,
@@ -59,78 +51,83 @@ if (!R2_WORKER_URL) {
 
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-const supaS3 = new S3Client({
-  region: SUPABASE_S3_REGION,
-  endpoint: SUPABASE_S3_ENDPOINT,
-  credentials: { accessKeyId: SUPABASE_S3_ACCESS_KEY, secretAccessKey: SUPABASE_S3_SECRET_KEY },
-  forcePathStyle: true
-})
-
 const r2 = new S3Client({
   region: 'auto',
   endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
   credentials: { accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY }
 })
 
-async function listAllObjects(client, bucket) {
+const BUCKET = 'school-files'
+const FOLDERS = ['student-photos', 'student-docs', 'students', 'question-papers']
+
+async function listAllFiles(folder, prefix) {
+  const fullPath = prefix ? folder + '/' + prefix : folder
   const all = []
-  let token
-  do {
-    const res = await client.send(new ListObjectsV2Command({
-      Bucket: bucket,
-      ContinuationToken: token,
-      MaxKeys: 1000
-    }))
-    if (res.Contents) all.push(...res.Contents)
-    token = res.IsTruncated ? res.NextContinuationToken : null
-  } while (token)
+  const { data, error } = await sb.storage.from(BUCKET).list(fullPath, { limit: 1000 })
+  if (error) { console.error(`  List error for ${fullPath}:`, error.message); return all }
+  for (const item of (data || [])) {
+    const itemPath = fullPath + '/' + item.name
+    if (item.id) {
+      all.push(itemPath)
+    } else {
+      const sub = await listAllFiles(folder, prefix ? prefix + '/' + item.name : item.name)
+      all.push(...sub)
+    }
+  }
   return all
 }
 
-async function copyFile(key) {
-  const get = await supaS3.send(new GetObjectCommand({ Bucket: 'school-files', Key: key }))
-  const body = await streamToBuffer(get.Body)
+async function copyFile(path) {
+  const { data, error } = await sb.storage.from(BUCKET).download(path)
+  if (error) throw new Error(error.message)
+  const buffer = Buffer.from(await data.arrayBuffer())
   await r2.send(new PutObjectCommand({
     Bucket: R2_BUCKET,
-    Key: key,
-    Body: body,
-    ContentType: get.ContentType || 'application/octet-stream'
+    Key: path,
+    Body: buffer,
+    ContentType: data.type || 'application/octet-stream'
   }))
-}
-
-async function streamToBuffer(stream) {
-  const chunks = []
-  for await (const chunk of stream) chunks.push(chunk)
-  return Buffer.concat(chunks)
 }
 
 function newUrl(path) {
   return R2_WORKER_URL + '/file?path=' + encodeURIComponent(path)
 }
 
+function extractPath(fileUrl) {
+  if (!fileUrl) return null
+  const m = fileUrl.split('/school-files/')[1]
+  return m ? m.split('?')[0] : null
+}
+
 // ── MAIN ────────────────────────────────────────────────────────
 
 async function main() {
   console.log('=== Step 1: List all files in Supabase Storage ===')
-  const objects = await listAllObjects(supaS3, 'school-files')
-  console.log(`Found ${objects.length} files`)
+  const allFiles = []
+  for (const folder of FOLDERS) {
+    process.stdout.write(`  Scanning ${folder}...`)
+    const files = await listAllFiles(folder, '')
+    allFiles.push(...files)
+    console.log(` ${files.length} files`)
+  }
+  console.log(`Total: ${allFiles.length} files\n`)
 
-  console.log('\n=== Step 2: Copy files to R2 ===')
+  console.log('=== Step 2: Copy files to R2 ===')
   let copied = 0, failed = 0
-  for (const obj of objects) {
+  for (const path of allFiles) {
     try {
-      process.stdout.write(`  Copying: ${obj.Key} (${(obj.Size / 1024).toFixed(1)} KB)...`)
-      await copyFile(obj.Key)
+      process.stdout.write(`  ${path}...`)
+      await copyFile(path)
       copied++
-      console.log(' ✓')
+      console.log(' done')
     } catch (e) {
       failed++
-      console.log(` ✗ ${e.message}`)
+      console.log(` FAILED: ${e.message}`)
     }
   }
-  console.log(`\nCopied: ${copied}, Failed: ${failed}`)
+  console.log(`\nCopied: ${copied}, Failed: ${failed}\n`)
 
-  console.log('\n=== Step 3: Update database URLs ===')
+  console.log('=== Step 3: Update database URLs ===')
 
   // 3a. students.photo_url
   const { data: students } = await sb.from('students').select('student_id, photo_url').not('photo_url', 'is', null)
@@ -171,12 +168,6 @@ async function main() {
 
   console.log('\n=== Migration complete ===')
   console.log('Verify everything works, then you can delete the Supabase storage bucket.')
-}
-
-function extractPath(fileUrl) {
-  if (!fileUrl) return null
-  const m = fileUrl.split('/school-files/')[1]
-  return m ? m.split('?')[0] : null
 }
 
 main().catch(e => { console.error(e); process.exit(1) })
