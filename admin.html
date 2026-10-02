@@ -5336,7 +5336,7 @@ async function openSubmissionStatus(){
   marks.forEach(m=>{ const sec=enrSection[m.enrollment_id]; if(!sec)return; const k=m.subject_id+'_'+sec; (entered[k]=entered[k]||new Set()).add(m.enrollment_id) })
 
   const{data:lockRows}=await sb.from('marks_lock_state').select('teacher_id,subject_id,section_id,is_locked').eq('assessment_id',a.assessment_id)
-  const lockMap={};lockRows?.forEach(m=>{lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]=m.is_locked})
+  const lockMap={};const lockBySS={};lockRows?.forEach(m=>{lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]=m.is_locked;if(m.is_locked)lockBySS[m.subject_id+'_'+m.section_id]=true})
 
   // Compute status per mapping row + tally pending per teacher.
   const pendingByTeacher={}  // teacher_id → {name, pending:count}
@@ -5345,7 +5345,7 @@ async function openSubmissionStatus(){
     if(!byTeacher[m.teacher_id])byTeacher[m.teacher_id]={name:m.teachers?.full_name||'—',rows:[]}
     const total=secCount[m.section_id]||0
     const enteredCount=(entered[m.subject_id+'_'+m.section_id]||new Set()).size
-    const locked=lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]===true
+    const locked=lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]===true||lockBySS[m.subject_id+'_'+m.section_id]===true
     let statusKey, isPending=false
     if(total===0){ statusKey='none' }
     else if(locked){ statusKey='locked' }
