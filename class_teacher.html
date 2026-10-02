@@ -2473,7 +2473,7 @@ async function loadAssessMarks(){
       ;(monthly||[]).forEach(mr=>{(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
     const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
-    ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
+    ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
     // Working days PER STUDENT — a child who joined mid-session is counted from
     // their admission date, not the session start.
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission||s.att_from_admission)?(s.students?.admission_date||null):null})

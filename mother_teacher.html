@@ -2679,7 +2679,7 @@ async function loadAssessMarks(){
       ;(monthly||[]).forEach(mr=>{(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStudent[mr.enrollment_id]=(byStudent[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){console.warn('[assessmarks] monthly attendance merge skipped',e)}
     const _inMon=(eid,d)=>(monthPeriods[eid]||[]).some(p=>d>=p.from&&d<=p.to)
-    ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
+    ;(attData||[]).forEach(a=>{if(_inMon(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')byStudent[a.enrollment_id]=(byStudent[a.enrollment_id]||0)+1})
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission||s.att_from_admission)?(s.students?.admission_date||null):null})
     const wdCache={}
     const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds)&&!(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(ds)))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
@@ -3534,7 +3534,7 @@ async function loadViewMarks(){
       ;(monthly||[]).forEach(mr=>{(_mp[mr.enrollment_id]=_mp[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStu[mr.enrollment_id]=(byStu[mr.enrollment_id]||0)+(mr.present_count||0)})
     }catch(e){}
     const _inMon2=(eid,d)=>(_mp[eid]||[]).some(p=>d>=p.from&&d<=p.to)
-    ;(attData||[]).forEach(a=>{if(_inMon2(a.enrollment_id,a.date))return;if(a.status==='P')byStu[a.enrollment_id]=(byStu[a.enrollment_id]||0)+1})
+    ;(attData||[]).forEach(a=>{if(_inMon2(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')byStu[a.enrollment_id]=(byStu[a.enrollment_id]||0)+1})
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission||s.att_from_admission)?(s.students?.admission_date||null):null})
     const wdCache={}
     const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds)&&!(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(ds)))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
