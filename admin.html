@@ -5822,10 +5822,11 @@ async function loadMarksTable(){
   let classStart=SESS?.start_date||null
   try{const{data:cs}=await sb.from('class_session_start').select('start_date').eq('session_id',SESS.session_id).eq('class_id',classId).maybeSingle();if(cs?.start_date)classStart=cs.start_date}catch(e){}
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
+  const attFromMonth=attFrom.slice(0,7)+'-01'
   const[{data:hols},{data:attRows},{data:monthly},examPrepHols]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
     sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
-    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('from_date',attTo),
+    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFromMonth).lte('from_date',attTo),
     getExamPrepHolidays(attFrom,attTo)
   ])
   const holSet=new Set((hols||[]).map(h=>h.date))
@@ -6216,10 +6217,11 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   const attTo=aRow?.end_date||aRow?.commencement_date||today()
   const attCutoffSet=!!(aRow?.end_date||aRow?.commencement_date)   // was a date actually set?
   const attFrom=classStart||(String(attTo).slice(0,4)+'-04-01')
+  const attFromMonth=attFrom.slice(0,7)+'-01'
   const[{data:hols},{data:att},{data:monthly},_epHols]=await Promise.all([
     sb.from('holidays').select('date').eq('session_id',SESS.session_id).gte('date',attFrom).lte('date',attTo),
     sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo),
-    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFrom).lte('from_date',attTo),
+    sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',attFromMonth).lte('from_date',attTo),
     getExamPrepHolidays(attFrom,attTo)
   ])
   const holSet=new Set((hols||[]).map(h=>h.date))
