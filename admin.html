@@ -6255,12 +6255,15 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   _msData={
     clsName, secName, assess:aRow, subs, totalMax, classTeacher, fullWorking:wdFor(null),
     attCutoff:attTo, attCutoffSet,
-    students:studs.map(s=>({
+    students:studs.map(s=>{
+      const _ss=subjSetMap[s.enrollment_id], _hasSS=_ss&&_ss.size
+      return {
       roll:s.roll_no, name:s.students?.full_name||'?', father:s.students?.father_name||'',
       marks:subs.map(sub=>{const m=mkMap[s.enrollment_id]?.[sub.subject_id];return {subject_id:sub.subject_id, absent:!!m?.is_absent, val:(m&&m.marks_obtained!=null)?parseFloat(m.marks_obtained):null}}),
       present:presentMap[s.enrollment_id]||0, working:wdFor(admBy[s.enrollment_id]),
-      subjSet:(subjSetMap[s.enrollment_id]&&subjSetMap[s.enrollment_id].size)?subjSetMap[s.enrollment_id]:null
-    }))
+      subjSet:_hasSS?_ss:null,
+      studentMax:_hasSS?subs.filter(sub=>_ss.has(sub.subject_id)).reduce((t,sub)=>t+sub.max,0):totalMax
+    }})
   }
 }
 const MS_RULES=[
@@ -6297,7 +6300,8 @@ function computeStudentRow(st, rules){
     if(fail)failCount++
     return {text:String(shown), red:(rules.r6&&fail), absent:false}
   })
-  const pct=_msData.totalMax>0?(total/_msData.totalMax*100):0
+  const myMax=st.studentMax||_msData.totalMax
+  const pct=myMax>0?(total/myMax*100):0
   // Decide total & % display per the rule cascade.
   let totalText='', pctText='', eligible=false
   if(anyAbsent){
@@ -6316,7 +6320,7 @@ function computeStudentRow(st, rules){
   }
   // r5 gate: if on, only all-pass non-absent get total+% (others blank).
   if(rules.r5 && !eligible){ if(!anyAbsent && failCount===0){} }
-  return {cells, totalText, pctText, pct, eligible:(eligible&&!anyAbsent&&failCount===0)}
+  return {cells, totalText, pctText, pct, myMax, eligible:(eligible&&!anyAbsent&&failCount===0)}
 }
 function renderMarksheetView(){
   if(!_msData)return
@@ -6361,7 +6365,7 @@ function buildMarksheetHTML(rows,rankPos,rules,forPrint){
     +'<tr><th rowspan="2">R.No.</th><th rowspan="2">Name</th><th rowspan="2">Father\'s Name</th>'
     +d.subs.map(s=>'<th>'+esc(s.short)+'</th>').join('')
     +'<th>TOTAL</th><th rowspan="2">PER%</th><th>ATT.</th><th rowspan="2">SIGN.</th></tr>'
-    +'<tr>'+d.subs.map(s=>'<th class="ms-max">'+s.max+'</th>').join('')+'<th class="ms-max">'+d.totalMax+'</th><th class="ms-max">'+d.fullWorking+'</th></tr>'
+    +'<tr>'+d.subs.map(s=>'<th class="ms-max">'+s.max+'</th>').join('')+'<th class="ms-max">'+(rows.every(r=>r.calc.myMax===d.totalMax)?d.totalMax:'')+'</th><th class="ms-max">'+d.fullWorking+'</th></tr>'
     +'</thead>'
   const header='<div class="ms-top"><div class="ms-school">SHIV PUBLIC SR. SEC. SCHOOL</div><div class="ms-title-r">'+title+' MARKSHEET</div></div>'
     +'<table class="ms-meta"><tr><td class="ms-metL">Class</td><td class="ms-title-band" rowspan="2">'+title+'<div class="ms-sub">FINAL MARKSHEET</div>'+(d.attCutoff?'<div class="ms-sub" style="font-weight:400;font-size:9px">Attendance up to '+esc(new Date(d.attCutoff+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}))+(d.attCutoffSet?'':' (no end date set — set one in Assessment Settings)')+'</div>':'')+'</td><td class="ms-ct">Class Teacher: '+(rules.r10?esc(d.classTeacher||'______________'):'')+'</td></tr>'
@@ -6378,7 +6382,7 @@ function buildMarksheetHTML(rows,rankPos,rules,forPrint){
       +'<td class="ms-l">'+esc(st.name)+'</td>'
       +'<td class="ms-l">'+esc(st.father)+'</td>'
       +calc.cells.map(c=>'<td class="ms-c"'+(c.red?' style="background:'+RED+'"':'')+'>'+esc(c.text)+'</td>').join('')
-      +'<td class="ms-c">'+esc(calc.totalText)+'</td>'
+      +'<td class="ms-c">'+(calc.totalText&&calc.myMax!==d.totalMax?esc(calc.totalText)+'/'+calc.myMax:esc(calc.totalText))+'</td>'
       +'<td class="ms-c"'+(calc.pctText==='FAIL'?' style="background:'+RED+'"':'')+'>'+pctCell+'</td>'
       +'<td class="ms-c"'+(attRed?' style="background:'+RED+'"':'')+'>'+esc(String(st.present))+'/'+esc(String(st.working))+'</td>'
       +'<td class="ms-c"></td>'
