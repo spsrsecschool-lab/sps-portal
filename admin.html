@@ -5322,7 +5322,7 @@ async function openSubmissionStatus(){
   if(!maps?.length){el.innerHTML='<div class="page-head"><div><h2>Marks Submission Status — '+esc(a.name)+'</h2></div></div><div class="empty-state"><p>No teacher-subject mappings for these classes.</p></div>';return}
 
   // Student roster for these classes: map enrollment→section + count per section.
-  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,section_id').eq('session_id',SESS?.session_id||'').in('class_id',classIds).eq('status','active').eq('relieved',false)
+  let enr=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_enrollments').select('enrollment_id,section_id').eq('session_id',SESS?.session_id||'').in('class_id',classIds).eq('status','active').eq('relieved',false).order('enrollment_id').range(_r,_r+999);if(_c&&_c.length)enr.push(..._c);if(!_c||_c.length<1000)break}
   const enrSection={}; const secCount={}
   ;(enr||[]).forEach(e=>{ enrSection[e.enrollment_id]=e.section_id; secCount[e.section_id]=(secCount[e.section_id]||0)+1 })
   const eids=(enr||[]).map(e=>e.enrollment_id)
@@ -5338,22 +5338,20 @@ async function openSubmissionStatus(){
   marks.forEach(m=>{ const sec=enrSection[m.enrollment_id]; if(!sec)return; const k=m.subject_id+'_'+sec; (entered[k]=entered[k]||new Set()).add(m.enrollment_id) })
 
   const{data:lockRows}=await sb.from('marks_lock_state').select('teacher_id,subject_id,section_id,is_locked').eq('assessment_id',a.assessment_id)
-  const lockMap={};lockRows?.forEach(m=>{lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]=m.is_locked})
+  const lockMap={};const lockBySS={};lockRows?.forEach(m=>{lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]=m.is_locked;if(m.is_locked)lockBySS[m.subject_id+'_'+m.section_id]=true})
 
   // Compute status per mapping row + tally pending per teacher.
   const pendingByTeacher={}  // teacher_id → {name, pending:count}
   const byTeacher={}
-  // Submission is decided purely by marks lock state: a subject counts as
-  // submitted only once the teacher has locked it. Anything not locked is
-  // pending, regardless of how many marks were entered.
   maps.forEach(m=>{
     if(!byTeacher[m.teacher_id])byTeacher[m.teacher_id]={name:m.teachers?.full_name||'—',rows:[]}
     const total=secCount[m.section_id]||0
     const enteredCount=(entered[m.subject_id+'_'+m.section_id]||new Set()).size
-    const locked=lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]===true
+    const locked=lockMap[m.teacher_id+'_'+m.subject_id+'_'+m.section_id]===true||lockBySS[m.subject_id+'_'+m.section_id]===true
     let statusKey, isPending=false
     if(total===0){ statusKey='none' }
     else if(locked){ statusKey='locked' }
+    else if(enteredCount>=total){ statusKey='entered' }
     else { statusKey='notsubmitted'; isPending=true }
     byTeacher[m.teacher_id].rows.push({...m,total,enteredCount,statusKey})
     if(isPending){ pendingByTeacher[m.teacher_id]=pendingByTeacher[m.teacher_id]||{name:m.teachers?.full_name||'—',pending:0}; pendingByTeacher[m.teacher_id].pending++ }
@@ -5362,7 +5360,8 @@ async function openSubmissionStatus(){
   const pill=(r)=>{
     if(r.statusKey==='none')return '<span class="pill pill-neutral">No students</span>'
     if(r.statusKey==='locked')return '<span class="pill pill-success">Submitted &amp; Locked</span>'
-    return '<span class="pill pill-danger">Not Submitted</span>'
+    if(r.statusKey==='entered')return '<span class="pill pill-success">Submitted</span>'
+    return '<span class="pill pill-danger">Not Submitted ('+r.enteredCount+'/'+r.total+')</span>'
   }
 
   const table='<div class="card"><div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Section</th><th>Subject</th><th>Status</th></tr></thead><tbody>'
@@ -6228,10 +6227,7 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   let att=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',attFrom).lte('date',attTo).order('date').range(_r,_r+999);if(_c&&_c.length)att.push(..._c);if(!_c||_c.length<1000)break}
   const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(classId)).map(h=>h.date))
   const epSet=_epHols[classId]
-  // Monthly (Previous Attendance) OVERRIDES daily for its period. Build each
-  // student's monthly periods so we can drop daily records that fall inside them,
-  // then add the monthly present_count — otherwise those days get counted twice.
-  const monthPeriods={}  // eid → [{from,to}], and present sum
+  const monthPeriods={}
   const presentMap={}
   ;(monthly||[]).forEach(mr=>{
     ;(monthPeriods[mr.enrollment_id]=monthPeriods[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date})
@@ -6239,7 +6235,7 @@ async function _fetchMarksheetData(classId,secId,assessId,secName,clsName,prev){
   })
   const inMonthly=(eid,date)=>(monthPeriods[eid]||[]).some(p=>date>=p.from&&date<=p.to)
   ;(att||[]).forEach(a=>{
-    if(inMonthly(a.enrollment_id,a.date))return                 // superseded by monthly
+    if(inMonthly(a.enrollment_id,a.date))return
     if(a.status==='P'||a.status==='L')presentMap[a.enrollment_id]=(presentMap[a.enrollment_id]||0)+1
   })
   // Working days per student (cached by effective start date).

@@ -103,7 +103,7 @@ tbody tr:hover td{background:var(--lav-50)}
 .att-scroll .rollcol{position:sticky;left:0;background:var(--white);z-index:3}
 .att-scroll thead .hrow .rollcol{background:var(--lav-100);z-index:7}
 thead .sticky-col{background:var(--lav-100);z-index:3}
-.cell-p{background:#FDEAEF!important;color:#1A7A4A;font-weight:700;text-align:center;font-size:11px}
+.cell-p{background:#E8F5E9!important;color:#1A7A4A;font-weight:700;text-align:center;font-size:11px}
 .cell-a{background:#FCE7EA!important;color:#C73E54;font-weight:700;text-align:center;font-size:11px}
 .cell-l{background:#FCF1E0!important;color:#C47A20;font-weight:700;text-align:center;font-size:11px}
 .cell-h{background:#F0F0F0!important;color:#888;font-weight:700;text-align:center;font-size:11px}
@@ -1860,8 +1860,9 @@ async function loadAttReport(){
   const workingDays=days.filter(d=>!d.isSun&&!d.isHol&&(!MY_CLASS_START||d.dateStr>=MY_CLASS_START)).length
   const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year
 
-  // Month uploaded as monthly totals (no daily data) → counts-only summary.
-  if((att||[]).length===0 && (monthly||[]).length>0){
+  // Month uploaded as monthly totals → counts-only summary. Monthly (Previous
+  // Attendance) takes precedence over daily records when it exists.
+  if((monthly||[]).length>0){
     const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
     let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
       +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was back-filled with monthly totals, so only Present/Absent counts are available (no day-by-day record).</div>'
@@ -2675,7 +2676,7 @@ async function loadAssessMarks(){
     const end=new Date(attToStr)
     while(cur<=end){const dow=cur.getDay();const _cd=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');if(dow!==0&&!holSet.has(_cd))workingDays++;cur.setDate(cur.getDate()+1)}
     // Get attendance per student
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    let attData=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr).order('date').range(_r,_r+999);if(_c&&_c.length)attData.push(..._c);if(!_c||_c.length<1000)break}
     const byStudent={}
     let monthPeriods={}
     try{
@@ -3531,7 +3532,7 @@ async function loadViewMarks(){
     const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
     let workingDays=0;const cur=new Date(sessStart),end=new Date(attToStr)
     while(cur<=end){const dow=cur.getDay();const _cd=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');if(dow!==0&&!holSet.has(_cd))workingDays++;cur.setDate(cur.getDate()+1)}
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    let attData=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr).order('date').range(_r,_r+999);if(_c&&_c.length)attData.push(..._c);if(!_c||_c.length<1000)break}
     const byStu={}
     let _mp={}
     const _monPC={} // eid→from_date→present_count

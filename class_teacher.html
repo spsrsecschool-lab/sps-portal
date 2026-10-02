@@ -1590,9 +1590,9 @@ async function loadAttReport(){
   const workingDays=days.filter(d=>!d.isSun&&!d.isHol&&(!MY_CLASS_START||d.dateStr>=MY_CLASS_START)).length
   const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]+' '+year
 
-  // If this month has NO daily attendance but WAS uploaded as monthly totals via
-  // Previous Attendance, show a counts-only summary (no day-by-day matrix).
-  if((att||[]).length===0 && (monthly||[]).length>0){
+  // Monthly (Previous Attendance) takes precedence over daily records when it
+  // exists — show a counts-only summary instead of the day-by-day matrix.
+  if((monthly||[]).length>0){
     const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
     let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
       +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was back-filled with monthly totals, so only Present/Absent counts are available (no day-by-day record).</div>'
@@ -2468,7 +2468,7 @@ async function loadAssessMarks(){
     // Get attendance per student — but monthly (Previous Attendance) OVERRIDES
     // daily for its period, so we drop daily records inside a monthly period
     // before adding the monthly present_count (otherwise those days double-count).
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    let attData=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr).order('date').range(_r,_r+999);if(_c&&_c.length)attData.push(..._c);if(!_c||_c.length<1000)break}
     const byStudent={}
     let monthPeriods={}
     try{
