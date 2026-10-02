@@ -1372,7 +1372,8 @@ async function renderDashboard(){
   const todayStr=today()
   const isSunday=new Date(todayStr).getDay()===0
   // Check if today is a holiday
-  const{data:todayHoliday}=await sb.from('holidays').select('label').eq('date',todayStr).eq('session_id',SESS?.session_id||'').maybeSingle()
+  const{data:_todayHols}=await sb.from('holidays').select('label,class_ids').eq('date',todayStr).eq('session_id',SESS?.session_id||'')
+  const todayHoliday=(_todayHols||[]).find(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id))||null
   const isExamPrep=!!(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(todayStr))
   const isHoliday=!!todayHoliday||isExamPrep
 
@@ -1466,7 +1467,8 @@ async function loadDailyAttendance(){
   ldg(el,'Checking holiday…')
 
   // Check if holiday
-  const{data:holiday}=await sb.from('holidays').select('label').eq('date',date).eq('session_id',SESS?.session_id||'').maybeSingle()
+  const{data:_holCheck}=await sb.from('holidays').select('label,class_ids').eq('date',date).eq('session_id',SESS?.session_id||'')
+  const holiday=(_holCheck||[]).find(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id))||null
   if(holiday){
     el.innerHTML='<div class="card" style="background:var(--warn-soft);border-color:var(--warn)"><div style="font-size:14px;font-weight:700;color:var(--warn)">🏖️ Holiday: '+esc(holiday.label||'Holiday')+'</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">This day is marked as a holiday by admin. Attendance cannot be submitted for holidays.</div></div>'
     return
@@ -1695,8 +1697,8 @@ function effectiveWD(admissionDate, from, to, holSet){
 async function paComputeWorking(){
   const {from,to}=paRange(), el=$('pa_working')
   if(!from||!to){if(el)el.textContent='Pick a month.';_paWorking=0;_paMonthLocked=false;return 0}
-  const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to)
-  _paHolSet=new Set((hols||[]).map(h=>h.date))
+  const{data:hols}=await sb.from('holidays').select('date,class_ids').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to)
+  _paHolSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
   const wd=countWorkingDays(from,to,_paHolSet)
   _paWorking=wd
   _paMonthLocked=false; let lockMsg=''
@@ -1836,14 +1838,14 @@ async function loadAttReport(){
   // Get attendance, holidays, and half days
   const[{data:att},{data:hols},{data:monthly},{data:hdRecs}]=await Promise.all([
     sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',from).lte('date',to),
-    sb.from('holidays').select('date,label').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to),
+    sb.from('holidays').select('date,label,class_ids').eq('session_id',SESS?.session_id||'').gte('date',from).lte('date',to),
     sb.from('attendance_monthly').select('*').in('enrollment_id',eids).eq('from_date',from).eq('to_date',to),
     sb.from('student_half_days').select('enrollment_id,date').in('enrollment_id',eids).gte('date',from).lte('date',to).eq('session_id',SESS?.session_id||'')
   ])
 
   const attMap={}; (att||[]).forEach(a=>{if(!attMap[a.enrollment_id])attMap[a.enrollment_id]={};attMap[a.enrollment_id][a.date]=a.status})
   const hdSet=new Set(); (hdRecs||[]).forEach(r=>hdSet.add(r.enrollment_id+'|'+r.date))
-  const holSet=new Set((hols||[]).map(h=>h.date))
+  const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
 
   // Build day list (exclude Sundays)
   const days=[]
@@ -2666,8 +2668,8 @@ async function loadAssessMarks(){
     const monStart=sessStart.slice(0,7)+'-01'       // first of the month — so monthly records whose from_date is the 1st are never excluded
     const attToStr=cutoffDate                       // inclusive — the end date itself counts
     // Get holidays to calculate working days
-    const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
-    const holSet=new Set((hols||[]).map(h=>h.date))
+    const{data:hols}=await sb.from('holidays').select('date,class_ids').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
+    const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
     // Working days count (exclude Sundays and holidays)
     let workingDays=0
     const cur=new Date(sessStart)
@@ -3526,8 +3528,8 @@ async function loadViewMarks(){
     const sessStart=MY_CLASS_START||(String(cutoffDate).slice(0,4)+'-04-01')
     const monStart=sessStart.slice(0,7)+'-01'
     const attToStr=cutoffDate                       // inclusive — the end date itself counts
-    const{data:hols}=await sb.from('holidays').select('date').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
-    const holSet=new Set((hols||[]).map(h=>h.date))
+    const{data:hols}=await sb.from('holidays').select('date,class_ids').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',attToStr)
+    const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
     let workingDays=0;const cur=new Date(sessStart),end=new Date(attToStr)
     while(cur<=end){const dow=cur.getDay();const _cd=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');if(dow!==0&&!holSet.has(_cd))workingDays++;cur.setDate(cur.getDate()+1)}
     let attData=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr).order('date').range(_r,_r+999);if(_c&&_c.length)attData.push(..._c);if(!_c||_c.length<1000)break}
