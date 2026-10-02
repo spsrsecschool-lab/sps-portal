@@ -2673,7 +2673,7 @@ async function loadAssessMarks(){
     const end=new Date(attToStr)
     while(cur<=end){const dow=cur.getDay();const _cd=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');if(dow!==0&&!holSet.has(_cd))workingDays++;cur.setDate(cur.getDate()+1)}
     // Get attendance per student
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    let attData=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr).order('date').range(_r,_r+999);if(_c&&_c.length)attData.push(..._c);if(!_c||_c.length<1000)break}
     const byStudent={}
     let monthPeriods={}
     try{
@@ -3529,7 +3529,7 @@ async function loadViewMarks(){
     const holSet=new Set((hols||[]).map(h=>h.date))
     let workingDays=0;const cur=new Date(sessStart),end=new Date(attToStr)
     while(cur<=end){const dow=cur.getDay();const _cd=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');if(dow!==0&&!holSet.has(_cd))workingDays++;cur.setDate(cur.getDate()+1)}
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    let attData=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr).order('date').range(_r,_r+999);if(_c&&_c.length)attData.push(..._c);if(!_c||_c.length<1000)break}
     const byStu={}
     let _mp={}
     const _monPC={} // eid→from_date→present_count

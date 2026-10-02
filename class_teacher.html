@@ -2466,7 +2466,7 @@ async function loadAssessMarks(){
     // Get attendance per student — but monthly (Previous Attendance) OVERRIDES
     // daily for its period, so we drop daily records inside a monthly period
     // before adding the monthly present_count (otherwise those days double-count).
-    const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
+    let attData=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr).order('date').range(_r,_r+999);if(_c&&_c.length)attData.push(..._c);if(!_c||_c.length<1000)break}
     const byStudent={}
     let monthPeriods={}
     try{
