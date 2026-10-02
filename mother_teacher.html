@@ -884,6 +884,7 @@ function initials(name){return (name||'?').split(' ').map(w=>w[0]).join('').slic
 function ldg(el,msg='Loading…'){if(el)el.innerHTML='<div style="text-align:center;padding:30px;color:var(--ink-faint)">'+msg+'</div>'}
 function emp(el,msg){if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint);font-size:13px">'+esc(msg)+'</div>'}
 function toast(msg,type='info'){const t=document.createElement('div');t.className='toast-item toast-'+(type==='error'?'error':type==='success'?'success':'info');t.textContent=msg;$('toast').appendChild(t);setTimeout(()=>t.remove(),3500)}
+window._showAttBD=function(el){const bd=el.dataset.bd;if(!bd)return;let p=document.getElementById('_attPop');if(p)p.remove();p=document.createElement('div');p.id='_attPop';p.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3)';p.onclick=e=>{if(e.target===p)p.remove()};const box=document.createElement('div');box.style.cssText='background:var(--surface,#fff);border-radius:12px;padding:20px;max-width:360px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18);font-size:13px;line-height:1.7';box.innerHTML='<div style="font-weight:700;font-size:14px;margin-bottom:10px">Attendance Breakdown</div><pre style="margin:0;white-space:pre-wrap;font-family:var(--mono);font-size:12px">'+bd.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&')+'</pre><div style="text-align:right;margin-top:12px"><button onclick="document.getElementById(\'_attPop\').remove()" style="padding:6px 16px;border:none;background:var(--indigo,#5C6BC0);color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">Close</button></div>';p.appendChild(box);document.body.appendChild(p)}
 function openModal(title,body,foot){$('modal-title').textContent=title;$('modal-body').innerHTML=body;$('modal-foot').innerHTML=foot||'';$('modal-overlay').classList.add('open')}
 function closeModal(){$('modal-overlay').classList.remove('open')}
 function toggleSidebar(){const sb=$('sidebar');if(window.innerWidth<=760){sb.classList.toggle('show');$('scrim').classList.toggle('show')}else{sb.classList.toggle('collapsed');$('main').classList.toggle('full')}}
@@ -3531,16 +3532,20 @@ async function loadViewMarks(){
     const{data:attData}=await sb.from('student_attendance').select('enrollment_id,status,date').in('enrollment_id',eids).gte('date',sessStart).lte('date',attToStr)
     const byStu={}
     let _mp={}
+    const _monPC={} // eid→from_date→present_count
     try{
       const{data:monthly}=await sb.from('attendance_monthly').select('enrollment_id,present_count,from_date,to_date').in('enrollment_id',eids).gte('from_date',monStart).lte('from_date',attToStr)
-      ;(monthly||[]).forEach(mr=>{(_mp[mr.enrollment_id]=_mp[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStu[mr.enrollment_id]=(byStu[mr.enrollment_id]||0)+(mr.present_count||0)})
+      ;(monthly||[]).forEach(mr=>{(_mp[mr.enrollment_id]=_mp[mr.enrollment_id]||[]).push({from:mr.from_date,to:mr.to_date});byStu[mr.enrollment_id]=(byStu[mr.enrollment_id]||0)+(mr.present_count||0);if(!_monPC[mr.enrollment_id])_monPC[mr.enrollment_id]={};_monPC[mr.enrollment_id][mr.from_date]=mr.present_count||0})
     }catch(e){}
     const _inMon2=(eid,d)=>(_mp[eid]||[]).some(p=>d>=p.from&&d<=p.to)
-    ;(attData||[]).forEach(a=>{if(_inMon2(a.enrollment_id,a.date))return;if(a.status==='P'||a.status==='L')byStu[a.enrollment_id]=(byStu[a.enrollment_id]||0)+1})
+    const _dailyYM={} // eid→'YYYY-MM'→{p,l}
+    ;(attData||[]).forEach(a=>{if(_inMon2(a.enrollment_id,a.date))return;const ym=a.date.slice(0,7);if(!_dailyYM[a.enrollment_id])_dailyYM[a.enrollment_id]={};if(!_dailyYM[a.enrollment_id][ym])_dailyYM[a.enrollment_id][ym]={p:0,l:0};if(a.status==='P'){_dailyYM[a.enrollment_id][ym].p++;byStu[a.enrollment_id]=(byStu[a.enrollment_id]||0)+1}else if(a.status==='L'){_dailyYM[a.enrollment_id][ym].l++;byStu[a.enrollment_id]=(byStu[a.enrollment_id]||0)+1}})
     const admBy={}; CLASS_STUDENTS.forEach(s=>{admBy[s.enrollment_id]=(s.is_new_admission||s.att_from_admission)?(s.students?.admission_date||null):null})
     const wdCache={}
     const wdFor=adm=>{ const key=adm||'_'; if(wdCache[key]!=null)return wdCache[key]; let start=sessStart; if(adm&&adm>attToStr)return (wdCache[key]=0); if(adm&&adm>sessStart)start=adm; let n=0; const c=new Date(start+'T12:00:00'),e2=new Date(attToStr+'T12:00:00'); while(c<=e2){const dw=c.getDay();const ds=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(dw!==0&&!holSet.has(ds)&&!(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(ds)))n++;c.setDate(c.getDate()+1)} return (wdCache[key]=n) }
-    CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStu[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id])}})
+    const _MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const _buildBD=(eid)=>{let bY=parseInt(sessStart.slice(0,4)),bM=parseInt(sessStart.slice(5,7));const eY=parseInt(attToStr.slice(0,4)),eM=parseInt(attToStr.slice(5,7));const lines=[];lines.push('sessStart='+sessStart+' monStart='+monStart+' attTo='+attToStr);while(bY<eY||(bY===eY&&bM<=eM)){const fd=bY+'-'+String(bM).padStart(2,'0')+'-01';const ym=bY+'-'+String(bM).padStart(2,'0');const mc=_monPC[eid]&&_monPC[eid][fd];const dy=_dailyYM[eid]&&_dailyYM[eid][ym];if(mc!=null){lines.push(_MN[bM-1]+': '+mc+' (monthly rec)')}else if(dy){lines.push(_MN[bM-1]+': '+(dy.p+dy.l)+' (daily P:'+dy.p+' L:'+dy.l+')')}else{lines.push(_MN[bM-1]+': 0')};bM++;if(bM>12){bM=1;bY++}};return lines.join('\n')}
+    CLASS_STUDENTS.forEach(s=>{attMap[s.enrollment_id]={present:byStu[s.enrollment_id]||0,working:wdFor(admBy[s.enrollment_id]),breakdown:_buildBD(s.enrollment_id)}})
   }
 
   // Overrides are strictly per (assessment, class, subject) — the same subject
@@ -3618,7 +3623,8 @@ async function loadViewMarks(){
     const attPct=att.working>0?Math.round(att.present/att.working*100):null
     html+='<td style="text-align:center;font-weight:700">'+(showTotal?total:'—')+'</td>'
     html+='<td class="'+(pct!==null&&pct<33?'cell-fail':'')+'" style="text-align:center;font-weight:700">'+(pct!==null?pct+'%':'—')+'</td>'
-    html+='<td style="text-align:center;font-family:var(--mono)">'+(att.working>0?att.present+'/'+att.working:'—')+'</td>'
+    const bdEsc=att.breakdown?att.breakdown.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'):''
+    html+='<td style="text-align:center;font-family:var(--mono);cursor:pointer;text-decoration:underline dotted var(--ink-faint)" onclick="window._showAttBD(this)" data-bd="'+bdEsc+'">'+(att.working>0?att.present+'/'+att.working:'—')+'</td>'
     html+='<td class="'+(attPct!==null&&attPct<75?'cell-low-att':'')+'" style="text-align:center;font-weight:700">'+(attPct!==null?attPct+'%':'—')+'</td>'
     html+='</tr>'
   })
