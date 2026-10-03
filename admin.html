@@ -9824,10 +9824,12 @@ async function _maintUpsert(portal,fields){
       const{error}=await sb.from('portal_maintenance').update(fields).eq('portal',portal)
       if(error) throw error
     }else{
-      const{error}=await sb.from('portal_maintenance').insert({portal,...fields})
+      const row={portal,is_active:false,message:null,activated_at:null,...fields}
+      const{error}=await sb.from('portal_maintenance').insert(row)
       if(error) throw error
     }
   }catch(e){
+    console.error('[maintUpsert]',portal,e)
     toast('Failed: '+(e.message||e),'error');throw e
   }
 }
