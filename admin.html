@@ -1367,6 +1367,11 @@ tbody tr:hover td{background:var(--lav-50)}
         <div style="font-size:13px;color:var(--ink-soft);margin-bottom:20px">Turn features on or off for class teacher and mother teacher portals. Teachers won't see disabled features in their sidebar.</div>
         <div id="featureCards"><div class="loading-row"><div class="spinner"></div></div></div>
       </div>
+      <div class="card" style="max-width:700px;margin-top:24px">
+        <h3 style="margin:0 0 6px">Event Banner</h3>
+        <div style="font-size:13px;color:var(--ink-soft);margin-bottom:20px">Show a promotional event banner on the teacher dashboards. Teachers will see this banner at the top of their dashboard with a link to the event page.</div>
+        <div id="eventBannerCard"><div class="loading-row"><div class="spinner"></div></div></div>
+      </div>
     </div>
 
     <!-- REQUESTS PAGE -->
@@ -9796,6 +9801,7 @@ const MAINT_PORTALS=[
 async function loadMaintenance(){
   const wrap=$('maintCards')
   loadFeatureControls()
+  loadEventBanner()
   const{data:rows,error}=await sb.from('portal_maintenance').select('*')
   if(error){wrap.innerHTML='<div style="color:var(--danger);font-size:13px">Failed to load: '+esc(error.message)+'<br><span style="font-size:11px;color:var(--ink-faint)">Run the portal_maintenance table setup SQL first.</span></div>';return}
   const map={}
@@ -9858,6 +9864,48 @@ async function toggleFeature(key,disable){
   const label=FEATURE_TOGGLES.find(f=>f.key===key)?.label||key
   toast(disable?label+' turned OFF — hidden from teachers':label+' turned ON — visible to teachers',disable?'error':'success')
   loadFeatureControls()
+}
+
+// ═══════════ EVENT BANNER ═══════════
+async function loadEventBanner(){
+  const wrap=$('eventBannerCard');if(!wrap)return
+  const{data:row}=await sb.from('portal_maintenance').select('is_active,message').eq('portal','event_banner').maybeSingle()
+  const on=row?.is_active===true
+  let cfg={title:'',subtitle:'',link:''}
+  try{if(row?.message)cfg={...cfg,...JSON.parse(row.message)}}catch(e){}
+  wrap.innerHTML='<div style="display:flex;flex-direction:column;gap:14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:1.5px solid '+(on?'var(--success)':'var(--line)')+';border-radius:var(--radius);background:'+(on?'#F0FDF4':'var(--white)')+'"><div><div style="font-size:14px;font-weight:700;color:var(--ink)">Banner Status</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px">'+(on?'<span style="color:var(--success);font-weight:700">LIVE</span> — visible on teacher dashboards':'Banner is currently hidden')+'</div></div>'
+    +'<button class="btn '+(on?'btn-danger':'btn-success')+' btn-sm" onclick="toggleEventBanner('+!on+')">'+
+    (on?'Turn OFF':'Turn ON')+'</button></div>'
+    +'<div class="fg"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em">Banner Title</label><input id="eb_title" class="input" placeholder="Dandiya Nights 2026" value="'+esc(cfg.title||'')+'"></div>'
+    +'<div class="fg"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em">Subtitle (optional)</label><input id="eb_subtitle" class="input" placeholder="Book your tickets now!" value="'+esc(cfg.subtitle||'')+'"></div>'
+    +'<div class="fg"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em">Event Link (URL)</label><input id="eb_link" class="input" type="url" placeholder="https://example.com/event" value="'+esc(cfg.link||'')+'"></div>'
+    +'<button class="btn btn-dark" onclick="saveEventBanner()">Save Banner Settings</button>'
+    +'</div>'
+}
+async function saveEventBanner(){
+  const title=$('eb_title')?.value?.trim()||''
+  const subtitle=$('eb_subtitle')?.value?.trim()||''
+  const link=$('eb_link')?.value?.trim()||''
+  if(!title){toast('Banner title is required','error');return}
+  if(!link){toast('Event link is required','error');return}
+  const msg=JSON.stringify({title,subtitle,link})
+  const{data:existing}=await sb.from('portal_maintenance').select('portal').eq('portal','event_banner').maybeSingle()
+  const{error}=existing
+    ?await sb.from('portal_maintenance').update({message:msg}).eq('portal','event_banner')
+    :await sb.from('portal_maintenance').upsert({portal:'event_banner',is_active:false,message:msg,activated_at:null,activated_by:ADMIN?.admin_id||null},{onConflict:'portal'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Banner settings saved','success')
+  loadEventBanner()
+}
+async function toggleEventBanner(activate){
+  const{data:existing}=await sb.from('portal_maintenance').select('message').eq('portal','event_banner').maybeSingle()
+  if(activate&&!existing?.message){toast('Set banner title and link first','error');return}
+  const row={portal:'event_banner',is_active:activate,message:existing?.message||null,activated_at:activate?new Date().toISOString():null,activated_by:ADMIN?.admin_id||null}
+  const{error}=await sb.from('portal_maintenance').upsert(row,{onConflict:'portal'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(activate?'Event banner is now LIVE on teacher dashboards':'Event banner turned OFF','success')
+  loadEventBanner()
 }
 
 // ═══════════ SETTINGS PAGE INIT ═══════════
