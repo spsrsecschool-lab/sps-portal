@@ -9834,7 +9834,7 @@ async function _maintUpsert(portal,fields){
 async function toggleMaint(portal,activate){
   const msg=$('maintMsg')?.value?.trim()||null
   try{
-    await _maintUpsert(portal,{is_active:activate,message:msg,activated_at:activate?new Date().toISOString():null,activated_by:SPS.admin?.admin_id||null})
+    await _maintUpsert(portal,{is_active:activate,message:msg,activated_at:activate?new Date().toISOString():null})
     toast(activate?'Maintenance mode ON — teachers will see the maintenance page':'Maintenance mode OFF — portal is accessible again',activate?'error':'success')
     loadMaintenance()
   }catch(e){}
@@ -9873,7 +9873,7 @@ async function loadFeatureControls(){
 }
 async function toggleFeature(key,disable){
   try{
-    await _maintUpsert(key,{is_active:disable,message:null,activated_at:disable?new Date().toISOString():null,activated_by:SPS.admin?.admin_id||null})
+    await _maintUpsert(key,{is_active:disable,message:null,activated_at:disable?new Date().toISOString():null})
     const label=FEATURE_TOGGLES.find(f=>f.key===key)?.label||key
     toast(disable?label+' turned OFF — hidden from teachers':label+' turned ON — visible to teachers',disable?'error':'success')
     loadFeatureControls()
@@ -9913,7 +9913,7 @@ async function toggleEventBanner(activate){
   const{data:existing}=await sb.from('portal_maintenance').select('message').eq('portal','event_banner').maybeSingle()
   if(activate&&!existing?.message){toast('Set banner title and link first','error');return}
   try{
-    await _maintUpsert('event_banner',{is_active:activate,activated_at:activate?new Date().toISOString():null,activated_by:SPS.admin?.admin_id||null})
+    await _maintUpsert('event_banner',{is_active:activate,activated_at:activate?new Date().toISOString():null})
     toast(activate?'Event banner is now LIVE on teacher dashboards':'Event banner turned OFF','success')
     loadEventBanner()
   }catch(e){}
