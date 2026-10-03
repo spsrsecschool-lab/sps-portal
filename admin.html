@@ -9817,13 +9817,27 @@ async function loadMaintenance(){
       (on?'Turn OFF':'Turn ON')+'</button></div>'
   }).join('')
 }
+async function _maintUpsert(portal,fields){
+  try{
+    const{data:ex}=await sb.from('portal_maintenance').select('portal').eq('portal',portal).maybeSingle()
+    if(ex){
+      const{error}=await sb.from('portal_maintenance').update(fields).eq('portal',portal)
+      if(error) throw error
+    }else{
+      const{error}=await sb.from('portal_maintenance').insert({portal,...fields})
+      if(error) throw error
+    }
+  }catch(e){
+    toast('Failed: '+(e.message||e),'error');throw e
+  }
+}
 async function toggleMaint(portal,activate){
   const msg=$('maintMsg')?.value?.trim()||null
-  const row={portal:portal,is_active:activate,message:msg,activated_at:activate?new Date().toISOString():null,activated_by:ADMIN?.admin_id||null}
-  const{error}=await sb.from('portal_maintenance').upsert(row,{onConflict:'portal'})
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast(activate?'Maintenance mode ON — teachers will see the maintenance page':'Maintenance mode OFF — portal is accessible again',activate?'error':'success')
-  loadMaintenance()
+  try{
+    await _maintUpsert(portal,{is_active:activate,message:msg,activated_at:activate?new Date().toISOString():null,activated_by:SPS.admin?.admin_id||null})
+    toast(activate?'Maintenance mode ON — teachers will see the maintenance page':'Maintenance mode OFF — portal is accessible again',activate?'error':'success')
+    loadMaintenance()
+  }catch(e){}
 }
 async function saveMaintMsg(){
   const msg=$('maintMsg')?.value?.trim()||null
@@ -9858,12 +9872,12 @@ async function loadFeatureControls(){
   }).join('')
 }
 async function toggleFeature(key,disable){
-  const row={portal:key,is_active:disable,message:null,activated_at:disable?new Date().toISOString():null,activated_by:ADMIN?.admin_id||null}
-  const{error}=await sb.from('portal_maintenance').upsert(row,{onConflict:'portal'})
-  if(error){toast('Failed: '+error.message,'error');return}
-  const label=FEATURE_TOGGLES.find(f=>f.key===key)?.label||key
-  toast(disable?label+' turned OFF — hidden from teachers':label+' turned ON — visible to teachers',disable?'error':'success')
-  loadFeatureControls()
+  try{
+    await _maintUpsert(key,{is_active:disable,message:null,activated_at:disable?new Date().toISOString():null,activated_by:SPS.admin?.admin_id||null})
+    const label=FEATURE_TOGGLES.find(f=>f.key===key)?.label||key
+    toast(disable?label+' turned OFF — hidden from teachers':label+' turned ON — visible to teachers',disable?'error':'success')
+    loadFeatureControls()
+  }catch(e){}
 }
 
 // ═══════════ EVENT BANNER ═══════════
@@ -9889,23 +9903,20 @@ async function saveEventBanner(){
   const link=$('eb_link')?.value?.trim()||''
   if(!title){toast('Banner title is required','error');return}
   if(!link){toast('Event link is required','error');return}
-  const msg=JSON.stringify({title,subtitle,link})
-  const{data:existing}=await sb.from('portal_maintenance').select('portal').eq('portal','event_banner').maybeSingle()
-  const{error}=existing
-    ?await sb.from('portal_maintenance').update({message:msg}).eq('portal','event_banner')
-    :await sb.from('portal_maintenance').upsert({portal:'event_banner',is_active:false,message:msg,activated_at:null,activated_by:ADMIN?.admin_id||null},{onConflict:'portal'})
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast('Banner settings saved','success')
-  loadEventBanner()
+  try{
+    await _maintUpsert('event_banner',{message:JSON.stringify({title,subtitle,link})})
+    toast('Banner settings saved','success')
+    loadEventBanner()
+  }catch(e){}
 }
 async function toggleEventBanner(activate){
   const{data:existing}=await sb.from('portal_maintenance').select('message').eq('portal','event_banner').maybeSingle()
   if(activate&&!existing?.message){toast('Set banner title and link first','error');return}
-  const row={portal:'event_banner',is_active:activate,message:existing?.message||null,activated_at:activate?new Date().toISOString():null,activated_by:ADMIN?.admin_id||null}
-  const{error}=await sb.from('portal_maintenance').upsert(row,{onConflict:'portal'})
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast(activate?'Event banner is now LIVE on teacher dashboards':'Event banner turned OFF','success')
-  loadEventBanner()
+  try{
+    await _maintUpsert('event_banner',{is_active:activate,activated_at:activate?new Date().toISOString():null,activated_by:SPS.admin?.admin_id||null})
+    toast(activate?'Event banner is now LIVE on teacher dashboards':'Event banner turned OFF','success')
+    loadEventBanner()
+  }catch(e){}
 }
 
 // ═══════════ SETTINGS PAGE INIT ═══════════
