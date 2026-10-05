@@ -1185,19 +1185,20 @@ tbody tr:hover td{background:var(--lav-50)}
             <div id="idcPropsPanel" style="flex:1;min-width:260px">
               <h4 style="margin:0 0 10px;font-size:13px;color:var(--ink-soft)">FIELDS</h4>
               <div id="idcFieldList" style="display:flex;flex-direction:column;gap:6px"></div>
+              <div id="idcImgSize" style="margin-top:12px;font-size:11px;color:var(--ink-faint)"></div>
               <div id="idcFieldProps" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);display:none">
                 <h4 style="margin:0 0 10px;font-size:13px;color:var(--ink-soft)">SELECTED FIELD: <span id="idcSelName"></span></h4>
                 <div class="form-row">
-                  <div class="fg"><label>X (%)</label><input type="number" id="idc_px" step="0.1" onchange="idcUpdateFieldPos()"></div>
-                  <div class="fg"><label>Y (%)</label><input type="number" id="idc_py" step="0.1" onchange="idcUpdateFieldPos()"></div>
+                  <div class="fg"><label>X (px)</label><input type="number" id="idc_px" step="1" onchange="idcUpdateFieldPos()"></div>
+                  <div class="fg"><label>Y (px)</label><input type="number" id="idc_py" step="1" onchange="idcUpdateFieldPos()"></div>
                 </div>
                 <div class="form-row">
-                  <div class="fg"><label>Width (%)</label><input type="number" id="idc_pw" step="0.1" onchange="idcUpdateFieldPos()"></div>
-                  <div class="fg"><label>Height (%)</label><input type="number" id="idc_ph" step="0.1" onchange="idcUpdateFieldPos()"></div>
+                  <div class="fg"><label>Width (px)</label><input type="number" id="idc_pw" step="1" onchange="idcUpdateFieldPos()"></div>
+                  <div class="fg"><label>Height (px)</label><input type="number" id="idc_ph" step="1" onchange="idcUpdateFieldPos()"></div>
                 </div>
                 <div id="idcTextProps">
                   <div class="form-row">
-                    <div class="fg"><label>Font Size (px @ 1000px card width)</label><input type="number" id="idc_fs" value="40" onchange="idcUpdateFieldStyle()"></div>
+                    <div class="fg"><label>Font Size (px)</label><input type="number" id="idc_fs" value="40" onchange="idcUpdateFieldStyle()"></div>
                     <div class="fg"><label>Color</label><input type="color" id="idc_fc" value="#000000" onchange="idcUpdateFieldStyle()"></div>
                   </div>
                   <div class="form-row">
@@ -13127,18 +13128,20 @@ let _idcTemplate = null
 let _idcFields = {}
 let _idcSelectedField = null
 let _idcScale = 1
+let _idcImgW = 1000
+let _idcImgH = 1600
 const IDC_FONT_REF_W = 1000
 
 const IDC_FIELD_DEFS = [
-  {key:'photo', label:'Photo', isRect:true, default:{x:30,y:18,w:40,h:25}},
-  {key:'student_name', label:'Student Name', isRect:false, default:{x:10,y:47,w:80,h:6,fontSize:80,color:'#000000',fontWeight:'800',align:'center'}},
-  {key:'class_section', label:'Class & Section', isRect:false, default:{x:10,y:54,w:80,h:6,fontSize:70,color:'#000000',fontWeight:'bold',align:'center'}},
-  {key:'father_name', label:"Father's Name", isRect:false, default:{x:25,y:65,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
-  {key:'phone', label:'Phone', isRect:false, default:{x:25,y:71,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
-  {key:'address_line1', label:'Address Line 1', isRect:false, default:{x:25,y:77,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
-  {key:'address_line2', label:'Address Line 2', isRect:false, default:{x:25,y:81,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
-  {key:'session_year', label:'Session Year', isRect:false, default:{x:10,y:90,w:40,h:5,fontSize:50,color:'#000000',fontWeight:'bold',align:'center'}},
-  {key:'qr_code', label:'QR Code', isRect:true, default:{x:70,y:87,w:15,h:9.5}}
+  {key:'photo', label:'Photo', sample:'Photo', isRect:true, default:{x:30,y:18,w:40,h:25}},
+  {key:'student_name', label:'Student Name', sample:'SAHIL KUMAR', isRect:false, default:{x:10,y:47,w:80,h:6,fontSize:80,color:'#000000',fontWeight:'800',align:'center'}},
+  {key:'class_section', label:'Class & Section', sample:'CLASS 5 A', isRect:false, default:{x:10,y:54,w:80,h:6,fontSize:70,color:'#000000',fontWeight:'bold',align:'center'}},
+  {key:'father_name', label:"Father's Name", sample:'Mr. RAJESH KUMAR', isRect:false, default:{x:25,y:65,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'phone', label:'Phone', sample:'9876543210', isRect:false, default:{x:25,y:71,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'address_line1', label:'Address Line 1', sample:'A-221/A, Dabua Colony', isRect:false, default:{x:25,y:77,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'address_line2', label:'Address Line 2', sample:'NIT Faridabad, 121001', isRect:false, default:{x:25,y:81,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'session_year', label:'Session Year', sample:'2026-2027', isRect:false, default:{x:10,y:90,w:40,h:5,fontSize:50,color:'#000000',fontWeight:'bold',align:'center'}},
+  {key:'qr_code', label:'QR Code', sample:'QR', isRect:true, default:{x:70,y:87,w:15,h:9.5}}
 ]
 
 async function loadIdCards(){
@@ -13168,10 +13171,13 @@ function idcRenderEditor(){
     }
   })
 
-  fieldList.innerHTML = IDC_FIELD_DEFS.map(def=>
-    '<button class="btn btn-ghost btn-xs" style="justify-content:flex-start;text-align:left;width:100%" data-fk="'+def.key+'" onclick="idcSelectField(\''+def.key+'\')">'+
-      '<span style="width:8px;height:8px;border-radius:50%;background:'+idcFieldColor(def.key)+';flex-shrink:0;margin-right:6px"></span>'+esc(def.label)+'</button>'
-  ).join('')
+  fieldList.innerHTML = IDC_FIELD_DEFS.map(def=>{
+    const vis=_idcFields[def.key]?.visible!==false
+    return '<div style="display:flex;align-items:center;gap:4px" data-fk="'+def.key+'">'+
+      '<input type="checkbox" '+(vis?'checked':'')+' onchange="idcToggleField(\''+def.key+'\',this.checked)" style="accent-color:'+idcFieldColor(def.key)+';flex-shrink:0">'+
+      '<button class="btn btn-ghost btn-xs" style="justify-content:flex-start;text-align:left;flex:1" data-fk="'+def.key+'" onclick="idcSelectField(\''+def.key+'\')">'+
+        '<span style="width:8px;height:8px;border-radius:50%;background:'+idcFieldColor(def.key)+';flex-shrink:0;margin-right:6px"></span>'+esc(def.label)+'</button></div>'
+  }).join('')
 
   if(_idcTemplate?.bgUrl) idcShowBg(_idcTemplate.bgUrl)
 }
@@ -13207,6 +13213,10 @@ function idcShowBg(url){
     wrap.style.width = displayW+'px'
     wrap.style.height = (displayW*aspect)+'px'
     _idcScale = displayW / img.naturalWidth
+    _idcImgW = img.naturalWidth
+    _idcImgH = img.naturalHeight
+    const sizeEl=$('idcImgSize')
+    if(sizeEl) sizeEl.textContent='Image: '+_idcImgW+' × '+_idcImgH+' px'
     if(noTpl)noTpl.style.display='none'
     img.style.display='block'
     idcRenderFields()
@@ -13223,17 +13233,18 @@ function idcRenderFields(){
 
   IDC_FIELD_DEFS.forEach(def=>{
     const f=_idcFields[def.key]
-    if(!f)return
+    if(!f||f.visible===false)return
     const c=idcFieldColor(def.key)
     const el=document.createElement('div')
     el.className='idc-field-overlay'
     el.dataset.fk=def.key
-    el.style.cssText='position:absolute;border:2px solid '+c+';background:'+c+'22;cursor:move;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:'+c+';user-select:none;overflow:hidden;white-space:nowrap;box-sizing:border-box;'
+    const isText=!def.isRect
+    el.style.cssText='position:absolute;border:2px solid '+c+';background:'+c+'22;cursor:move;border-radius:3px;display:flex;align-items:center;justify-content:'+(isText?(f.align||'center'):'center')+';font-size:'+(isText?Math.max(8,Math.round((f.fontSize||40)/IDC_FONT_REF_W*400))+'px':'10px')+';font-weight:'+(isText?(f.fontWeight||'normal'):'700')+';color:'+(isText?(f.color||'#000'):c)+';user-select:none;overflow:hidden;white-space:nowrap;box-sizing:border-box;padding:0 4px;'
     el.style.left=f.x+'%'
     el.style.top=f.y+'%'
     el.style.width=f.w+'%'
     el.style.height=f.h+'%'
-    el.textContent=def.label
+    el.textContent=def.sample||def.label
     el.onmousedown=function(e){idcStartDrag(e,def.key)}
     el.onclick=function(e){e.stopPropagation();idcSelectField(def.key)}
 
@@ -13300,10 +13311,10 @@ function idcSelectField(key){
 
   $('idcFieldProps').style.display='block'
   $('idcSelName').textContent=def.label
-  $('idc_px').value=f.x.toFixed(1)
-  $('idc_py').value=f.y.toFixed(1)
-  $('idc_pw').value=f.w.toFixed(1)
-  $('idc_ph').value=f.h.toFixed(1)
+  $('idc_px').value=Math.round(f.x/100*_idcImgW)
+  $('idc_py').value=Math.round(f.y/100*_idcImgH)
+  $('idc_pw').value=Math.round(f.w/100*_idcImgW)
+  $('idc_ph').value=Math.round(f.h/100*_idcImgH)
 
   const isText=!def.isRect
   $('idcTextProps').style.display=isText?'block':'none'
@@ -13326,21 +13337,27 @@ function idcSyncProps(key){
   if(_idcSelectedField!==key)return
   const f=_idcFields[key]
   if(!f)return
-  $('idc_px').value=f.x.toFixed(1)
-  $('idc_py').value=f.y.toFixed(1)
-  $('idc_pw').value=f.w.toFixed(1)
-  $('idc_ph').value=f.h.toFixed(1)
+  $('idc_px').value=Math.round(f.x/100*_idcImgW)
+  $('idc_py').value=Math.round(f.y/100*_idcImgH)
+  $('idc_pw').value=Math.round(f.w/100*_idcImgW)
+  $('idc_ph').value=Math.round(f.h/100*_idcImgH)
 }
 
 function idcUpdateFieldPos(){
   if(!_idcSelectedField)return
   const f=_idcFields[_idcSelectedField]
-  f.x=parseFloat($('idc_px').value)||0
-  f.y=parseFloat($('idc_py').value)||0
-  f.w=parseFloat($('idc_pw').value)||10
-  f.h=parseFloat($('idc_ph').value)||5
+  f.x=(parseFloat($('idc_px').value)||0)/_idcImgW*100
+  f.y=(parseFloat($('idc_py').value)||0)/_idcImgH*100
+  f.w=(parseFloat($('idc_pw').value)||10)/_idcImgW*100
+  f.h=(parseFloat($('idc_ph').value)||5)/_idcImgH*100
   idcRenderFields()
   idcSelectField(_idcSelectedField)
+}
+
+function idcToggleField(key,visible){
+  if(_idcFields[key]) _idcFields[key].visible=visible
+  idcRenderFields()
+  if(_idcSelectedField===key&&!visible){$('idcFieldProps').style.display='none';_idcSelectedField=null}
 }
 
 function idcUpdateFieldStyle(){
@@ -13380,7 +13397,7 @@ async function idcLoadStudents(){
   const wrap=$('idcStudentList')
   wrap.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
 
-  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,students(student_id,full_name,father_name,phone,address,photo_url),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('status','enrolled')
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,students(student_id,full_name,father_name,phone,address,photo_url),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('status','active').eq('relieved',false)
   if(sid) q=q.eq('section_id',sid)
   const{data,error}=await q.order('roll_no')
   if(error){wrap.innerHTML='<div class="empty-state"><p>Error: '+esc(error.message)+'</p></div>';return}
@@ -13434,7 +13451,7 @@ async function idcGeneratePDF(){
       doc.addImage(bg.data, 'JPEG', 0, 0, cardW_mm, cardH_mm)
 
       // Photo (cover-cropped to the photo box)
-      if(fields.photo){
+      if(fields.photo&&fields.photo.visible!==false){
         const p=fields.photo
         const pw=p.w/100*cardW_mm, ph=p.h/100*cardH_mm
         const src=s.students?.photo_url ? R2.url(s.students.photo_url) : ''
@@ -13459,7 +13476,7 @@ async function idcGeneratePDF(){
       ]
       textFields.forEach(tf=>{
         const f=fields[tf.key]
-        if(!f||!tf.value)return
+        if(!f||!tf.value||f.visible===false)return
         const x=f.x/100*cardW_mm, y=f.y/100*cardH_mm, w=f.w/100*cardW_mm, h=f.h/100*cardH_mm
 
         // fontSize is px relative to a 1000px-wide card -> mm -> pt
@@ -13479,7 +13496,7 @@ async function idcGeneratePDF(){
       })
 
       // QR code
-      if(fields.qr_code){
+      if(fields.qr_code&&fields.qr_code.visible!==false){
         try{
           const qrB64 = await idcGenerateQR(profileBaseUrl + (s.students?.student_id||''))
           if(qrB64){
