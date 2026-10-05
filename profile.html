@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Profile — SPS Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --indigo:#6366f1;--indigo-d:#4f46e5;--ink:#1e293b;--ink-soft:#64748b;--ink-faint:#94a3b8;
+  --bg:#f8fafc;--card:#fff;--line:#e2e8f0;--lav-50:#f5f3ff;--lav-100:#ede9fe;
+  --success:#16a34a;--danger:#ef4444;--warn:#f59e0b;--info:#3b82f6;
+  --font:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;
+  --radius:12px;--shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#0f172a;--card:#1e293b;--ink:#f1f5f9;--ink-soft:#94a3b8;--ink-faint:#64748b;
+    --line:#334155;--lav-50:#1e1b4b;--lav-100:#312e81;--shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;padding:0}
+.container{max-width:560px;margin:0 auto;padding:16px}
+.card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
+.logo-bar{text-align:center;padding:20px 0 8px}
+.logo-bar h1{font-size:18px;font-weight:700;color:var(--indigo)}
+.logo-bar p{font-size:12px;color:var(--ink-soft);margin-top:2px}
+
+/* PIN screen */
+.pin-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh}
+.pin-screen h2{font-size:20px;margin-bottom:4px}
+.pin-screen .sub{font-size:13px;color:var(--ink-soft);margin-bottom:24px}
+.pin-input{display:flex;gap:10px;margin-bottom:20px}
+.pin-input input{width:48px;height:56px;border:2px solid var(--line);border-radius:10px;text-align:center;font-size:22px;font-weight:700;font-family:var(--font);background:var(--card);color:var(--ink);text-transform:uppercase;outline:none;transition:border .15s}
+.pin-input input:focus{border-color:var(--indigo)}
+.pin-err{color:var(--danger);font-size:13px;min-height:20px;margin-bottom:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 28px;border-radius:8px;font-size:14px;font-weight:600;border:none;cursor:pointer;font-family:var(--font);transition:background .15s,opacity .15s}
+.btn-primary{background:var(--indigo);color:#fff}
+.btn-primary:hover{background:var(--indigo-d)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+
+/* Profile */
+.profile-header{display:flex;gap:16px;align-items:center;margin-bottom:16px}
+.avatar{width:72px;height:72px;border-radius:50%;background:var(--lav-100);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:var(--indigo);overflow:hidden;flex-shrink:0}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.profile-name{font-size:20px;font-weight:700}
+.profile-class{font-size:13px;color:var(--ink-soft);margin-top:2px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:12px}
+.info-item{font-size:13px}
+.info-item .label{color:var(--ink-faint);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px}
+.info-item .val{font-weight:600}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--line);margin-bottom:16px}
+.tab{padding:10px 16px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border .15s}
+.tab.active{color:var(--indigo);border-bottom-color:var(--indigo)}
+
+/* Attendance */
+.att-summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.att-box{flex:1;min-width:80px;text-align:center;padding:12px 8px;background:var(--lav-50);border-radius:8px}
+.att-box .num{font-size:24px;font-weight:800}
+.att-box .lbl{font-size:11px;color:var(--ink-soft);margin-top:2px}
+.att-calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font-size:11px;text-align:center}
+.att-calendar .dow{font-weight:700;color:var(--ink-faint);padding:4px 0}
+.att-day{padding:5px 2px;border-radius:4px;font-weight:500}
+.att-day.p{background:#dcfce7;color:#166534}
+.att-day.a{background:#fee2e2;color:#991b1b}
+.att-day.l{background:#fef3c7;color:#92400e}
+.att-day.h{background:var(--lav-50);color:var(--ink-faint)}
+.att-day.empty{background:transparent}
+
+/* Marks */
+.marks-table{width:100%;border-collapse:collapse;font-size:13px}
+.marks-table th{text-align:left;padding:8px;border-bottom:2px solid var(--line);font-size:11px;text-transform:uppercase;color:var(--ink-faint);letter-spacing:.5px}
+.marks-table td{padding:8px;border-bottom:1px solid var(--line)}
+.marks-table tr:last-child td{border:none}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.badge-pass{background:#dcfce7;color:#166534}
+.badge-fail{background:#fee2e2;color:#991b1b}
+.badge-absent{background:#f1f5f9;color:#64748b}
+
+.loading{text-align:center;padding:40px;color:var(--ink-soft)}
+.spinner{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--indigo);border-radius:50%;animation:sp .6s linear infinite;margin:0 auto 8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:32px;color:var(--ink-faint);font-size:13px}
+.month-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.month-nav button{background:none;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:var(--font);font-size:12px;color:var(--ink)}
+.month-nav span{font-weight:700;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="logo-bar">
+  <h1>Shiv Public School</h1>
+  <p>Student Profile</p>
+</div>
+
+<div class="container">
+  <!-- PIN Screen -->
+  <div id="pinScreen" class="pin-screen" style="display:none">
+    <h2>Enter PIN</h2>
+    <p class="sub">First 4 letters of student name (uppercase)</p>
+    <div class="pin-input" id="pinBoxes"></div>
+    <div class="pin-err" id="pinErr"></div>
+    <button class="btn btn-primary" id="pinBtn" onclick="verifyPin()">Verify</button>
+  </div>
+
+  <!-- Loading -->
+  <div id="loadingScreen" class="loading"><div class="spinner"></div>Loading...</div>
+
+  <!-- Error -->
+  <div id="errorScreen" style="display:none" class="card">
+    <div class="empty" id="errorMsg">Student not found</div>
+  </div>
+
+  <!-- Profile -->
+  <div id="profileScreen" style="display:none">
+    <div class="card">
+      <div class="profile-header">
+        <div class="avatar" id="profAvatar"></div>
+        <div>
+          <div class="profile-name" id="profName"></div>
+          <div class="profile-class" id="profClass"></div>
+        </div>
+      </div>
+      <div class="info-grid" id="profInfo"></div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchProfileTab('attendance',this)">Attendance</div>
+      <div class="tab" onclick="switchProfileTab('marks',this)">Marks</div>
+    </div>
+
+    <div id="tab-attendance">
+      <div id="attContent"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+    </div>
+    <div id="tab-marks" style="display:none">
+      <div id="marksContent"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
+
+const params = new URLSearchParams(window.location.search)
+const studentId = params.get('sid')
+let STUDENT = null
+let ENROLLMENT = null
+let _attMonth = new Date()
+
+function $(id){return document.getElementById(id)}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+;(async function init(){
+  if(!studentId){
+    showError('No student ID provided. Scan the QR code on your ID card.')
+    return
+  }
+
+  $('loadingScreen').style.display='block'
+  $('pinScreen').style.display='none'
+
+  const{data:stu,error}=await sb.from('students').select('student_id,full_name,father_name,mother_name,phone,alt_phone,address,dob,gender,photo_url,srn,pen,apaar_id').eq('student_id',studentId).maybeSingle()
+
+  if(error||!stu){
+    showError('Student not found. The QR code may be invalid.')
+    return
+  }
+
+  STUDENT=stu
+
+  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,session_id,sessions(name,session_name),classes(name,class_id),class_sections(name),streams(name)').eq('student_id',studentId).eq('status','enrolled').order('created_at',{ascending:false}).limit(1).maybeSingle()
+
+  ENROLLMENT=enr
+
+  $('loadingScreen').style.display='none'
+  showPinScreen()
+})()
+
+function showError(msg){
+  $('loadingScreen').style.display='none'
+  $('pinScreen').style.display='none'
+  $('errorScreen').style.display='block'
+  $('errorMsg').textContent=msg
+}
+
+function showPinScreen(){
+  const name=STUDENT.full_name||''
+  const pinLen=Math.min(4,name.replace(/\s/g,'').length)
+  if(pinLen<1){showError('Student record is incomplete.');return}
+
+  const wrap=$('pinBoxes')
+  wrap.innerHTML=''
+  for(let i=0;i<pinLen;i++){
+    const inp=document.createElement('input')
+    inp.type='text'
+    inp.maxLength=1
+    inp.autocomplete='off'
+    inp.dataset.idx=i
+    inp.addEventListener('input',function(){
+      this.value=this.value.toUpperCase()
+      if(this.value&&i<pinLen-1) wrap.children[i+1].focus()
+    })
+    inp.addEventListener('keydown',function(e){
+      if(e.key==='Backspace'&&!this.value&&i>0) wrap.children[i-1].focus()
+      if(e.key==='Enter') verifyPin()
+    })
+    wrap.appendChild(inp)
+  }
+  $('pinScreen').style.display='flex'
+  wrap.children[0].focus()
+}
+
+function verifyPin(){
+  const boxes=$('pinBoxes').querySelectorAll('input')
+  let entered=''
+  boxes.forEach(b=>entered+=b.value)
+  entered=entered.toUpperCase()
+
+  const name=(STUDENT.full_name||'').replace(/\s/g,'').toUpperCase()
+  const expected=name.substring(0,Math.min(4,name.length))
+
+  if(entered!==expected){
+    $('pinErr').textContent='Incorrect PIN. Try again.'
+    boxes.forEach(b=>b.value='')
+    boxes[0].focus()
+    return
+  }
+
+  $('pinErr').textContent=''
+  $('pinScreen').style.display='none'
+  showProfile()
+}
+
+function showProfile(){
+  $('profileScreen').style.display='block'
+
+  const av=$('profAvatar')
+  if(STUDENT.photo_url){
+    const url=STUDENT.photo_url.includes(R2_WORKER_URL)?STUDENT.photo_url:R2_WORKER_URL+'/file?path='+encodeURIComponent(STUDENT.photo_url)
+    av.innerHTML='<img src="'+esc(url)+'" alt="">'
+  }else{
+    const ini=(STUDENT.full_name||'?').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase()
+    av.textContent=ini
+  }
+
+  $('profName').textContent=(STUDENT.full_name||'').toUpperCase()
+
+  const cls=(ENROLLMENT?.classes?.name||'')+(ENROLLMENT?.class_sections?.name?' '+ENROLLMENT.class_sections.name:'')+(ENROLLMENT?.streams?.name?' ('+ENROLLMENT.streams.name+')':'')
+  const sess=ENROLLMENT?.sessions?.name||ENROLLMENT?.sessions?.session_name||''
+  $('profClass').textContent=cls+(sess?' — '+sess:'')
+
+  let info=''
+  const add=(label,val)=>{if(val)info+='<div class="info-item"><div class="label">'+label+'</div><div class="val">'+esc(val)+'</div></div>'}
+  add('Roll No',ENROLLMENT?.roll_no)
+  add('S.No',ENROLLMENT?.s_no)
+  add("Father's Name",STUDENT.father_name)
+  add("Mother's Name",STUDENT.mother_name)
+  add('Phone',STUDENT.phone)
+  if(STUDENT.alt_phone) add('Alt Phone',STUDENT.alt_phone)
+  add('Date of Birth',STUDENT.dob?new Date(STUDENT.dob).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'')
+  add('Gender',STUDENT.gender)
+  add('Address',STUDENT.address)
+  if(STUDENT.srn) add('SRN',STUDENT.srn)
+  if(STUDENT.pen) add('PEN',STUDENT.pen)
+  if(STUDENT.apaar_id) add('APAAR ID',STUDENT.apaar_id)
+  $('profInfo').innerHTML=info
+
+  loadAttendance()
+  loadMarks()
+}
+
+function switchProfileTab(tab,btn){
+  document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'))
+  btn.classList.add('active')
+  $('tab-attendance').style.display=tab==='attendance'?'block':'none'
+  $('tab-marks').style.display=tab==='marks'?'block':'none'
+}
+
+// ── Attendance ──
+async function loadAttendance(){
+  if(!ENROLLMENT){$('attContent').innerHTML='<div class="empty">No enrollment found</div>';return}
+
+  const y=_attMonth.getFullYear(), m=_attMonth.getMonth()
+  const firstDay=new Date(y,m,1)
+  const lastDay=new Date(y,m+1,0)
+  const from=firstDay.toISOString().slice(0,10)
+  const to=lastDay.toISOString().slice(0,10)
+
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December']
+
+  let html='<div class="month-nav"><button onclick="attPrevMonth()">&#9664; Prev</button><span>'+monthNames[m]+' '+y+'</span><button onclick="attNextMonth()">Next &#9654;</button></div>'
+
+  const{data:att}=await sb.from('student_attendance').select('date,status').eq('enrollment_id',ENROLLMENT.enrollment_id).gte('date',from).lte('date',to).order('date')
+
+  const attMap={}
+  ;(att||[]).forEach(a=>attMap[a.date]=a.status)
+
+  // Summary for this month
+  let present=0,absent=0,late=0,total=0
+  ;(att||[]).forEach(a=>{
+    total++
+    if(a.status==='present')present++
+    else if(a.status==='absent')absent++
+    else if(a.status==='late')late++
+    else present++ // treat unknown as present
+  })
+
+  html+='<div class="att-summary">'
+  html+='<div class="att-box"><div class="num" style="color:var(--success)">'+present+'</div><div class="lbl">Present</div></div>'
+  html+='<div class="att-box"><div class="num" style="color:var(--danger)">'+absent+'</div><div class="lbl">Absent</div></div>'
+  if(late) html+='<div class="att-box"><div class="num" style="color:var(--warn)">'+late+'</div><div class="lbl">Late</div></div>'
+  html+='<div class="att-box"><div class="num" style="color:var(--indigo)">'+(total?Math.round(present/total*100):0)+'%</div><div class="lbl">Rate</div></div>'
+  html+='</div>'
+
+  // Calendar grid
+  html+='<div class="att-calendar">'
+  const dows=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  dows.forEach(d=>html+='<div class="dow">'+d+'</div>')
+
+  const startDow=firstDay.getDay()
+  for(let i=0;i<startDow;i++) html+='<div class="att-day empty"></div>'
+
+  const daysInMonth=lastDay.getDate()
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')
+    const dow=new Date(y,m,d).getDay()
+    const st=attMap[dateStr]
+    let cls='empty'
+    if(st==='present')cls='p'
+    else if(st==='absent')cls='a'
+    else if(st==='late')cls='l'
+    else if(dow===0) cls='h'
+    html+='<div class="att-day '+cls+'">'+d+'</div>'
+  }
+  html+='</div>'
+
+  $('attContent').innerHTML=html
+}
+
+function attPrevMonth(){_attMonth.setMonth(_attMonth.getMonth()-1);loadAttendance()}
+function attNextMonth(){_attMonth.setMonth(_attMonth.getMonth()+1);loadAttendance()}
+
+// ── Marks ──
+async function loadMarks(){
+  if(!ENROLLMENT){$('marksContent').innerHTML='<div class="empty">No enrollment found</div>';return}
+
+  const sessId=ENROLLMENT.session_id
+  if(!sessId){$('marksContent').innerHTML='<div class="empty">No session found</div>';return}
+
+  const{data:assessments}=await sb.from('assessments').select('assessment_id,name,max_marks,subject_id,subjects(name)').eq('session_id',sessId).eq('class_id',ENROLLMENT.classes?.class_id||'').order('commencement_date')
+
+  if(!assessments?.length){$('marksContent').innerHTML='<div class="empty">No assessments yet</div>';return}
+
+  const aIds=assessments.map(a=>a.assessment_id)
+  const{data:marks}=await sb.from('marks').select('assessment_id,subject_id,marks_obtained,is_absent').eq('enrollment_id',ENROLLMENT.enrollment_id).in('assessment_id',aIds)
+
+  const markMap={}
+  ;(marks||[]).forEach(m=>markMap[m.assessment_id+'|'+m.subject_id]=m)
+
+  let html=''
+
+  const grouped={}
+  assessments.forEach(a=>{
+    const name=a.name||'Assessment'
+    if(!grouped[name])grouped[name]=[]
+    grouped[name].push(a)
+  })
+
+  Object.keys(grouped).forEach(aName=>{
+    const items=grouped[aName]
+    html+='<div class="card"><h3 style="font-size:14px;margin-bottom:12px">'+esc(aName)+'</h3>'
+    html+='<table class="marks-table"><thead><tr><th>Subject</th><th>Marks</th><th>Max</th><th>Status</th></tr></thead><tbody>'
+
+    let totalObt=0,totalMax=0,hasMarks=false
+    items.forEach(a=>{
+      const key=a.assessment_id+'|'+a.subject_id
+      const m=markMap[key]
+      const subName=a.subjects?.name||'—'
+      const maxM=a.max_marks||0
+
+      if(m){
+        hasMarks=true
+        if(m.is_absent){
+          html+='<tr><td>'+esc(subName)+'</td><td>—</td><td>'+maxM+'</td><td><span class="badge badge-absent">Absent</span></td></tr>'
+        }else{
+          const obt=m.marks_obtained!=null?m.marks_obtained:0
+          totalObt+=obt;totalMax+=maxM
+          const pass=maxM>0?(obt/maxM*100>=33):true
+          html+='<tr><td>'+esc(subName)+'</td><td><strong>'+obt+'</strong></td><td>'+maxM+'</td><td><span class="badge '+(pass?'badge-pass':'badge-fail')+'">'+(pass?'Pass':'Fail')+'</span></td></tr>'
+        }
+      }else{
+        html+='<tr><td>'+esc(subName)+'</td><td colspan="3" style="color:var(--ink-faint)">Not entered</td></tr>'
+      }
+    })
+
+    if(hasMarks&&totalMax>0){
+      const pct=Math.round(totalObt/totalMax*100)
+      html+='<tr style="font-weight:700;background:var(--lav-50)"><td>Total</td><td>'+totalObt+'</td><td>'+totalMax+'</td><td>'+pct+'%</td></tr>'
+    }
+    html+='</tbody></table></div>'
+  })
+
+  $('marksContent').innerHTML=html||'<div class="empty">No marks recorded yet</div>'
+}
+</script>
+</body>
+</html>
