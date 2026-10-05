@@ -3432,7 +3432,7 @@ function filterStaff(ctMap){
   const rows=(_staffRaw||[]).filter(t=>(!s||t.full_name?.toLowerCase().includes(s)||t.employee_code?.toLowerCase().includes(s))&&(!f||(f==='active'?t.is_active:!t.is_active)))
   const body=$('staffBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No teachers found.</p></div></td></tr>';return}
-  body.innerHTML=rows.map(t=>'<tr><td class="mono">'+esc(t.employee_code||'—')+'</td><td><span class="av-tbl">'+ini(t.full_name)+'</span>'+esc(t.full_name)+(window._motherSet?.has(t.teacher_id)?' <span class="pill pill-success" style="margin-left:6px;font-size:9px">MOTHER</span>':'')+'</td><td>'+esc(t.designation||'—')+'</td><td class="mono">'+esc(t.phone||'—')+'</td><td>'+esc((ctMap||{})[t.teacher_id]||'—')+'</td><td>'+(t.username?'<span class="pill pill-success">'+esc(t.username)+'</span>':'<span class="pill pill-warn">No Login</span>')+'</td><td><span class="pill '+(t.is_active?'pill-success':'pill-neutral')+'">'+(t.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px"><button class="btn btn-indigo btn-xs" data-tid="'+t.teacher_id+'" data-name="'+esc(t.full_name)+'" data-uname="'+esc(t.username||'')+'" onclick="openSetLoginModal(this.dataset.tid,this.dataset.name,this.dataset.uname)">'+( t.username?'Change Login':'Set Login')+'</button><button class="btn btn-ghost btn-xs" onclick="editTeacher(\''+t.teacher_id+'\')">Edit</button><button class="btn btn-danger btn-xs" onclick="toggleTeacher(\''+t.teacher_id+'\','+t.is_active+')">'+(t.is_active?'Deactivate':'Activate')+'</button></td></tr>').join('')
+  body.innerHTML=rows.map(t=>'<tr><td class="mono">'+esc(t.employee_code||'—')+'</td><td><span class="av-tbl">'+ini(t.full_name)+'</span>'+esc(t.full_name)+(window._motherSet?.has(t.teacher_id)?' <span class="pill pill-success" style="margin-left:6px;font-size:9px">MOTHER</span>':'')+'</td><td>'+esc(t.designation||'—')+'</td><td class="mono">'+esc(t.phone||'—')+'</td><td>'+esc((ctMap||{})[t.teacher_id]||'—')+'</td><td>'+(t.username?'<span class="pill pill-success">'+esc(t.username)+'</span>':'<span class="pill pill-warn">No Login</span>')+'</td><td><span class="pill '+(t.is_active?'pill-success':'pill-neutral')+'">'+(t.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px"><button class="btn btn-indigo btn-xs" data-tid="'+t.teacher_id+'" data-name="'+esc(t.full_name)+'" data-uname="'+esc(t.username||'')+'" onclick="openSetLoginModal(this.dataset.tid,this.dataset.name,this.dataset.uname)">'+( t.username?'Change Login':'Set Login')+'</button><button class="btn btn-ghost btn-xs" onclick="editTeacher(\''+t.teacher_id+'\')">Edit</button><button class="btn btn-danger btn-xs" onclick="toggleTeacher(\''+t.teacher_id+'\','+t.is_active+')">'+(t.is_active?'Delete':'Activate')+'</button></td></tr>').join('')
 }
 
 function toggleMotherFields(){
@@ -3505,7 +3505,45 @@ async function updateTeacher(){const id=$('tc_id')?.value;const salRaw=$('tc_sal
   const{error:me}=await applyMotherTeacher(id,isMother,mc,ms)
   if(me){toast('Updated but mother mapping failed: '+me.message,'error');closeModal();await loadGlobals();loadStaff();return}
   toast('Updated','success');closeModal();await loadGlobals();loadStaff()}
-async function toggleTeacher(id,active){confirmAct((active?'Deactivate':'Activate')+' this teacher?',active?'They lose portal access immediately.':'They regain portal access.',async()=>{await sb.from('teachers').update({is_active:!active}).eq('teacher_id',id);toast('Done','success');await loadGlobals();loadStaff()})}
+async function toggleTeacher(id,active){
+  if(!active){
+    confirmAct('Activate this teacher?','They regain portal access.',async()=>{
+      await sb.from('teachers').update({is_active:true}).eq('teacher_id',id)
+      toast('Done','success');await loadGlobals();loadStaff()
+    })
+    return
+  }
+  confirmAct('Permanently delete this teacher?',
+    'This will remove their login, subject mappings, class/mother teacher assignments, and all portal data. Staff attendance records will be preserved.',
+    async()=>{
+      try{
+        const{data:t}=await sb.from('teachers').select('auth_user_id').eq('teacher_id',id).maybeSingle()
+        const sid=SESS?.session_id||''
+        await sb.from('mother_teacher_map').delete().eq('teacher_id',id).eq('session_id',sid)
+        await sb.from('class_teacher_map').delete().eq('teacher_id',id).eq('session_id',sid)
+        await sb.from('teacher_subject_class_map').delete().eq('teacher_id',id)
+        await sb.from('teacher_schedules').delete().eq('teacher_id',id)
+        await sb.from('observations').delete().eq('teacher_id',id)
+        await sb.from('teacher_observations').delete().eq('teacher_id',id)
+        const{error:delErr}=await sb.from('teachers').delete().eq('teacher_id',id)
+        if(delErr) throw delErr
+        if(t?.auth_user_id){
+          const svcKey=SPS.serviceKey,sbUrl=SPS.supabaseUrl
+          if(svcKey&&sbUrl){
+            await fetch(sbUrl+'/auth/v1/admin/users/'+t.auth_user_id,{
+              method:'DELETE',
+              headers:{'Content-Type':'application/json','apikey':svcKey,'Authorization':'Bearer '+svcKey}
+            })
+          }
+        }
+        toast('Teacher permanently deleted','success')
+        await loadGlobals();loadStaff()
+      }catch(e){
+        console.error('[deleteTeacher]',e)
+        toast('Delete failed: '+(e.message||e),'error')
+      }
+    })
+}
 
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
