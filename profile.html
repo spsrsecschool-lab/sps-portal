@@ -176,7 +176,7 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
 
   // Fetch enrollment without joins first (avoids RLS issues on related tables)
   let enr=null
-  const{data:enrArr,error:enrErr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,session_id,class_id,section_id,stream_id,status,relieved').eq('student_id',studentId).order('created_at',{ascending:false}).limit(5)
+  const{data:enrArr,error:enrErr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,session_id,class_id,section_id,stream_id,status,relieved').eq('student_id',studentId).order('enrollment_id',{ascending:false}).limit(5)
   if(enrErr)console.warn('Enrollment query error:',enrErr)
   if(enrArr&&enrArr.length){
     enr=enrArr.find(e=>e.status==='active'&&(e.relieved===false||e.relieved===null))||enrArr[0]
