@@ -313,7 +313,8 @@ async function loadAttendance(){
 
   let html='<div class="month-nav"><button onclick="attPrevMonth()">&#9664; Prev</button><span>'+monthNames[m]+' '+y+'</span><button onclick="attNextMonth()">Next &#9654;</button></div>'
 
-  const{data:att}=await sb.from('student_attendance').select('date,status').eq('enrollment_id',ENROLLMENT.enrollment_id).gte('date',from).lte('date',to).order('date')
+  const{data:att,error:attErr}=await sb.from('student_attendance').select('date,status').eq('enrollment_id',ENROLLMENT.enrollment_id).gte('date',from).lte('date',to).order('date')
+  if(attErr)console.warn('Attendance query error:',attErr)
 
   const attMap={}
   ;(att||[]).forEach(a=>attMap[a.date]=a.status)
@@ -370,12 +371,22 @@ async function loadMarks(){
   const sessId=ENROLLMENT.session_id
   if(!sessId){$('marksContent').innerHTML='<div class="empty">No session found</div>';return}
 
-  const{data:assessments}=await sb.from('assessments').select('assessment_id,name,max_marks,subject_id,subjects(name)').eq('session_id',sessId).eq('class_id',ENROLLMENT.classes?.class_id||'').order('commencement_date')
+  const classId=ENROLLMENT.class_id||ENROLLMENT.classes?.class_id||''
+  // Fetch assessments without joins; fetch subject names separately
+  const{data:assessments,error:assErr}=await sb.from('assessments').select('assessment_id,name,max_marks,subject_id').eq('session_id',sessId).eq('class_id',classId)
+  if(assErr)console.warn('Assessments query error:',assErr)
 
   if(!assessments?.length){$('marksContent').innerHTML='<div class="empty">No assessments yet</div>';return}
 
+  // Get unique subject IDs and fetch names separately
+  const subjectIds=[...new Set(assessments.map(a=>a.subject_id).filter(Boolean))]
+  const{data:subjects}=subjectIds.length?await sb.from('subjects').select('subject_id,name').in('subject_id',subjectIds):Promise.resolve({data:[]})
+  const subMap={};(subjects||[]).forEach(s=>subMap[s.subject_id]=s.name)
+  assessments.forEach(a=>{a.subjects={name:subMap[a.subject_id]||''}})
+
   const aIds=assessments.map(a=>a.assessment_id)
-  const{data:marks}=await sb.from('marks').select('assessment_id,subject_id,marks_obtained,is_absent').eq('enrollment_id',ENROLLMENT.enrollment_id).in('assessment_id',aIds)
+  const{data:marks,error:mErr}=await sb.from('marks').select('assessment_id,subject_id,marks_obtained,is_absent').eq('enrollment_id',ENROLLMENT.enrollment_id).in('assessment_id',aIds)
+  if(mErr)console.warn('Marks query error:',mErr)
 
   const markMap={}
   ;(marks||[]).forEach(m=>markMap[m.assessment_id+'|'+m.subject_id]=m)
