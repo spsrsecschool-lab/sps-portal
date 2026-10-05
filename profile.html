@@ -242,7 +242,10 @@ function showProfile(){
 
   const av=$('profAvatar')
   if(STUDENT.photo_url){
-    const url=STUDENT.photo_url.includes(R2_WORKER_URL)?STUDENT.photo_url:R2_WORKER_URL+'/file?path='+encodeURIComponent(STUDENT.photo_url)
+    let url=STUDENT.photo_url
+    if(url.includes(R2_WORKER_URL)){
+      try{const u=new URL(url);const p=u.searchParams.get('path');if(p){url=R2_WORKER_URL+'/file?path='+encodeURIComponent(p.split('?')[0])+'&t='+Date.now()}}catch(_){}
+    }else{url=R2_WORKER_URL+'/file?path='+encodeURIComponent(url)}
     av.innerHTML='<img src="'+esc(url)+'" alt="">'
   }else{
     const ini=(STUDENT.full_name||'?').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase()
