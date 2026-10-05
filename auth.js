@@ -435,7 +435,7 @@
     SPS._resolveReady = resolve
   })
   SPS.ready = () => SPS._ready
-SPS.serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhZmlnb2hwaGNlZ252dmNvamJ5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjkxMzI4OSwiZXhwIjoyMDk4NDg5Mjg5fQ.vVrXctA7VIInyTdpSq0xq8yrFMfr9lksRgDERg3HMHA'
+SPS.serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52cHZoanByd2ZxaXhnbnNncG94Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTE3OTc4MCwiZXhwIjoyMTA2NzU1NzgwfQ.3kZSF7n76avfyzimhsYvPiCH6IcH1OJuRjBrnf5493I'
 SPS.supabaseUrl = 'https://nvpvhjprwfqixgnsgpox.supabase.co'
 
   // ── HELPERS PORTALS CAN USE ──────────────────────────────────
