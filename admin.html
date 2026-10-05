@@ -717,6 +717,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="sb-item" onclick="goTo('relieving',this)"><svg viewBox="0 0 24 24"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M12 19a7 7 0 1 1 0-14"/></svg>Student Relieving</div>
       <div class="sb-item" onclick="goTo('readmission',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Re-admission</div>
       <div class="sb-item" onclick="goTo('bulkimport',this)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Bulk Import</div>
+      <div class="sb-item" onclick="goTo('idcards',this)"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><circle cx="9" cy="14" r="2.5"/><path d="M14 12h4M14 16h4"/></svg>ID Cards</div>
     </div>
     <div class="sb-group-head" onclick="sbToggle(this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Staff &amp; Teachers<svg class="sb-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
     <div class="sb-group-items">
@@ -1144,6 +1145,87 @@ tbody tr:hover td{background:var(--lav-50)}
       <div id="readmissionList"><div class="empty">Loading…</div></div>
       <div id="readmissionAction" style="display:none;margin-top:16px">
         <button class="btn btn-dark" onclick="executeReadmission()">✓ Re-admit Selected Students</button>
+      </div>
+    </div>
+
+    <div class="page" id="page-idcards">
+      <div class="page-head">
+        <div><h2>ID Card Generator</h2><p>Design template and generate student ID cards as PDF</p></div>
+      </div>
+      <div class="tab-row" style="margin-bottom:16px">
+        <button class="tab-btn active" onclick="switchTab('ict','template',this)">Template Editor</button>
+        <button class="tab-btn" onclick="switchTab('ict','generate',this)">Generate Cards</button>
+      </div>
+
+      <!-- Template Editor Tab -->
+      <div id="ict-template">
+        <div class="card" style="max-width:1100px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+            <div>
+              <h3 style="margin:0 0 4px">Template Setup</h3>
+              <div style="font-size:12px;color:var(--ink-soft)">Upload your ID card background and position the data fields</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <label class="btn btn-soft btn-sm" style="cursor:pointer">
+                Upload Background <input type="file" id="idc_bg_file" accept="image/*" style="display:none" onchange="idcBgUploaded(this)">
+              </label>
+              <button class="btn btn-dark btn-sm" onclick="idcSaveTemplate()">Save Template</button>
+            </div>
+          </div>
+          <div id="idcEditorWrap" style="display:flex;gap:20px;min-height:500px;flex-wrap:wrap">
+            <!-- Left: visual canvas -->
+            <div id="idcCanvasWrap" style="position:relative;flex-shrink:0;border:2px dashed var(--line);border-radius:8px;overflow:hidden;background:#f5f5f5;max-width:100%">
+              <div id="idcCanvasInner" style="position:relative;width:400px;max-width:100%">
+                <img id="idcBgImg" style="width:100%;display:none;user-select:none;-webkit-user-drag:none" alt="">
+                <!-- Draggable fields will be overlaid here -->
+              </div>
+              <div id="idcNoTemplate" style="display:flex;align-items:center;justify-content:center;min-height:500px;width:400px;max-width:100%;color:var(--ink-faint);font-size:14px">Upload a background image to start</div>
+            </div>
+            <!-- Right: field properties -->
+            <div id="idcPropsPanel" style="flex:1;min-width:260px">
+              <h4 style="margin:0 0 10px;font-size:13px;color:var(--ink-soft)">FIELDS</h4>
+              <div id="idcFieldList" style="display:flex;flex-direction:column;gap:6px"></div>
+              <div id="idcFieldProps" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);display:none">
+                <h4 style="margin:0 0 10px;font-size:13px;color:var(--ink-soft)">SELECTED FIELD: <span id="idcSelName"></span></h4>
+                <div class="form-row">
+                  <div class="fg"><label>X (%)</label><input type="number" id="idc_px" step="0.1" onchange="idcUpdateFieldPos()"></div>
+                  <div class="fg"><label>Y (%)</label><input type="number" id="idc_py" step="0.1" onchange="idcUpdateFieldPos()"></div>
+                </div>
+                <div class="form-row">
+                  <div class="fg"><label>Width (%)</label><input type="number" id="idc_pw" step="0.1" onchange="idcUpdateFieldPos()"></div>
+                  <div class="fg"><label>Height (%)</label><input type="number" id="idc_ph" step="0.1" onchange="idcUpdateFieldPos()"></div>
+                </div>
+                <div id="idcTextProps">
+                  <div class="form-row">
+                    <div class="fg"><label>Font Size (px @ 1000px card width)</label><input type="number" id="idc_fs" value="40" onchange="idcUpdateFieldStyle()"></div>
+                    <div class="fg"><label>Color</label><input type="color" id="idc_fc" value="#000000" onchange="idcUpdateFieldStyle()"></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="fg"><label>Font Weight</label><select id="idc_fw" onchange="idcUpdateFieldStyle()"><option value="normal">Normal</option><option value="bold">Bold</option><option value="800">Extra Bold</option></select></div>
+                    <div class="fg"><label>Align</label><select id="idc_fa" onchange="idcUpdateFieldStyle()"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generate Tab -->
+      <div id="ict-generate" style="display:none">
+        <div class="card" style="max-width:800px">
+          <h3 style="margin:0 0 12px">Generate ID Cards</h3>
+          <div class="form-row">
+            <div class="fg"><label>Class</label><select id="idc_gen_class" onchange="idcLoadSections()"><option value="">Select Class</option></select></div>
+            <div class="fg"><label>Section</label><select id="idc_gen_section"><option value="">Select Section</option></select></div>
+            <div class="fg" style="align-self:flex-end"><button class="btn btn-dark btn-sm" onclick="idcLoadStudents()">Load Students</button></div>
+          </div>
+          <div id="idcStudentList" style="margin-top:16px"></div>
+          <div id="idcGenActions" style="margin-top:16px;display:none;align-items:center">
+            <button class="btn btn-dark" onclick="idcGeneratePDF()">Generate PDF</button>
+            <span id="idcGenStatus" style="margin-left:12px;font-size:13px;color:var(--ink-soft)"></span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2311,7 +2393,7 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',idcards:'ID Card Generator',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log'}
 // ═══════════ TEACHER DECLARATION (admin) — section → rules ═══════════
 let _decSecs=[], _decRules={}, _decMeta=null
 async function loadDeclarationAdmin(){ decSwitch('edit') }
@@ -2470,7 +2552,7 @@ async function loadDecSigned(){
     +'</tbody></table></div>'
 }
 
-const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,questionpapers:loadQPList,examconduct:loadExamConduct,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,reportcards:loadTemplates,maintenance:loadMaintenance,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt,declaration:loadDeclarationAdmin,activitylog:loadActivityLog}
+const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,questionpapers:loadQPList,examconduct:loadExamConduct,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,idcards:loadIdCards,reportcards:loadTemplates,maintenance:loadMaintenance,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt,declaration:loadDeclarationAdmin,activitylog:loadActivityLog}
 
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
@@ -13036,6 +13118,455 @@ function ecPrintAdmitCards(){
     style.remove()
     document.title='Admin Portal'
   },100)
+}
+
+// ═══════════ ID CARD GENERATOR ═══════════
+// All field positions/sizes are stored as % of the card. fontSize is stored in px
+// relative to a 1000px-wide card (so it is independent of the uploaded image resolution).
+let _idcTemplate = null
+let _idcFields = {}
+let _idcSelectedField = null
+let _idcScale = 1
+const IDC_FONT_REF_W = 1000
+
+const IDC_FIELD_DEFS = [
+  {key:'photo', label:'Photo', isRect:true, default:{x:30,y:18,w:40,h:25}},
+  {key:'student_name', label:'Student Name', isRect:false, default:{x:10,y:47,w:80,h:6,fontSize:80,color:'#000000',fontWeight:'800',align:'center'}},
+  {key:'class_section', label:'Class & Section', isRect:false, default:{x:10,y:54,w:80,h:6,fontSize:70,color:'#000000',fontWeight:'bold',align:'center'}},
+  {key:'father_name', label:"Father's Name", isRect:false, default:{x:25,y:65,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'phone', label:'Phone', isRect:false, default:{x:25,y:71,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'address_line1', label:'Address Line 1', isRect:false, default:{x:25,y:77,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'address_line2', label:'Address Line 2', isRect:false, default:{x:25,y:81,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'session_year', label:'Session Year', isRect:false, default:{x:10,y:90,w:40,h:5,fontSize:50,color:'#000000',fontWeight:'bold',align:'center'}},
+  {key:'qr_code', label:'QR Code', isRect:true, default:{x:70,y:87,w:15,h:9.5}}
+]
+
+async function loadIdCards(){
+  const sel=$('idc_gen_class')
+  if(sel) sel.innerHTML='<option value="">Select Class</option>'+ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+
+  // Load saved template from DB (app_config table; ignore if missing)
+  try{
+    const{data}=await sb.from('app_config').select('value').eq('key','id_card_template').maybeSingle()
+    if(data?.value){
+      _idcTemplate=typeof data.value==='string'?JSON.parse(data.value):data.value
+    }
+  }catch(e){console.warn('ID card template load failed',e)}
+
+  _idcFields={}
+  idcRenderEditor()
+}
+
+function idcRenderEditor(){
+  const fieldList=$('idcFieldList')
+  if(!fieldList)return
+
+  // Initialise fields from saved template merged over defaults
+  IDC_FIELD_DEFS.forEach(def=>{
+    if(!_idcFields[def.key]){
+      _idcFields[def.key] = {...def.default, ...(_idcTemplate?.fields?.[def.key]||{})}
+    }
+  })
+
+  fieldList.innerHTML = IDC_FIELD_DEFS.map(def=>
+    '<button class="btn btn-ghost btn-xs" style="justify-content:flex-start;text-align:left;width:100%" data-fk="'+def.key+'" onclick="idcSelectField(\''+def.key+'\')">'+
+      '<span style="width:8px;height:8px;border-radius:50%;background:'+idcFieldColor(def.key)+';flex-shrink:0;margin-right:6px"></span>'+esc(def.label)+'</button>'
+  ).join('')
+
+  if(_idcTemplate?.bgUrl) idcShowBg(_idcTemplate.bgUrl)
+}
+
+function idcFieldColor(key){
+  const colors={photo:'#e74c3c',student_name:'#3498db',class_section:'#2ecc71',father_name:'#9b59b6',phone:'#e67e22',address_line1:'#1abc9c',address_line2:'#16a085',session_year:'#f39c12',qr_code:'#c0392b'}
+  return colors[key]||'#999'
+}
+
+async function idcBgUploaded(input){
+  const file=input.files?.[0]
+  if(!file)return
+  toast('Uploading template...','info')
+  const ext=((file.name.split('.').pop()||'png').toLowerCase()).replace(/[^a-z0-9]/g,'')||'png'
+  const path='idcard/template_bg.'+ext
+  const{error}=await R2.upload(path,file,{upsert:true})
+  input.value=''
+  if(error){toast('Upload failed: '+error.message,'error');return}
+  const url=R2.getPublicUrl(path).data.publicUrl+'&t='+Date.now()
+  _idcTemplate = _idcTemplate || {}
+  _idcTemplate.bgUrl = url
+  idcShowBg(url)
+  toast('Template uploaded. Position the fields and click Save Template.','success')
+}
+
+function idcShowBg(url){
+  const img=$('idcBgImg'), noTpl=$('idcNoTemplate'), wrap=$('idcCanvasInner')
+  if(!img)return
+  img.crossOrigin='anonymous'
+  img.onload=function(){
+    const aspect = img.naturalHeight / img.naturalWidth
+    const displayW = 400
+    wrap.style.width = displayW+'px'
+    wrap.style.height = (displayW*aspect)+'px'
+    _idcScale = displayW / img.naturalWidth
+    if(noTpl)noTpl.style.display='none'
+    img.style.display='block'
+    idcRenderFields()
+    if(_idcSelectedField)idcSelectField(_idcSelectedField)
+  }
+  img.onerror=function(){toast('Could not load template image','error')}
+  img.src=url
+}
+
+function idcRenderFields(){
+  document.querySelectorAll('.idc-field-overlay').forEach(el=>el.remove())
+  const wrap=$('idcCanvasInner')
+  if(!wrap)return
+
+  IDC_FIELD_DEFS.forEach(def=>{
+    const f=_idcFields[def.key]
+    if(!f)return
+    const c=idcFieldColor(def.key)
+    const el=document.createElement('div')
+    el.className='idc-field-overlay'
+    el.dataset.fk=def.key
+    el.style.cssText='position:absolute;border:2px solid '+c+';background:'+c+'22;cursor:move;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:'+c+';user-select:none;overflow:hidden;white-space:nowrap;box-sizing:border-box;'
+    el.style.left=f.x+'%'
+    el.style.top=f.y+'%'
+    el.style.width=f.w+'%'
+    el.style.height=f.h+'%'
+    el.textContent=def.label
+    el.onmousedown=function(e){idcStartDrag(e,def.key)}
+    el.onclick=function(e){e.stopPropagation();idcSelectField(def.key)}
+
+    const rh=document.createElement('div')
+    rh.style.cssText='position:absolute;right:0;bottom:0;width:10px;height:10px;background:'+c+';cursor:se-resize;border-radius:2px 0 0 0;'
+    rh.onmousedown=function(e){e.stopPropagation();idcStartResize(e,def.key)}
+    el.appendChild(rh)
+
+    wrap.appendChild(el)
+  })
+}
+
+function idcStartDrag(e,key){
+  e.preventDefault()
+  const wrap=$('idcCanvasInner')
+  const rect=wrap.getBoundingClientRect()
+  const f=_idcFields[key]
+  const startX=e.clientX, startY=e.clientY
+  const origX=f.x, origY=f.y
+
+  function onMove(e2){
+    const dx=(e2.clientX-startX)/rect.width*100
+    const dy=(e2.clientY-startY)/rect.height*100
+    f.x=Math.max(0,Math.min(100-f.w, origX+dx))
+    f.y=Math.max(0,Math.min(100-f.h, origY+dy))
+    const el=wrap.querySelector('[data-fk="'+key+'"]')
+    if(el){el.style.left=f.x+'%';el.style.top=f.y+'%'}
+    idcSyncProps(key)
+  }
+  function onUp(){document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp)}
+  document.addEventListener('mousemove',onMove)
+  document.addEventListener('mouseup',onUp)
+  idcSelectField(key)
+}
+
+function idcStartResize(e,key){
+  e.preventDefault()
+  const wrap=$('idcCanvasInner')
+  const rect=wrap.getBoundingClientRect()
+  const f=_idcFields[key]
+  const startX=e.clientX, startY=e.clientY
+  const origW=f.w, origH=f.h
+
+  function onMove(e2){
+    const dw=(e2.clientX-startX)/rect.width*100
+    const dh=(e2.clientY-startY)/rect.height*100
+    f.w=Math.max(5, Math.min(100-f.x, origW+dw))
+    f.h=Math.max(2, Math.min(100-f.y, origH+dh))
+    const el=wrap.querySelector('[data-fk="'+key+'"]')
+    if(el){el.style.width=f.w+'%';el.style.height=f.h+'%'}
+    idcSyncProps(key)
+  }
+  function onUp(){document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp)}
+  document.addEventListener('mousemove',onMove)
+  document.addEventListener('mouseup',onUp)
+  idcSelectField(key)
+}
+
+function idcSelectField(key){
+  _idcSelectedField=key
+  const f=_idcFields[key]
+  const def=IDC_FIELD_DEFS.find(d=>d.key===key)
+  if(!f||!def)return
+
+  $('idcFieldProps').style.display='block'
+  $('idcSelName').textContent=def.label
+  $('idc_px').value=f.x.toFixed(1)
+  $('idc_py').value=f.y.toFixed(1)
+  $('idc_pw').value=f.w.toFixed(1)
+  $('idc_ph').value=f.h.toFixed(1)
+
+  const isText=!def.isRect
+  $('idcTextProps').style.display=isText?'block':'none'
+  if(isText){
+    $('idc_fs').value=f.fontSize||40
+    $('idc_fc').value=f.color||'#000000'
+    $('idc_fw').value=f.fontWeight||'normal'
+    $('idc_fa').value=f.align||'center'
+  }
+
+  document.querySelectorAll('.idc-field-overlay').forEach(el=>{
+    el.style.opacity=el.dataset.fk===key?'1':'0.5'
+  })
+  document.querySelectorAll('#idcFieldList button').forEach(btn=>{
+    btn.style.background=btn.dataset.fk===key?'var(--lav-100)':'transparent'
+  })
+}
+
+function idcSyncProps(key){
+  if(_idcSelectedField!==key)return
+  const f=_idcFields[key]
+  if(!f)return
+  $('idc_px').value=f.x.toFixed(1)
+  $('idc_py').value=f.y.toFixed(1)
+  $('idc_pw').value=f.w.toFixed(1)
+  $('idc_ph').value=f.h.toFixed(1)
+}
+
+function idcUpdateFieldPos(){
+  if(!_idcSelectedField)return
+  const f=_idcFields[_idcSelectedField]
+  f.x=parseFloat($('idc_px').value)||0
+  f.y=parseFloat($('idc_py').value)||0
+  f.w=parseFloat($('idc_pw').value)||10
+  f.h=parseFloat($('idc_ph').value)||5
+  idcRenderFields()
+  idcSelectField(_idcSelectedField)
+}
+
+function idcUpdateFieldStyle(){
+  if(!_idcSelectedField)return
+  const f=_idcFields[_idcSelectedField]
+  f.fontSize=parseInt($('idc_fs').value)||40
+  f.color=$('idc_fc').value||'#000000'
+  f.fontWeight=$('idc_fw').value||'normal'
+  f.align=$('idc_fa').value||'center'
+}
+
+async function idcSaveTemplate(){
+  if(!_idcTemplate?.bgUrl){toast('Upload a background first','error');return}
+  const tpl={bgUrl:_idcTemplate.bgUrl, fields:{}}
+  IDC_FIELD_DEFS.forEach(def=>{ tpl.fields[def.key]={..._idcFields[def.key]} })
+
+  const{error}=await sb.from('app_config').upsert({key:'id_card_template',value:JSON.stringify(tpl),updated_at:new Date().toISOString()},{onConflict:'key'})
+  if(error){toast('Save failed: '+error.message,'error');return}
+  _idcTemplate=tpl
+  toast('Template saved','success')
+}
+
+// ── Generate tab ──
+async function idcLoadSections(){
+  const cid=$('idc_gen_class')?.value
+  const sel=$('idc_gen_section')
+  if(sel)sel.innerHTML='<option value="">Select Section</option>'
+  if(!cid)return
+  const{data}=await sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+  if(sel)sel.innerHTML='<option value="">All Sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+}
+
+async function idcLoadStudents(){
+  const cid=$('idc_gen_class')?.value
+  if(!cid){toast('Select a class','error');return}
+  const sid=$('idc_gen_section')?.value
+  const wrap=$('idcStudentList')
+  wrap.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,students(student_id,full_name,father_name,phone,address,photo_url),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('status','enrolled')
+  if(sid) q=q.eq('section_id',sid)
+  const{data,error}=await q.order('roll_no')
+  if(error){wrap.innerHTML='<div class="empty-state"><p>Error: '+esc(error.message)+'</p></div>';return}
+  if(!data?.length){wrap.innerHTML='<div class="empty-state"><p>No enrolled students found</p></div>';return}
+
+  window._idcStudents=data
+  wrap.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;color:var(--ink-soft)">'+data.length+' students</span><label style="font-size:12px;cursor:pointer"><input type="checkbox" id="idcSelAll" checked onchange="idcToggleAll(this.checked)" style="accent-color:var(--indigo)"> Select All</label></div>'+
+    '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">'+
+    '<table class="tbl"><thead><tr><th style="width:40px"></th><th>Roll</th><th>Name</th><th>Father</th><th>Class</th></tr></thead><tbody>'+
+    data.map((s,i)=>'<tr><td><input type="checkbox" class="idc_stu_chk" data-idx="'+i+'" checked style="accent-color:var(--indigo)"></td><td>'+esc(s.roll_no||'—')+'</td><td>'+esc(s.students?.full_name||'—')+'</td><td>'+esc(s.students?.father_name||'—')+'</td><td>'+esc((s.classes?.name||'')+(s.class_sections?.name?' '+s.class_sections.name:''))+'</td></tr>').join('')+
+    '</tbody></table></div>'
+  $('idcGenActions').style.display='flex'
+}
+
+function idcToggleAll(checked){
+  document.querySelectorAll('.idc_stu_chk').forEach(cb=>cb.checked=checked)
+}
+
+async function idcGeneratePDF(){
+  if(!_idcTemplate?.bgUrl){toast('Set up a template first','error');return}
+  const checks=document.querySelectorAll('.idc_stu_chk:checked')
+  if(!checks.length){toast('Select at least one student','error');return}
+
+  const statusEl=$('idcGenStatus')
+  try{
+    statusEl.textContent='Loading libraries...'
+    if(!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js')
+    if(!window.QRCode) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js')
+    const{jsPDF}=window.jspdf
+
+    statusEl.textContent='Loading template...'
+    const bg = await idcLoadImageAsBase64(_idcTemplate.bgUrl,{mime:'image/jpeg',maxW:1400})
+    if(!bg){toast('Failed to load template background','error');statusEl.textContent='';return}
+
+    const cardW_mm = 54 // standard portrait ID card width
+    const cardH_mm = cardW_mm * (bg.h / bg.w)
+    const doc = new jsPDF({unit:'mm', format:[cardW_mm, cardH_mm], orientation:cardH_mm>=cardW_mm?'p':'l'})
+
+    const fields = _idcTemplate.fields || _idcFields
+    const students = window._idcStudents||[]
+    const selected = Array.from(checks).map(cb=>parseInt(cb.dataset.idx))
+    const sessionYear = SESS?.name || SESS?.session_name || SESS?.session_id || ''
+    const profileBaseUrl = window.location.origin + (window.location.pathname.replace(/[^/]*$/,'')) + 'profile.html?sid='
+
+    for(let si=0; si<selected.length; si++){
+      const s=students[selected[si]]
+      if(!s)continue
+      if(si>0) doc.addPage([cardW_mm, cardH_mm], cardH_mm>=cardW_mm?'p':'l')
+      statusEl.textContent='Generating '+(si+1)+'/'+selected.length+'...'
+
+      doc.addImage(bg.data, 'JPEG', 0, 0, cardW_mm, cardH_mm)
+
+      // Photo (cover-cropped to the photo box)
+      if(fields.photo){
+        const p=fields.photo
+        const pw=p.w/100*cardW_mm, ph=p.h/100*cardH_mm
+        const src=s.students?.photo_url ? R2.url(s.students.photo_url) : ''
+        if(src){
+          try{
+            const photo=await idcLoadImageAsBase64(src,{mime:'image/jpeg',maxW:600,cover:pw/ph})
+            if(photo) doc.addImage(photo.data,'JPEG',p.x/100*cardW_mm,p.y/100*cardH_mm,pw,ph)
+          }catch(e){console.warn('Photo load failed for',s.students?.student_id)}
+        }
+      }
+
+      // Text fields
+      const addrParts = idcSplitAddress(s.students?.address || '')
+      const textFields = [
+        {key:'student_name', value:(s.students?.full_name||'').toUpperCase()},
+        {key:'class_section', value:((s.classes?.name||'')+(s.class_sections?.name?' '+s.class_sections.name:'')).toUpperCase()},
+        {key:'father_name', value:s.students?.father_name?'Mr. '+s.students.father_name.toUpperCase():''},
+        {key:'phone', value:s.students?.phone||''},
+        {key:'address_line1', value:addrParts[0]},
+        {key:'address_line2', value:addrParts[1]},
+        {key:'session_year', value:sessionYear}
+      ]
+      textFields.forEach(tf=>{
+        const f=fields[tf.key]
+        if(!f||!tf.value)return
+        const x=f.x/100*cardW_mm, y=f.y/100*cardH_mm, w=f.w/100*cardW_mm, h=f.h/100*cardH_mm
+
+        // fontSize is px relative to a 1000px-wide card -> mm -> pt
+        let pt = (f.fontSize||40) / IDC_FONT_REF_W * cardW_mm * 2.83465
+        doc.setFont('helvetica', f.fontWeight==='bold'||f.fontWeight==='800'?'bold':'normal')
+        doc.setTextColor(f.color||'#000000')
+        doc.setFontSize(pt)
+        // shrink to fit the box width (never below 4pt)
+        const tw=doc.getTextWidth(tf.value)
+        if(tw>w){ pt=Math.max(4, pt*w/tw); doc.setFontSize(pt) }
+
+        const align=f.align||'center'
+        const textX = align==='center' ? x+w/2 : align==='right' ? x+w : x
+        // vertically centre the text in the box (baseline ~ 0.35 * font height below centre)
+        const ptMm = pt/2.83465
+        doc.text(tf.value, textX, y + h/2 + ptMm*0.35, {align:align})
+      })
+
+      // QR code
+      if(fields.qr_code){
+        try{
+          const qrB64 = await idcGenerateQR(profileBaseUrl + (s.students?.student_id||''))
+          if(qrB64){
+            const q=fields.qr_code
+            doc.addImage(qrB64,'PNG',q.x/100*cardW_mm,q.y/100*cardH_mm,q.w/100*cardW_mm,q.h/100*cardH_mm)
+          }
+        }catch(e){console.warn('QR generation failed',e)}
+      }
+    }
+
+    statusEl.textContent='Downloading...'
+    const first=students[selected[0]]
+    const fname='ID_Cards_'+(first?.classes?.name||'class')+(first?.class_sections?.name&&$('idc_gen_section')?.value?'_'+first.class_sections.name:'')
+    doc.save(fname.replace(/[^A-Za-z0-9_-]+/g,'_')+'.pdf')
+    statusEl.textContent='Done! '+selected.length+' cards generated.'
+    setTimeout(()=>{statusEl.textContent=''},3000)
+  }catch(e){
+    console.error(e)
+    statusEl.textContent=''
+    toast('PDF generation failed: '+(e?.message||e),'error')
+  }
+}
+
+function idcSplitAddress(addr){
+  if(!addr)return ['','']
+  addr=String(addr).trim().replace(/\s+/g,' ')
+  const mid=Math.floor(addr.length/2)
+  let splitIdx=-1
+  for(let i=mid;i>=0;i--){if(addr[i]===','){splitIdx=i;break}}
+  if(splitIdx<0){for(let i=mid;i<addr.length;i++){if(addr[i]===','){splitIdx=i;break}}}
+  if(splitIdx<0){
+    for(let i=mid;i>=0;i--){if(addr[i]===' '){splitIdx=i;break}}
+  }
+  if(splitIdx>0){
+    return [addr.slice(0,splitIdx+1).trim(), addr.slice(splitIdx+1).trim()]
+  }
+  return [addr, '']
+}
+
+function loadScript(url){
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error('Failed to load '+url));document.head.appendChild(s)
+  })
+}
+
+// Loads an image and returns {data:dataURL,w,h} (w/h = natural size, or the cropped size when opts.cover is set).
+// opts: mime (default image/png), maxW (downscale), cover (target w/h aspect ratio -> centre-crop)
+function idcLoadImageAsBase64(url,opts){
+  opts=opts||{}
+  return new Promise(resolve=>{
+    const img=new Image()
+    img.crossOrigin='anonymous'
+    img.onload=function(){
+      let sx=0,sy=0,sw=img.naturalWidth,sh=img.naturalHeight
+      if(opts.cover){
+        const ia=sw/sh
+        if(ia>opts.cover){const nw=sh*opts.cover;sx=(sw-nw)/2;sw=nw}
+        else{const nh=sw/opts.cover;sy=(sh-nh)/2;sh=nh}
+      }
+      const k=opts.maxW&&sw>opts.maxW?opts.maxW/sw:1
+      const c=document.createElement('canvas')
+      c.width=Math.round(sw*k);c.height=Math.round(sh*k)
+      const ctx=c.getContext('2d')
+      if((opts.mime||'image/png')==='image/jpeg'){ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height)}
+      ctx.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height)
+      try{resolve({data:c.toDataURL(opts.mime||'image/png',0.92),w:c.width,h:c.height})}catch(e){resolve(null)}
+    }
+    img.onerror=()=>resolve(null)
+    img.src=url
+  })
+}
+
+function idcGenerateQR(text){
+  return new Promise(resolve=>{
+    const div=document.createElement('div')
+    div.style.cssText='position:absolute;left:-9999px;top:-9999px'
+    document.body.appendChild(div)
+    try{
+      new QRCode(div,{text:text,width:256,height:256,correctLevel:QRCode.CorrectLevel.M})
+      setTimeout(()=>{
+        const canvas=div.querySelector('canvas')
+        const b64=canvas?canvas.toDataURL('image/png'):null
+        div.remove()
+        resolve(b64)
+      },150)
+    }catch(e){div.remove();resolve(null)}
+  })
 }
 
 </script>
