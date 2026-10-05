@@ -1200,6 +1200,12 @@ tbody tr:hover td{background:var(--lav-50)}
                   <button type="button" id="idcLockBtn" onclick="idcToggleAspectLock()" title="Lock aspect ratio" style="width:32px;height:32px;min-width:32px;padding:0;margin:0 2px 1px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg id="idcLockIcon" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--ink-faint);fill:none;stroke-width:2"><path d="M10 13V7a2 2 0 1 1 4 0v6"/><rect x="5" y="13" width="14" height="8" rx="2"/></svg></button>
                   <div class="fg"><label>Height (px)</label><input type="number" id="idc_ph" step="1" onchange="idcUpdateFieldDim('h')"></div>
                 </div>
+                <div id="idcBorderProps" style="display:none">
+                  <div class="form-row">
+                    <div class="fg"><label>Border Width (px)</label><input type="number" id="idc_bw" value="0" min="0" step="1" onchange="idcUpdateFieldStyle()"></div>
+                    <div class="fg"><label>Border Color</label><input type="color" id="idc_bc" value="#000000" onchange="idcUpdateFieldStyle()"></div>
+                  </div>
+                </div>
                 <div id="idcTextProps">
                   <div class="form-row">
                     <div class="fg"><label>Font Size (px)</label><input type="number" id="idc_fs" value="40" onchange="idcUpdateFieldStyle()"></div>
@@ -13288,7 +13294,9 @@ function idcRenderFields(){
     el.className='idc-field-overlay'
     el.dataset.fk=def.key
     const isText=!def.isRect
-    el.style.cssText='position:absolute;border:2px solid '+c+';background:'+c+'22;cursor:move;border-radius:3px;display:flex;align-items:center;justify-content:'+(isText?(f.align||'center'):'center')+';font-size:'+(isText?Math.max(8,Math.round((f.fontSize||40)/IDC_FONT_REF_W*400))+'px':'10px')+';font-weight:'+(isText?(f.fontWeight||'normal'):'700')+';color:'+(isText?(f.color||'#000'):c)+';user-select:none;overflow:hidden;white-space:nowrap;box-sizing:border-box;padding:0 4px;'
+    const bdrW=def.isRect&&f.borderWidth?Math.max(1,Math.round(f.borderWidth*_idcScale)):2
+    const bdrC=def.isRect&&f.borderWidth?f.borderColor||'#000':c
+    el.style.cssText='position:absolute;border:'+bdrW+'px solid '+bdrC+';background:'+(def.isRect&&f.borderWidth?'transparent':c+'22')+';cursor:move;border-radius:3px;display:flex;align-items:center;justify-content:'+(isText?(f.align||'center'):'center')+';font-size:'+(isText?Math.max(8,Math.round((f.fontSize||40)/IDC_FONT_REF_W*400))+'px':'10px')+';font-weight:'+(isText?(f.fontWeight||'normal'):'700')+';color:'+(isText?(f.color||'#000'):c)+';user-select:none;overflow:hidden;white-space:nowrap;box-sizing:border-box;padding:0 4px;'
     el.style.left=f.x+'%'
     el.style.top=f.y+'%'
     el.style.width=f.w+'%'
@@ -13369,6 +13377,11 @@ function idcSelectField(key){
 
   const isText=!def.isRect
   $('idcTextProps').style.display=isText?'block':'none'
+  $('idcBorderProps').style.display=def.isRect?'block':'none'
+  if(def.isRect){
+    $('idc_bw').value=f.borderWidth||0
+    $('idc_bc').value=f.borderColor||'#000000'
+  }
   if(isText){
     $('idc_fs').value=f.fontSize||40
     $('idc_fc').value=f.color||'#000000'
@@ -13447,11 +13460,18 @@ function idcToggleField(key,visible){
 function idcUpdateFieldStyle(){
   if(!_idcSelectedField)return
   const f=_idcFields[_idcSelectedField]
-  f.fontSize=parseInt($('idc_fs').value)||40
-  f.color=$('idc_fc').value||'#000000'
-  f.fontWeight=$('idc_fw').value||'normal'
-  f.align=$('idc_fa').value||'center'
-  f.fontFamily=$('idc_ff').value||'helvetica'
+  const def=IDC_FIELD_DEFS.find(d=>d.key===_idcSelectedField)
+  if(def&&def.isRect){
+    f.borderWidth=parseInt($('idc_bw').value)||0
+    f.borderColor=$('idc_bc').value||'#000000'
+  }
+  if(def&&!def.isRect){
+    f.fontSize=parseInt($('idc_fs').value)||40
+    f.color=$('idc_fc').value||'#000000'
+    f.fontWeight=$('idc_fw').value||'normal'
+    f.align=$('idc_fa').value||'center'
+    f.fontFamily=$('idc_ff').value||'helvetica'
+  }
   idcRenderFields()
   idcSelectField(_idcSelectedField)
 }
@@ -13551,13 +13571,19 @@ async function idcGeneratePDF(){
       // Photo (cover-cropped to the photo box)
       if(fields.photo&&fields.photo.visible!==false){
         const p=fields.photo
-        const pw=p.w/100*cardW_mm, ph=p.h/100*cardH_mm
+        const pw=p.w/100*cardW_mm, ph=p.h/100*cardH_mm, px_=p.x/100*cardW_mm, py_=p.y/100*cardH_mm
         const src=s.students?.photo_url ? R2.url(s.students.photo_url) : ''
         if(src){
           try{
             const photo=await idcLoadImageAsBase64(src,{mime:'image/jpeg',maxW:600,cover:pw/ph})
-            if(photo) doc.addImage(photo.data,'JPEG',p.x/100*cardW_mm,p.y/100*cardH_mm,pw,ph)
+            if(photo) doc.addImage(photo.data,'JPEG',px_,py_,pw,ph)
           }catch(e){console.warn('Photo load failed for',s.students?.student_id)}
+        }
+        if(p.borderWidth&&p.borderWidth>0){
+          const bw_mm=p.borderWidth/IDC_FONT_REF_W*cardW_mm
+          doc.setDrawColor(p.borderColor||'#000000')
+          doc.setLineWidth(bw_mm)
+          doc.rect(px_,py_,pw,ph,'S')
         }
       }
 
@@ -13601,7 +13627,14 @@ async function idcGeneratePDF(){
           const qrB64 = await idcGenerateQR(profileBaseUrl + (s.students?.student_id||''))
           if(qrB64){
             const q=fields.qr_code
-            doc.addImage(qrB64,'PNG',q.x/100*cardW_mm,q.y/100*cardH_mm,q.w/100*cardW_mm,q.h/100*cardH_mm)
+            const qx=q.x/100*cardW_mm,qy=q.y/100*cardH_mm,qw=q.w/100*cardW_mm,qh=q.h/100*cardH_mm
+            doc.addImage(qrB64,'PNG',qx,qy,qw,qh)
+            if(q.borderWidth&&q.borderWidth>0){
+              const bw_mm=q.borderWidth/IDC_FONT_REF_W*cardW_mm
+              doc.setDrawColor(q.borderColor||'#000000')
+              doc.setLineWidth(bw_mm)
+              doc.rect(qx,qy,qw,qh,'S')
+            }
           }
         }catch(e){console.warn('QR generation failed',e)}
       }

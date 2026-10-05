@@ -174,8 +174,21 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
 
   STUDENT=stu
 
-  const{data:enr,error:enrErr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,session_id,sessions(name,session_name),classes(name,class_id),class_sections(name),streams(name)').eq('student_id',studentId).eq('status','active').or('relieved.eq.false,relieved.is.null').order('created_at',{ascending:false}).limit(1).maybeSingle()
+  // Fetch enrollment without joins first (avoids RLS issues on related tables)
+  let enr=null
+  const{data:enrArr,error:enrErr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,session_id,class_id,section_id,stream_id,status,relieved').eq('student_id',studentId).order('created_at',{ascending:false}).limit(5)
   if(enrErr)console.warn('Enrollment query error:',enrErr)
+  if(enrArr&&enrArr.length){
+    enr=enrArr.find(e=>e.status==='active'&&(e.relieved===false||e.relieved===null))||enrArr[0]
+    // Fetch related data separately
+    const[sesRes,clsRes,secRes,strRes]=await Promise.all([
+      enr.session_id?sb.from('sessions').select('name,session_name').eq('session_id',enr.session_id).maybeSingle():Promise.resolve({data:null}),
+      enr.class_id?sb.from('classes').select('name,class_id').eq('class_id',enr.class_id).maybeSingle():Promise.resolve({data:null}),
+      enr.section_id?sb.from('class_sections').select('name').eq('section_id',enr.section_id).maybeSingle():Promise.resolve({data:null}),
+      enr.stream_id?sb.from('streams').select('name').eq('stream_id',enr.stream_id).maybeSingle():Promise.resolve({data:null})
+    ])
+    enr.sessions=sesRes.data;enr.classes=clsRes.data;enr.class_sections=secRes.data;enr.streams=strRes.data
+  }
 
   ENROLLMENT=enr
 
