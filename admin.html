@@ -3798,13 +3798,14 @@ function openUploadPhotoModal(){
     '<button class="btn btn-dark" onclick="uploadProfilePhoto()">Upload Photo</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 async function pickProfilePhoto(){
-  const f=await SPSMedia.acquirePhoto('Profile photo')
-  if(!f)return
+  const f=await SPSMedia.chooseOne({accept:'image/*',prompt:'Profile photo'})
+  if(!f||!/^image\//.test(f.type))return
   _photoPicked=f
-  const url=SPSMedia.previewURL(f)
+  const cropped=await SPSMedia.cropCircle(f,{title:'Frame the photo',outputSize:256})
+  const url=cropped?SPSMedia.previewURL(cropped):SPSMedia.previewURL(f)
   const pv=$('photoPreview');if(pv)pv.innerHTML='<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">'
   const lb=$('ppPickLabel');if(lb)lb.textContent='Change'
-  const nf=$('ppPickInfo');if(nf)nf.textContent='✅ Ready to upload.'
+  const nf=$('ppPickInfo');if(nf)nf.textContent='✅ Ready to upload (original quality).'
 }
 function previewPhoto(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{$('photoPreview').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">'};reader.readAsDataURL(file)}
 async function uploadProfilePhoto(){
