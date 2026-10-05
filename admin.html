@@ -1195,9 +1195,10 @@ tbody tr:hover td{background:var(--lav-50)}
                   <div class="fg"><label>X (px)</label><input type="number" id="idc_px" step="1" onchange="idcUpdateFieldPos()"></div>
                   <div class="fg"><label>Y (px)</label><input type="number" id="idc_py" step="1" onchange="idcUpdateFieldPos()"></div>
                 </div>
-                <div class="form-row">
-                  <div class="fg"><label>Width (px)</label><input type="number" id="idc_pw" step="1" onchange="idcUpdateFieldPos()"></div>
-                  <div class="fg"><label>Height (px)</label><input type="number" id="idc_ph" step="1" onchange="idcUpdateFieldPos()"></div>
+                <div class="form-row" style="align-items:flex-end">
+                  <div class="fg"><label>Width (px)</label><input type="number" id="idc_pw" step="1" onchange="idcUpdateFieldDim('w')"></div>
+                  <button type="button" id="idcLockBtn" onclick="idcToggleAspectLock()" title="Lock aspect ratio" style="width:32px;height:32px;min-width:32px;padding:0;margin:0 2px 1px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg id="idcLockIcon" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--ink-faint);fill:none;stroke-width:2"><path d="M10 13V7a2 2 0 1 1 4 0v6"/><rect x="5" y="13" width="14" height="8" rx="2"/></svg></button>
+                  <div class="fg"><label>Height (px)</label><input type="number" id="idc_ph" step="1" onchange="idcUpdateFieldDim('h')"></div>
                 </div>
                 <div id="idcTextProps">
                   <div class="form-row">
@@ -13139,6 +13140,8 @@ let _idcImgW = 1000
 let _idcImgH = 1600
 let _idcFonts = {}  // {fontName: {data: base64, name: 'MyFont'}}
 let _idcFontsRegistered = false
+let _idcAspectLock = false
+let _idcAspectRatio = 1
 const IDC_FONT_REF_W = 1000
 
 const IDC_FIELD_DEFS = [
@@ -13361,6 +13364,8 @@ function idcSelectField(key){
   $('idc_py').value=Math.round(f.y/100*_idcImgH)
   $('idc_pw').value=Math.round(f.w/100*_idcImgW)
   $('idc_ph').value=Math.round(f.h/100*_idcImgH)
+  const _pw=parseFloat($('idc_pw').value)||10,_ph=parseFloat($('idc_ph').value)||5
+  _idcAspectRatio=_ph>0?_pw/_ph:1
 
   const isText=!def.isRect
   $('idcTextProps').style.display=isText?'block':'none'
@@ -13399,6 +13404,38 @@ function idcUpdateFieldPos(){
   f.h=(parseFloat($('idc_ph').value)||5)/_idcImgH*100
   idcRenderFields()
   idcSelectField(_idcSelectedField)
+}
+function idcUpdateFieldDim(axis){
+  if(!_idcSelectedField)return
+  const f=_idcFields[_idcSelectedField]
+  let pw=parseFloat($('idc_pw').value)||10
+  let ph=parseFloat($('idc_ph').value)||5
+  if(_idcAspectLock&&_idcAspectRatio>0){
+    if(axis==='w'){ph=Math.round(pw/_idcAspectRatio);$('idc_ph').value=ph}
+    else{pw=Math.round(ph*_idcAspectRatio);$('idc_pw').value=pw}
+  }
+  f.w=pw/_idcImgW*100
+  f.h=ph/_idcImgH*100
+  _idcAspectRatio=ph>0?pw/ph:1
+  idcRenderFields()
+  idcSelectField(_idcSelectedField)
+}
+function idcToggleAspectLock(){
+  _idcAspectLock=!_idcAspectLock
+  const pw=parseFloat($('idc_pw').value)||10
+  const ph=parseFloat($('idc_ph').value)||5
+  _idcAspectRatio=ph>0?pw/ph:1
+  const btn=$('idcLockBtn')
+  const ico=$('idcLockIcon')
+  if(_idcAspectLock){
+    btn.style.background='var(--lav-100)';btn.style.borderColor='var(--indigo)'
+    ico.innerHTML='<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'
+    ico.style.stroke='var(--indigo)'
+  }else{
+    btn.style.background='transparent';btn.style.borderColor='var(--line)'
+    ico.innerHTML='<path d="M10 13V7a2 2 0 1 1 4 0v6"/><rect x="5" y="13" width="14" height="8" rx="2"/>'
+    ico.style.stroke='var(--ink-faint)'
+  }
 }
 
 function idcToggleField(key,visible){
