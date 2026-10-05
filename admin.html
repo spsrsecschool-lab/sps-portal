@@ -1165,9 +1165,12 @@ tbody tr:hover td{background:var(--lav-50)}
               <h3 style="margin:0 0 4px">Template Setup</h3>
               <div style="font-size:12px;color:var(--ink-soft)">Upload your ID card background and position the data fields</div>
             </div>
-            <div style="display:flex;gap:8px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
               <label class="btn btn-soft btn-sm" style="cursor:pointer">
                 Upload Background <input type="file" id="idc_bg_file" accept="image/*" style="display:none" onchange="idcBgUploaded(this)">
+              </label>
+              <label class="btn btn-soft btn-sm" style="cursor:pointer">
+                Upload Font <input type="file" id="idc_font_file" accept=".ttf,.otf,.woff" style="display:none" onchange="idcFontUploaded(this)">
               </label>
               <button class="btn btn-dark btn-sm" onclick="idcSaveTemplate()">Save Template</button>
             </div>
@@ -1202,8 +1205,11 @@ tbody tr:hover td{background:var(--lav-50)}
                     <div class="fg"><label>Color</label><input type="color" id="idc_fc" value="#000000" onchange="idcUpdateFieldStyle()"></div>
                   </div>
                   <div class="form-row">
-                    <div class="fg"><label>Font Weight</label><select id="idc_fw" onchange="idcUpdateFieldStyle()"><option value="normal">Normal</option><option value="bold">Bold</option><option value="800">Extra Bold</option></select></div>
+                    <div class="fg"><label>Font Family</label><select id="idc_ff" onchange="idcUpdateFieldStyle()"><option value="helvetica">Helvetica (Default)</option></select></div>
                     <div class="fg"><label>Align</label><select id="idc_fa" onchange="idcUpdateFieldStyle()"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="fg"><label>Font Weight</label><select id="idc_fw" onchange="idcUpdateFieldStyle()"><option value="normal">Normal</option><option value="bold">Bold</option><option value="800">Extra Bold</option></select></div>
                   </div>
                 </div>
               </div>
@@ -13130,6 +13136,8 @@ let _idcSelectedField = null
 let _idcScale = 1
 let _idcImgW = 1000
 let _idcImgH = 1600
+let _idcFonts = {}  // {fontName: {data: base64, name: 'MyFont'}}
+let _idcFontsRegistered = false
 const IDC_FONT_REF_W = 1000
 
 const IDC_FIELD_DEFS = [
@@ -13157,7 +13165,13 @@ async function loadIdCards(){
   }catch(e){console.warn('ID card template load failed',e)}
 
   _idcFields={}
+  // Restore saved fonts
+  if(_idcTemplate?.fonts){
+    _idcFonts={}
+    Object.keys(_idcTemplate.fonts).forEach(k=>{_idcFonts[k]=_idcTemplate.fonts[k]})
+  }
   idcRenderEditor()
+  idcRefreshFontDropdown()
 }
 
 function idcRenderEditor(){
@@ -13201,6 +13215,37 @@ async function idcBgUploaded(input){
   _idcTemplate.bgUrl = url
   idcShowBg(url)
   toast('Template uploaded. Position the fields and click Save Template.','success')
+}
+
+async function idcFontUploaded(input){
+  const file=input.files?.[0]
+  if(!file)return
+  const name=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'')
+  if(!name){toast('Invalid font file name','error');return}
+  toast('Loading font...','info')
+  const reader=new FileReader()
+  reader.onload=function(){
+    const b64=reader.result.split(',')[1]
+    _idcFonts[name]={data:b64,name:name}
+    _idcTemplate=_idcTemplate||{}
+    if(!_idcTemplate.fonts) _idcTemplate.fonts={}
+    _idcTemplate.fonts[name]={data:b64,name:name}
+    idcRefreshFontDropdown()
+    toast('Font "'+name+'" loaded. Save template to persist.','success')
+  }
+  reader.readAsDataURL(file)
+  input.value=''
+}
+
+function idcRefreshFontDropdown(){
+  const sel=$('idc_ff')
+  if(!sel)return
+  const cur=sel.value
+  sel.innerHTML='<option value="helvetica">Helvetica (Default)</option>'
+  Object.keys(_idcFonts).forEach(k=>{
+    sel.innerHTML+='<option value="'+esc(k)+'">'+esc(_idcFonts[k].name)+'</option>'
+  })
+  sel.value=cur||'helvetica'
 }
 
 function idcShowBg(url){
@@ -13323,6 +13368,7 @@ function idcSelectField(key){
     $('idc_fc').value=f.color||'#000000'
     $('idc_fw').value=f.fontWeight||'normal'
     $('idc_fa').value=f.align||'center'
+    $('idc_ff').value=f.fontFamily||'helvetica'
   }
 
   document.querySelectorAll('.idc-field-overlay').forEach(el=>{
@@ -13367,11 +13413,14 @@ function idcUpdateFieldStyle(){
   f.color=$('idc_fc').value||'#000000'
   f.fontWeight=$('idc_fw').value||'normal'
   f.align=$('idc_fa').value||'center'
+  f.fontFamily=$('idc_ff').value||'helvetica'
+  idcRenderFields()
+  idcSelectField(_idcSelectedField)
 }
 
 async function idcSaveTemplate(){
   if(!_idcTemplate?.bgUrl){toast('Upload a background first','error');return}
-  const tpl={bgUrl:_idcTemplate.bgUrl, fields:{}}
+  const tpl={bgUrl:_idcTemplate.bgUrl, fields:{}, fonts:{..._idcFonts}}
   IDC_FIELD_DEFS.forEach(def=>{ tpl.fields[def.key]={..._idcFields[def.key]} })
 
   const{error}=await sb.from('app_config').upsert({key:'id_card_template',value:JSON.stringify(tpl),updated_at:new Date().toISOString()},{onConflict:'key'})
@@ -13424,8 +13473,8 @@ async function idcGeneratePDF(){
   const statusEl=$('idcGenStatus')
   try{
     statusEl.textContent='Loading libraries...'
-    if(!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js')
-    if(!window.QRCode) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js')
+    if(!window.jspdf) await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js')
+    if(!window.QRCode) await loadScript('https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js')
     const{jsPDF}=window.jspdf
 
     statusEl.textContent='Loading template...'
@@ -13435,6 +13484,17 @@ async function idcGeneratePDF(){
     const cardW_mm = 54 // standard portrait ID card width
     const cardH_mm = cardW_mm * (bg.h / bg.w)
     const doc = new jsPDF({unit:'mm', format:[cardW_mm, cardH_mm], orientation:cardH_mm>=cardW_mm?'p':'l'})
+
+    // Register custom fonts
+    const tplFonts=_idcTemplate.fonts||_idcFonts||{}
+    Object.keys(tplFonts).forEach(k=>{
+      const fd=tplFonts[k]
+      if(fd?.data){
+        doc.addFileToVFS(k+'.ttf',fd.data)
+        doc.addFont(k+'.ttf',k,'normal')
+        doc.addFont(k+'.ttf',k,'bold')
+      }
+    })
 
     const fields = _idcTemplate.fields || _idcFields
     const students = window._idcStudents||[]
@@ -13481,7 +13541,9 @@ async function idcGeneratePDF(){
 
         // fontSize is px relative to a 1000px-wide card -> mm -> pt
         let pt = (f.fontSize||40) / IDC_FONT_REF_W * cardW_mm * 2.83465
-        doc.setFont('helvetica', f.fontWeight==='bold'||f.fontWeight==='800'?'bold':'normal')
+        const ff=f.fontFamily||'helvetica'
+        const fw=f.fontWeight==='bold'||f.fontWeight==='800'?'bold':'normal'
+        try{doc.setFont(ff,fw)}catch(_){doc.setFont('helvetica',fw)}
         doc.setTextColor(f.color||'#000000')
         doc.setFontSize(pt)
         // shrink to fit the box width (never below 4pt)
