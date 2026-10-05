@@ -4612,6 +4612,13 @@ async function loadMapping(){
   if(fcls)rows=rows.filter(r=>r.class_id===fcls)
   if(fsec2)rows=rows.filter(r=>r.section_id===fsec2)
   if(ftch)rows=rows.filter(r=>r.teacher_id===ftch)
+  rows=rows.slice().sort((a,b)=>{
+    const pa=periodsByKey[a.section_id+'|'+a.subject_id+'|'+a.teacher_id]||[]
+    const pb=periodsByKey[b.section_id+'|'+b.subject_id+'|'+b.teacher_id]||[]
+    const minA=pa.length?Math.min(...pa.map(p=>p.sort)):9999
+    const minB=pb.length?Math.min(...pb.map(p=>p.sort)):9999
+    return minA-minB||(a.classes?.name||'').localeCompare(b.classes?.name||'')||(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'')
+  })
   const body=$('mappingBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="7"><div class="empty-state"><p>No mappings yet.</p></div></td></tr>';return}
   body.innerHTML=rows.map(r=>{
