@@ -174,7 +174,7 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
 
   STUDENT=stu
 
-  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,session_id,sessions(name,session_name),classes(name,class_id),class_sections(name),streams(name)').eq('student_id',studentId).eq('status','enrolled').order('created_at',{ascending:false}).limit(1).maybeSingle()
+  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,session_id,sessions(name,session_name),classes(name,class_id),class_sections(name),streams(name)').eq('student_id',studentId).eq('status','active').eq('relieved',false).order('created_at',{ascending:false}).limit(1).maybeSingle()
 
   ENROLLMENT=enr
 
