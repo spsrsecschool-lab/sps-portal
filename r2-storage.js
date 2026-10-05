@@ -74,7 +74,14 @@ window.R2={
 
   url(rawUrl){
     if(!rawUrl)return rawUrl
-    if(rawUrl.includes(R2_WORKER_URL))return rawUrl
+    if(rawUrl.includes(R2_WORKER_URL)){
+      try{
+        const u=new URL(rawUrl)
+        const p=u.searchParams.get('path')
+        if(p){const clean=p.split('?')[0];return R2_WORKER_URL+'/file?path='+encodeURIComponent(clean)+'&t='+Date.now()}
+      }catch(_){}
+      return rawUrl
+    }
     if(rawUrl.includes('/school-files/')){
       const p=rawUrl.split('/school-files/')[1]
       if(p){const clean=p.split('?')[0];return R2_WORKER_URL+'/file?path='+encodeURIComponent(clean)}

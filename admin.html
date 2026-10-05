@@ -3824,7 +3824,7 @@ async function uploadProfilePhoto(){
   const{error:upErr}=await R2.upload(path,file,{upsert:true})
   if(upErr){hideUploadOverlay();toast('Upload failed: '+upErr.message,'error');return}
   const{data:{publicUrl}}=R2.getPublicUrl(path)
-  const{error:dbErr}=await sb.from('students').update({photo_url:publicUrl+'?t='+Date.now()}).eq('student_id',sid)
+  const{error:dbErr}=await sb.from('students').update({photo_url:publicUrl+'&t='+Date.now()}).eq('student_id',sid)
   if(dbErr){hideUploadOverlay();toast('Photo uploaded but DB update failed: '+dbErr.message,'error');return}
   _photoPicked=null
   hideUploadOverlay();toast('Photo updated','success');closeModal();openProfile(_profileEnrollId)
@@ -12049,7 +12049,7 @@ async function uploadQPImage(input,elementId,elementType,parentQId){
     const{error:upErr}=await R2.upload(path,file,{upsert:true})
     if(upErr)throw upErr
     const{data:urlData}=R2.getPublicUrl(path)
-    const url=urlData.publicUrl+'?t='+Date.now()
+    const url=urlData.publicUrl+'&t='+Date.now()
     if(elementType==='question'){
       const q=_qpCurrent.content.questions.find(x=>x.id===elementId)
       if(q)q.image_url=url
