@@ -4757,25 +4757,18 @@ async function removeMapping(id){
       // Delete every timetable row for this teacher + class + subject in the
       // mapping's session. section_id is included only when present, matched
       // exactly. .select() returns the deleted rows so we can confirm it worked.
-      let q=sb.from('timetable_entries').delete()
+      let q=sb.from('timetable_entries').select('entry_id')
         .eq('teacher_id',map.teacher_id)
         .eq('class_id',map.class_id)
         .eq('subject_id',map.subject_id)
       if(map.session_id) q=q.eq('session_id',map.session_id)
       if(map.section_id) q=q.eq('section_id',map.section_id)
-      const{data:entries}=await q.select('entry_id')
+      const{data:entries}=await q
       if(entries?.length){
         const eids=entries.map(e=>e.entry_id)
         await sb.from('substitutions').delete().in('entry_id',eids)
+        await sb.from('timetable_entries').delete().in('entry_id',eids)
       }
-      let q2=sb.from('timetable_entries').delete()
-        .eq('teacher_id',map.teacher_id)
-        .eq('class_id',map.class_id)
-        .eq('subject_id',map.subject_id)
-      if(map.session_id) q2=q2.eq('session_id',map.session_id)
-      if(map.section_id) q2=q2.eq('section_id',map.section_id)
-      const{error:teErr}=await q2
-      if(teErr){toast('Timetable cleanup failed: '+teErr.message,'error');return}
     }
     const{error}=await sb.from('teacher_subject_class_map').delete().eq('map_id',id)
     if(error){toast('Remove failed: '+error.message,'error');return}
