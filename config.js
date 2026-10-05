@@ -39,8 +39,8 @@
  */
 
 // ── FILL THESE IN ─────────────────────────────────────────────
-const SUPABASE_URL      = 'https://aafigohphcegnvvcojby.supabase.co'
-const SUPABASE_ANON     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFhZmlnb2hwaGNlZ252dmNvamJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MTMyODksImV4cCI6MjA5ODQ4OTI4OX0.6xeG33em-_XfCetcqAyleBMBUyk1c5B4dDYuM_AWLu8'
+const SUPABASE_URL      = 'https://nvpvhjprwfqixgnsgpox.supabase.co'
+const SUPABASE_ANON     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52cHZoanByd2ZxaXhnbnNncG94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExNzk3ODAsImV4cCI6MjEwNjc1NTc4MH0.ovN-c1zo4Kd5sWAeh8B25Ux8fuCsHpi7ejse1M1bEss'
 const AUTH_EMAIL_DOMAIN = 'spsrsec.school'
 
 // ── CLOUDFLARE R2 STORAGE ────────────────────────────────────
