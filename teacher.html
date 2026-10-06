@@ -1303,8 +1303,8 @@ async function viewStudentProfile(studentId){
       +'<div style="font-size:12.5px;color:var(--ink-soft)">'+esc(cls)+(e?.roll_no?' · Roll '+e.roll_no:'')+'</div>'
       +'<div style="display:inline-block;margin-top:7px;font-size:10.5px;background:var(--warn-soft);color:var(--warn);padding:3px 11px;border-radius:999px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">View only</div>'
     +'</div>'
-    +row("Father's Name",stu.father_name)
-    +row("Mother's Name",stu.mother_name)
+    +row("Father's Name (as per AADHAR)",stu.father_name)
+    +row("Mother's Name (as per AADHAR)",stu.mother_name)
     +row('Date of Birth',stu.dob)
     +row('Phone',stu.phone)
     +row('Alternate Phone',stu.alt_phone)
@@ -2567,7 +2567,7 @@ async function loadMarksTable(){
     +'<span>Students: <b style="color:var(--ink)">'+students.length+'</b></span>'
     +'<span style="font-size:11px;color:var(--ink-faint)">Write A for absent</span>'
     +'</div>'
-  html+='<div class="table-wrap"><table><thead><tr><th style="width:50px">Roll</th><th>Name</th><th>Father&#39;s Name</th><th style="width:110px">Marks / '+maxM+'</th><th style="width:90px">Absent</th><th>Remarks</th></tr></thead><tbody>'
+  html+='<div class="table-wrap"><table><thead><tr><th style="width:50px">Roll</th><th>Student Name</th><th>Father&#39;s Name</th><th style="width:110px">Marks / '+maxM+'</th><th style="width:90px">Absent</th><th>Remarks</th></tr></thead><tbody>'
   html+=students.map((s,i)=>{
     const ex=marksMap[s.enrollment_id]
     const isAbs=!!ex?.is_absent
@@ -2895,7 +2895,7 @@ async function loadStudentPerfAnalysis(enrollmentId, name, classId, sectionId){
   html+='<h3 style="margin-bottom:12px">'+nameLink(enr.students?.student_id,enr.students?.full_name||'?')+' — '+esc((enr.classes?.name||'?')+'‑'+(enr.class_sections?.name||'?'))+'</h3>'
   html+='<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>'
   html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;position:sticky;left:0;z-index:2;white-space:nowrap">Roll</th>'
-  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;position:sticky;left:50px;z-index:2;white-space:nowrap">Name</th>'
+  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;position:sticky;left:50px;z-index:2;white-space:nowrap">Student Name</th>'
   html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;position:sticky;left:180px;z-index:2;white-space:nowrap">Father&#39;s Name</th>'
   assessments.forEach(a=>{
     html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:center;white-space:nowrap">'+esc(a.name)+'<br><span style="font-size:10px;font-weight:400;color:var(--ink-faint)">Max: '+aMax(a)+'</span></th>'
@@ -3032,7 +3032,7 @@ async function loadPerfAnalysis(){
   html+='<div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">Total Students: <b>'+students.length+'</b></div>'
   html+='<div class="card" style="margin-bottom:18px;overflow-x:auto"><div style="overflow-x:auto"><table style="min-width:600px;width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>'
   html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;white-space:nowrap;position:sticky;left:0;z-index:2">Roll</th>'
-  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;white-space:nowrap;position:sticky;left:48px;z-index:2">Name</th>'
+  html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;white-space:nowrap;position:sticky;left:48px;z-index:2">Student Name</th>'
   html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:left;white-space:nowrap;position:sticky;left:180px;z-index:2">Father\'s Name</th>'
   selAssess.forEach(a=>{html+='<th style="background:var(--lav-100);padding:10px 14px;text-align:center;white-space:nowrap">'+esc(a.name)+'<br><span style="font-size:10px;font-weight:400;color:var(--ink-faint)">Max: '+a.max_marks+'</span></th>'})
   html+='</tr></thead><tbody>'
@@ -3147,7 +3147,7 @@ function renderObsStudents(students){
   const el=$('obsStudentList')
   if(!el)return
   if(!students.length){emp(el,'No students found.');return}
-  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th></th></tr></thead><tbody>'
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th></th></tr></thead><tbody>'
     +students.map(s=>'<tr><td class="mono">'+esc(s.roll_no||'')+'</td><td style="font-weight:600">'+nameLink(s.students?.student_id,s.students?.full_name||'?')+'</td><td>'+esc(s.students?.father_name||'—')+'</td><td><button class="btn btn-soft btn-sm" data-eid="'+s.enrollment_id+'" data-name="'+esc(s.students?.full_name||'?')+'" onclick="openObsModal(this.dataset.eid,this.dataset.name)">Write Remark</button></td></tr>').join('')
     +'</tbody></table></div></div>'
 }
@@ -3270,7 +3270,7 @@ async function loadCriticalStudents(){
     const stuRows=Object.entries(g.stuFails).map(([eid,s])=>({eid,...s})).sort((a,b)=>(a.roll||999)-(b.roll||999))
     let html='<div class="card" style="margin-bottom:14px"><h3>'+esc(g.label)+' <span style="font-size:12px;font-weight:400;color:var(--ink-soft)">'+stuRows.length+' student'+(stuRows.length>1?'s':'')+'</span></h3><div class="table-wrap"><table style="width:100%;font-size:12.5px;border-collapse:collapse"><thead><tr>'
       +'<th style="text-align:left;padding:8px 6px;border-bottom:2px solid var(--line);white-space:nowrap">Roll</th>'
-      +'<th style="text-align:left;padding:8px 6px;border-bottom:2px solid var(--line);min-width:120px">Name</th>'
+      +'<th style="text-align:left;padding:8px 6px;border-bottom:2px solid var(--line);min-width:120px">Student Name</th>'
       +'<th style="text-align:left;padding:8px 6px;border-bottom:2px solid var(--line);min-width:120px">Father\'s Name</th>'
       +assessCols.map(a=>'<th style="text-align:center;padding:8px 6px;border-bottom:2px solid var(--line);white-space:nowrap">'+esc(a.name)+'</th>').join('')
       +'</tr></thead><tbody>'

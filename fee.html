@@ -407,11 +407,11 @@
     <div class="card" style="max-width:680px">
       <h3>New Student Admission</h3>
       <div class="form-row">
-        <div class="form-group"><label>Student Name *</label><input type="text" id="a_name" placeholder="Full name"></div>
-        <div class="form-group"><label>Father's Name *</label><input type="text" id="a_father" placeholder="Father's full name"></div>
+        <div class="form-group"><label>Student Name (as per AADHAR) *</label><input type="text" id="a_name" placeholder="Full name"></div>
+        <div class="form-group"><label>Father's Name (as per AADHAR) *</label><input type="text" id="a_father" placeholder="Father's full name"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Mother's Name</label><input type="text" id="a_mother" placeholder="Optional"></div>
+        <div class="form-group"><label>Mother's Name (as per AADHAR)</label><input type="text" id="a_mother" placeholder="Optional"></div>
         <div class="form-group"><label>Date of Birth</label><input type="date" id="a_dob"></div>
       </div>
       <div class="form-row">
@@ -2231,7 +2231,7 @@ function renderStudents(){
     </tr>`;
   };
 
-  const headRow='<thead><tr><th>S.No</th><th>Name</th><th>Father\'s Name</th><th>Phone</th><th>Class</th><th>Family Code</th><th>Total Due</th><th></th></tr></thead>';
+  const headRow='<thead><tr><th>S.No</th><th>Student Name</th><th>Father\'s Name</th><th>Phone</th><th>Class</th><th>Family Code</th><th>Total Due</th><th></th></tr></thead>';
 
   let html=`<table>${headRow}<tbody>${activeList.map(s=>rowFor(s,false)).join('')||'<tr><td colspan="8" class="text-muted" style="padding:16px;text-align:center">No students match the filters.</td></tr>'}</tbody></table>`;
 
@@ -2303,9 +2303,9 @@ function renderProfileFields(stu,edit){
   const txt=(label,val,id)=> edit
     ? `<div class="field-row"><label>${label}</label><input type="text" id="${id}" value="${esc(val||'')}" class="editable"></div>`
     : `<div class="field-row"><label>${label}</label><div class="field-val">${esc(val||'—')}</div></div>`;
-  demo += txt('Name',stu.name,'pf_name');
-  demo += txt("Father's Name",stu.father,'pf_father');
-  demo += txt("Mother's Name",stu.mother,'pf_mother');
+  demo += txt('Student Name (as per AADHAR)',stu.name,'pf_name');
+  demo += txt("Father's Name (as per AADHAR)",stu.father,'pf_father');
+  demo += txt("Mother's Name (as per AADHAR)",stu.mother,'pf_mother');
   demo += txt('Phone',stu.phone,'pf_phone');
   demo += txt('Alternate Phone',stu.altPhone,'pf_altPhone');
   demo += edit
@@ -2540,7 +2540,7 @@ function renderMatrix(){
   if(!list.length){$('matrixContainer').innerHTML='<p class="text-muted" style="padding:16px">No students match the selected filters.</p>';return}
 
   let headers=`<th class="sticky" style="min-width:50px">S.No</th>
-    <th class="sticky2" style="min-width:150px">Name</th>
+    <th class="sticky2" style="min-width:150px">Student Name</th>
     <th class="sticky3" style="min-width:130px">Father's Name</th>`;
   MONTHS.forEach(m=>headers+=`<th style="min-width:120px">${m}</th>`);
   headers+=`<th style="min-width:110px">Annual</th><th style="min-width:100px">Prev.Bal</th><th style="min-width:110px">Total Due</th>`;
@@ -2592,7 +2592,7 @@ function renderBacklog(){
 
   backlogData={};
   const todayStr=today();
-  let hR1=`<th class="sticky" rowspan="2" style="min-width:50px">S.No</th><th class="sticky2" rowspan="2" style="min-width:180px">Name</th><th rowspan="2" style="min-width:100px">Prev. Balance</th><th rowspan="2" style="min-width:120px">Prev. Date</th><th rowspan="2" style="min-width:100px">Annual Paid</th><th rowspan="2" style="min-width:120px">Annual Date</th>`;
+  let hR1=`<th class="sticky" rowspan="2" style="min-width:50px">S.No</th><th class="sticky2" rowspan="2" style="min-width:180px">Student Name</th><th rowspan="2" style="min-width:100px">Prev. Balance</th><th rowspan="2" style="min-width:120px">Prev. Date</th><th rowspan="2" style="min-width:100px">Annual Paid</th><th rowspan="2" style="min-width:120px">Annual Date</th>`;
   MONTHS.forEach(m=>{hR1+=`<th colspan="2" style="text-align:center;min-width:220px">${m}</th>`});
   let hR2=''; MONTHS.forEach(()=>{hR2+=`<th>Amount (₹)</th><th>Date</th>`});
 
@@ -2769,18 +2769,18 @@ function _renderFamilyProfileFields(edit){
   if(!fam.length)return;
   const rep=fam[0];
   $('fp_headerFields').innerHTML = edit ? `
-      <div class="field-row"><label>Father's Name</label><input type="text" id="fp_father" value="${esc(rep.father||'')}" class="editable"></div>
+      <div class="field-row"><label>Father's Name (as per AADHAR)</label><input type="text" id="fp_father" value="${esc(rep.father||'')}" class="editable"></div>
       <div class="field-row"><label>Primary Phone</label><input type="text" id="fp_phone" value="${esc(rep.phone||'')}" class="editable"></div>
       <div class="field-row"><label>Alternate Phone</label><input type="text" id="fp_altPhone" value="${esc(rep.altPhone||'')}" class="editable"></div>
       <div class="field-row"><label>Family Code</label><div class="field-val mono">${esc(fpCode)}</div></div>` : `
-      <div class="field-row"><label>Father's Name</label><div class="field-val">${esc(rep.father||'—')}</div></div>
+      <div class="field-row"><label>Father's Name (as per AADHAR)</label><div class="field-val">${esc(rep.father||'—')}</div></div>
       <div class="field-row"><label>Primary Phone</label><div class="field-val mono">${esc(rep.phone||'—')}</div></div>
       <div class="field-row"><label>Alternate Phone</label><div class="field-val mono">${esc(rep.altPhone||'—')}</div></div>
       <div class="field-row"><label>Family Code</label><div class="field-val mono">${esc(fpCode)}</div></div>`;
 
   $('fp_children').innerHTML=`
     <div class="table-wrap no-maxh"><table>
-      <thead><tr><th>S.No</th><th>Name</th><th>Class</th><th>Tuition/mo</th><th>Tuition Due</th><th>Annual Due</th><th>Prev Bal</th><th>Total Due</th><th></th></tr></thead>
+      <thead><tr><th>S.No</th><th>Student Name</th><th>Class</th><th>Tuition/mo</th><th>Tuition Due</th><th>Annual Due</th><th>Prev Bal</th><th>Total Due</th><th></th></tr></thead>
       <tbody>${sortSiblings(fam).map(stu=>{
         const d=getTotalDues(stu), mt=getMonthlyTuition(stu);
         const pill=d.total===0?'pill-green':d.total<1000?'pill-yellow':'pill-red';
@@ -2919,7 +2919,7 @@ function renderReadmission(){
     <h3>${list.length} student${list.length!==1?'s':''} shown · ${pendingCount} awaiting re-admission in ${esc(viewSession)}</h3>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th style="width:36px">✓</th><th>Status</th><th>Name</th><th>Father's Name</th>
+        <th style="width:36px">✓</th><th>Status</th><th>Student Name</th><th>Father's Name</th>
         <th>Class</th><th>Family Code</th><th>New S.No <span style="color:var(--yellow)">*</span></th>
       </tr></thead>
       <tbody id="readmTbody">${list.map(s=>{
@@ -3586,7 +3586,7 @@ function exportCSV(){
   let data,filename;
   if(page==='defaulters'){
     const list=students.map(s=>({...s,due:getTotalDues(s).total})).filter(s=>s.due>0);
-    data=[['S.No','Name',"Father's Name",'Phone','Class','Total Due'],
+    data=[['S.No','Student Name',"Father's Name",'Phone','Class','Total Due'],
       ...list.map(s=>[s.sno||'NOT RE-ADMITTED',s.name,s.father||'',s.phone||'',s.cls,s.due])];
     filename=`defaulters_${viewSession}.csv`;
   }else if(page==='transactions'){
@@ -3597,11 +3597,11 @@ function exportCSV(){
       })];
     filename=`transactions_${viewSession}.csv`;
   }else if(page==='readmission'){
-    data=[['Status','Name',"Father's Name",'Class','Family Code','S.No'],
+    data=[['Status','Student Name',"Father's Name",'Class','Family Code','S.No'],
       ...readmissionList().map(s=>[(s.sno?'Re-admitted':'Pending'),s.name,s.father||'',s.cls,s.familyCode||'',s.sno||''])];
     filename=`readmission_${viewSession}.csv`;
   }else{
-    data=[['S.No','Student ID','Name',"Father's Name",'Phone','Class','Family Code','New Admission','Re-admitted','Total Due'],
+    data=[['S.No','Student ID','Student Name',"Father's Name",'Phone','Class','Family Code','New Admission','Re-admitted','Total Due'],
       ...sortBySno(students).map(s=>[s.sno||'',s.student_id,s.name,s.father||'',s.phone||'',s.cls,s.familyCode||'',!!s.isNew,(s.sno?'Yes':'No'),getTotalDues(s).total])];
     filename=`students_${viewSession}.csv`;
   }
