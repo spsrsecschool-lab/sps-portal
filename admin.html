@@ -5271,7 +5271,7 @@ async function openClassTestDetail(a){
     +'<div class="stat-card" style="min-width:100px"><span class="lbl">Average</span><span class="val">'+avg+' / '+maxM+'</span></div>'
     +'<div class="stat-card" style="min-width:100px"><span class="lbl">Pass %</span><span class="val" style="color:'+(passP>=50?'var(--success)':'var(--danger)')+'">'+passP+'%</span></div>'
     +'</div>'
-  h+='<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father's Name</th><th style="text-align:center">Marks</th><th style="text-align:center">Status</th></tr></thead><tbody>'
+  h+='<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Marks</th><th style="text-align:center">Status</th></tr></thead><tbody>'
   enr.forEach(e=>{
     const m=mMap[e.enrollment_id]
     let marksCell,statusCell
@@ -13630,7 +13630,7 @@ async function idcLoadStudents(){
   window._idcStudents=data
   wrap.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;color:var(--ink-soft)">'+data.length+' students</span><label style="font-size:12px;cursor:pointer"><input type="checkbox" id="idcSelAll" checked onchange="idcToggleAll(this.checked)" style="accent-color:var(--indigo)"> Select All</label></div>'+
     '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">'+
-    '<table class="tbl"><thead><tr><th style="width:40px"></th><th>Roll</th><th>Student Name</th><th>Father's Name</th><th>Class</th></tr></thead><tbody>'+
+    '<table class="tbl"><thead><tr><th style="width:40px"></th><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Class</th></tr></thead><tbody>'+
     data.map((s,i)=>'<tr><td><input type="checkbox" class="idc_stu_chk" data-idx="'+i+'" checked style="accent-color:var(--indigo)"></td><td>'+esc(s.roll_no||'—')+'</td><td>'+esc(s.students?.full_name||'—')+'</td><td>'+esc(s.students?.father_name||'—')+'</td><td>'+esc((s.classes?.name||'')+(s.class_sections?.name?' '+s.class_sections.name:''))+'</td></tr>').join('')+
     '</tbody></table></div>'
   $('idcGenActions').style.display='flex'
