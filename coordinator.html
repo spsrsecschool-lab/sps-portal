@@ -688,7 +688,7 @@ function filterStudents(){
   if(q)list=list.filter(s=>s.students?.full_name?.toLowerCase().includes(q)||s.students?.father_name?.toLowerCase().includes(q)||String(s.roll_no||'').includes(q)||String(s.s_no||'').includes(q))
   const el=$('studentsWrap')
   if(!list.length){emp(el,'No students match.');return}
-  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Class</th><th>Phone</th><th></th></tr></thead><tbody>'
+  el.innerHTML='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Class</th><th>Phone</th><th></th></tr></thead><tbody>'
     +list.map(s=>'<tr><td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td><td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td><td>'+esc(s.students?.father_name||'—')+'</td>'
       +'<td>'+esc((CLASS_NAME[s.class_id]||'?')+'-'+(SECTION_INFO[s.section_id]?.name||'?'))+'</td><td class="mono">'+esc(s.students?.phone||'—')+'</td>'
       +'<td><button class="btn btn-soft btn-xs" data-eid="'+s.enrollment_id+'" onclick="viewStudent(this.dataset.eid)">View</button></td></tr>').join('')
@@ -700,7 +700,7 @@ function viewStudent(eid){
   const canEdit=COORD.can_edit_students===true
   const lbl='font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px'
   const inp='width:100%;font-family:var(--font);font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--lav-50);box-sizing:border-box'
-  const fields=[['full_name','Full Name'],['father_name','Father\'s Name'],['mother_name','Mother\'s Name'],['phone','Phone'],['alt_phone','Alt Phone'],['aadhar_no','Aadhaar No'],['address','Address']]
+  const fields=[['full_name','Student Name (as per AADHAR)'],['father_name','Father\'s Name (as per AADHAR)'],['mother_name','Mother\'s Name (as per AADHAR)'],['phone','Phone'],['alt_phone','Alt Phone'],['aadhar_no','Aadhaar No'],['address','Address']]
   const body='<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">'
     +(s.photo_url?'<img src="'+esc(R2.url(s.photo_url))+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover">':'<div style="width:64px;height:64px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800">'+ini(s.full_name)+'</div>')
     +'<div><div style="font-size:17px;font-weight:800">'+esc(s.full_name||'?')+'</div><div style="font-size:12px;color:var(--ink-soft)">Roll '+esc(enr.roll_no||'—')+' · S.No '+esc(enr.s_no||'—')+' · '+esc((CLASS_NAME[enr.class_id]||'?')+'-'+(SECTION_INFO[enr.section_id]?.name||'?'))+'</div></div></div>'

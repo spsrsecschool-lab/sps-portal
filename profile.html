@@ -276,8 +276,8 @@ function showProfile(){
   const add=(label,val)=>{if(val)info+='<div class="info-item"><div class="label">'+label+'</div><div class="val">'+esc(val)+'</div></div>'}
   add('Roll No',ENROLLMENT?.roll_no)
   add('S.No',ENROLLMENT?.s_no)
-  add("Father's Name",STUDENT.father_name)
-  add("Mother's Name",STUDENT.mother_name)
+  add("Father's Name (as per AADHAR)",STUDENT.father_name)
+  add("Mother's Name (as per AADHAR)",STUDENT.mother_name)
   add('Phone',STUDENT.phone)
   if(STUDENT.alt_phone) add('Alt Phone',STUDENT.alt_phone)
   add('Date of Birth',STUDENT.dob?new Date(STUDENT.dob).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'')

@@ -885,7 +885,7 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
       <div id="studentCount" style="font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:10px"></div>
       <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th class="sortable asc" onclick="sortStudentCol('student_id',this)">ID</th><th class="sortable" onclick="sortStudentCol('full_name',this)">Name</th><th class="sortable" onclick="sortStudentCol('father_name',this)">Father's Name</th><th class="sortable" onclick="sortStudentCol('class',this)">Class</th><th class="sortable" onclick="sortStudentCol('section',this)">Sec</th><th class="sortable" onclick="sortStudentCol('roll_no',this)">Roll</th><th class="sortable" onclick="sortStudentCol('s_no',this)">S.No</th><th class="sortable" onclick="sortStudentCol('family_code',this)">Family</th><th class="sortable" onclick="sortStudentCol('phone',this)">Phone</th><th>Profile</th><th></th></tr></thead>
+        <thead><tr><th class="sortable asc" onclick="sortStudentCol('student_id',this)">ID</th><th class="sortable" onclick="sortStudentCol('full_name',this)">Student Name</th><th class="sortable" onclick="sortStudentCol('father_name',this)">Father's Name</th><th class="sortable" onclick="sortStudentCol('class',this)">Class</th><th class="sortable" onclick="sortStudentCol('section',this)">Sec</th><th class="sortable" onclick="sortStudentCol('roll_no',this)">Roll</th><th class="sortable" onclick="sortStudentCol('s_no',this)">S.No</th><th class="sortable" onclick="sortStudentCol('family_code',this)">Family</th><th class="sortable" onclick="sortStudentCol('phone',this)">Phone</th><th>Profile</th><th></th></tr></thead>
         <tbody id="studentBody"><tr><td colspan="11"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table></div></div>
     </div>
@@ -897,8 +897,8 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="card" style="max-width:760px;margin-bottom:18px">
           <h3>Student Demographics</h3>
           <div class="form-row">
-            <div class="fg"><label>Full Name *</label><input type="text" id="adm_name" required placeholder="Student's full name"></div>
-            <div class="fg"><label>Father's Name *</label>
+            <div class="fg"><label>Student Name (as per AADHAR) *</label><input type="text" id="adm_name" required placeholder="Student's full name"></div>
+            <div class="fg"><label>Father's Name (as per AADHAR) *</label>
               <div style="position:relative">
                 <input type="text" id="adm_father" required placeholder="Father's full name" autocomplete="off" oninput="admFatherSuggest()" onfocus="admFatherSuggest()" style="width:100%">
                 <div id="adm_father_suggest" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;display:none;margin-top:4px"></div>
@@ -906,7 +906,7 @@ tbody tr:hover td{background:var(--lav-50)}
             </div>
           </div>
           <div class="form-row">
-            <div class="fg"><label>Mother's Name</label><input type="text" id="adm_mother" placeholder="Mother's full name"></div>
+            <div class="fg"><label>Mother's Name (as per AADHAR)</label><input type="text" id="adm_mother" placeholder="Mother's full name"></div>
             <div class="fg"><label>Date of Birth</label><input type="date" id="adm_dob"></div>
             <div class="fg"><label>Date of Admission</label><input type="date" id="adm_admdate"></div>
           </div>
@@ -3660,7 +3660,7 @@ async function toggleTeacher(id,active){
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
   if(!SESS)return; ldg($('studentBody'))
-  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,stream_id,section_id,students(student_id,full_name,father_name,mother_name,phone,address,dob,family_code,srn,pen,apaar_id,aadhar_no,gender,profile_updated_at,profile_updated_by),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(2000)
+  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,stream_id,section_id,students(student_id,full_name,father_name,mother_name,phone,address,dob,family_code,srn,pen,apaar_id,aadhar_no,gender,blood_group,profile_updated_at,profile_updated_by),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(2000)
   if(error){toast('Failed to load students','error');console.error('[loadStudents] error:',error);return}
   _studentsRaw=(data||[]).sort((a,b)=>{
     const x=a.students?.student_id||'', y=b.students?.student_id||''
@@ -3783,7 +3783,7 @@ async function openProfile(enrollId){
   if(s?.photo_url){$('pm_av').innerHTML='<img src="'+R2.url(s.photo_url)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'}else{$('pm_av').textContent=ini(s?.full_name||'')}; $('pm_name').textContent=s?.full_name||'Unknown'
   $('pm_class').textContent='Class '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')+(e.streams?.name?' · '+e.streams.name:'')+' · Roll '+(e.roll_no||'—')
   $('pm_tags').innerHTML='<span class="pill pill-neutral">'+esc(s?.student_id||'')+'</span><span class="pill pill-neutral">S.No '+esc(e.s_no||'—')+'</span><span class="pill '+(e.status==='active'?'pill-success':'pill-warn')+'">'+esc(e.status||'')+'</span>'
-  $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">PEN</span><span class="fv">'+esc(s?.pen||'—')+'</span></div><div class="field-row"><span class="fk">APAAR ID</span><span class="fv">'+esc(s?.apaar_id||'—')+'</span></div><div class="field-row"><span class="fk">Gender</span><span class="fv">'+esc(s?.gender||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
+  $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">PEN</span><span class="fv">'+esc(s?.pen||'—')+'</span></div><div class="field-row"><span class="fk">APAAR ID</span><span class="fv">'+esc(s?.apaar_id||'—')+'</span></div><div class="field-row"><span class="fk">Gender</span><span class="fv">'+esc(s?.gender||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
   if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a class="map-tag" href="'+esc(R2.url(d.file_url))+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_url||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button></span>').join('')+'</div>'
   else $('pm_docs').innerHTML=''
@@ -3873,8 +3873,8 @@ async function openEditDemoModal(){
     '<input type="hidden" id="ed_eid" value="'+_profileEnrollId+'">'+
     '<input type="hidden" id="ed_sid" value="'+esc(s.student_id||'')+'">'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Demographics</div>'+
-    '<div class="form-row"><div class="fg"><label>Full Name *</label><input id="ed_name" value="'+esc(s.full_name||'')+'"></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Father Name *</label><input id="ed_father" value="'+esc(s.father_name||'')+'"></div><div class="fg"><label>Mother Name</label><input id="ed_mother" value="'+esc(s.mother_name||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Student Name (as per AADHAR) *</label><input id="ed_name" value="'+esc(s.full_name||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Father\'s Name (as per AADHAR) *</label><input id="ed_father" value="'+esc(s.father_name||'')+'"></div><div class="fg"><label>Mother\'s Name (as per AADHAR)</label><input id="ed_mother" value="'+esc(s.mother_name||'')+'"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Date of Birth</label><input type="date" id="ed_dob" value="'+esc(s.dob||'')+'"></div><div class="fg"><label>Admission Date</label><input type="date" id="ed_admdate" value="'+esc(s.admission_date||'')+'"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Phone</label><input id="ed_phone" inputmode="numeric" value="'+esc(s.phone||'')+'"></div><div class="fg"><label>Alternate Phone</label><input id="ed_altphone" inputmode="numeric" value="'+esc(s.alt_phone||'')+'"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Aadhar No.</label><input id="ed_aadhar" inputmode="numeric" value="'+esc(s.aadhar_no||'')+'"></div><div class="fg"><label>Family Code</label><div style="display:flex;gap:6px"><input id="ed_family" value="'+esc(s.family_code||'')+'" style="flex:1"><button type="button" class="btn btn-ghost btn-sm" title="Generate a new, unused family code" onclick="edGenerateFamilyCode()">New</button></div></div></div>'+
@@ -4015,7 +4015,7 @@ async function saveEditDemo(){
   const eid=$('ed_eid')?.value, sid=$('ed_sid')?.value
   if(!eid||!sid){toast('No student selected','error');return}
   const name=$('ed_name')?.value?.trim(), father=$('ed_father')?.value?.trim()
-  if(!name||!father){toast('Name and Father Name are required','error');return}
+  if(!name||!father){toast('Student Name and Father\'s Name are required','error');return}
   const cid=$('ed_class')?.value, secId=$('ed_section')?.value
   if(!cid){toast('Class is required','error');return}
   if(!secId){toast('Section is required — create one for this class first','error');return}
@@ -4102,9 +4102,9 @@ async function openGPModal(eid){
   openModal('General Profile — '+esc(s.full_name||''),
     '<input type="hidden" id="gp_sid" value="'+esc(s.student_id||'')+'">'+
     '<input type="hidden" id="gp_eid" value="'+esc(eid)+'">'+
-    '<div class="form-row"><div class="fg"><label>Full Name *</label><input id="gp_name" value="'+esc(s.full_name||'')+'"></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Gender *</label><select id="gp_gender"><option value="">— Select —</option><option value="Male"'+(s.gender==='Male'?' selected':'')+'>Male</option><option value="Female"'+(s.gender==='Female'?' selected':'')+'>Female</option></select></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Father Name *</label><input id="gp_father" value="'+esc(s.father_name||'')+'"></div><div class="fg"><label>Mother Name *</label><input id="gp_mother" value="'+esc(s.mother_name||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Student Name (as per AADHAR) *</label><input id="gp_name" value="'+esc(s.full_name||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Gender *</label><select id="gp_gender"><option value="">— Select —</option><option value="Male"'+(s.gender==='Male'?' selected':'')+'>Male</option><option value="Female"'+(s.gender==='Female'?' selected':'')+'>Female</option></select></div><div class="fg"><label>Blood Group</label><select id="gp_blood"><option value="">— Select —</option>'+['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(bg=>'<option'+(s.blood_group===bg?' selected':'')+'>'+bg+'</option>').join('')+'</select></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Father\'s Name (as per AADHAR) *</label><input id="gp_father" value="'+esc(s.father_name||'')+'"></div><div class="fg"><label>Mother\'s Name (as per AADHAR) *</label><input id="gp_mother" value="'+esc(s.mother_name||'')+'"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Address *</label><input id="gp_address" value="'+esc(s.address||'')+'"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Phone *</label><input id="gp_phone" inputmode="numeric" value="'+esc(s.phone||'')+'"></div></div>'+
     (s.profile_updated_at?'<div style="font-size:11px;color:var(--ink-faint);margin-top:8px">Last updated: '+fmtDT(s.profile_updated_at)+(s.profile_updated_by?' by '+esc(s.profile_updated_by):'')+'</div>':''),
@@ -4113,9 +4113,9 @@ async function openGPModal(eid){
 async function saveGP(){
   const sid=$('gp_sid')?.value,eid=$('gp_eid')?.value
   if(!sid){toast('No student','error');return}
-  const name=$('gp_name')?.value?.trim(),gender=$('gp_gender')?.value,father=$('gp_father')?.value?.trim(),mother=$('gp_mother')?.value?.trim(),address=$('gp_address')?.value?.trim(),phone=$('gp_phone')?.value?.trim()
+  const name=$('gp_name')?.value?.trim(),gender=$('gp_gender')?.value,father=$('gp_father')?.value?.trim(),mother=$('gp_mother')?.value?.trim(),address=$('gp_address')?.value?.trim(),phone=$('gp_phone')?.value?.trim(),blood=$('gp_blood')?.value||null
   if(!name){toast('Name is required','error');return}
-  const upd={full_name:name,gender:gender||null,father_name:father||null,mother_name:mother||null,address:address||null,phone:phone||null,profile_updated_at:new Date().toISOString(),profile_updated_by:'Admin'}
+  const upd={full_name:name,gender:gender||null,blood_group:blood,father_name:father||null,mother_name:mother||null,address:address||null,phone:phone||null,profile_updated_at:new Date().toISOString(),profile_updated_by:'Admin'}
   const{error}=await sb.from('students').update(upd).eq('student_id',sid)
   if(error){toast('Save failed: '+error.message,'error');return}
   toast('General Profile saved','success');closeModal();await loadStudents()
@@ -5271,7 +5271,7 @@ async function openClassTestDetail(a){
     +'<div class="stat-card" style="min-width:100px"><span class="lbl">Average</span><span class="val">'+avg+' / '+maxM+'</span></div>'
     +'<div class="stat-card" style="min-width:100px"><span class="lbl">Pass %</span><span class="val" style="color:'+(passP>=50?'var(--success)':'var(--danger)')+'">'+passP+'%</span></div>'
     +'</div>'
-  h+='<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Roll</th><th>Name</th><th>Father</th><th style="text-align:center">Marks</th><th style="text-align:center">Status</th></tr></thead><tbody>'
+  h+='<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father's Name</th><th style="text-align:center">Marks</th><th style="text-align:center">Status</th></tr></thead><tbody>'
   enr.forEach(e=>{
     const m=mMap[e.enrollment_id]
     let marksCell,statusCell
@@ -5790,7 +5790,7 @@ function fcRenderStudents(){
   const naCount=filtered.filter(e=>{const f=fcFeeForStudent(e.enrollment_id);return f&&naMap[f.exam_fee_id+'_'+e.enrollment_id]}).length
   const effectiveCount=filtered.length-naCount
   h+='<div style="margin-bottom:10px;font-size:13px;color:var(--ink-soft)"><b>'+filtered.length+'</b> students · <span style="color:var(--success);font-weight:700">'+paidCount+' paid</span> · <span style="color:var(--danger);font-weight:700">'+(effectiveCount-paidCount)+' pending</span> · <span style="color:var(--ink-soft)">'+naCount+' not appearing</span></div>'
-  h+='<div class="table-wrap"><table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'
+  h+='<div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'
   filtered.forEach(e=>{
     const f=fcFeeForStudent(e.enrollment_id)
     if(!f)return
@@ -6120,7 +6120,7 @@ async function loadMarksTable(){
   let html='<div class="card" style="overflow-x:auto"><h3>'+esc(assess?.name||'Assessment')+' — Marks Sheet</h3>'
     +'<table class="msheet" style="min-width:800px"><thead><tr>'
     +'<th class="rollfix" style="min-width:50px">Roll</th>'
-    +'<th style="min-width:140px">Name</th>'
+    +'<th style="min-width:140px">Student Name</th>'
     +'<th style="min-width:130px">Father\'s Name</th>'
   uniqueSubs.forEach(m=>{html+='<th style="text-align:center;white-space:nowrap">'+esc(m.subjects?.name||'?')+'<br><span style="font-size:9px;font-weight:400;color:var(--ink-faint)">Max: '+subMax(m.subject_id)+'</span></th>'})
   html+='<th style="text-align:center">Total</th><th style="text-align:center">%</th></tr></thead><tbody>'
@@ -6216,7 +6216,7 @@ function renderReadmission(){
   if(!list.length){container.innerHTML='<div class="card"><div class="empty">'+(filt==='pending'?'🎉 No students are awaiting re-admission.':'No students match these filters.')+'</div></div>';action.style.display='none';return}
   const pendingCount=_readmStudents.filter(s=>s.sno==null||s.sno==='').length
   container.innerHTML='<div class="card"><h3>'+list.length+' student'+(list.length!==1?'s':'')+' shown · '+pendingCount+' awaiting re-admission</h3>'
-    +'<div class="table-wrap"><table><thead><tr><th style="width:36px">✓</th><th>Status</th><th>Student ID</th><th>Name</th><th>Father\'s Name</th><th>Class</th><th>Family</th><th>New S.No *</th></tr></thead><tbody id="readmTbody">'
+    +'<div class="table-wrap"><table><thead><tr><th style="width:36px">✓</th><th>Status</th><th>Student ID</th><th>Student Name</th><th>Father\'s Name</th><th>Class</th><th>Family</th><th>New S.No *</th></tr></thead><tbody id="readmTbody">'
     +list.map(s=>{const done=s.sno!=null&&s.sno!=='';return '<tr data-eid="'+s.enrollment_id+'">'
       +'<td><input type="checkbox" class="readm-check" data-eid="'+s.enrollment_id+'" style="width:16px;height:16px"></td>'
       +'<td>'+(done?'<span class="pill pill-success">Re-admitted</span>':'<span class="pill pill-warn">Pending</span>')+'</td>'
@@ -6639,7 +6639,7 @@ function buildMarksheetHTML(rows,rankPos,rules,forPrint){
     +'<col style="width:6%">'      // SIGN
     +'</colgroup>'
   const thead='<thead>'
-    +'<tr><th rowspan="2">R.No.</th><th rowspan="2">Name</th><th rowspan="2">Father\'s Name</th>'
+    +'<tr><th rowspan="2">R.No.</th><th rowspan="2">Student Name</th><th rowspan="2">Father\'s Name</th>'
     +d.subs.map(s=>'<th>'+esc(s.short)+'</th>').join('')
     +'<th>TOTAL</th><th rowspan="2">PER%</th><th>ATT.</th><th rowspan="2">SIGN.</th></tr>'
     +'<tr>'+d.subs.map(s=>'<th class="ms-max">'+s.max+'</th>').join('')+'<th class="ms-max">'+(rows.every(r=>r.calc.myMax===d.totalMax)?d.totalMax:'')+'</th><th class="ms-max">'+d.fullWorking+'</th></tr>'
@@ -7512,7 +7512,7 @@ async function loadClassAttendance(){
     const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
     let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
       +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was entered as monthly totals via Previous Attendance, so only Present/Absent counts are shown (day-by-day records for this month are superseded).</div>'
-      +'<table><thead><tr><th>Roll</th><th>Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">Present</th><th style="text-align:center">Absent</th></tr></thead><tbody>'
+      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">Present</th><th style="text-align:center">Absent</th></tr></thead><tbody>'
     studs.forEach(s=>{
       const m=mMap[s.enrollment_id]
       const admD=((s.is_new_admission||s.att_from_admission)&&s.students?.admission_date)?s.students.admission_date:null
@@ -7544,7 +7544,7 @@ async function loadClassAttendance(){
     +'<tr class="mrow"><th class="rollcol" colspan="'+ncols+'">'+monthName+' — Working Days: '+workingDays+(classStart&&classStart>from?'  ·  class starts '+fmtD(classStart):'')+'</th></tr>'
     +'<tr class="hrow">'
     +'<th class="rollcol" style="min-width:50px">Roll</th>'
-    +'<th style="min-width:130px">Name</th>'
+    +'<th style="min-width:130px">Student Name</th>'
     +'<th style="min-width:130px">Father\'s Name</th>'
   days.forEach(d=>{const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'})
   html+='<th style="text-align:center">P</th><th style="text-align:center">A</th><th style="text-align:center">L</th></tr></thead><tbody>'
@@ -10578,7 +10578,7 @@ _dlBuild.student_master=async function(){
       if(docs)docs.forEach(d=>aadharSet.add(d.student_id))
     }
   }
-  const hdr=['Student ID','SRN','PEN','APAAR ID','Gender','S.No','Roll','Student Name','Father Name','Mother Name','DOB','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Aadhaar Uploaded','Photo URL']
+  const hdr=['Student ID','SRN','PEN','APAAR ID','Gender','S.No','Roll','Student Name (as per AADHAR)','Father\'s Name (as per AADHAR)','Mother\'s Name (as per AADHAR)','DOB','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Aadhaar Uploaded','Photo URL']
   const rows=[_csvRow(hdr)]
   all.forEach(e=>{
     const s=e.students||{}
@@ -10600,7 +10600,7 @@ _dlBuild.contact_sheet=async function(){
     if(error)throw error;all.push(...(data||[]))
     if(!data||data.length<1000)break;from+=1000
   }
-  const hdr=['Roll','Student Name','Father Name','Mother Name','Class','Section','Phone','Alt Phone']
+  const hdr=['Roll','Student Name (as per AADHAR)','Father\'s Name (as per AADHAR)','Mother\'s Name (as per AADHAR)','Class','Section','Phone','Alt Phone']
   const rows=[_csvRow(hdr)]
   all.forEach(e=>{const s=e.students||{};rows.push(_csvRow([e.roll_no,s.full_name,s.father_name,s.mother_name,e.classes?.name,e.class_sections?.name,_csvText(s.phone),_csvText(s.alt_phone)]))})
   return rows
@@ -10623,7 +10623,7 @@ _dlBuild.family_siblings=async function(){
     if(!byFam[fc])byFam[fc]={code:fc,father:e.students?.father_name||'',phone:e.students?.phone||'',children:[]}
     byFam[fc].children.push({name:e.students?.full_name||'',cls:(e.classes?.name||'')+'–'+(e.class_sections?.name||''),roll:e.roll_no,sno:e.s_no})
   })
-  const hdr=['Family Code','Father Name','Phone','Student Name','Class-Section','Roll','S.No','Sibling Count']
+  const hdr=['Family Code','Father\'s Name (as per AADHAR)','Phone','Student Name (as per AADHAR)','Class-Section','Roll','S.No','Sibling Count']
   const rows=[_csvRow(hdr)]
   Object.values(byFam).sort((a,b)=>a.code.localeCompare(b.code)).forEach(f=>{
     f.children.forEach(c=>{rows.push(_csvRow([f.code,f.father,_csvText(f.phone),c.name,c.cls,c.roll,c.sno,f.children.length]))})
@@ -10721,7 +10721,7 @@ _dlBuild.outstanding_dues=async function(){
   const now=new Date(),curMonth=now.getMonth()
   const tuitionMonths=curMonth>=3?curMonth-3+1:curMonth+9+1
 
-  const hdr=['S.No','Roll','Student Name','Father Name','Family Code','Class','Section','Phone','Tuition Due ('+tuitionMonths+'m)','Annual Due','Prev Balance','Waiver','Total Paid','Grand Total Due']
+  const hdr=['S.No','Roll','Student Name (as per AADHAR)','Father\'s Name (as per AADHAR)','Family Code','Class','Section','Phone','Tuition Due ('+tuitionMonths+'m)','Annual Due','Prev Balance','Waiver','Total Paid','Grand Total Due']
   const rows=[_csvRow(hdr)]
   studs.forEach(e=>{
     const s=e.students||{},f=fm[e.class_id]?.[e.stream_id||'_']||fm[e.class_id]?.['_']||{tuit:0,ann:0,sib:0}
@@ -10829,7 +10829,7 @@ _dlBuild.marks=async function(){
   }
   const mMap={};marks.forEach(m=>{if(!mMap[m.enrollment_id])mMap[m.enrollment_id]={};mMap[m.enrollment_id][m.subject_id]=m})
   const fullMax=subs.reduce((t,m)=>t+subMax(m.subject_id),0)
-  const hdr=['Roll','Student Name','Father Name','Class','Section',...subs.map(m=>(m.subjects?.name||'?')+' (Max:'+subMax(m.subject_id)+')'),'Total','Max Total','%']
+  const hdr=['Roll','Student Name (as per AADHAR)','Father\'s Name (as per AADHAR)','Class','Section',...subs.map(m=>(m.subjects?.name||'?')+' (Max:'+subMax(m.subject_id)+')'),'Total','Max Total','%']
   const rows=[_csvRow(hdr)]
   studs.forEach(e=>{
     const sm=mMap[e.enrollment_id]||{}
@@ -13630,7 +13630,7 @@ async function idcLoadStudents(){
   window._idcStudents=data
   wrap.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;color:var(--ink-soft)">'+data.length+' students</span><label style="font-size:12px;cursor:pointer"><input type="checkbox" id="idcSelAll" checked onchange="idcToggleAll(this.checked)" style="accent-color:var(--indigo)"> Select All</label></div>'+
     '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">'+
-    '<table class="tbl"><thead><tr><th style="width:40px"></th><th>Roll</th><th>Name</th><th>Father</th><th>Class</th></tr></thead><tbody>'+
+    '<table class="tbl"><thead><tr><th style="width:40px"></th><th>Roll</th><th>Student Name</th><th>Father's Name</th><th>Class</th></tr></thead><tbody>'+
     data.map((s,i)=>'<tr><td><input type="checkbox" class="idc_stu_chk" data-idx="'+i+'" checked style="accent-color:var(--indigo)"></td><td>'+esc(s.roll_no||'—')+'</td><td>'+esc(s.students?.full_name||'—')+'</td><td>'+esc(s.students?.father_name||'—')+'</td><td>'+esc((s.classes?.name||'')+(s.class_sections?.name?' '+s.class_sections.name:''))+'</td></tr>').join('')+
     '</tbody></table></div>'
   $('idcGenActions').style.display='flex'
