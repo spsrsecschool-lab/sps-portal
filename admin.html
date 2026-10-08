@@ -10571,18 +10571,24 @@ _dlBuild.student_master=async function(){
     if(all.length>=50000){toast('Capped at 50k rows','error');break}
   }
   const sIds=all.map(e=>e.students?.student_id).filter(Boolean)
-  const aadharSet=new Set()
+  const aadharSet=new Set(),birthCertSet=new Set(),familyIdSet=new Set()
   if(sIds.length){
     for(let i=0;i<sIds.length;i+=500){
-      const{data:docs}=await sb.from('student_documents').select('student_id').in('student_id',sIds.slice(i,i+500)).ilike('file_type','%adhar%')
-      if(docs)docs.forEach(d=>aadharSet.add(d.student_id))
+      const batch=sIds.slice(i,i+500)
+      const{data:docs}=await sb.from('student_documents').select('student_id,file_type').in('student_id',batch)
+      if(docs)docs.forEach(d=>{
+        const ft=(d.file_type||'').toLowerCase()
+        if(/adhar/i.test(ft))aadharSet.add(d.student_id)
+        if(/birth/i.test(ft))birthCertSet.add(d.student_id)
+        if(/family/i.test(ft))familyIdSet.add(d.student_id)
+      })
     }
   }
-  const hdr=['Student ID','SRN','PEN','APAAR ID','Gender','S.No','Roll','Student Name (as per AADHAR)','Father\'s Name (as per AADHAR)','Mother\'s Name (as per AADHAR)','DOB','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Aadhaar Uploaded','Photo URL']
+  const hdr=['Student ID','SRN','PEN','APAAR ID','Gender','S.No','Roll','Student Name (as per AADHAR)','Father\'s Name (as per AADHAR)','Mother\'s Name (as per AADHAR)','DOB','Class','Section','Stream','Phone','Alt Phone','Address','Admission Date','Family Code','Status','Relieved','Relieved Date','New Admission','Readmission Date','Tuition Override','Annual Override','Aadhaar','Aadhaar Uploaded','Birth Certificate Uploaded','Family ID Uploaded','Photo URL']
   const rows=[_csvRow(hdr)]
   all.forEach(e=>{
     const s=e.students||{}
-    rows.push(_csvRow([s.student_id,_csvText(s.srn),_csvText(s.pen),_csvText(s.apaar_id),s.gender,e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,e.classes?.name,e.class_sections?.name,e.streams?.name,_csvText(s.phone),_csvText(s.alt_phone),s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,_csvText(s.aadhar_no),aadharSet.has(s.student_id)?'Yes':'No',s.photo_url]))
+    rows.push(_csvRow([s.student_id,_csvText(s.srn),_csvText(s.pen),_csvText(s.apaar_id),s.gender,e.s_no,e.roll_no,s.full_name,s.father_name,s.mother_name,s.dob,e.classes?.name,e.class_sections?.name,e.streams?.name,_csvText(s.phone),_csvText(s.alt_phone),s.address,s.admission_date,s.family_code,e.status,e.relieved?'Yes':'No',e.relieved_date,e.is_new_admission?'Yes':'No',e.readmission_date,e.tuition_override,e.annual_override,_csvText(s.aadhar_no),aadharSet.has(s.student_id)?'Yes':'No',birthCertSet.has(s.student_id)?'Yes':'No',familyIdSet.has(s.student_id)?'Yes':'No',s.photo_url]))
   })
   return rows
 }
