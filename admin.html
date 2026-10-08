@@ -4193,7 +4193,7 @@ function openUploadDocModal(){
   _docPicked=null
   openModal('Upload Document',
     '<div style="background:var(--warn-soft);border-radius:var(--radius-sm);padding:11px;font-size:12px;margin-bottom:14px">Files are stored in Cloudflare R2. Ensure R2 is configured in config.js.</div>'
-    +'<div class="form-row"><div class="fg"><label>Document Type</label><select id="doc_type" onchange="_docPicked=null;refreshDocPick()"><option>Aadhar Card</option><option>Birth Certificate</option><option>Transfer Certificate</option><option>Other</option></select></div></div>'
+    +'<div class="form-row"><div class="fg"><label>Document Type</label><select id="doc_type" onchange="_docPicked=null;refreshDocPick()"><option>Aadhar Card</option><option>Birth Certificate</option><option>Family ID</option><option>Transfer Certificate</option><option>Other</option></select></div></div>'
     +'<div class="form-row"><div class="fg"><label>File</label><button type="button" class="btn btn-ghost" style="justify-content:flex-start" onclick="pickDocFile()"><svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span id="docPickLabel">Select / Capture</span></button></div></div>'
     +'<div id="docPickInfo" style="font-size:12px;color:var(--ink-faint);margin-top:-6px"></div>',
     '<button class="btn btn-dark" onclick="uploadDoc()">Upload</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
