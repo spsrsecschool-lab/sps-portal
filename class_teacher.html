@@ -302,6 +302,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Exam Fee Collection
     </div>
+    <div class="sb-item" onclick="goTo('miscfees',this)">
+      <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+      Misc Fee Collection
+    </div>
   </div>
   <div class="sb-foot">
     <button class="sb-switch-btn" onclick="window.location.replace('teacher.html')">
@@ -519,6 +523,18 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <div id="examFeesWrap"></div>
     </div>
 
+    <!-- MISC FEE COLLECTION -->
+    <div class="page" id="page-miscfees">
+      <div class="page-head"><div><h2>Misc Fee Collection</h2><p>Collect misc fees unlocked by admin for your class</p></div></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="form-row" style="margin-bottom:0">
+          <div class="fg"><label>Fee</label><select id="mf_select"><option value="">Select fee</option></select></div>
+          <button class="btn btn-soft" onclick="loadMiscFeesList()">Load</button>
+        </div>
+      </div>
+      <div id="miscFeesWrap"></div>
+    </div>
+
   </div>
 </div>
 <!-- UPLOAD OVERLAY -->
@@ -584,7 +600,7 @@ let _duesDebounce=null  // debounce for live dues repaint
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _currentTab='dashboard'   // which tab is open, so class-switch can refresh it
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection'}
+const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection',miscfees:'Misc Fee Collection'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -681,6 +697,7 @@ function goTo(id,el,_fromPop){
   if(id==='assessmarks')loadAssessDropdown()
   if(id==='dues')loadDues()
   if(id==='examfees')loadExamFeeDropdown()
+  if(id==='miscfees')loadMiscFeeDropdown()
   if(id==='halfday')loadHalfDayRecords()
 }
 history.replaceState({pg:'dashboard'},'')
@@ -845,6 +862,7 @@ async function refreshCurrentTab(){
     case 'assessmarks': await loadAssessDropdown();  break
     case 'dues':        await loadDues();            break
     case 'examfees':    await loadExamFeeDropdown(); break
+    case 'miscfees':    await loadMiscFeeDropdown(); break
     case 'halfday':     await loadHalfDayRecords();  break
   }
 }
@@ -2443,8 +2461,8 @@ async function loadAssessDropdown(){
   const ids=(ac||[]).map(r=>r.assessment_id)
   if(!ids.length){sel.innerHTML='<option value="">No assessments linked to your class</option>';return}
   const{data:assessments}=await sb.from('assessments').select('*').in('assessment_id',ids).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  ALL_ASSESSMENTS=assessments||[]
-  sel.innerHTML='<option value="">Select assessment</option>'+assessments.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
+  ALL_ASSESSMENTS=(assessments||[]).filter(a=>!a.is_fee_only)
+  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
 }
 
 async function loadAssessMarks(){
@@ -2891,6 +2909,61 @@ async function toggleNotAppearing(enrollmentId, feeId, mark){
   if(error){toast('Failed: '+error.message,'error');return}
   toast(mark?'Marked as not appearing':'Unmarked','success')
   loadExamFees()
+}
+
+// ═══════════ MISC FEE COLLECTION ═══════════
+async function loadMiscFeeDropdown(){
+  const sel=$('mf_select')
+  if(!sel)return
+  sel.innerHTML='<option value="">Loading…</option>'
+  const{data}=await sb.from('misc_fees').select('*').eq('class_id',MY_CLASS.class_id).eq('is_collection_unlocked',true)
+  const fees=data||[]
+  if(!fees.length){sel.innerHTML='<option value="">No misc fees unlocked for your class</option>';return}
+  sel.innerHTML='<option value="">Select fee</option>'+fees.map(f=>'<option value="'+f.misc_fee_id+'">'+esc(f.name)+'  (₹'+f.amount+')</option>').join('')
+}
+async function loadMiscFeesList(){
+  const feeId=$('mf_select')?.value,el=$('miscFeesWrap')
+  if(!feeId){el.innerHTML='';return}
+  ldg(el,'Loading…')
+  const{data:feeRow}=await sb.from('misc_fees').select('*').eq('misc_fee_id',feeId).maybeSingle()
+  if(!feeRow){emp(el,'Fee record not found.');return}
+  const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  const{data:payments}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId).in('enrollment_id',eids)
+  const paidMap={};(payments||[]).forEach(p=>{paidMap[p.enrollment_id]=p})
+  const totalCollected=(payments||[]).filter(p=>p.is_paid).length
+  const amount=feeRow.amount||0
+  let html='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(3,1fr)">'
+    +'<div class="stat-card"><span class="lbl">Fee Amount</span><span class="val">₹'+amount+'</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--success)">Paid</span><span class="val" style="color:var(--success)">'+totalCollected+'</span><span class="sub">₹'+(totalCollected*amount)+' collected</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+(CLASS_STUDENTS.length-totalCollected)+'</span></div>'
+    +'</div>'
+  html+='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Status</th><th>Action</th></tr></thead><tbody>'
+  CLASS_STUDENTS.forEach(s=>{
+    const p=paidMap[s.enrollment_id]
+    const paidByAdmin=p?.is_paid&&p?.collected_by_type==='admin'
+    const paidByTeacher=p?.is_paid&&p?.collected_by_type==='teacher'
+    let statusCell,actionCell
+    if(paidByAdmin){statusCell='<span class="pill pill-neutral">Paid via Admin</span>';actionCell='<span style="font-size:11.5px;color:var(--ink-faint)">Admin collected</span>'}
+    else if(paidByTeacher){statusCell='<span class="pill pill-success">Collected ✓</span>';actionCell='<button class="btn btn-ghost btn-xs" onclick="toggleMiscFeePayment(\''+s.enrollment_id+'\',\''+feeId+'\',false)">Undo</button>'}
+    else{statusCell='<span class="pill pill-danger">Pending</span>';actionCell='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="toggleMiscFeePayment(\''+s.enrollment_id+'\',\''+feeId+'\',true)">Mark Paid</button>'}
+    html+='<tr><td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td><td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td><td>'+esc(s.students?.father_name||'—')+'</td><td>'+statusCell+'</td><td>'+actionCell+'</td></tr>'
+  })
+  html+='</tbody></table></div></div>'
+  el.innerHTML=html
+}
+async function toggleMiscFeePayment(enrollmentId,feeId,markPaid){
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,
+    collected_by_type:'teacher',collected_by_id:TEACHER.teacher_id,
+    paid_at:markPaid?new Date().toISOString():null
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(markPaid?'Marked as paid ✓':'Marked as unpaid','success')
+  if(markPaid){
+    const stu=(CLASS_STUDENTS||[]).find(s=>s.enrollment_id===enrollmentId)
+    logActivity('misc_fee_collected',TEACHER.full_name+' collected misc fee for '+(stu?.students?.full_name||'a student')+' ('+myClassLabel()+')')
+  }
+  loadMiscFeesList()
 }
 
 async function logout(){

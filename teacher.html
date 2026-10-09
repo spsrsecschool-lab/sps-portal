@@ -2409,7 +2409,7 @@ async function meInitAssessments(){
   let adminList=[]
   if(adminIds.length){
     const{data}=await sb.from('assessments').select('*').in('assessment_id',adminIds).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-    adminList=data||[]
+    adminList=(data||[]).filter(a=>!a.is_fee_only)
   }
   // Teacher's own tests
   const{data:myTests}=await sb.from('assessments').select('*').in('class_id',classIds).eq('session_id',SESS?.session_id||'').eq('created_by_teacher_id',TEACHER.teacher_id).order('commencement_date',{nullsFirst:false})

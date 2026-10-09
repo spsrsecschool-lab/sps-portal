@@ -1042,7 +1042,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="sub-page active" id="sub-assess-list">
         <div class="page-head">
           <div><h2>Assessments &amp; Exam Fees</h2><p>Click any card to configure dates, marks lock, exam fees and submission status</p></div>
-          <button class="btn btn-dark" onclick="openAddAssessmentModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Assessment</button>
+          <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="openAddSpecialFeeModal()">Create Special Fee</button><button class="btn btn-dark" onclick="openAddAssessmentModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Assessment</button></div>
         </div>
         <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--line)">
           <button class="btn btn-ghost" id="assessTabOfficial" onclick="switchAssessTab('official')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;border-bottom:2px solid var(--indigo);font-weight:700;color:var(--indigo);margin-bottom:-2px">Official Assessments</button>
@@ -1845,14 +1845,17 @@ tbody tr:hover td{background:var(--lav-50)}
 
     <!-- MISC FEES -->
     <div class="page" id="page-miscfees">
-      <div class="page-head">
-        <div><h2>Misc Fees</h2><p>Create one-off fees (Practical, Trip, etc.) and unlock for class teacher collection</p></div>
-        <button class="btn btn-dark" onclick="openAddMiscFeeModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Fee</button>
+      <div id="miscFeeListView">
+        <div class="page-head">
+          <div><h2>Misc Fees</h2><p>Create one-off fees (Practical, Trip, etc.) and unlock for class teacher collection</p></div>
+          <button class="btn btn-dark" onclick="openAddMiscFeeModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Fee</button>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>Amount</th><th>Breakdown</th><th>Status</th><th>Collection</th><th>Created</th><th></th></tr></thead>
+          <tbody id="miscFeeBody"><tr><td colspan="9"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+        </table></div></div>
       </div>
-      <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>Amount</th><th>Collection</th><th>Created</th><th></th></tr></thead>
-        <tbody id="miscFeeBody"><tr><td colspan="7"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
-      </table></div></div>
+      <div id="miscFeeDetailView" style="display:none"></div>
     </div>
 
     <!-- SCHOOL TIMETABLE -->
@@ -5158,13 +5161,14 @@ async function updateMapping(){
 
 // ═══════════ ASSESSMENTS ═══════════
 let _assessTab='official'
-let _assessOfficial=[], _assessTeacher=[], _assessClsByA={}
+let _assessOfficial=[], _assessFeeOnly=[], _assessTeacher=[], _assessClsByA={}
 async function loadAssessments(){
   const el=$('assessGrid');ldg(el)
   if(!SESS){emp(el,'No active session');return}
   const{data:asmts,error}=await sb.from('assessments').select('*,exam_fees(*),classes(name),subjects(name)').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
   if(error){emp(el,'Failed to load: '+error.message);return}
-  _assessOfficial=(asmts||[]).filter(a=>!a.created_by_teacher_id)
+  _assessOfficial=(asmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
+  _assessFeeOnly=(asmts||[]).filter(a=>a.is_fee_only)
   _assessTeacher=(asmts||[]).filter(a=>!!a.created_by_teacher_id)
   // Fetch teacher names for teacher-created tests
   const tchIds=[...new Set(_assessTeacher.map(a=>a.created_by_teacher_id).filter(Boolean))]
@@ -5173,7 +5177,7 @@ async function loadAssessments(){
     const tMap={};(tRows||[]).forEach(t=>{tMap[t.teacher_id]=t.full_name})
     _assessTeacher.forEach(a=>{a._teacherName=tMap[a.created_by_teacher_id]||'Unknown'})
   }
-  const officialIds=_assessOfficial.map(a=>a.assessment_id)
+  const officialIds=[..._assessOfficial,..._assessFeeOnly].map(a=>a.assessment_id)
   const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,classes(name)').in('assessment_id',officialIds):{data:[]}
   _assessClsByA={};(acRows||[]).forEach(r=>{if(!_assessClsByA[r.assessment_id])_assessClsByA[r.assessment_id]=[];if(r.classes?.name)_assessClsByA[r.assessment_id].push(r.classes.name)})
   window._assessMap={};(asmts||[]).forEach(a=>{window._assessMap[a.assessment_id]=a})
@@ -5205,14 +5209,24 @@ function switchAssessTab(tab){
 }
 function renderOfficialAssessments(){
   const el=$('assessGrid')
-  if(!_assessOfficial.length){emp(el,'No official assessments yet.');el.className='assess-grid';return}
+  if(!_assessOfficial.length&&!_assessFeeOnly.length){emp(el,'No official assessments yet.');el.className='assess-grid';return}
   el.className='assess-grid'
-  el.innerHTML=_assessOfficial.map(a=>{
+  let html=''
+  if(_assessFeeOnly.length){
+    html+=_assessFeeOnly.map(a=>{
+      const cn=(_assessClsByA[a.assessment_id]||[]).join(', ')||'No classes linked'
+      const fees=a.exam_fees||[]
+      const totalAmt=fees.reduce((s,f)=>s+Number(f.amount||0),0)
+      return '<div class="assess-card" style="border-left:3px solid var(--indigo)" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4><span class="pill pill-indigo">Special Fee</span></div><div class="meta" style="font-size:11px">'+esc(cn)+'</div>'+(totalAmt?'<div class="arow"><span>Total Amount</span><span>₹'+totalAmt+'</span></div>':'')+(fees.length?'<div class="arow"><span>Fee Rows</span><span>'+fees.length+'</span></div>':'')+'</div>'
+    }).join('')
+  }
+  html+=_assessOfficial.map(a=>{
     const pill=a.is_marks_unlocked?'<span class="pill pill-success">Marks Open</span>':(a.commencement_date&&a.commencement_date<today()?'<span class="pill pill-neutral">Closed</span>':'<span class="pill pill-warn">Scheduled</span>')
     const cn=(_assessClsByA[a.assessment_id]||[]).join(', ')||'No classes linked'
     const fees=a.exam_fees||[]
     return '<div class="assess-card" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4>'+pill+'</div><div class="meta" style="font-size:11px">'+esc(cn)+'</div><div class="arow"><span>Start</span><span>'+(fmtD(a.commencement_date)||'TBD')+'</span></div><div class="arow"><span>End</span><span>'+(a.end_date?fmtD(a.end_date):(fmtD(a.commencement_date)||'—'))+'</span></div><div class="arow"><span>Deadline</span><span>'+(a.submission_deadline?fmtD(a.submission_deadline.slice(0,10)):'—')+'</span></div>'+(fees.length?'<div class="arow"><span>Exam Fee</span><span>'+fees.map(f=>{const p=parseEFGroup(f.class_group);const lbl=p.label?p.label+' ':'';return lbl+'₹'+f.amount}).join(', ')+'</span></div>':'')+'</div>'
   }).join('')
+  el.innerHTML=html
 }
 function renderTeacherTests(){
   const el=$('assessGrid')
@@ -5233,6 +5247,7 @@ let _currentAssess=null
 function openAssessEdit(a){
   _currentAssess=a;openSub('assessments','sub-assess-edit')
   if(a.created_by_teacher_id){openClassTestDetail(a);return}
+  if(a.is_fee_only){openSpecialFeeDetail(a);return}
   $('assessEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+esc(a._classNames||'—')+' · '+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div><div class="grid-3" style="margin-top:4px"><div class="assess-card" onclick="openAssessSettings()" style="cursor:pointer"><div class="top"><h4>Assessment Settings</h4></div><div class="meta">Name, dates, deadline & marks unlock</div><div class="arow"><span>Marks Entry</span><span>'+(a.is_marks_unlocked?'<span class="pill pill-success">Unlocked</span>':'<span class="pill pill-neutral">Locked</span>')+'</span></div></div><div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Exam Fees</h4></div><div class="meta">Per class-group amounts & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(a.exam_fees?.length||0)+'</span></div></div><div class="assess-card" onclick="openSubmissionStatus()" style="cursor:pointer"><div class="top"><h4>Marks Submission Status</h4></div><div class="meta">Who submitted, who is pending</div><div class="arow"><span>View</span><span>→</span></div></div><div class="assess-card" onclick="openMarkOverrides()" style="cursor:pointer"><div class="top"><h4>Max Marks Overrides</h4></div><div class="meta">Custom max/pass for a subject in a class</div><div class="arow"><span>Default</span><span>Max '+(a.max_marks||100)+' · Pass '+(a.pass_marks||33)+'</span></div></div><div class="assess-card" onclick="openSubjectCoverage()" style="cursor:pointer"><div class="top"><h4>Subject Coverage</h4></div><div class="meta">Choose which subjects each class covers</div><div class="arow"><span>Configure</span><span>→</span></div></div><div class="assess-card" onclick="openMarksAllotment()" style="cursor:pointer"><div class="top"><h4>Marks Allotment</h4></div><div class="meta">Max marks, pass marks & components per subject</div><div class="arow"><span>Configure</span><span>→</span></div></div><div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes for this assessment</div><div class="arow"><span>Linked</span><span>'+esc(a._classNames||'—')+'</span></div></div>'+(a.exam_fees?.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')+'</div>'
 }
 async function openClassTestDetail(a){
@@ -5588,6 +5603,122 @@ function openExamFees(){
     +ef.map(f=>{const p=parseEFGroup(f.class_group);return efRenderRow(f.exam_fee_id,p,f.amount,f.is_collection_unlocked,a.assessment_id,false)}).join('')
     +'</div><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="addEFRow(\''+a.assessment_id+'\')">+ Add Fee Row</button></div>'
 }
+
+// ═══════════ SPECIAL FEE (FEE-ONLY ASSESSMENT) ═══════════
+function openAddSpecialFeeModal(){
+  const clsChecks=ALL_CLASSES.filter(c=>c.is_active).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:4px 0;cursor:pointer"><input type="checkbox" value="'+c.class_id+'" class="sf_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(c.name)+'</span></label>').join('')
+  openModal('Create Special Fee',
+    '<div style="background:var(--indigo-100);border-radius:var(--radius-sm);padding:11px;font-size:12px;margin-bottom:14px;color:var(--indigo-dark)">This creates a fee that teachers can collect without a real assessment. Useful for enrollment fees that bundle future exam fees.</div>'
+    +'<div class="form-row"><div class="fg"><label>Fee Name *</label><input id="sf_name" placeholder="e.g. Enrollment Fees 2025-26"></div></div>'
+    +'<div class="fg" style="margin-bottom:14px"><label>Applicable Classes *</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:180px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 24px">'+clsChecks+'</div></div>'
+    +'<div class="fg" style="margin-bottom:14px"><label>Fee Bifurcation (admin-only breakdown)</label>'
+    +'<div id="sfBifRows" style="margin-top:6px"></div>'
+    +'<button type="button" class="btn btn-ghost btn-xs" onclick="sfAddBifRow()" style="margin-top:4px">+ Add Line Item</button></div>'
+    +'<div class="form-row"><div class="fg"><label>Total Amount (auto-calculated)</label><input id="sf_total" readonly style="font-weight:700;background:var(--lav-50)"></div></div>',
+    '<button class="btn btn-dark" onclick="createSpecialFee()">Create Special Fee</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>',true)
+  sfAddBifRow();sfAddBifRow()
+}
+let _sfBifCount=0
+function sfAddBifRow(){
+  const i=_sfBifCount++
+  const row=document.createElement('div')
+  row.className='form-row'
+  row.style.marginBottom='6px'
+  row.id='sfbif_'+i
+  row.innerHTML='<div class="fg" style="flex:2"><input id="sfbl_'+i+'" placeholder="e.g. December Exam Fee" style="font-size:12px"></div><div class="fg" style="flex:1"><input type="number" inputmode="decimal" id="sfba_'+i+'" placeholder="₹ Amount" style="font-size:12px" oninput="sfCalcTotal()"></div><div style="display:flex;align-items:center"><button type="button" class="btn btn-ghost btn-xs" onclick="document.getElementById(\'sfbif_'+i+'\').remove();sfCalcTotal()" style="color:var(--danger)">×</button></div>'
+  $('sfBifRows').appendChild(row)
+}
+function sfCalcTotal(){
+  let total=0
+  document.querySelectorAll('[id^="sfba_"]').forEach(el=>{total+=Number(el.value)||0})
+  if($('sf_total'))$('sf_total').value=total?'₹ '+total:''
+}
+async function createSpecialFee(){
+  const name=$('sf_name')?.value?.trim()
+  const selectedClasses=[...document.querySelectorAll('.sf_cls_chk:checked')].map(el=>el.value)
+  if(!name){toast('Name required','error');return}
+  if(!selectedClasses.length){toast('Select at least one class','error');return}
+  const bifurcation=[]
+  document.querySelectorAll('[id^="sfbl_"]').forEach(el=>{
+    const idx=el.id.replace('sfbl_','')
+    const label=el.value?.trim()
+    const amount=Number($('sfba_'+idx)?.value)||0
+    if(label&&amount>0)bifurcation.push({label,amount})
+  })
+  const totalAmount=bifurcation.reduce((s,b)=>s+b.amount,0)
+  if(!totalAmount){toast('Add at least one line item with an amount','error');return}
+  const{data:asmtData,error}=await sb.from('assessments').insert({name,session_id:SESS.session_id,is_fee_only:true,fee_breakdown:bifurcation,is_marks_unlocked:false,max_marks:0,pass_marks:0}).select().single()
+  if(error){toast('Failed: '+error.message,'error');return}
+  const aid=asmtData.assessment_id
+  const{error:je}=await sb.from('assessment_classes').insert(selectedClasses.map(class_id=>({assessment_id:aid,class_id})))
+  if(je){toast('Created but class linking failed: '+je.message,'error');return}
+  const classGroup=JSON.stringify({label:name,class_ids:selectedClasses,from:selectedClasses[0]||'',to:selectedClasses[selectedClasses.length-1]||''})
+  const{error:fe}=await sb.from('exam_fees').insert({assessment_id:aid,class_group:classGroup,amount:totalAmount,is_collection_unlocked:true})
+  if(fe){toast('Created but fee row failed: '+fe.message,'error');return}
+  toast('Special fee "'+name+'" created — ₹'+totalAmount+' for '+selectedClasses.length+' class(es)','success')
+  closeModal();loadAssessments()
+}
+
+function openSpecialFeeDetail(a){
+  const el=$('assessEditContent')
+  const cn=a._classNames||'—'
+  const fees=a.exam_fees||[]
+  const totalAmt=fees.reduce((s,f)=>s+Number(f.amount||0),0)
+  const bif=a.fee_breakdown||[]
+  let bifHtml=''
+  if(bif.length){
+    bifHtml='<div class="card" style="max-width:500px;margin-bottom:16px"><h3 style="margin-top:0;font-size:14px">Fee Bifurcation <span style="font-size:11px;color:var(--ink-faint);font-weight:400">(admin only — teachers see total only)</span></h3>'
+      +'<table style="width:100%"><tbody>'
+      +bif.map(b=>'<tr><td style="padding:6px 0;font-size:13px">'+esc(b.label)+'</td><td style="padding:6px 0;text-align:right;font-weight:700;font-size:13px;font-family:var(--mono)">₹'+b.amount+'</td></tr>').join('')
+      +'<tr style="border-top:2px solid var(--line)"><td style="padding:8px 0;font-weight:800;font-size:13px">Total</td><td style="padding:8px 0;text-align:right;font-weight:800;font-size:14px;font-family:var(--mono);color:var(--indigo)">₹'+totalAmt+'</td></tr>'
+      +'</tbody></table>'
+      +'<button class="btn btn-ghost btn-xs" style="margin-top:8px" onclick="editSpecialFeeBif(\''+a.assessment_id+'\')">Edit Bifurcation</button></div>'
+  }
+  el.innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p><span class="pill pill-indigo" style="font-size:11px">Special Fee</span> '+esc(cn)+'</p></div><button class="btn btn-danger btn-sm" onclick="deleteAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Delete</button></div>'
+    +bifHtml
+    +'<div class="grid-3" style="margin-top:4px">'
+    +'<div class="assess-card" onclick="openExamFees()" style="cursor:pointer"><div class="top"><h4>Fee Settings</h4></div><div class="meta">Amount, class groups & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(fees.length||0)+'</span></div></div>'
+    +'<div class="assess-card" onclick="openAssessClasses()" style="cursor:pointer"><div class="top"><h4>Classes</h4></div><div class="meta">Add or remove classes</div><div class="arow"><span>Linked</span><span>'+esc(cn)+'</span></div></div>'
+    +(fees.length?'<div class="assess-card" onclick="openFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status</div><div class="arow"><span>View</span><span>→</span></div></div>':'')
+    +'</div>'
+}
+
+async function editSpecialFeeBif(assessId){
+  const{data:a}=await sb.from('assessments').select('fee_breakdown').eq('assessment_id',assessId).maybeSingle()
+  const bif=a?.fee_breakdown||[]
+  _sfBifCount=0
+  let rowsHtml=''
+  bif.forEach((b,i)=>{
+    const idx=_sfBifCount++
+    rowsHtml+='<div class="form-row" style="margin-bottom:6px" id="sfbif_'+idx+'"><div class="fg" style="flex:2"><input id="sfbl_'+idx+'" value="'+esc(b.label)+'" style="font-size:12px"></div><div class="fg" style="flex:1"><input type="number" inputmode="decimal" id="sfba_'+idx+'" value="'+b.amount+'" style="font-size:12px" oninput="sfCalcTotal()"></div><div style="display:flex;align-items:center"><button type="button" class="btn btn-ghost btn-xs" onclick="document.getElementById(\'sfbif_'+idx+'\').remove();sfCalcTotal()" style="color:var(--danger)">×</button></div></div>'
+  })
+  openModal('Edit Fee Bifurcation',
+    '<div id="sfBifRows">'+rowsHtml+'</div>'
+    +'<button type="button" class="btn btn-ghost btn-xs" onclick="sfAddBifRow()" style="margin-top:4px">+ Add Line Item</button>'
+    +'<div class="form-row" style="margin-top:12px"><div class="fg"><label>Total Amount</label><input id="sf_total" readonly style="font-weight:700;background:var(--lav-50)"></div></div>',
+    '<button class="btn btn-dark" onclick="saveSpecialFeeBif(\''+assessId+'\')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+  sfCalcTotal()
+}
+
+async function saveSpecialFeeBif(assessId){
+  const bifurcation=[]
+  document.querySelectorAll('[id^="sfbl_"]').forEach(el=>{
+    const idx=el.id.replace('sfbl_','')
+    const label=el.value?.trim()
+    const amount=Number($('sfba_'+idx)?.value)||0
+    if(label&&amount>0)bifurcation.push({label,amount})
+  })
+  const totalAmount=bifurcation.reduce((s,b)=>s+b.amount,0)
+  const{error}=await sb.from('assessments').update({fee_breakdown:bifurcation}).eq('assessment_id',assessId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const{data:efRows}=await sb.from('exam_fees').select('exam_fee_id').eq('assessment_id',assessId)
+  if(efRows?.length===1){
+    await sb.from('exam_fees').update({amount:totalAmount}).eq('exam_fee_id',efRows[0].exam_fee_id)
+  }
+  toast('Bifurcation saved — total ₹'+totalAmount,'success')
+  closeModal();loadAssessments()
+}
+
 async function openSubmissionStatus(){
   if(!_currentAssess)return;const a=_currentAssess
   openSub('assessments','sub-assess-status');const el=$('assessStatusContent')
@@ -6003,30 +6134,137 @@ async function deleteEF(fid){confirmAct('Remove this fee?','',async()=>{
 // ═══════════ MISC FEES ═══════════
 async function loadMiscFees(){
   const el=$('miscFeeBody');ldg(el)
-  if(!SESS){el.innerHTML='<tr><td colspan="7"><div class="empty-state"><p>No active session.</p></div></td></tr>';return}
+  $('miscFeeListView').style.display='';$('miscFeeDetailView').style.display='none'
+  if(!SESS){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No active session.</p></div></td></tr>';return}
   const{data,error}=await sb.from('misc_fees').select('*,classes(name),class_sections(name)').eq('session_id',SESS.session_id).order('created_at',{ascending:false})
-  if(error){el.innerHTML='<tr><td colspan="7"><p style="padding:16px;color:var(--danger)">'+esc(error.message)+'</p></td></tr>';return}
-  if(!data?.length){el.innerHTML='<tr><td colspan="7"><div class="empty-state"><p>No misc fees yet.</p></div></td></tr>';return}
-  el.innerHTML=data.map(f=>'<tr><td style="font-weight:700">'+esc(f.name)+'</td><td>'+esc(f.classes?.name||'—')+'</td><td>'+esc(f.class_sections?.name||'All sections')+'</td><td class="mono">₹'+f.amount+'</td><td><div class="switch '+(f.is_collection_unlocked?'on':'')+'" onclick="toggleMiscFee(\''+f.misc_fee_id+'\','+f.is_collection_unlocked+')"></div></td><td class="mono" style="font-size:11px">'+fmtD(f.created_at?.slice(0,10))+'</td><td><button class="btn btn-danger btn-xs" onclick="deleteMiscFee(\''+f.misc_fee_id+'\',\''+esc(f.name)+'\')">Delete</button></td></tr>').join('')
+  if(error){el.innerHTML='<tr><td colspan="9"><p style="padding:16px;color:var(--danger)">'+esc(error.message)+'</p></td></tr>';return}
+  if(!data?.length){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No misc fees yet.</p></div></td></tr>';return}
+  el.innerHTML=data.map(f=>{
+    const bd=f.fee_breakdown
+    const hasBD=Array.isArray(bd)&&bd.length>0
+    const bdCell=hasBD?'<a href="#" style="font-size:11.5px;color:var(--indigo);text-decoration:underline" onclick="event.preventDefault();viewMiscFeeBreakdown(\''+f.misc_fee_id+'\')">View ('+bd.length+' items)</a>':'<span style="font-size:11.5px;color:var(--ink-faint)">—</span>'
+    return '<tr><td style="font-weight:700">'+esc(f.name)+'</td><td>'+esc(f.classes?.name||'—')+'</td><td>'+esc(f.class_sections?.name||'All sections')+'</td><td class="mono">₹'+f.amount+'</td><td>'+bdCell+'</td><td><a href="#" style="font-size:12px;color:var(--indigo);text-decoration:underline;font-weight:600" onclick="event.preventDefault();openMiscFeeStatus(\''+f.misc_fee_id+'\')">View Status</a></td><td><div class="switch '+(f.is_collection_unlocked?'on':'')+'" onclick="toggleMiscFee(\''+f.misc_fee_id+'\','+f.is_collection_unlocked+')"></div></td><td class="mono" style="font-size:11px">'+fmtD(f.created_at?.slice(0,10))+'</td><td><button class="btn btn-danger btn-xs" onclick="deleteMiscFee(\''+f.misc_fee_id+'\',\''+esc(f.name)+'\')">Delete</button></td></tr>'
+  }).join('')
+  window._miscFeesCache=data
 }
 function openAddMiscFeeModal(){
   const clsChecks=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:3px 0;cursor:pointer"><input type="checkbox" value="'+c.class_id+'" class="mf_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(c.name)+'</span></label>').join('')
-  openModal('Create Misc Fee','<div class="form-row"><div class="fg"><label>Fee Name *</label><input id="mf_name" placeholder="e.g. Science Practical Fee"></div></div><div class="form-row"><div class="fg"><label>Amount ₹ *</label><input type="number" inputmode="decimal" id="mf_amount" placeholder="0"></div></div><div class="fg" style="margin-bottom:14px"><label>Applicable Classes * (select one or more)</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:150px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 20px">'+clsChecks+'</div></div><div class="toggle-row" style="border:none"><span>Unlock for class teachers immediately</span><div class="switch" id="mf_unlock" onclick="this.classList.toggle(\'on\')"></div></div>',
-    '<button class="btn btn-dark" onclick="saveMiscFee()">Create Fee</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+  openModal('Create Misc Fee','<div class="form-row"><div class="fg"><label>Fee Name *</label><input id="mf_name" placeholder="e.g. Enrollment Fee"></div></div>'+
+    '<div class="toggle-row" style="border:none;margin-bottom:8px"><span>Add fee breakdown (bundled fee)</span><div class="switch" id="mf_bif_toggle" onclick="this.classList.toggle(\'on\');mfToggleBif()"></div></div>'+
+    '<div id="mf_bif_wrap" style="display:none;margin-bottom:14px"><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px"><div id="mf_bif_rows"></div><button type="button" class="btn btn-ghost btn-xs" style="margin-top:8px" onclick="mfAddBifRow()">+ Add item</button></div><div style="margin-top:8px;font-size:13px;font-weight:700;color:var(--indigo)">Total: ₹<span id="mf_bif_total">0</span></div></div>'+
+    '<div id="mf_amount_wrap"><div class="form-row"><div class="fg"><label>Amount ₹ *</label><input type="number" inputmode="decimal" id="mf_amount" placeholder="0"></div></div></div>'+
+    '<div class="fg" style="margin-bottom:14px"><label>Applicable Classes * (select one or more)</label><div style="background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;max-height:150px;overflow-y:auto;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 20px">'+clsChecks+'</div></div><div class="toggle-row" style="border:none"><span>Unlock for class teachers immediately</span><div class="switch" id="mf_unlock" onclick="this.classList.toggle(\'on\')"></div></div>',
+    '<button class="btn btn-dark" onclick="saveMiscFee()">Create Fee</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>',true)
+}
+function mfToggleBif(){
+  const on=$('mf_bif_toggle')?.classList.contains('on')
+  $('mf_bif_wrap').style.display=on?'block':'none'
+  $('mf_amount_wrap').style.display=on?'none':'block'
+  if(on&&!$('mf_bif_rows').children.length){mfAddBifRow();mfAddBifRow()}
+}
+let _mfBifIdx=0
+function mfAddBifRow(){
+  const i=_mfBifIdx++
+  const d=document.createElement('div')
+  d.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:6px'
+  d.id='mf_bif_r'+i
+  d.innerHTML='<input class="mf_bif_name" placeholder="Item name" style="flex:1;padding:6px 8px;border:1.5px solid var(--line);border-radius:var(--radius-sm);font-size:12.5px"><input type="number" inputmode="decimal" class="mf_bif_amt" placeholder="₹" style="width:90px;padding:6px 8px;border:1.5px solid var(--line);border-radius:var(--radius-sm);font-size:12.5px;font-family:var(--mono)" oninput="mfCalcBifTotal()"><button type="button" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;padding:2px 4px" onclick="this.parentElement.remove();mfCalcBifTotal()">×</button>'
+  $('mf_bif_rows').appendChild(d)
+}
+function mfCalcBifTotal(){
+  const amts=[...document.querySelectorAll('.mf_bif_amt')].map(el=>parseFloat(el.value)||0)
+  const t=amts.reduce((s,v)=>s+v,0)
+  if($('mf_bif_total'))$('mf_bif_total').textContent=t
+  return t
 }
 async function saveMiscFee(){
-  const name=$('mf_name')?.value?.trim(),amount=$('mf_amount')?.value
+  const name=$('mf_name')?.value?.trim()
+  const hasBif=$('mf_bif_toggle')?.classList.contains('on')
+  let amount,breakdown=null
+  if(hasBif){
+    const names=[...document.querySelectorAll('.mf_bif_name')].map(el=>el.value.trim())
+    const amts=[...document.querySelectorAll('.mf_bif_amt')].map(el=>parseFloat(el.value)||0)
+    breakdown=names.map((n,i)=>({name:n,amount:amts[i]})).filter(r=>r.name&&r.amount>0)
+    if(!breakdown.length){toast('Add at least one breakdown item with name and amount','error');return}
+    amount=breakdown.reduce((s,r)=>s+r.amount,0)
+  }else{
+    amount=parseFloat($('mf_amount')?.value)
+  }
   const selectedClasses=[...document.querySelectorAll('.mf_cls_chk:checked')].map(el=>el.value)
   if(!name||!amount){toast('Name and amount required','error');return}
   if(!selectedClasses.length){toast('Select at least one class','error');return}
   const unlocked=$('mf_unlock')?.classList.contains('on')
-  const rows=selectedClasses.map(class_id=>({name,amount:parseFloat(amount),class_id,section_id:null,session_id:SESS.session_id,is_collection_unlocked:unlocked,created_by:SPS.admin?.admin_id}))
+  const rows=selectedClasses.map(class_id=>({name,amount,class_id,section_id:null,session_id:SESS.session_id,is_collection_unlocked:unlocked,created_by:SPS.admin?.admin_id,fee_breakdown:breakdown}))
   const{error}=await sb.from('misc_fees').insert(rows)
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Misc fee created for '+selectedClasses.length+' class(es)','success');closeModal();loadMiscFees()
 }
 async function toggleMiscFee(id,current){const{error}=await sb.from('misc_fees').update({is_collection_unlocked:!current}).eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast(current?'Locked':'Unlocked','success');loadMiscFees()}
 async function deleteMiscFee(id,name){confirmAct('Delete "'+name+'"?','Payment records are preserved.',async()=>{const{error}=await sb.from('misc_fees').delete().eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Fee deleted','success');loadMiscFees()})}
+function viewMiscFeeBreakdown(feeId){
+  const fee=(window._miscFeesCache||[]).find(f=>f.misc_fee_id===feeId)
+  if(!fee||!Array.isArray(fee.fee_breakdown))return
+  const rows=fee.fee_breakdown.map(r=>'<tr><td>'+esc(r.name)+'</td><td class="mono" style="text-align:right">₹'+r.amount+'</td></tr>').join('')
+  openModal(esc(fee.name)+' — Breakdown','<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--line)">Item</th><th style="text-align:right;padding:8px 10px;border-bottom:2px solid var(--line)">Amount</th></tr></thead><tbody style="font-size:13px">'+rows+'</tbody><tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td style="padding:8px 10px">Total</td><td style="text-align:right;padding:8px 10px" class="mono">₹'+fee.amount+'</td></tr></tfoot></table>','<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
+}
+let _mfStatusData=null
+async function openMiscFeeStatus(feeId){
+  $('miscFeeListView').style.display='none'
+  const el=$('miscFeeDetailView');el.style.display='';el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const fee=(window._miscFeesCache||[]).find(f=>f.misc_fee_id===feeId)
+  if(!fee){el.innerHTML='<p style="color:var(--danger)">Fee not found.</p>';return}
+  const{data:enrollments}=await sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,students(full_name,father_name),classes(name),class_sections(name)').eq('session_id',SESS.session_id).eq('class_id',fee.class_id).eq('status','active').eq('relieved',false).order('roll_no')
+  const{data:payments}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId)
+  _mfStatusData={fee,enrollments:enrollments||[],payments:payments||[]}
+  renderMiscFeeStatus()
+}
+function renderMiscFeeStatus(){
+  if(!_mfStatusData)return
+  const{fee,enrollments,payments}=_mfStatusData
+  const el=$('miscFeeDetailView')
+  const paidMap={};(payments||[]).forEach(p=>{if(p.is_paid)paidMap[p.enrollment_id]=p})
+  const totalPaid=Object.keys(paidMap).length
+  const totalStudents=enrollments.length
+  const amount=fee.amount||0
+  const hasBD=Array.isArray(fee.fee_breakdown)&&fee.fee_breakdown.length>0
+  let h='<div class="page-head"><div><h2>'+esc(fee.name)+' — '+esc(fee.classes?.name||'')+'</h2><p>Collection status · ₹'+amount+' per student</p></div><button class="btn btn-ghost" onclick="loadMiscFees()">← Back to List</button></div>'
+  if(hasBD){
+    h+='<div class="card" style="max-width:450px;margin-bottom:16px"><h3 style="margin-top:0;font-size:14px">Fee Breakdown <span style="font-size:11px;color:var(--ink-faint);font-weight:400">(admin only — teachers see total only)</span></h3><table style="width:100%"><tbody>'
+    fee.fee_breakdown.forEach(b=>{h+='<tr><td style="padding:5px 0;font-size:13px">'+esc(b.name)+'</td><td style="padding:5px 0;text-align:right;font-weight:700;font-size:13px;font-family:var(--mono)">₹'+b.amount+'</td></tr>'})
+    h+='<tr style="border-top:2px solid var(--line)"><td style="padding:7px 0;font-weight:800;font-size:13px">Total</td><td style="padding:7px 0;text-align:right;font-weight:800;font-size:14px;font-family:var(--mono);color:var(--indigo)">₹'+amount+'</td></tr></tbody></table></div>'
+  }
+  h+='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(4,1fr)">'
+  h+='<div class="stat-card"><span class="lbl">Total Students</span><span class="val">'+totalStudents+'</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--success)">Paid</span><span class="val" style="color:var(--success)">'+totalPaid+'</span><span class="sub">₹'+(totalPaid*amount).toLocaleString('en-IN')+' collected</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+(totalStudents-totalPaid)+'</span><span class="sub">₹'+((totalStudents-totalPaid)*amount).toLocaleString('en-IN')+' remaining</span></div>'
+  const pct=totalStudents?Math.round(totalPaid/totalStudents*100):0
+  h+='<div class="stat-card"><span class="lbl">Progress</span><span class="val">'+pct+'%</span><div style="background:var(--line);border-radius:4px;height:8px;width:100%;overflow:hidden;margin-top:6px"><div style="background:var(--success);height:100%;width:'+pct+'%"></div></div></div></div>'
+  h+='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Section</th><th>Status</th><th>Collected By</th><th>Action</th></tr></thead><tbody>'
+  enrollments.forEach(e=>{
+    const p=paidMap[e.enrollment_id]
+    const paid=!!p
+    const byType=p?.collected_by_type||''
+    let statusPill,collectedBy,action
+    if(paid&&byType==='admin'){statusPill='<span class="pill pill-neutral">Paid (Admin)</span>';collectedBy='<span style="font-size:11.5px">Admin</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    else if(paid&&byType==='teacher'){statusPill='<span class="pill pill-success">Paid (Teacher)</span>';collectedBy='<span style="font-size:11.5px">Teacher</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    else if(paid){statusPill='<span class="pill pill-success">Paid</span>';collectedBy='—';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    else{statusPill='<span class="pill pill-danger">Pending</span>';collectedBy='—';action='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',true)">Mark Paid</button>'}
+    h+='<tr><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td>'+statusPill+'</td><td>'+collectedBy+'</td><td>'+action+'</td></tr>'
+  })
+  h+='</tbody></table></div></div>'
+  el.innerHTML=h
+}
+async function adminToggleMiscFee(enrollmentId,feeId,markPaid){
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,
+    collected_by_type:'admin',collected_by_id:null,
+    paid_at:markPaid?new Date().toISOString():null
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(markPaid?'Marked as paid':'Payment reversed','success')
+  const{data:p}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId)
+  _mfStatusData.payments=p||[];renderMiscFeeStatus()
+}
 
 async function _getIncludedSubjects(assessId,classId){
   try{
@@ -6047,10 +6285,10 @@ async function moLoadSections(){
   if(!cid||!SESS)return
   const[{data:secs},{data:acRows}]=await Promise.all([
     sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name'),
-    sb.from('assessment_classes').select('assessment_id,assessments(assessment_id,name,commencement_date,end_date,max_marks,pass_marks)').eq('class_id',cid)
+    sb.from('assessment_classes').select('assessment_id,assessments(assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only)').eq('class_id',cid)
   ])
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
-  const asmtList=(acRows||[]).map(r=>r.assessments).filter(Boolean).sort((a,b)=>String(a.commencement_date||'').localeCompare(String(b.commencement_date||'')))
+  const asmtList=(acRows||[]).map(r=>r.assessments).filter(a=>a&&!a.is_fee_only).sort((a,b)=>String(a.commencement_date||'').localeCompare(String(b.commencement_date||'')))
   if($('mo_assess'))$('mo_assess').innerHTML= asmtList.length
     ? '<option value="">Select assessment</option>'+asmtList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
     : '<option value="">No assessments for this class</option>'
@@ -10518,8 +10756,8 @@ function dlOpen(key){
 
 async function dlLoadAssessments(){
   const sel=$('dl_f_assess');if(!sel)return
-  const{data}=await sb.from('assessments').select('assessment_id,name').eq('session_id',SESS?.session_id||'').order('commencement_date')
-  sel.innerHTML='<option value="">Select assessment</option>'+(data||[]).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
+  const{data}=await sb.from('assessments').select('assessment_id,name,is_fee_only').eq('session_id',SESS?.session_id||'').order('commencement_date')
+  sel.innerHTML='<option value="">Select assessment</option>'+(data||[]).filter(a=>!a.is_fee_only).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
 }
 
 async function dlExport(key){
@@ -11157,10 +11395,10 @@ async function loadQPList(){
   const grid=$('qpGrid');ldg(grid)
   const[{data:papers},{data:assess},{data:tscmRows}]=await Promise.all([
     sb.from('question_papers').select('*,classes(name,sort_order),subjects(name),assessments(name)').eq('session_id',SESS?.session_id||'').order('updated_at',{ascending:false}),
-    sb.from('assessments').select('assessment_id,name,created_by_teacher_id,commencement_date').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false}),
+    sb.from('assessments').select('assessment_id,name,created_by_teacher_id,commencement_date,is_fee_only').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false}),
     sb.from('teacher_subject_class_map').select('class_id,subject_id,subjects(name)').eq('session_id',SESS?.session_id||'')
   ])
-  _qpList=papers||[];_qpAssessments=(assess||[]).filter(a=>!a.created_by_teacher_id)
+  _qpList=papers||[];_qpAssessments=(assess||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   const officialIds=_qpAssessments.map(a=>a.assessment_id)
   const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name,sort_order,class_id)').in('assessment_id',officialIds):{data:[]}
   const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];if(r.classes)acMap[r.assessment_id].push(r.classes)})
@@ -11371,8 +11609,8 @@ async function openQPBuilder(paperId,prefillAssess,prefillClass,prefillSubject){
     }
   })
   if(!_qpAssessments.length){
-    const{data}=await sb.from('assessments').select('assessment_id,name,created_by_teacher_id').eq('session_id',SESS?.session_id||'').order('name')
-    _qpAssessments=(data||[]).filter(a=>!a.created_by_teacher_id)
+    const{data}=await sb.from('assessments').select('assessment_id,name,created_by_teacher_id,is_fee_only').eq('session_id',SESS?.session_id||'').order('name')
+    _qpAssessments=(data||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   }
   _qpDirty=false;_qpSavedSnap=JSON.stringify(_qpCurrent.content)
   renderQPBuilder()
@@ -12652,8 +12890,8 @@ function _qpRenderOnePaper(c){
 let _ecRooms=[],_ecAllotData={}
 async function loadExamConduct(){
   await ecLoadRooms()
-  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,created_by_teacher_id').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  const official=(asmts||[]).filter(a=>!a.created_by_teacher_id)
+  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,created_by_teacher_id,is_fee_only').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+  const official=(asmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   const opts=official.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
   $('ecAssess').innerHTML='<option value="">— Select Assessment —</option>'+opts
   ecPopulateAdmitClasses()
