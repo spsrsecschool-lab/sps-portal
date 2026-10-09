@@ -1845,14 +1845,17 @@ tbody tr:hover td{background:var(--lav-50)}
 
     <!-- MISC FEES -->
     <div class="page" id="page-miscfees">
-      <div class="page-head">
-        <div><h2>Misc Fees</h2><p>Create one-off fees (Practical, Trip, etc.) and unlock for class teacher collection</p></div>
-        <button class="btn btn-dark" onclick="openAddMiscFeeModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Fee</button>
+      <div id="miscFeeListView">
+        <div class="page-head">
+          <div><h2>Misc Fees</h2><p>Create one-off fees (Practical, Trip, etc.) and unlock for class teacher collection</p></div>
+          <button class="btn btn-dark" onclick="openAddMiscFeeModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Fee</button>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>Amount</th><th>Breakdown</th><th>Status</th><th>Collection</th><th>Created</th><th></th></tr></thead>
+          <tbody id="miscFeeBody"><tr><td colspan="9"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+        </table></div></div>
       </div>
-      <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>Amount</th><th>Breakdown</th><th>Collection</th><th>Created</th><th></th></tr></thead>
-        <tbody id="miscFeeBody"><tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
-      </table></div></div>
+      <div id="miscFeeDetailView" style="display:none"></div>
     </div>
 
     <!-- SCHOOL TIMETABLE -->
@@ -6131,15 +6134,16 @@ async function deleteEF(fid){confirmAct('Remove this fee?','',async()=>{
 // ═══════════ MISC FEES ═══════════
 async function loadMiscFees(){
   const el=$('miscFeeBody');ldg(el)
-  if(!SESS){el.innerHTML='<tr><td colspan="8"><div class="empty-state"><p>No active session.</p></div></td></tr>';return}
+  $('miscFeeListView').style.display='';$('miscFeeDetailView').style.display='none'
+  if(!SESS){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No active session.</p></div></td></tr>';return}
   const{data,error}=await sb.from('misc_fees').select('*,classes(name),class_sections(name)').eq('session_id',SESS.session_id).order('created_at',{ascending:false})
-  if(error){el.innerHTML='<tr><td colspan="8"><p style="padding:16px;color:var(--danger)">'+esc(error.message)+'</p></td></tr>';return}
-  if(!data?.length){el.innerHTML='<tr><td colspan="8"><div class="empty-state"><p>No misc fees yet.</p></div></td></tr>';return}
+  if(error){el.innerHTML='<tr><td colspan="9"><p style="padding:16px;color:var(--danger)">'+esc(error.message)+'</p></td></tr>';return}
+  if(!data?.length){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No misc fees yet.</p></div></td></tr>';return}
   el.innerHTML=data.map(f=>{
     const bd=f.fee_breakdown
     const hasBD=Array.isArray(bd)&&bd.length>0
     const bdCell=hasBD?'<a href="#" style="font-size:11.5px;color:var(--indigo);text-decoration:underline" onclick="event.preventDefault();viewMiscFeeBreakdown(\''+f.misc_fee_id+'\')">View ('+bd.length+' items)</a>':'<span style="font-size:11.5px;color:var(--ink-faint)">—</span>'
-    return '<tr><td style="font-weight:700">'+esc(f.name)+'</td><td>'+esc(f.classes?.name||'—')+'</td><td>'+esc(f.class_sections?.name||'All sections')+'</td><td class="mono">₹'+f.amount+'</td><td>'+bdCell+'</td><td><div class="switch '+(f.is_collection_unlocked?'on':'')+'" onclick="toggleMiscFee(\''+f.misc_fee_id+'\','+f.is_collection_unlocked+')"></div></td><td class="mono" style="font-size:11px">'+fmtD(f.created_at?.slice(0,10))+'</td><td><button class="btn btn-danger btn-xs" onclick="deleteMiscFee(\''+f.misc_fee_id+'\',\''+esc(f.name)+'\')">Delete</button></td></tr>'
+    return '<tr><td style="font-weight:700">'+esc(f.name)+'</td><td>'+esc(f.classes?.name||'—')+'</td><td>'+esc(f.class_sections?.name||'All sections')+'</td><td class="mono">₹'+f.amount+'</td><td>'+bdCell+'</td><td><a href="#" style="font-size:12px;color:var(--indigo);text-decoration:underline;font-weight:600" onclick="event.preventDefault();openMiscFeeStatus(\''+f.misc_fee_id+'\')">View Status</a></td><td><div class="switch '+(f.is_collection_unlocked?'on':'')+'" onclick="toggleMiscFee(\''+f.misc_fee_id+'\','+f.is_collection_unlocked+')"></div></td><td class="mono" style="font-size:11px">'+fmtD(f.created_at?.slice(0,10))+'</td><td><button class="btn btn-danger btn-xs" onclick="deleteMiscFee(\''+f.misc_fee_id+'\',\''+esc(f.name)+'\')">Delete</button></td></tr>'
   }).join('')
   window._miscFeesCache=data
 }
@@ -6202,6 +6206,64 @@ function viewMiscFeeBreakdown(feeId){
   if(!fee||!Array.isArray(fee.fee_breakdown))return
   const rows=fee.fee_breakdown.map(r=>'<tr><td>'+esc(r.name)+'</td><td class="mono" style="text-align:right">₹'+r.amount+'</td></tr>').join('')
   openModal(esc(fee.name)+' — Breakdown','<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--line)">Item</th><th style="text-align:right;padding:8px 10px;border-bottom:2px solid var(--line)">Amount</th></tr></thead><tbody style="font-size:13px">'+rows+'</tbody><tfoot><tr style="font-weight:700;border-top:2px solid var(--line)"><td style="padding:8px 10px">Total</td><td style="text-align:right;padding:8px 10px" class="mono">₹'+fee.amount+'</td></tr></tfoot></table>','<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
+}
+let _mfStatusData=null
+async function openMiscFeeStatus(feeId){
+  $('miscFeeListView').style.display='none'
+  const el=$('miscFeeDetailView');el.style.display='';el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const fee=(window._miscFeesCache||[]).find(f=>f.misc_fee_id===feeId)
+  if(!fee){el.innerHTML='<p style="color:var(--danger)">Fee not found.</p>';return}
+  const{data:enrollments}=await sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,students(full_name,father_name),classes(name),class_sections(name)').eq('session_id',SESS.session_id).eq('class_id',fee.class_id).eq('status','active').eq('relieved',false).order('roll_no')
+  const{data:payments}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId)
+  _mfStatusData={fee,enrollments:enrollments||[],payments:payments||[]}
+  renderMiscFeeStatus()
+}
+function renderMiscFeeStatus(){
+  if(!_mfStatusData)return
+  const{fee,enrollments,payments}=_mfStatusData
+  const el=$('miscFeeDetailView')
+  const paidMap={};(payments||[]).forEach(p=>{if(p.is_paid)paidMap[p.enrollment_id]=p})
+  const totalPaid=Object.keys(paidMap).length
+  const totalStudents=enrollments.length
+  const amount=fee.amount||0
+  const hasBD=Array.isArray(fee.fee_breakdown)&&fee.fee_breakdown.length>0
+  let h='<div class="page-head"><div><h2>'+esc(fee.name)+' — '+esc(fee.classes?.name||'')+'</h2><p>Collection status · ₹'+amount+' per student</p></div><button class="btn btn-ghost" onclick="loadMiscFees()">← Back to List</button></div>'
+  if(hasBD){
+    h+='<div class="card" style="max-width:450px;margin-bottom:16px"><h3 style="margin-top:0;font-size:14px">Fee Breakdown <span style="font-size:11px;color:var(--ink-faint);font-weight:400">(admin only — teachers see total only)</span></h3><table style="width:100%"><tbody>'
+    fee.fee_breakdown.forEach(b=>{h+='<tr><td style="padding:5px 0;font-size:13px">'+esc(b.name)+'</td><td style="padding:5px 0;text-align:right;font-weight:700;font-size:13px;font-family:var(--mono)">₹'+b.amount+'</td></tr>'})
+    h+='<tr style="border-top:2px solid var(--line)"><td style="padding:7px 0;font-weight:800;font-size:13px">Total</td><td style="padding:7px 0;text-align:right;font-weight:800;font-size:14px;font-family:var(--mono);color:var(--indigo)">₹'+amount+'</td></tr></tbody></table></div>'
+  }
+  h+='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(4,1fr)">'
+  h+='<div class="stat-card"><span class="lbl">Total Students</span><span class="val">'+totalStudents+'</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--success)">Paid</span><span class="val" style="color:var(--success)">'+totalPaid+'</span><span class="sub">₹'+(totalPaid*amount).toLocaleString('en-IN')+' collected</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+(totalStudents-totalPaid)+'</span><span class="sub">₹'+((totalStudents-totalPaid)*amount).toLocaleString('en-IN')+' remaining</span></div>'
+  const pct=totalStudents?Math.round(totalPaid/totalStudents*100):0
+  h+='<div class="stat-card"><span class="lbl">Progress</span><span class="val">'+pct+'%</span><div style="background:var(--line);border-radius:4px;height:8px;width:100%;overflow:hidden;margin-top:6px"><div style="background:var(--success);height:100%;width:'+pct+'%"></div></div></div></div>'
+  h+='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Section</th><th>Status</th><th>Collected By</th><th>Action</th></tr></thead><tbody>'
+  enrollments.forEach(e=>{
+    const p=paidMap[e.enrollment_id]
+    const paid=!!p
+    const byType=p?.collected_by_type||''
+    let statusPill,collectedBy,action
+    if(paid&&byType==='admin'){statusPill='<span class="pill pill-neutral">Paid (Admin)</span>';collectedBy='<span style="font-size:11.5px">Admin</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    else if(paid&&byType==='teacher'){statusPill='<span class="pill pill-success">Paid (Teacher)</span>';collectedBy='<span style="font-size:11.5px">Teacher</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    else if(paid){statusPill='<span class="pill pill-success">Paid</span>';collectedBy='—';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    else{statusPill='<span class="pill pill-danger">Pending</span>';collectedBy='—';action='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',true)">Mark Paid</button>'}
+    h+='<tr><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td>'+statusPill+'</td><td>'+collectedBy+'</td><td>'+action+'</td></tr>'
+  })
+  h+='</tbody></table></div></div>'
+  el.innerHTML=h
+}
+async function adminToggleMiscFee(enrollmentId,feeId,markPaid){
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,
+    collected_by_type:'admin',collected_by_id:null,
+    paid_at:markPaid?new Date().toISOString():null
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(markPaid?'Marked as paid':'Payment reversed','success')
+  const{data:p}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId)
+  _mfStatusData.payments=p||[];renderMiscFeeStatus()
 }
 
 async function _getIncludedSubjects(assessId,classId){
