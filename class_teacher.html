@@ -2443,8 +2443,8 @@ async function loadAssessDropdown(){
   const ids=(ac||[]).map(r=>r.assessment_id)
   if(!ids.length){sel.innerHTML='<option value="">No assessments linked to your class</option>';return}
   const{data:assessments}=await sb.from('assessments').select('*').in('assessment_id',ids).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  ALL_ASSESSMENTS=assessments||[]
-  sel.innerHTML='<option value="">Select assessment</option>'+assessments.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
+  ALL_ASSESSMENTS=(assessments||[]).filter(a=>!a.is_fee_only)
+  sel.innerHTML='<option value="">Select assessment</option>'+ALL_ASSESSMENTS.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
 }
 
 async function loadAssessMarks(){

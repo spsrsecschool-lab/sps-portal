@@ -569,8 +569,8 @@ async function loadMarksDropdown(){
   const{data:ac}=await sb.from('assessment_classes').select('assessment_id').in('class_id',MY_CLASS_IDS)
   const ids=[...new Set((ac||[]).map(r=>r.assessment_id))]
   if(!ids.length){sel.innerHTML='<option value="">No assessments for your wing</option>';return}
-  const{data:asmt}=await sb.from('assessments').select('assessment_id,name,commencement_date').in('assessment_id',ids).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  sel.innerHTML='<option value="">Select assessment</option>'+(asmt||[]).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtDate(a.commencement_date):'')+'</option>').join('')
+  const{data:asmt}=await sb.from('assessments').select('assessment_id,name,commencement_date,is_fee_only').in('assessment_id',ids).eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+  sel.innerHTML='<option value="">Select assessment</option>'+(asmt||[]).filter(a=>!a.is_fee_only).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtDate(a.commencement_date):'')+'</option>').join('')
 }
 
 async function loadMarksMonitor(){
