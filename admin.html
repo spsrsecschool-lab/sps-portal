@@ -933,8 +933,8 @@ tbody tr:hover td{background:var(--lav-50)}
           </div>
           <div id="adm_family_students" style="display:none;background:var(--indigo-100);border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:14px;font-size:12.5px"></div>
           <div class="form-row">
-            <div class="fg"><label>MIS Class (optional)</label><input type="text" id="adm_mis_class" placeholder="Leave blank if same as class"></div>
-            <div class="fg"><label>UDISE Class (optional)</label><input type="text" id="adm_udise_class" placeholder="Leave blank if same as class"></div>
+            <div class="fg"><label>MIS Class (optional)</label><select id="adm_mis_class"><option value="">— Same as class —</option></select></div>
+            <div class="fg"><label>UDISE Class (optional)</label><select id="adm_udise_class"><option value="">— Same as class —</option></select></div>
           </div>
           <div class="form-row">
             <div class="fg"><label>Profile Photo (optional)</label><input type="file" id="adm_photo" accept="image/*"></div>
@@ -2810,6 +2810,8 @@ async function loadGlobals(){
   $('sessionBadge').textContent=SESS?'Session '+SESS.session_id:'No active session'
   const co=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   ;['adm_class','mo_class','pr_class','ca_class','cas_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+co})
+  const coName=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+esc(c.name)+'">'+esc(c.name)+'</option>').join('')
+  ;['adm_mis_class','adm_udise_class'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">— Same as class —</option>'+coName})
   checkUnread()
 }
 async function checkUnread(){
@@ -3904,7 +3906,7 @@ async function openEditDemoModal(){
     '<div class="form-row"><div class="fg"><label>Notes</label><textarea id="ed_notes" style="min-height:60px;resize:vertical" placeholder="Internal notes about this student">'+esc(s.notes||'')+'</textarea></div></div>'+
     '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">MIS / UDISE Class</div>'+
-    '<div class="form-row"><div class="fg"><label>MIS Class</label><input id="ed_mis_class" value="'+esc(s.mis_class||'')+'" placeholder="Leave blank if same as current class"></div><div class="fg"><label>UDISE Class</label><input id="ed_udise_class" value="'+esc(s.udise_class||'')+'" placeholder="Leave blank if same as current class"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>MIS Class</label><select id="ed_mis_class"><option value="">— Same as current class —</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+esc(c.name)+'"'+(s.mis_class===c.name?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div><div class="fg"><label>UDISE Class</label><select id="ed_udise_class"><option value="">— Same as current class —</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+esc(c.name)+'"'+(s.udise_class===c.name?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div></div>'+
     '<div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:8px 12px;font-size:11.5px;color:var(--ink-soft);margin-bottom:14px">If blank, MIS/UDISE class is considered the same as the current class. No section needed.</div>'+
     '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Enrollment — '+esc(SESS?.session_id||'')+'</div>'+
