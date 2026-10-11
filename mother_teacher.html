@@ -2049,15 +2049,12 @@ async function viewStudentProfile(eid){
     {k:'alt_phone',label:'Alt Phone',val:s.alt_phone},
     {k:'aadhar_no',label:'Aadhaar No',val:s.aadhar_no},
     {k:'dob',label:'Date of Birth',val:s.dob,type:'date'},
-    {k:'address',label:'Address',val:s.address},
     {k:'admission_date',label:'Date of Admission / Joining',val:s.admission_date,type:'date',locked:admLocked},
   ]
 
   const fieldsHtml=fields.map(f=>
     '<div style="margin-bottom:12px"><label style="'+lbl+'">'+f.label+'</label>'
-    +(f.k==='address'
-      ?'<textarea id="sp_'+f.k+'" '+(canEdit?'':' disabled')+' style="'+inp+';min-height:60px;resize:vertical">'+esc(f.val||'')+'</textarea>'
-      :'<input id="sp_'+f.k+'" '+(f.type==='date'?'type="date"':'')+(f.k==='aadhar_no'?' inputmode="numeric" pattern="[0-9]*"':'')+' '+((canEdit&&!f.locked)?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+(f.locked?';background:var(--lav-100);color:var(--ink-soft)':'')+'">')
+    +'<input id="sp_'+f.k+'" '+(f.type==='date'?'type="date"':'')+(f.k==='aadhar_no'?' inputmode="numeric" pattern="[0-9]*"':'')+' '+((canEdit&&!f.locked)?'':' disabled')+' value="'+esc(f.val||'')+'" style="'+inp+(f.locked?';background:var(--lav-100);color:var(--ink-soft)':'')+'">'
     +(f.k==='admission_date'&&f.locked?'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:3px">🔒 Continuing student — attendance counts from the session start. Only new admissions can change this.</div>':'')
     +(f.k==='admission_date'&&!f.locked?'<div style="font-size:10.5px;color:var(--indigo-dark);margin-top:3px">Attendance working days are counted from this date.</div>':'')
     +'</div>'
@@ -2075,6 +2072,15 @@ async function viewStudentProfile(eid){
     +'</div></div>'
     +(s.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:14px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':'')
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
+    +(canEdit
+      ?'<div style="margin-bottom:14px"><label style="'+lbl+'">Address (Current Address Only)</label>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'
+        +'<div style="margin-bottom:8px"><label style="font-size:10.5px;color:var(--ink-faint);display:block;margin-bottom:4px">H.No.</label><input id="sp_addr_hno" placeholder="e.g. 4585" style="'+inp+'"></div>'
+        +'<div style="margin-bottom:8px"><label style="font-size:10.5px;color:var(--ink-faint);display:block;margin-bottom:4px">Area / Colony</label><input id="sp_addr_area" placeholder="e.g. Nehru Colony" style="'+inp+'"></div>'
+        +'</div>'
+        +'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">City: NIT Faridabad (fixed). Enter the student\'s current residential address only — not a native / home-state address.</div>'
+        +'</div>'
+      :'<div style="margin-bottom:12px"><label style="'+lbl+'">Address</label><div style="font-size:13px;color:var(--ink)">'+esc(s.address||'—')+'</div></div>')
     +'<div style="margin-top:6px;margin-bottom:14px"><label style="'+lbl+'">Class &amp; Section</label>'
     +(canEdit
       ?'<div style="display:flex;align-items:center;gap:10px">'
@@ -2240,9 +2246,11 @@ async function saveStudentProfile(){
     alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
     aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
     dob:document.getElementById('sp_dob')?.value||null,
-    address:document.getElementById('sp_address')?.value?.trim(),
     admission_date:document.getElementById('sp_admission_date')?.value||null,
   }
+  const _hno=document.getElementById('sp_addr_hno')?.value?.trim()
+  const _area=document.getElementById('sp_addr_area')?.value?.trim()
+  if(_hno||_area) updates.address='H.No. '+(_hno||'—')+', '+(_area||'—')+', NIT Faridabad'
   if(!updates.full_name){toast('Name cannot be empty','error');return}
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
@@ -2394,9 +2402,11 @@ async function saveStudentProfile(studentId){
     alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
     aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
     dob:document.getElementById('sp_dob')?.value||null,
-    address:document.getElementById('sp_address')?.value?.trim(),
     admission_date:document.getElementById('sp_admission_date')?.value||null,
   }
+  const _hno2=document.getElementById('sp_addr_hno')?.value?.trim()
+  const _area2=document.getElementById('sp_addr_area')?.value?.trim()
+  if(_hno2||_area2) updates.address='H.No. '+(_hno2||'—')+', '+(_area2||'—')+', NIT Faridabad'
   if(!updates.full_name){toast("Student name can't be empty",'error');return}
   const{data:updated,error}=await sb.from('students').update(updates).eq('student_id',sid).select()
   console.log('[profile] update result →',{sid,rows:updated?.length,error})
