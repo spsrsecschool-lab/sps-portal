@@ -933,6 +933,10 @@ tbody tr:hover td{background:var(--lav-50)}
           </div>
           <div id="adm_family_students" style="display:none;background:var(--indigo-100);border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:14px;font-size:12.5px"></div>
           <div class="form-row">
+            <div class="fg"><label>MIS Class (optional)</label><input type="text" id="adm_mis_class" placeholder="Leave blank if same as class"></div>
+            <div class="fg"><label>UDISE Class (optional)</label><input type="text" id="adm_udise_class" placeholder="Leave blank if same as class"></div>
+          </div>
+          <div class="form-row">
             <div class="fg"><label>Profile Photo (optional)</label><input type="file" id="adm_photo" accept="image/*"></div>
             <div class="fg"><label>Aadhar / Document (optional)</label><input type="file" id="adm_doc" accept="image/*,.pdf"></div>
           </div>
@@ -2113,6 +2117,8 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="av-lg" id="pm_av">?</div>
       <div><h3 id="pm_name">—</h3><div class="desig" id="pm_class"></div><div class="tag-row" id="pm_tags"></div></div>
     </div>
+    <div id="pm_class_mismatch"></div>
+    <div id="pm_notes"></div>
     <div id="pm_fields"></div>
     <div id="pm_docs" style="margin-top:14px"></div>
     <div id="pm_siblings" style="margin-top:14px"></div>
@@ -3786,6 +3792,16 @@ async function openProfile(enrollId){
   if(s?.photo_url){$('pm_av').innerHTML='<img src="'+R2.url(s.photo_url)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'}else{$('pm_av').textContent=ini(s?.full_name||'')}; $('pm_name').textContent=s?.full_name||'Unknown'
   $('pm_class').textContent='Class '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')+(e.streams?.name?' · '+e.streams.name:'')+' · Roll '+(e.roll_no||'—')
   $('pm_tags').innerHTML='<span class="pill pill-neutral">'+esc(s?.student_id||'')+'</span><span class="pill pill-neutral">S.No '+esc(e.s_no||'—')+'</span><span class="pill '+(e.status==='active'?'pill-success':'pill-warn')+'">'+esc(e.status||'')+'</span>'
+  // MIS / UDISE class mismatch highlight
+  const origClass=e.classes?.name||''
+  const misClass=s?.mis_class||''
+  const udiseClass=s?.udise_class||''
+  let mismatchHtml=''
+  if(misClass&&misClass!==origClass) mismatchHtml+='<span style="display:inline-flex;align-items:center;gap:5px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:#92400E">MIS Class: '+esc(misClass)+'</span>'
+  if(udiseClass&&udiseClass!==origClass) mismatchHtml+='<span style="display:inline-flex;align-items:center;gap:5px;background:#DBEAFE;border:1px solid #3B82F6;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:#1E40AF">UDISE Class: '+esc(udiseClass)+'</span>'
+  $('pm_class_mismatch').innerHTML=mismatchHtml?'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">'+mismatchHtml+'</div>':''
+  // Notes
+  $('pm_notes').innerHTML=s?.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:12px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':''
   $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">PEN</span><span class="fv">'+esc(s?.pen||'—')+'</span></div><div class="field-row"><span class="fk">APAAR ID</span><span class="fv">'+esc(s?.apaar_id||'—')+'</span></div><div class="field-row"><span class="fk">Gender</span><span class="fv">'+esc(s?.gender||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
   if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a class="map-tag" href="'+esc(R2.url(d.file_url))+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_url||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button></span>').join('')+'</div>'
@@ -3885,6 +3901,11 @@ async function openEditDemoModal(){
     '<div class="form-row"><div class="fg"><label>PEN</label><input id="ed_pen" value="'+esc(s.pen||'')+'" placeholder="Permanent Education Number"></div><div class="fg"><label>APAAR ID</label><input id="ed_apaar" value="'+esc(s.apaar_id||'')+'" placeholder="APAAR ID"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Gender</label><select id="ed_gender"><option value="">— Select —</option><option value="Male"'+(s.gender==='Male'?' selected':'')+'>Male</option><option value="Female"'+(s.gender==='Female'?' selected':'')+'>Female</option></select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Address</label><input id="ed_address" value="'+esc(s.address||'')+'"></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Notes</label><textarea id="ed_notes" style="min-height:60px;resize:vertical" placeholder="Internal notes about this student">'+esc(s.notes||'')+'</textarea></div></div>'+
+    '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">MIS / UDISE Class</div>'+
+    '<div class="form-row"><div class="fg"><label>MIS Class</label><input id="ed_mis_class" value="'+esc(s.mis_class||'')+'" placeholder="Leave blank if same as current class"></div><div class="fg"><label>UDISE Class</label><input id="ed_udise_class" value="'+esc(s.udise_class||'')+'" placeholder="Leave blank if same as current class"></div></div>'+
+    '<div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:8px 12px;font-size:11.5px;color:var(--ink-soft);margin-bottom:14px">If blank, MIS/UDISE class is considered the same as the current class. No section needed.</div>'+
     '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">Enrollment — '+esc(SESS?.session_id||'')+'</div>'+
     '<div class="form-row"><div class="fg"><label>Class *</label><select id="ed_class" onchange="edLoadSecStream()">'+clsOpts+'</select></div><div class="fg"><label>Section *</label><select id="ed_section" onchange="syncStreamSection(\'section\',\'ed\')"></select></div></div>'+
@@ -4055,7 +4076,10 @@ async function saveEditDemo(){
     aadhar_no:$('ed_aadhar')?.value?.trim()||null,
     address:$('ed_address')?.value?.trim()||null,
     family_code:edFamily,
-    srn:edSrn, pen:edPen, apaar_id:edApaar, gender:edGender
+    srn:edSrn, pen:edPen, apaar_id:edApaar, gender:edGender,
+    notes:$('ed_notes')?.value?.trim()||null,
+    mis_class:$('ed_mis_class')?.value?.trim()||null,
+    udise_class:$('ed_udise_class')?.value?.trim()||null
   }).eq('student_id',sid)
   if(e1){toast('Failed: '+e1.message,'error');return}
   // Did the section (or class) change? If so, give the student the next roll in
@@ -4265,7 +4289,9 @@ async function submitAdmission(e){
     const admPen=$('adm_pen')?.value?.trim()||null
     const admApaar=$('adm_apaar')?.value?.trim()||null
     const admGender=$('adm_gender')?.value||null
-    const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,admission_date:$('adm_admdate').value||null,phone:$('adm_phone').value.trim()||null,alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc,srn:admSrn,pen:admPen,apaar_id:admApaar,gender:admGender})
+    const admMisClass=$('adm_mis_class')?.value?.trim()||null
+    const admUdiseClass=$('adm_udise_class')?.value?.trim()||null
+    const{error:se}=await sb.from('students').insert({student_id:studentId,full_name:$('adm_name').value.trim(),father_name:$('adm_father').value.trim(),mother_name:$('adm_mother').value.trim()||null,dob:$('adm_dob').value||null,admission_date:$('adm_admdate').value||null,phone:$('adm_phone').value.trim()||null,alt_phone:$('adm_altphone').value.trim()||null,aadhar_no:$('adm_aadhar').value.trim()||null,address:$('adm_address').value.trim()||null,family_code:fc,srn:admSrn,pen:admPen,apaar_id:admApaar,gender:admGender,mis_class:admMisClass,udise_class:admUdiseClass})
     if(se)throw se
     // S.No is now MANUAL: use exactly what the admin typed, or leave it blank
     // if they left it empty (some students aren't allotted an S.No yet).
