@@ -722,7 +722,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="sb-item" onclick="goTo('relieving',this)"><svg viewBox="0 0 24 24"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M12 19a7 7 0 1 1 0-14"/></svg>Student Relieving</div>
       <div class="sb-item" onclick="goTo('readmission',this)"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Re-admission</div>
       <div class="sb-item" onclick="goTo('bulkimport',this)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Bulk Import</div>
-      <div class="sb-item" onclick="goTo('bulkdocs',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>Bulk Doc Upload</div>
+      <div class="sb-item" onclick="goTo('bulkdocs',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>Bulk Uploads</div>
       <div class="sb-item" onclick="goTo('idcards',this)"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><circle cx="9" cy="14" r="2.5"/><path d="M14 12h4M14 16h4"/></svg>ID Cards</div>
     </div>
     <div class="sb-group-head" onclick="sbToggle(this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Staff &amp; Teachers<svg class="sb-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
@@ -1005,11 +1005,38 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
     </div>
 
-    <!-- BULK DOCUMENT UPLOAD -->
+    <!-- BULK UPLOADS -->
     <div class="page" id="page-bulkdocs">
-      <div class="page-head"><div><h2>Bulk Document Upload</h2><p>Upload documents for many students at once — file names must match student IDs</p></div></div>
+      <div class="page-head"><div><h2>Bulk Uploads</h2><p>Upload documents or profile photos for many students at once — file names must match student IDs</p></div></div>
+
+      <!-- BULK PROFILE PHOTOS -->
       <div class="card" style="max-width:760px;margin-bottom:18px">
-        <h3>Upload Settings</h3>
+        <h3>Bulk Profile Photos</h3>
+        <div class="form-row">
+          <div class="fg">
+            <label>Select Photos (file name = Student ID, e.g. STU-0001.jpg)</label>
+            <input type="file" id="bp_files" multiple accept="image/*" onchange="previewBulkPhotos()">
+          </div>
+        </div>
+        <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--ink-soft);line-height:1.5">
+          Photos are uploaded in <b>original quality and ratio</b> — no cropping or resizing.<br>
+          File names should be the student ID (with or without extension). Existing photos are replaced.
+        </div>
+      </div>
+      <div class="card" style="max-width:760px;margin-bottom:18px" id="bp_preview_card" style="display:none">
+        <h3>Preview — <span id="bp_match_count">0</span> matched, <span id="bp_skip_count">0</span> skipped</h3>
+        <div id="bp_preview" style="max-height:340px;overflow-y:auto;font-size:12.5px"></div>
+      </div>
+      <div style="display:flex;gap:10px;max-width:760px;margin-bottom:32px">
+        <button class="btn btn-dark" id="bp_upload_btn" onclick="runBulkPhotoUpload()" disabled>Upload Photos</button>
+        <div id="bp_progress" style="font-size:13px;color:var(--ink-soft);align-self:center"></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--lav-200);max-width:760px;margin-bottom:24px">
+
+      <!-- BULK DOCUMENTS -->
+      <div class="card" style="max-width:760px;margin-bottom:18px">
+        <h3>Bulk Documents</h3>
         <div class="form-row">
           <div class="fg"><label>Document Type *</label><select id="bd_type"></select></div>
           <div class="fg" style="max-width:220px"><label>Add Custom Type</label><div style="display:flex;gap:6px"><input id="bd_custom_type" placeholder="e.g. Enrollment Reg."><button type="button" class="btn btn-ghost btn-sm" onclick="addCustomDocType()">Add</button></div></div>
@@ -2453,7 +2480,7 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',bulkdocs:'Bulk Doc Upload',idcards:'ID Card Generator',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',bulkdocs:'Bulk Uploads',idcards:'ID Card Generator',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log'}
 // ═══════════ TEACHER DECLARATION (admin) — section → rules ═══════════
 let _decSecs=[], _decRules={}, _decMeta=null
 async function loadDeclarationAdmin(){ decSwitch('edit') }
@@ -4364,6 +4391,56 @@ async function runBulkDocUpload(){
   btn.textContent='Upload All';btn.disabled=true
   toast(ok+' documents uploaded'+(fail?', '+fail+' failed':''),'success')
   _bdMatched=[];$('bd_files').value=''
+}
+
+// ═══════════ BULK PHOTO UPLOAD ═══════════
+let _bpMatched=[]
+async function previewBulkPhotos(){
+  const files=$('bp_files')?.files;if(!files?.length)return
+  const{data:allStu}=await sb.from('students').select('student_id')
+  const idSet=new Set((allStu||[]).map(s=>s.student_id))
+  _bpMatched=[];let skipped=[]
+  for(const f of files){
+    const base=f.name.replace(/\.[^.]+$/,'').trim()
+    if(idSet.has(base)) _bpMatched.push({file:f,student_id:base})
+    else skipped.push(f.name)
+  }
+  $('bp_match_count').textContent=_bpMatched.length
+  $('bp_skip_count').textContent=skipped.length
+  $('bp_preview_card').style.display=''
+  let html=''
+  if(_bpMatched.length) html+='<div style="margin-bottom:8px;color:var(--ink)"><b>Matched ('+_bpMatched.length+'):</b></div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'+_bpMatched.map(m=>'<span style="background:var(--grn-soft);border:1px solid var(--grn);border-radius:6px;padding:3px 10px;font-size:11.5px">'+esc(m.student_id)+'</span>').join('')+'</div>'
+  if(skipped.length) html+='<div style="margin-bottom:8px;color:var(--ink-soft)"><b>Skipped — no matching student ID ('+skipped.length+'):</b></div><div style="display:flex;flex-wrap:wrap;gap:6px">'+skipped.map(n=>'<span style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:6px;padding:3px 10px;font-size:11.5px">'+esc(n)+'</span>').join('')+'</div>'
+  $('bp_preview').innerHTML=html
+  $('bp_upload_btn').disabled=!_bpMatched.length
+}
+async function runBulkPhotoUpload(){
+  if(!_bpMatched.length)return
+  const btn=$('bp_upload_btn');btn.disabled=true;btn.textContent='Uploading…'
+  const prog=$('bp_progress')
+  let ok=0,fail=0
+  for(let i=0;i<_bpMatched.length;i++){
+    const{file,student_id}=_bpMatched[i]
+    prog.textContent=(i+1)+' / '+_bpMatched.length+' — '+student_id+'…'
+    try{
+      const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
+      try{
+        const{data:old}=await R2.list('student-photos',{search:student_id})
+        const del=(old||[]).filter(f=>f.name.startsWith(student_id+'.')).map(f=>'student-photos/'+f.name)
+        if(del.length)await R2.remove(del)
+      }catch(_){}
+      const path='student-photos/'+student_id+'.'+ext
+      const{error:upErr}=await R2.upload(path,file,{upsert:true})
+      if(upErr){fail++;continue}
+      const{data:{publicUrl}}=R2.getPublicUrl(path)
+      await sb.from('students').update({photo_url:publicUrl+'&t='+Date.now()}).eq('student_id',student_id)
+      ok++
+    }catch(e){fail++}
+  }
+  prog.textContent='Done — '+ok+' uploaded'+(fail?' · '+fail+' failed':'')
+  btn.textContent='Upload Photos';btn.disabled=true
+  toast(ok+' photos uploaded'+(fail?', '+fail+' failed':''),'success')
+  _bpMatched=[];$('bp_files').value=''
 }
 
 // ═══════════ NEW ADMISSION ═══════════
