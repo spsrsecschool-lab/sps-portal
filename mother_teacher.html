@@ -2333,11 +2333,12 @@ async function confirmDocUpload(){
   if(sm)sm.textContent='Uploading '+docType+'…'
 
   try{
-    const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
+    const _file=await SPSMedia.ensureUnder1MB(file)
+    const ext=(_file.name.split('.').pop()||'jpg').toLowerCase()
     const safeType=String(docType||type||'Document').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
     const ts=Date.now()
     const path='student-docs/'+sid+'/'+safeType+'_'+sid+'_'+ts+'.'+ext
-    const{error:upErr}=await R2.upload(path,file,{upsert:true})
+    const{error:upErr}=await R2.upload(path,_file,{upsert:true})
     if(upErr){
       if(sp)sp.style.display='none'
       toast('Upload failed: '+upErr.message,'error');return
@@ -2432,10 +2433,11 @@ async function deleteStudentDoc(sid,fileUrl,fileType,btn){
   if(!confirm('Delete this '+(fileType||'document')+' permanently?\n\nThis removes it from the portal and from storage, and cannot be undone.'))return
   const{error}=await sb.from('student_documents').delete().eq('student_id',sid).eq('file_url',fileUrl)
   if(error){toast('Delete failed: '+error.message,'error');return}
-  try{
-    const p=R2.extractPath(fileUrl)
-    if(p)await R2.remove([p])
-  }catch(e){}
+  const p=R2.extractPath(fileUrl)
+  if(p){
+    const{error:rErr}=await R2.remove([p])
+    if(rErr)console.warn('R2 delete failed for',p,rErr)
+  }else{console.warn('Could not extract R2 path from',fileUrl)}
   toast((fileType||'Document')+' deleted','success')
   const chip=btn&&btn.closest('span');if(chip)chip.remove()
 }
@@ -2457,7 +2459,7 @@ async function _mtDoPhotoUpload(studentId,file){
   // Remove any previous photo(s) for this student so old-extension files don't orphan.
   try{
     const{data:old}=await R2.list('students/'+studentId,{search:'photo'})
-    const del=(old||[]).filter(o=>o.name.startsWith('photo.')).map(o=>'students/'+studentId+'/'+o.name)
+    const del=(old||[]).filter(o=>o.name.startsWith('photo.')).map(o=>o.key||('students/'+studentId+'/'+o.name))
     if(del.length)await R2.remove(del)
   }catch(_){}
   const{error:upErr}=await R2.upload(path,file,{upsert:true})
@@ -2470,8 +2472,9 @@ async function _mtDoPhotoUpload(studentId,file){
 }
 
 async function uploadStudentDoc(studentId, input){
-  const file=input.files?.[0];if(!file)return
+  let file=input.files?.[0];if(!file)return
   toast('Uploading document…','info')
+  file=await SPSMedia.ensureUnder1MB(file)
   const path='students/'+studentId+'/docs/'+Date.now()+'_'+file.name
   const{error:upErr}=await R2.upload(path,file,{upsert:false})
   if(upErr){toast('Upload failed: '+upErr.message,'error');return}

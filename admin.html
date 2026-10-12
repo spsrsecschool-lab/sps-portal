@@ -3891,10 +3891,11 @@ async function deleteStudentDoc(sid,fileUrl,fileType,btn){
   if(!confirm('Delete this '+(fileType||'document')+' permanently?\n\nThis removes it from the portal and from storage, and cannot be undone.'))return
   const{error}=await sb.from('student_documents').delete().eq('student_id',sid).eq('file_url',fileUrl)
   if(error){toast('Delete failed: '+error.message,'error');return}
-  try{
-    const p=R2.extractPath(fileUrl)
-    if(p)await R2.remove([p])
-  }catch(e){}
+  const p=R2.extractPath(fileUrl)
+  if(p){
+    const{error:rErr}=await R2.remove([p])
+    if(rErr){console.warn('R2 delete failed for',p,rErr);toast('Record removed but file cleanup failed — check console','info')}
+  }else{console.warn('Could not extract R2 path from',fileUrl)}
   toast((fileType||'Document')+' deleted','success')
   const chip=btn&&btn.closest('span');if(chip)chip.remove()
 }
@@ -3925,9 +3926,9 @@ async function uploadProfilePhoto(){
   // don't leave orphaned files in the bucket when the extension changes.
   try{
     const{data:old}=await R2.list('student-photos',{search:sid})
-    const del=(old||[]).filter(f=>f.name.startsWith(sid+'.')).map(f=>'student-photos/'+f.name)
-    if(del.length)await R2.remove(del)
-  }catch(_){}
+    const del=(old||[]).filter(f=>f.name.startsWith(sid+'.')).map(f=>f.key||('student-photos/'+f.name))
+    if(del.length){const{error:rErr}=await R2.remove(del);if(rErr)console.warn('Old photo cleanup failed',rErr)}
+  }catch(e){console.warn('Photo cleanup error',e)}
   const path='student-photos/'+sid+'.'+((file.name.split('.').pop()||'jpg').toLowerCase())
   const{error:upErr}=await R2.upload(path,file,{upsert:true})
   if(upErr){hideUploadOverlay();toast('Upload failed: '+upErr.message,'error');return}
@@ -4307,10 +4308,11 @@ async function pickDocFile(){
     : '✅ '+esc(res.file.name)+' — ready to upload.'
 }
 async function uploadDoc(){
-  const file=_docPicked,type=$('doc_type')?.value
+  let file=_docPicked;const type=$('doc_type')?.value
   if(!file){toast('Select or capture a file first','error');return}
   showUploadOverlay('Uploading document…')
   try{
+  file=await SPSMedia.ensureUnder1MB(file)
   const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
   const sid=e?.student_id;if(!sid){hideUploadOverlay();toast('Student not found','error');return}
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
@@ -4373,9 +4375,10 @@ async function runBulkDocUpload(){
   const prog=$('bd_progress')
   let ok=0,fail=0
   for(let i=0;i<_bdMatched.length;i++){
-    const{file,student_id}=_bdMatched[i]
+    let{file,student_id}=_bdMatched[i]
     prog.textContent=(i+1)+' / '+_bdMatched.length+' — '+student_id+'…'
     try{
+      file=await SPSMedia.ensureUnder1MB(file)
       const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
       const safeType=String(type).replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')
       const ts=Date.now()
@@ -4426,7 +4429,7 @@ async function runBulkPhotoUpload(){
       const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
       try{
         const{data:old}=await R2.list('student-photos',{search:student_id})
-        const del=(old||[]).filter(f=>f.name.startsWith(student_id+'.')).map(f=>'student-photos/'+f.name)
+        const del=(old||[]).filter(f=>f.name.startsWith(student_id+'.')).map(f=>f.key||('student-photos/'+f.name))
         if(del.length)await R2.remove(del)
       }catch(_){}
       const path='student-photos/'+student_id+'.'+ext
@@ -4498,7 +4501,7 @@ async function submitAdmission(e){
     if(ee)throw ee
     // Upload photo if provided
     const photoFile=$('adm_photo')?.files[0]
-    const docFile=$('adm_doc')?.files[0]
+    let docFile=$('adm_doc')?.files[0]
     if(photoFile||docFile){
       try{
         if(photoFile){
@@ -4507,6 +4510,7 @@ async function submitAdmission(e){
           if(!pe){const{data:{publicUrl:pu}}=R2.getPublicUrl(photoPath);await sb.from('students').update({photo_url:pu}).eq('student_id',studentId)}
         }
         if(docFile){
+          docFile=await SPSMedia.ensureUnder1MB(docFile)
           const docPath='student-docs/'+studentId+'/admission-doc.'+docFile.name.split('.').pop()
           const{error:de}=await R2.upload(docPath,docFile)
           if(!de){const{data:{publicUrl:du}}=R2.getPublicUrl(docPath);await sb.from('student_documents').insert({student_id:studentId,file_url:du,file_type:'Aadhar / Admission Doc',uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id,uploaded_at:new Date().toISOString()})}
@@ -13777,9 +13781,10 @@ function idcFieldColor(key){
 }
 
 async function idcBgUploaded(input){
-  const file=input.files?.[0]
+  let file=input.files?.[0]
   if(!file)return
   toast('Uploading template...','info')
+  file=await SPSMedia.ensureUnder1MB(file)
   const ext=((file.name.split('.').pop()||'png').toLowerCase()).replace(/[^a-z0-9]/g,'')||'png'
   const path='idcard/template_bg.'+ext
   const{error}=await R2.upload(path,file,{upsert:true})
