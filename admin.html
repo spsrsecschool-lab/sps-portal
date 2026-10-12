@@ -1032,6 +1032,16 @@ tbody tr:hover td{background:var(--lav-50)}
         <div id="bp_progress" style="font-size:13px;color:var(--ink-soft);align-self:center"></div>
       </div>
 
+      <!-- DELETE CLASS PHOTOS -->
+      <div class="card" style="max-width:760px;margin-bottom:18px;border:1px solid var(--warn)">
+        <h3 style="color:var(--warn-dark)">Delete Photos by Class</h3>
+        <div class="form-row">
+          <div class="fg"><label>Select Class</label><select id="dp_class"><option value="">Select class</option></select></div>
+          <div class="fg" style="align-self:flex-end"><button class="btn btn-ghost" style="border-color:var(--warn);color:var(--warn-dark)" onclick="runDeleteClassPhotos()">Delete All Photos</button></div>
+        </div>
+        <div id="dp_progress" style="font-size:13px;color:var(--ink-soft);margin-top:4px"></div>
+      </div>
+
       <hr style="border:none;border-top:1px solid var(--lav-200);max-width:760px;margin-bottom:24px">
 
       <!-- BULK DOCUMENTS -->
@@ -2870,6 +2880,7 @@ async function loadGlobals(){
   ;['adm_class','mo_class','pr_class','ca_class','cas_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+co})
   const coName=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+esc(c.name)+'">'+esc(c.name)+'</option>').join('')
   ;['adm_mis_class','adm_udise_class'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">— Same as class —</option>'+coName})
+  const dpSel=$('dp_class');if(dpSel)dpSel.innerHTML='<option value="">Select class</option>'+co
   populateDocTypeDropdowns()
   checkUnread()
 }
@@ -4444,6 +4455,36 @@ async function runBulkPhotoUpload(){
   btn.textContent='Upload Photos';btn.disabled=true
   toast(ok+' photos uploaded'+(fail?', '+fail+' failed':''),'success')
   _bpMatched=[];$('bp_files').value=''
+}
+async function runDeleteClassPhotos(){
+  const classId=$('dp_class')?.value
+  if(!classId){toast('Select a class','error');return}
+  const className=ALL_CLASSES.find(c=>c.class_id===classId)?.name||classId
+  if(!confirm('Delete ALL profile photos for '+className+' students?\n\nThis removes photos from storage and cannot be undone.'))return
+  const prog=$('dp_progress');prog.textContent='Loading students…'
+  const{data:enrolls}=await sb.from('student_enrollments').select('student_id,students(student_id,photo_url)')
+    .eq('session_id',SESS?.session_id||'').eq('class_id',classId).eq('status','active').eq('relieved',false)
+  const withPhoto=(enrolls||[]).filter(e=>e.students?.photo_url).map(e=>e.students)
+  if(!withPhoto.length){prog.textContent='No photos found for '+className;return}
+  prog.textContent='Deleting '+withPhoto.length+' photos…'
+  let ok=0,fail=0
+  for(let i=0;i<withPhoto.length;i++){
+    const s=withPhoto[i]
+    prog.textContent=(i+1)+'/'+withPhoto.length+' — '+s.student_id+'…'
+    try{
+      const p=R2.extractPath(s.photo_url)
+      if(p)await R2.remove([p])
+      try{
+        const{data:old}=await R2.list('student-photos',{search:s.student_id})
+        const del=(old||[]).filter(f=>f.name.startsWith(s.student_id+'.')).map(f=>f.key||('student-photos/'+f.name))
+        if(del.length)await R2.remove(del)
+      }catch(_){}
+      await sb.from('students').update({photo_url:null}).eq('student_id',s.student_id)
+      ok++
+    }catch(e){fail++;console.warn('Delete failed for',s.student_id,e)}
+  }
+  prog.textContent='Done — '+ok+' deleted'+(fail?' · '+fail+' failed':'')
+  toast(ok+' photos deleted for '+className+(fail?', '+fail+' failed':''),'success')
 }
 
 // ═══════════ NEW ADMISSION ═══════════
