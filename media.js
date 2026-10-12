@@ -321,5 +321,12 @@ window.SPSMedia = (function () {
 
   function needsMultiple(type) { return !!MULTI[type] }
 
-  return { isMobile, chooseOne, mergeImages, compressImage, acquireDocument, acquirePhoto, cropCircle, previewURL, needsMultiple, MULTI }
+  async function ensureUnder1MB(file) {
+    if (!file) return file
+    if (file.size <= 1024 * 1024) return file
+    if (/^image\//.test(file.type)) return compressImage(file, { maxKB: 1000, maxDim: 4096 })
+    return file
+  }
+
+  return { isMobile, chooseOne, mergeImages, compressImage, ensureUnder1MB, acquireDocument, acquirePhoto, cropCircle, previewURL, needsMultiple, MULTI }
 })()
