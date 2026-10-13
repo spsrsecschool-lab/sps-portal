@@ -8089,12 +8089,14 @@ function printClassAttendance(){
     const dayCount=totalCols-fixS-fixE
     const mrow=tbl.querySelector('.mrow')
     const bodyRows=[...tbl.querySelectorAll('tbody tr')]
-    const DPP=15
-    if(dayCount<=DPP){
+    const MAX_DAY=18
+    if(dayCount<=MAX_DAY){
       content=tbl.outerHTML
     }else{
+      const nPages=Math.ceil(dayCount/MAX_DAY)
+      const perPage=Math.ceil(dayCount/nPages)
       const chunks=[]
-      for(let i=0;i<dayCount;i+=DPP)chunks.push({f:i,t:Math.min(i+DPP,dayCount)})
+      for(let i=0;i<dayCount;i+=perPage)chunks.push({f:i,t:Math.min(i+perPage,dayCount)})
       chunks.forEach((ch,ci)=>{
         const isLast=ci===chunks.length-1
         const span=fixS+(ch.t-ch.f)+(isLast?fixE:0)
@@ -8127,11 +8129,8 @@ function printClassAttendance(){
     +'.hrow th{background:#f5f5f5 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'.rollcol{text-align:center;font-weight:700}'
     +'td:nth-child(2),th:nth-child(2),td:nth-child(3),th:nth-child(3){text-align:left}'
-    +'.cell-p{background:#C8E6C9 !important;color:#1B5E20;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    +'.cell-a{background:#D0D0D0 !important;color:#333;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    +'.cell-l{background:#FFE0B2 !important;color:#E65100;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    +'.cell-h{background:#EEEEEE !important;color:#888;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    +'.cell-hd{background:#BBDEFB !important;color:#0D47A1;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.cell-p,.cell-l,.cell-h,.cell-hd{background:#fff !important;color:#222;font-weight:600}'
+    +'.cell-a{background:#D5D5D5 !important;color:#222;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'.ppage{page-break-after:always}'
     +'.ppage:last-child{page-break-after:avoid}'
     +'@media print{body{padding:0}}'
