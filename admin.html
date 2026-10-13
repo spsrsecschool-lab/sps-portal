@@ -8069,6 +8069,8 @@ async function loadClassAttendance(){
 function printClassAttendance(){
   const el=$('caTable')
   if(!el||!el.innerHTML.trim()){toast('Load a report first','error');return}
+  const tbl=el.querySelector('table')
+  if(!tbl){toast('No table to print','error');return}
   const cls=$('ca_class');const sec=$('ca_section')
   const clsName=cls?.selectedOptions[0]?.textContent||''
   const secName=sec?.value?sec.selectedOptions[0]?.textContent:''
@@ -8076,30 +8078,66 @@ function printClassAttendance(){
   const yr=$('ca_year')?.value||''
   const title='Attendance — '+clsName+(secName?' ('+secName+')':'')+' — '+mon+' '+yr
 
-  const w=window.open('','_blank')
-  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title>'
-    +'<style>'
-    +'@page{size:A4 landscape;margin:10mm 8mm}'
+  const hrow=tbl.querySelector('.hrow')
+  let content=''
+  if(!hrow){
+    content=tbl.outerHTML
+  }else{
+    const allTh=[...hrow.querySelectorAll('th')]
+    const totalCols=allTh.length
+    const fixS=3,fixE=3
+    const dayCount=totalCols-fixS-fixE
+    const mrow=tbl.querySelector('.mrow')
+    const bodyRows=[...tbl.querySelectorAll('tbody tr')]
+    const DPP=15
+    if(dayCount<=DPP){
+      content=tbl.outerHTML
+    }else{
+      const chunks=[]
+      for(let i=0;i<dayCount;i+=DPP)chunks.push({f:i,t:Math.min(i+DPP,dayCount)})
+      chunks.forEach((ch,ci)=>{
+        const isLast=ci===chunks.length-1
+        const span=fixS+(ch.t-ch.f)+(isLast?fixE:0)
+        let hc='';for(let c=0;c<fixS;c++)hc+=allTh[c].outerHTML
+        for(let c=ch.f;c<ch.t;c++)hc+=allTh[fixS+c].outerHTML
+        if(isLast)for(let c=totalCols-fixE;c<totalCols;c++)hc+=allTh[c].outerHTML
+        let bd='';bodyRows.forEach(row=>{
+          const cells=[...row.querySelectorAll('td')];let r='<tr>'
+          for(let c=0;c<fixS;c++)r+=cells[c]?.outerHTML||'<td></td>'
+          for(let c=ch.f;c<ch.t;c++)r+=cells[fixS+c]?.outerHTML||'<td></td>'
+          if(isLast)for(let c=totalCols-fixE;c<totalCols;c++)r+=cells[c]?.outerHTML||'<td></td>'
+          bd+=r+'</tr>'
+        })
+        const mh=mrow?'<tr class="mrow"><th colspan="'+span+'">'+mrow.querySelector('th').innerHTML+(chunks.length>1?' — Part '+(ci+1)+'/'+chunks.length:'')+'</th></tr>':''
+        content+='<div class="ppage"><table><thead>'+mh+'<tr class="hrow">'+hc+'</tr></thead><tbody>'+bd+'</tbody></table></div>'
+      })
+    }
+  }
+
+  const css='@page{size:A4 landscape;margin:8mm 6mm}'
     +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#222;padding:6mm}'
-    +'h2{font-size:13px;margin-bottom:6px;text-align:center}'
+    +'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#222;padding:4mm}'
+    +'h2{font-size:14px;margin-bottom:6px;text-align:center}'
     +'table{width:100%;border-collapse:collapse;table-layout:auto}'
-    +'th,td{border:1px solid #999;padding:3px 4px;text-align:center;font-size:9px;white-space:nowrap}'
-    +'thead th{background:#eee;font-weight:700;font-size:9px}'
-    +'.mrow th{background:#ddd;font-size:11px;font-weight:700;text-align:left;padding:5px 8px}'
-    +'.hrow th{background:#f5f5f5}'
+    +'th,td{border:1px solid #888;padding:4px 5px;text-align:center;font-size:9px;white-space:nowrap}'
+    +'thead{display:table-header-group}'
+    +'tbody tr{page-break-inside:avoid}'
+    +'thead th{background:#eee !important;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.mrow th{background:#ddd !important;font-size:11px;font-weight:700;text-align:left;padding:5px 8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.hrow th{background:#f5f5f5 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'.rollcol{text-align:center;font-weight:700}'
     +'td:nth-child(2),th:nth-child(2),td:nth-child(3),th:nth-child(3){text-align:left}'
-    +'.cell-p{background:#C8E6C9;color:#1B5E20;font-weight:700}'
-    +'.cell-a{background:#FFCDD2;color:#B71C1C;font-weight:700}'
-    +'.cell-l{background:#FFE0B2;color:#E65100;font-weight:700}'
-    +'.cell-h{background:#EEEEEE;color:#888}'
-    +'.cell-hd{background:#BBDEFB;color:#0D47A1;font-weight:700}'
+    +'.cell-p{background:#C8E6C9 !important;color:#1B5E20;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.cell-a{background:#D0D0D0 !important;color:#333;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.cell-l{background:#FFE0B2 !important;color:#E65100;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.cell-h{background:#EEEEEE !important;color:#888;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.cell-hd{background:#BBDEFB !important;color:#0D47A1;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.ppage{page-break-after:always}'
+    +'.ppage:last-child{page-break-after:avoid}'
     +'@media print{body{padding:0}}'
-    +'</style></head><body>'
-    +'<h2>'+title+'</h2>'
-    +el.querySelector('table').outerHTML
-    +'</body></html>')
+
+  const w=window.open('','_blank')
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+css+'</style></head><body><h2>'+title+'</h2>'+content+'</body></html>')
   w.document.close()
   w.focus()
   w.onload=function(){w.print()}
