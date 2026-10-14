@@ -27,6 +27,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 :root{
   --pur:#6B21A8;--pur-dark:#581C87;--pur-100:#F3E8FF;
@@ -239,6 +240,11 @@ tbody tr:hover td{background:var(--lav-50)}
   <!-- ════════ DASHBOARD ════════ -->
   <div class="page active" id="page-dashboard">
     <div class="page-head"><div><h2>Inventory Dashboard</h2><p>Overview of stock, sales and alerts</p></div></div>
+    <div onclick="nav('sell')" style="cursor:pointer;background:linear-gradient(135deg,var(--pur),var(--pur-dark));color:#fff;border-radius:var(--radius-md);padding:18px 24px;display:flex;align-items:center;gap:16px;margin-bottom:18px;box-shadow:0 4px 14px rgba(107,33,168,.35)">
+      <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/></svg>
+      <div><div style="font-size:18px;font-weight:700">Sell / Distribute</div><div style="font-size:13px;opacity:.85">Scan QR &amp; issue items to students — works on phone camera</div></div>
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
     <div class="grid-4" id="dashStats">
       <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Articles</div><div class="val" id="dArticles">—</div></div>
       <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>In Stock</div><div class="val" id="dInStock">—</div></div>
@@ -297,14 +303,20 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page-head"><div><h2>Sell / Distribute</h2><p>Scan QR or select item to assign to a student</p></div></div>
     <div class="card" style="max-width:700px">
       <div class="form-row">
-        <div class="fg" style="flex:2"><label>Student</label><input id="sellStudent" placeholder="Type student name..." oninput="searchStudentsSell()"></div>
+        <div class="fg" style="max-width:200px"><label>Class</label><select id="sellClass" onchange="onSellClassChange()"><option value="">Select class</option></select></div>
+        <div class="fg" style="flex:2;position:relative">
+          <label>Student Name</label>
+          <input id="sellStudent" placeholder="Type student name..." autocomplete="off" oninput="searchStudentsSell()" onfocus="searchStudentsSell()">
+          <div id="sellStudentResults" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;display:none;margin-top:4px"></div>
+        </div>
       </div>
-      <div id="sellStudentResults" style="margin-bottom:14px"></div>
       <div id="sellSelectedStudent" style="margin-bottom:14px;display:none"></div>
       <div class="form-row">
         <div class="fg"><label>Scan QR / Enter Code</label><input id="sellQrCode" placeholder="Scan or type QR code..." onkeydown="if(event.key==='Enter')lookupQr()"></div>
         <button class="btn btn-primary btn-sm" onclick="lookupQr()" style="margin-bottom:0">Lookup</button>
+        <button class="btn btn-soft btn-sm" onclick="toggleCamScanner('sell')" style="margin-bottom:0">📷 Scan</button>
       </div>
+      <div id="sellCamWrap" style="display:none;margin-bottom:10px"><div id="sellCamReader" style="width:100%;max-width:350px"></div><button class="btn btn-ghost btn-xs" onclick="stopCamScanner('sell')" style="margin-top:6px">Stop Camera</button></div>
       <div id="sellItemInfo" style="margin-top:10px;display:none"></div>
       <div class="form-row" style="margin-top:14px">
         <div class="fg" style="max-width:180px"><label>Payment Mode</label><select id="sellPayMode"><option value="cash">Cash</option><option value="online">Online</option></select></div>
@@ -326,16 +338,22 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page-head"><div><h2>Exchange</h2><p>Return and replace items for students</p></div></div>
     <div class="card" style="max-width:700px">
       <div class="form-row">
-        <div class="fg" style="flex:2"><label>Student</label><input id="exchStudent" placeholder="Type student name..." oninput="searchStudentsExch()"></div>
+        <div class="fg" style="max-width:200px"><label>Class</label><select id="exchClass" onchange="onExchClassChange()"><option value="">Select class</option></select></div>
+        <div class="fg" style="flex:2;position:relative">
+          <label>Student Name</label>
+          <input id="exchStudent" placeholder="Type student name..." autocomplete="off" oninput="searchStudentsExch()" onfocus="searchStudentsExch()">
+          <div id="exchStudentResults" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;display:none;margin-top:4px"></div>
+        </div>
       </div>
-      <div id="exchStudentResults" style="margin-bottom:14px"></div>
       <div id="exchSelectedStudent" style="margin-bottom:14px;display:none"></div>
       <div id="exchStudentItems" style="margin-bottom:14px"></div>
       <div id="exchReturnInfo" style="margin-bottom:14px;display:none"></div>
       <div class="form-row">
         <div class="fg"><label>New Item — Scan QR / Enter Code</label><input id="exchNewQr" placeholder="Scan new item QR..." onkeydown="if(event.key==='Enter')lookupExchNew()"></div>
         <button class="btn btn-primary btn-sm" onclick="lookupExchNew()" style="margin-bottom:0">Lookup</button>
+        <button class="btn btn-soft btn-sm" onclick="toggleCamScanner('exch')" style="margin-bottom:0">📷 Scan</button>
       </div>
+      <div id="exchCamWrap" style="display:none;margin-bottom:10px"><div id="exchCamReader" style="width:100%;max-width:350px"></div><button class="btn btn-ghost btn-xs" onclick="stopCamScanner('exch')" style="margin-top:6px">Stop Camera</button></div>
       <div id="exchNewItemInfo" style="margin-top:10px;display:none"></div>
       <div class="form-row" style="margin-top:14px">
         <div class="fg" style="max-width:300px"><label>Reason</label><input id="exchReason" placeholder="e.g. Size change, defective..."></div>
@@ -406,14 +424,25 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ GLOBAL DATA ═══════════
-let ALL_ARTICLES=[], ALL_CLASSES=[], _sellEid=null, _sellItem=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
+let ALL_ARTICLES=[], ALL_CLASSES=[], SESS=null, _sellEid=null, _sellItem=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
+let _sellStudentsCache=[], _exchStudentsCache=[]
 
 async function loadGlobals(){
-  const{data}=await sb.from('inv_articles').select('*').order('name')
-  ALL_ARTICLES=data||[]
+  const[{data:arts},{data:cls},{data:sess}]=await Promise.all([
+    sb.from('inv_articles').select('*').order('name'),
+    sb.from('classes').select('*').order('sort_order'),
+    sb.from('sessions').select('*').eq('is_current',true).maybeSingle()
+  ])
+  ALL_ARTICLES=arts||[]
+  ALL_CLASSES=(cls||[]).filter(c=>c.is_active)
+  SESS=sess
   populateArticleDropdowns()
-  const{data:cls}=await sb.from('classes').select('class_id,class_name,section').order('class_name')
-  ALL_CLASSES=cls||[]
+  populateClassDropdowns()
+}
+
+function populateClassDropdowns(){
+  const co=ALL_CLASSES.map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  ;['sellClass','exchClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+co})
 }
 
 function populateArticleDropdowns(){
@@ -671,25 +700,46 @@ function printQrCodes(){
 }
 
 // ═══════════ SELL / DISTRIBUTE ═══════════
+async function onSellClassChange(){
+  _sellStudentsCache=[]
+  $('sellStudentResults').style.display='none'
+  $('sellStudent').value=''
+  const classId=$('sellClass').value
+  if(!classId)return
+  const{data}=await sb.from('student_enrollments')
+    .select('enrollment_id,students!inner(student_id,full_name,father_name),classes(name),class_sections(name)')
+    .eq('class_id',classId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+    .order('students(full_name)')
+  _sellStudentsCache=(data||[]).filter(e=>e.students)
+}
+
 let _sellSearchTimeout
 function searchStudentsSell(){
   clearTimeout(_sellSearchTimeout)
-  _sellSearchTimeout=setTimeout(async()=>{
-    const q=$('sellStudent').value.trim()
+  _sellSearchTimeout=setTimeout(()=>{
+    const q=$('sellStudent').value.trim().toLowerCase()
     const box=$('sellStudentResults')
-    if(q.length<2){box.innerHTML='';return}
-    const{data}=await sb.from('enrollments').select('enrollment_id,students(student_id,full_name,father_name),classes(class_name,section)').ilike('students.full_name','%'+q+'%').eq('status','active').limit(10)
-    const valid=(data||[]).filter(e=>e.students)
-    if(!valid.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:4px">No results.</div>';return}
-    box.innerHTML=valid.map(e=>'<div style="padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:12.5px" onclick="selectSellStudent(\''+e.enrollment_id+'\',\''+esc(e.students.full_name)+'\',\''+esc(e.classes?.class_name||'')+'\',\''+esc(e.classes?.section||'')+'\',\''+esc(e.students.father_name||'')+'\')"><b>'+esc(e.students.full_name)+'</b> <span style="color:var(--ink-faint)">s/o '+esc(e.students.father_name||'—')+' · '+esc(e.classes?.class_name||'')+' '+esc(e.classes?.section||'')+'</span></div>').join('')
-  },300)
+    if(q.length<1){box.style.display='none';return}
+    const matches=_sellStudentsCache.filter(e=>e.students.full_name.toLowerCase().includes(q)||e.students.father_name?.toLowerCase().includes(q)).slice(0,10)
+    if(!matches.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px">No results.</div>';box.style.display='block';return}
+    box.innerHTML=matches.map(e=>{
+      const sec=e.class_sections?.name||''
+      return '<div onmousedown="selectSellStudent(\''+e.enrollment_id+'\',\''+esc(e.students.full_name).replace(/'/g,"\\'")+'\',\''+esc(e.classes?.name||'').replace(/'/g,"\\'")+'\',\''+esc(sec).replace(/'/g,"\\'")+'\',\''+esc(e.students.father_name||'').replace(/'/g,"\\'")+'\')" '
+        +'style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px" '
+        +'onmouseover="this.style.background=\'var(--lav-100)\'" onmouseout="this.style.background=\'\'">'
+        +'<b>'+esc(e.students.full_name)+'</b>'
+        +' <span style="color:var(--ink-faint);font-size:11.5px">s/o '+esc(e.students.father_name||'—')+' · '+esc(e.classes?.name||'')+'-'+esc(sec)+'</span>'
+        +'</div>'
+    }).join('')
+    box.style.display='block'
+  },150)
 }
 
 function selectSellStudent(eid,name,cls,sec,father){
   _sellEid=eid
   $('sellSelectedStudent').style.display='block'
-  $('sellSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+' '+esc(sec)+' (s/o '+esc(father)+')</div>'
-  $('sellStudentResults').innerHTML=''
+  $('sellSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+'-'+esc(sec)+' (s/o '+esc(father)+')</div>'
+  $('sellStudentResults').style.display='none'
   $('sellStudent').value=''
   checkSellReady()
 }
@@ -744,25 +794,46 @@ async function loadQsItemList(){
 function pickQsItem(code){$('sellQrCode').value=code;lookupQr()}
 
 // ═══════════ EXCHANGE ═══════════
+async function onExchClassChange(){
+  _exchStudentsCache=[]
+  $('exchStudentResults').style.display='none'
+  $('exchStudent').value=''
+  const classId=$('exchClass').value
+  if(!classId)return
+  const{data}=await sb.from('student_enrollments')
+    .select('enrollment_id,students!inner(student_id,full_name,father_name),classes(name),class_sections(name)')
+    .eq('class_id',classId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+    .order('students(full_name)')
+  _exchStudentsCache=(data||[]).filter(e=>e.students)
+}
+
 let _exchSearchTimeout
 function searchStudentsExch(){
   clearTimeout(_exchSearchTimeout)
-  _exchSearchTimeout=setTimeout(async()=>{
-    const q=$('exchStudent').value.trim()
+  _exchSearchTimeout=setTimeout(()=>{
+    const q=$('exchStudent').value.trim().toLowerCase()
     const box=$('exchStudentResults')
-    if(q.length<2){box.innerHTML='';return}
-    const{data}=await sb.from('enrollments').select('enrollment_id,students(student_id,full_name,father_name),classes(class_name,section)').ilike('students.full_name','%'+q+'%').eq('status','active').limit(10)
-    const valid=(data||[]).filter(e=>e.students)
-    if(!valid.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:4px">No results.</div>';return}
-    box.innerHTML=valid.map(e=>'<div style="padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:12.5px" onclick="selectExchStudent(\''+e.enrollment_id+'\',\''+esc(e.students.full_name)+'\',\''+esc(e.classes?.class_name||'')+'\',\''+esc(e.classes?.section||'')+'\',\''+esc(e.students.father_name||'')+'\')"><b>'+esc(e.students.full_name)+'</b> <span style="color:var(--ink-faint)">s/o '+esc(e.students.father_name||'—')+' · '+esc(e.classes?.class_name||'')+' '+esc(e.classes?.section||'')+'</span></div>').join('')
-  },300)
+    if(q.length<1){box.style.display='none';return}
+    const matches=_exchStudentsCache.filter(e=>e.students.full_name.toLowerCase().includes(q)||e.students.father_name?.toLowerCase().includes(q)).slice(0,10)
+    if(!matches.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px">No results.</div>';box.style.display='block';return}
+    box.innerHTML=matches.map(e=>{
+      const sec=e.class_sections?.name||''
+      return '<div onmousedown="selectExchStudent(\''+e.enrollment_id+'\',\''+esc(e.students.full_name).replace(/'/g,"\\'")+'\',\''+esc(e.classes?.name||'').replace(/'/g,"\\'")+'\',\''+esc(sec).replace(/'/g,"\\'")+'\',\''+esc(e.students.father_name||'').replace(/'/g,"\\'")+'\')" '
+        +'style="padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px" '
+        +'onmouseover="this.style.background=\'var(--lav-100)\'" onmouseout="this.style.background=\'\'">'
+        +'<b>'+esc(e.students.full_name)+'</b>'
+        +' <span style="color:var(--ink-faint);font-size:11.5px">s/o '+esc(e.students.father_name||'—')+' · '+esc(e.classes?.name||'')+'-'+esc(sec)+'</span>'
+        +'</div>'
+    }).join('')
+    box.style.display='block'
+  },150)
 }
 
-async function selectExchStudent(eid,name,cls,sec,father){
+function selectExchStudent(eid,name,cls,sec,father){
   _exchEid=eid;_exchOldItem=null;_exchNewItem=null
   $('exchSelectedStudent').style.display='block'
-  $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+' '+esc(sec)+' (s/o '+esc(father)+')</div>'
-  $('exchStudentResults').innerHTML=''
+  $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+'-'+esc(sec)+' (s/o '+esc(father)+')</div>'
+  $('exchStudentResults').style.display='none'
   $('exchStudent').value=''
   $('exchReturnInfo').style.display='none'
   $('exchNewItemInfo').style.display='none'
@@ -829,7 +900,7 @@ async function _loadHistory(){
   const body=$('historyBody')
   body.innerHTML='<tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
 
-  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price),enrollments(enrollment_id,students(full_name),classes(class_name,section))').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
+  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price),student_enrollments(enrollment_id,students!inner(full_name),classes(name),class_sections(name))').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
   const artFilter=$('histArticle').value
   if(artFilter)q=q.eq('article_id',artFilter)
   const from=$('histFrom').value
@@ -842,17 +913,17 @@ async function _loadHistory(){
 
   const search=($('histSearch').value||'').trim().toLowerCase()
   let filtered=data||[]
-  if(search)filtered=filtered.filter(r=>r.enrollments?.students?.full_name?.toLowerCase().includes(search))
+  if(search)filtered=filtered.filter(r=>r.student_enrollments?.students?.full_name?.toLowerCase().includes(search))
 
   if(!filtered.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No records found.</td></tr>';return}
 
   body.innerHTML=filtered.map(r=>{
-    const stu=r.enrollments?.students
-    const cls=r.enrollments?.classes
+    const enr=r.student_enrollments
+    const stu=enr?.students
     return '<tr>'
       +'<td>'+new Date(r.sold_at).toLocaleDateString('en-IN')+'</td>'
       +'<td><b>'+esc(stu?.full_name||'—')+'</b></td>'
-      +'<td>'+esc(cls?.class_name||'')+' '+esc(cls?.section||'')+'</td>'
+      +'<td>'+esc(enr?.classes?.name||'')+'-'+esc(enr?.class_sections?.name||'')+'</td>'
       +'<td>'+esc(r.inv_articles?.name||'—')+'</td>'
       +'<td>'+(r.size||'—')+'</td>'
       +'<td class="mono" style="font-size:11px">'+esc(r.qr_code)+'</td>'
@@ -860,6 +931,28 @@ async function _loadHistory(){
       +'<td class="mono">'+fmtINR(r.inv_articles?.selling_price)+'</td>'
     +'</tr>'
   }).join('')
+}
+
+// ═══════════ CAMERA QR SCANNER ═══════════
+let _camScanner=null,_camMode=null
+function toggleCamScanner(mode){
+  if(_camScanner){stopCamScanner(_camMode);if(_camMode===mode)return}
+  _camMode=mode
+  const readerId=mode==='sell'?'sellCamReader':'exchCamReader'
+  const wrapId=mode==='sell'?'sellCamWrap':'exchCamWrap'
+  $(wrapId).style.display='block'
+  _camScanner=new Html5Qrcode(readerId)
+  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},code=>{
+    stopCamScanner(mode)
+    if(mode==='sell'){$('sellQrCode').value=code;lookupQr()}
+    else{$('exchNewQr').value=code;lookupExchNew()}
+  },()=>{}).catch(err=>{toast('Camera error: '+err,'error');$(wrapId).style.display='none';_camScanner=null;_camMode=null})
+}
+function stopCamScanner(mode){
+  if(_camScanner){try{_camScanner.stop().then(()=>{_camScanner.clear()}).catch(()=>{})}catch(e){}}
+  _camScanner=null;_camMode=null
+  const wrapId=mode==='sell'?'sellCamWrap':'exchCamWrap'
+  $(wrapId).style.display='none'
 }
 
 // ═══════════ LAZY LOAD ═══════════
