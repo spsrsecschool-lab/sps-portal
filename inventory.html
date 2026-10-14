@@ -365,17 +365,16 @@ tbody tr:hover td{background:var(--lav-50)}
       <div id="exchSelectedStudent" style="margin-bottom:14px;display:none"></div>
       <div id="exchStudentItems" style="margin-bottom:14px"></div>
       <div id="exchReturnInfo" style="margin-bottom:14px;display:none"></div>
-      <div class="form-row">
-        <div class="fg"><label>New Item — Scan QR / Enter Code</label><input id="exchNewQr" placeholder="Scan new item QR..." onkeydown="if(event.key==='Enter')lookupExchNew()"></div>
-        <button class="btn btn-primary btn-sm" onclick="lookupExchNew()" style="margin-bottom:0">Lookup</button>
-        <button class="btn btn-soft btn-sm" onclick="toggleCamScanner('exch')" style="margin-bottom:0">📷 Scan</button>
-      </div>
-      <div id="exchCamWrap" style="display:none;margin-bottom:10px"><div id="exchCamReader" style="width:100%;max-width:350px"></div><button class="btn btn-ghost btn-xs" onclick="stopCamScanner('exch')" style="margin-top:6px">Stop Camera</button></div>
-      <div id="exchNewItemInfo" style="margin-top:10px;display:none"></div>
       <div class="form-row" style="margin-top:14px">
         <div class="fg" style="max-width:300px"><label>Reason</label><input id="exchReason" placeholder="e.g. Size change, defective..."></div>
       </div>
-      <div style="margin-top:16px"><button class="btn btn-success" onclick="confirmExchange()" id="exchBtn" disabled>Confirm Exchange</button></div>
+      <div id="exchCamWrap" style="display:none;margin:14px 0"><div id="exchCamReader"></div></div>
+      <div id="exchNewItemInfo" style="margin-top:10px;display:none"></div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-primary" onclick="startExchScan()" id="exchScanBtn" disabled style="width:100%;padding:14px;font-size:15px">📷 Scan New Item</button>
+        <button class="btn btn-success" onclick="confirmExchange()" id="exchBtn" style="display:none;width:100%;padding:14px;font-size:15px">Confirm Exchange</button>
+        <button class="btn btn-danger" onclick="cancelExchScan()" id="exchCancelBtn" style="display:none;width:100%;padding:12px;font-size:14px">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -1013,20 +1012,49 @@ function selectExchReturn(itemId,artName,size,qr){
   checkExchReady()
 }
 
-async function lookupExchNew(){
-  const code=$('exchNewQr').value.trim()
-  if(!code){toast('Enter a QR code','error');return}
+let _exchScannedCode=null
+function startExchScan(){
+  if(!_exchEid||!_exchOldItem){toast('Select a student and item to return first','error');return}
+  _exchNewItem=null;_exchScannedCode=null
+  $('exchNewItemInfo').style.display='none'
+  $('exchScanBtn').style.display='none'
+  $('exchBtn').style.display='none'
+  $('exchCancelBtn').style.display='block'
+  $('exchCamWrap').style.display='block'
+  _camMode='exch'
+  _camScanner=new Html5Qrcode('exchCamReader')
+  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},onExchQrScanned,()=>{}).catch(err=>{
+    toast('Camera error: '+err,'error')
+    cancelExchScan()
+  })
+}
+async function onExchQrScanned(code){
+  if(_exchScannedCode)return
+  _exchScannedCode=code
   const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices)').eq('qr_code',code).maybeSingle()
-  if(error||!data){toast('Item not found','error');_exchNewItem=null;checkExchReady();return}
-  if(data.status!=='in_stock'){toast('Item is not in stock (status: '+data.status+')','error');_exchNewItem=null;checkExchReady();return}
+  if(error||!data){toast('Item not found: '+code,'error');_exchScannedCode=null;return}
+  if(data.status!=='in_stock'){toast(code+' not in stock ('+data.status+')','error');_exchScannedCode=null;return}
+  _beep()
   _exchNewItem=data
+  stopCamScanner('exch')
+  $('exchCamWrap').style.display='none'
   $('exchNewItemInfo').style.display='block'
   $('exchNewItemInfo').innerHTML='<div class="card" style="padding:10px;background:var(--success-soft);border-color:var(--success)"><b>New item:</b> '+esc(data.inv_articles?.name||'—')+(data.size?' · '+esc(data.size):'')+' <span class="mono" style="font-size:10px">'+esc(data.qr_code)+'</span></div>'
-  $('exchNewQr').value=''
-  checkExchReady()
+  $('exchBtn').style.display='block'
+  $('exchCancelBtn').style.display='block'
 }
-
-function checkExchReady(){$('exchBtn').disabled=!(_exchEid&&_exchOldItem&&_exchNewItem)}
+function cancelExchScan(){
+  stopCamScanner('exch')
+  _exchNewItem=null;_exchScannedCode=null
+  $('exchCamWrap').style.display='none'
+  $('exchNewItemInfo').style.display='none'
+  $('exchScanBtn').style.display='block'
+  $('exchBtn').style.display='none'
+  $('exchCancelBtn').style.display='none'
+}
+function checkExchReady(){
+  $('exchScanBtn').disabled=!(_exchEid&&_exchOldItem)
+}
 
 async function confirmExchange(){
   if(!_exchEid||!_exchOldItem||!_exchNewItem)return
@@ -1042,12 +1070,15 @@ async function confirmExchange(){
   if(e3)console.error('Exchange log failed:',e3.message)
 
   toast('Exchange completed','success')
-  _exchOldItem=null;_exchNewItem=null;_exchEid=null
+  _exchOldItem=null;_exchNewItem=null;_exchEid=null;_exchScannedCode=null
   $('exchReturnInfo').style.display='none'
   $('exchNewItemInfo').style.display='none'
   $('exchSelectedStudent').style.display='none'
   $('exchStudentItems').innerHTML=''
-  $('exchBtn').disabled=true
+  $('exchScanBtn').style.display='block'
+  $('exchScanBtn').disabled=true
+  $('exchBtn').style.display='none'
+  $('exchCancelBtn').style.display='none'
 }
 
 // ═══════════ PURCHASE HISTORY ═══════════
@@ -1102,18 +1133,6 @@ async function _loadHistory(){
 
 // ═══════════ CAMERA QR SCANNER ═══════════
 let _camScanner=null,_camMode=null
-function toggleCamScanner(mode){
-  if(_camScanner){stopCamScanner(_camMode);if(_camMode===mode)return}
-  _camMode=mode
-  const readerId=mode+'CamReader'
-  const wrapId=mode+'CamWrap'
-  $(wrapId).style.display='block'
-  _camScanner=new Html5Qrcode(readerId)
-  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},code=>{
-    stopCamScanner(mode)
-    $('exchNewQr').value=code;lookupExchNew()
-  },()=>{}).catch(err=>{toast('Camera error: '+err,'error');$(wrapId).style.display='none';_camScanner=null;_camMode=null})
-}
 function stopCamScanner(mode){
   if(_camScanner){try{_camScanner.stop().then(()=>{_camScanner.clear()}).catch(()=>{})}catch(e){}}
   _camScanner=null;_camMode=null
