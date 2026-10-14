@@ -743,7 +743,7 @@ function printQrCodes(){
 }
 
 // ═══════════ SELL / DISTRIBUTE ═══════════
-let _sellItems=[], _beepCtx=null
+let _sellItems=[], _sellScannedCodes=new Set(), _beepCtx=null
 function _beep(){
   try{
     if(!_beepCtx)_beepCtx=new(window.AudioContext||window.webkitAudioContext)()
@@ -805,7 +805,7 @@ function updateSellBtnState(){
 
 function startSellScan(){
   if(!_sellEid){toast('Select a student first','error');return}
-  _sellItems=[]
+  _sellItems=[];_sellScannedCodes.clear()
   renderSellScannedItems()
   $('sellScanBtn').style.display='none'
   $('sellBtn').style.display='block'
@@ -826,7 +826,8 @@ function startSellScan(){
 }
 
 async function onSellQrScanned(code){
-  if(_sellItems.find(i=>i.qr_code===code)){_beep();return}
+  if(_sellScannedCodes.has(code))return
+  _sellScannedCodes.add(code)
   const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices,category)').eq('qr_code',code).maybeSingle()
   if(error||!data){toast('Item not found: '+code,'error');return}
   if(data.status!=='in_stock'){toast(code+' not in stock ('+data.status+')','error');return}
@@ -836,7 +837,8 @@ async function onSellQrScanned(code){
 }
 
 function removeSellItem(idx){
-  _sellItems.splice(idx,1)
+  const removed=_sellItems.splice(idx,1)
+  if(removed[0])_sellScannedCodes.delete(removed[0].qr_code)
   renderSellScannedItems()
 }
 
@@ -882,7 +884,7 @@ function cancelSell(){
 }
 
 function _resetSellUI(){
-  _sellItems=[];_sellEid=null
+  _sellItems=[];_sellEid=null;_sellScannedCodes.clear()
   $('sellScannedList').style.display='none'
   $('sellScannedItems').innerHTML=''
   $('sellSelectedStudent').style.display='none'
