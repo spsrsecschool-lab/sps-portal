@@ -294,6 +294,10 @@
             <label style="color:var(--accent);font-weight:600;">Total Cash Received (₹)</label>
             <input type="number" inputmode="decimal" id="c_totalCash" placeholder="Enter lump sum…" style="font-size:20px;font-family:var(--mono);border-color:var(--accent);" oninput="runFamilyAutoAllocate()">
           </div>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--accent);cursor:pointer;">
+            <input type="checkbox" id="c_markAllPaid" onchange="runFamilyAutoAllocate()" style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer">
+            Mark all months paid (shortfall → arrears)
+          </label>
           <div id="autoAllocPreview" style="margin-top:12px;background:rgba(79,142,247,.08);padding:12px;border-radius:8px;border:1px solid rgba(79,142,247,.2);display:none;"></div>
         </div>
         <div id="extraFeesContainer" style="display:none;margin-bottom:16px;"></div>
@@ -1479,6 +1483,7 @@ function switchCounterMode(mode){
   }else if(mode==='auto'){
     $('autoAllocContainer').style.display='block';
     $('c_totalCash').value='';
+    if($('c_markAllPaid'))$('c_markAllPaid').checked=false;
     $('autoAllocPreview').style.display='none';
     autoAllocPlan=[]; updateFamilyLock();
   }else if(mode==='extra'){
@@ -1670,6 +1675,46 @@ function runFamilyAutoAllocate(){
     if(tillIdx>=0) activeMonths=MONTHS.slice(0,tillIdx+1);
   }
 
+  if($('c_markAllPaid')?.checked){
+    let totalDue=0
+    selectedSibs.forEach(stu=>{
+      activeMonths.forEach(m=>{
+        const mt=monthlyTuitionForMonth(stu,MONTHS.indexOf(m))
+        const paid=getMonthPayments(stu.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0)
+        const wv=getWaivedAmount(stu,m)
+        const due=Math.max(0,mt-wv-paid)
+        if(due>0){autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Tuition',month:m,amt:due,fullDue:due});totalDue+=due}
+      })
+      const annDue=getTotalDues(stu).annualDue
+      if(annDue>0){autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:annDue,fullDue:annDue});totalDue+=annDue}
+    })
+    const prevDue=getFamilyPrevBalance(activeFamilyCode)
+    if(prevDue>0){autoAllocPlan.push({eid:selectedSibs[0].enrollment_id,name:'Family Prev Balance',type:'Prev',month:HEAD_PREV,amt:prevDue,fullDue:prevDue});totalDue+=prevDue}
+    const shortfall=totalDue-cash
+    if(shortfall>0){
+      autoAllocPlan.push({eid:selectedSibs[0].enrollment_id,name:'Shortfall → Arrears',type:'_shortfall',month:'_SHORTFALL',amt:shortfall,fullDue:shortfall})
+    }else if(totalDue<cash){
+      autoAllocPlan.push({eid:selectedSibs[0].enrollment_id,name:'Family Excess Credit',type:'Prev',month:HEAD_PREV,amt:cash-totalDue,fullDue:0})
+    }
+    autoAllocPlan=autoAllocPlan.filter(p=>p.amt>0)
+    autoAllocPlan.push({valid:true})
+    previewBox.style.display='block'
+    let html=`<strong style="color:var(--accent);font-size:12px;">Auto-Allocation Plan (All Months Paid):</strong>
+    <div style="font-size:11px;margin-top:8px;display:flex;flex-direction:column;gap:3px;">`
+    autoAllocPlan.forEach(p=>{
+      if(p.valid)return
+      const isShortfall=p.type==='_shortfall'
+      html+=`<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.05);padding:4px 0;flex-wrap:wrap;gap:4px;">
+        <span>${isShortfall?'<b style="color:var(--yellow)">'+esc(p.name)+'</b>':esc(p.name)+' — <span style="color:var(--muted)">'+esc(p.month)+'</span>'}</span>
+        <b style="color:${isShortfall?'var(--red)':'var(--green)'}">${isShortfall?'+':''}${fmtINR(p.amt)}</b></div>`
+    })
+    if(shortfall>0) html+=`<div style="color:var(--yellow);margin-top:6px;font-size:10px;">⚠ ₹${shortfall.toLocaleString('en-IN')} will be added to Family Prev Balance as arrears.</div>`
+    html+='</div>'
+    previewBox.innerHTML=html
+    updateFamilyLock()
+    return
+  }
+
   function allocTuition(){
     for(const m of activeMonths){
       if(cash<=0)return;
@@ -1813,6 +1858,7 @@ async function submitFamilyPayment(){
 
   if(counterMode==='auto'){
     const planLines=autoAllocPlan.filter(p=>!p.valid).map(p=>{
+      if(p.type==='_shortfall') return `⚠ ${p.name}: +${fmtINR(p.amt)} (added to arrears)`;
       const isPartial=p.type!=='Prev'&&p.fullDue>0&&p.amt<p.fullDue;
       const partial=isPartial?` ⚠ partial (${fmtINR(p.amt)} of ${fmtINR(p.fullDue)})`:'';
       return `${p.name} — ${p.month}: ${fmtINR(p.amt)}${partial}`;
@@ -1875,7 +1921,7 @@ async function submitFamilyPayment(){
     });
   }else{
     autoAllocPlan.forEach(plan=>{
-      if(plan.valid)return;
+      if(plan.valid||plan.type==='_shortfall')return;
       totalProcessed+=plan.amt;
       txnEntries.push({enrollment_id:plan.eid,month:plan.month,total:plan.amt,_type:plan.type,_fullDue:plan.fullDue,_name:plan.name});
     });
@@ -1901,6 +1947,10 @@ async function submitFamilyPayment(){
         shortfallOps.push({eid:p.enrollment_id,amt:shortfall,source:`Partial ${p._type}: ${p.month} (paid ${fmtINR(p._fullDue-shortfall)}, shortfall ${fmtINR(shortfall)})`});
       });
     }
+  }
+  const markAllShortfall=autoAllocPlan.find(p=>p.type==='_shortfall');
+  if(markAllShortfall){
+    shortfallOps.push({eid:markAllShortfall.eid,amt:markAllShortfall.amt,source:`Mark-all-paid shortfall (cash ${fmtINR(totalProcessed)}, total due ${fmtINR(totalProcessed+markAllShortfall.amt)})`});
   }
   await _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy,shortfallOps);
 }
