@@ -245,10 +245,26 @@ tbody tr:hover td{background:var(--lav-50)}
       <div><div style="font-size:18px;font-weight:700">Sell / Distribute</div><div style="font-size:13px;opacity:.85">Scan QR &amp; issue items to students — works on phone camera</div></div>
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+      <div class="card" style="padding:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:10px">👔 UNIFORMS</div>
+        <div style="display:flex;gap:18px">
+          <div><div style="font-size:11px;color:var(--ink-faint)">In Stock</div><div style="font-size:22px;font-weight:800" id="dUniStock">—</div></div>
+          <div><div style="font-size:11px;color:var(--ink-faint)">Sold</div><div style="font-size:22px;font-weight:800;color:var(--success)" id="dUniSold">—</div></div>
+        </div>
+      </div>
+      <div class="card" style="padding:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:10px">📚 BOOKS</div>
+        <div style="display:flex;gap:18px">
+          <div><div style="font-size:11px;color:var(--ink-faint)">In Stock</div><div style="font-size:22px;font-weight:800" id="dBookStock">—</div></div>
+          <div><div style="font-size:11px;color:var(--ink-faint)">Sold</div><div style="font-size:22px;font-weight:800;color:var(--success)" id="dBookSold">—</div></div>
+        </div>
+      </div>
+    </div>
     <div class="grid-4" id="dashStats">
-      <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Articles</div><div class="val" id="dArticles">—</div></div>
-      <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>In Stock</div><div class="val" id="dInStock">—</div></div>
-      <div class="stat-card success"><div class="lbl"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Sold</div><div class="val" id="dSold">—</div></div>
+      <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Total Articles</div><div class="val" id="dArticles">—</div></div>
+      <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Total In Stock</div><div class="val" id="dInStock">—</div></div>
+      <div class="stat-card success"><div class="lbl"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Total Sold</div><div class="val" id="dSold">—</div></div>
       <div class="stat-card danger"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Low Stock</div><div class="val" id="dLowStock">—</div></div>
     </div>
     <div class="card" style="margin-top:18px">
@@ -459,24 +475,34 @@ function populateArticleDropdowns(){
 
 // ═══════════ DASHBOARD ═══════════
 async function renderDashboard(){
-  const[{count:artCount},{count:inStock},{count:sold},{data:articles}]=await Promise.all([
-    sb.from('inv_articles').select('*',{count:'exact',head:true}),
-    sb.from('inv_items').select('*',{count:'exact',head:true}).eq('status','in_stock'),
-    sb.from('inv_items').select('*',{count:'exact',head:true}).eq('status','sold'),
-    sb.from('inv_articles').select('*')
+  const[{data:articles},{data:items}]=await Promise.all([
+    sb.from('inv_articles').select('*'),
+    sb.from('inv_items').select('article_id,status')
   ])
-  $('dArticles').textContent=artCount||0
-  $('dInStock').textContent=inStock||0
-  $('dSold').textContent=sold||0
+  const arts=articles||[]
+  const allItems=items||[]
+  const artMap={};arts.forEach(a=>{artMap[a.id]=a})
+
+  let uniStock=0,uniSold=0,bookStock=0,bookSold=0,totalStock=0,totalSold=0
+  allItems.forEach(i=>{
+    const cat=artMap[i.article_id]?.category
+    if(i.status==='in_stock'){totalStock++;if(cat==='book_set')bookStock++;else uniStock++}
+    if(i.status==='sold'){totalSold++;if(cat==='book_set')bookSold++;else uniSold++}
+  })
+  $('dUniStock').textContent=uniStock;$('dUniSold').textContent=uniSold
+  $('dBookStock').textContent=bookStock;$('dBookSold').textContent=bookSold
+  $('dArticles').textContent=arts.length
+  $('dInStock').textContent=totalStock
+  $('dSold').textContent=totalSold
 
   let lowCount=0
   const lowItems=[]
-  if(articles){
-    for(const art of articles){
-      const{count:stk}=await sb.from('inv_items').select('*',{count:'exact',head:true}).eq('article_id',art.id).eq('status','in_stock')
-      if((stk||0)<=(art.low_stock_threshold||5)){lowCount++;lowItems.push({name:art.name,stock:stk||0,threshold:art.low_stock_threshold||5})}
-    }
-  }
+  const stockByArt={}
+  allItems.forEach(i=>{if(i.status==='in_stock')stockByArt[i.article_id]=(stockByArt[i.article_id]||0)+1})
+  arts.forEach(art=>{
+    const stk=stockByArt[art.id]||0
+    if(stk<=(art.low_stock_threshold||5)){lowCount++;lowItems.push({name:art.name,stock:stk,threshold:art.low_stock_threshold||5})}
+  })
   $('dLowStock').textContent=lowCount
 
   const lsl=$('lowStockList')
@@ -711,7 +737,7 @@ async function loadQrItems(){
     sel.value=cur
   }
 
-  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">'+esc(item.qr_code)+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':'neutral')+'">'+esc(item.status)+'</span>'+(item.size?' · '+esc(item.size):'')+'</div></div>').join('')
+  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':'neutral')+'">'+esc(item.status)+'</span></div></div>').join('')
 
   data.forEach((item,idx)=>{
     new QRCode(document.getElementById('qrcanvas_'+idx),{text:item.qr_code,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})
@@ -1003,7 +1029,7 @@ async function _loadHistory(){
   const body=$('historyBody')
   body.innerHTML='<tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
 
-  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices),student_enrollments(enrollment_id,students!inner(full_name),classes(name),class_sections(name))').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
+  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices),student_enrollments!sold_to_enrollment_id(enrollment_id,students!inner(full_name),classes(name),class_sections(name))').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
   const artFilter=$('histArticle').value
   if(artFilter)q=q.eq('article_id',artFilter)
   const from=$('histFrom').value
