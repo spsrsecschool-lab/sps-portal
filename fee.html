@@ -1920,11 +1920,13 @@ async function submitFamilyPayment(){
       }
     });
   }else{
+    const isMarkAll=$('c_markAllPaid')?.checked;
     autoAllocPlan.forEach(plan=>{
       if(plan.valid||plan.type==='_shortfall')return;
       totalProcessed+=plan.amt;
       txnEntries.push({enrollment_id:plan.eid,month:plan.month,total:plan.amt,_type:plan.type,_fullDue:plan.fullDue,_name:plan.name});
     });
+    if(isMarkAll) totalProcessed=parseFloat($('c_totalCash').value)||0;
   }
 
   // Shared partial-payment handling for BOTH manual and auto: any tuition/annual
