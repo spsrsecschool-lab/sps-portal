@@ -6201,23 +6201,39 @@ function fcRenderStudents(){
     const na=!!naMap[k]
     const pRec=paidMap[k]
     const byAdmin=pRec?.collected_by_type==='admin'
+    const mode=pRec?.collection_mode;
+    const paidTime=pRec?.paid_at?new Date(pRec.paid_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+    const modeTag=mode?' <span style="font-size:10px;color:var(--ink-faint)">('+mode+')</span>':'';
+    const timeTag=paidTime?'<div style="font-size:10px;color:var(--ink-faint)">'+paidTime+'</div>':'';
     let statusPill,action
     if(na){statusPill='<span class="pill pill-neutral">Not Appearing</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleNA(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>'}
-    else if(paid){statusPill=byAdmin?'<span class="pill pill-neutral">Admin</span>':'<span class="pill pill-success">Paid</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>'}
+    else if(paid){statusPill=(byAdmin?'<span class="pill pill-neutral">Admin</span>':'<span class="pill pill-success">Paid</span>')+modeTag+timeTag;action='<button class="btn btn-ghost btn-xs" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',false)">Undo</button>'}
     else{statusPill='<span class="pill pill-danger">Pending</span>';action='<div style="display:flex;align-items:center;gap:10px"><button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleFee(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Mark Paid</button><a href="#" style="font-size:11px;color:var(--ink-faint);white-space:nowrap" onclick="event.preventDefault();adminToggleNA(\''+e.enrollment_id+'\',\''+f.exam_fee_id+'\',true)">Not Appearing</a></div>'}
     h+='<tr><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>₹'+f.amount+'</td><td>'+statusPill+'</td><td>'+action+'</td></tr>'
   })
   h+='</tbody></table></div></div>'
   el.innerHTML=h
 }
+function askCollectionMode(){
+  return new Promise(resolve=>{
+    const body='<div style="font-size:14px;color:var(--ink);margin-bottom:12px">How was this fee collected?</div>'
+    const foot='<button class="btn btn-ghost" id="cm_offline" style="margin-right:8px">Offline (Cash)</button><button class="btn btn-primary" id="cm_online">Online (UPI/Bank)</button>'
+    openModal('Collection Mode',body,foot)
+    $('cm_offline').onclick=()=>{closeModal();resolve('offline')}
+    $('cm_online').onclick=()=>{closeModal();resolve('online')}
+  })
+}
 async function adminToggleFee(enrollmentId,feeId,markPaid){
+  let collectionMode=null;
+  if(markPaid) collectionMode=await askCollectionMode();
   const{error}=await sb.from('exam_fee_payments').upsert({
     exam_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,not_appearing:false,
     collected_by_type:'admin',collected_by_id:null,
-    paid_at:markPaid?new Date().toISOString():null
+    paid_at:markPaid?new Date().toISOString():null,
+    collection_mode:collectionMode
   },{onConflict:'exam_fee_id,enrollment_id'})
   if(error){toast('Failed: '+error.message,'error');return}
-  toast(markPaid?'Marked as paid':'Marked as unpaid','success')
+  toast(markPaid?'Marked as paid ('+collectionMode+')':'Marked as unpaid','success')
   const{data:p}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',_fcData.feeIds)
   _fcData.payments=p||[];renderFeeCollection()
 }
@@ -6225,7 +6241,7 @@ async function adminToggleNA(enrollmentId,feeId,mark){
   const{error}=await sb.from('exam_fee_payments').upsert({
     exam_fee_id:feeId,enrollment_id:enrollmentId,is_paid:false,not_appearing:mark,
     collected_by_type:'admin',collected_by_id:null,
-    paid_at:null
+    paid_at:null,collection_mode:null
   },{onConflict:'exam_fee_id,enrollment_id'})
   if(error){toast('Failed: '+error.message,'error');return}
   toast(mark?'Marked as not appearing':'Unmarked','success')
@@ -6515,10 +6531,14 @@ function renderMiscFeeStatus(){
     const p=paidMap[e.enrollment_id]
     const paid=!!p
     const byType=p?.collected_by_type||''
+    const mode=p?.collection_mode;
+    const paidTime=p?.paid_at?new Date(p.paid_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+    const modeTag=mode?' <span style="font-size:10px;color:var(--ink-faint)">('+mode+')</span>':'';
+    const timeTag=paidTime?'<div style="font-size:10px;color:var(--ink-faint)">'+paidTime+'</div>':'';
     let statusPill,collectedBy,action
-    if(paid&&byType==='admin'){statusPill='<span class="pill pill-neutral">Paid (Admin)</span>';collectedBy='<span style="font-size:11.5px">Admin</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
-    else if(paid&&byType==='teacher'){statusPill='<span class="pill pill-success">Paid (Teacher)</span>';collectedBy='<span style="font-size:11.5px">Teacher</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
-    else if(paid){statusPill='<span class="pill pill-success">Paid</span>';collectedBy='—';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    if(paid&&byType==='admin'){statusPill='<span class="pill pill-neutral">Paid (Admin)'+modeTag+'</span>'+timeTag;collectedBy='<span style="font-size:11.5px">Admin</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    else if(paid&&byType==='teacher'){statusPill='<span class="pill pill-success">Paid (Teacher)'+modeTag+'</span>'+timeTag;collectedBy='<span style="font-size:11.5px">Teacher</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    else if(paid){statusPill='<span class="pill pill-success">Paid'+modeTag+'</span>'+timeTag;collectedBy='—';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
     else{statusPill='<span class="pill pill-danger">Pending</span>';collectedBy='—';action='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',true)">Mark Paid</button>'}
     h+='<tr><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td>'+statusPill+'</td><td>'+collectedBy+'</td><td>'+action+'</td></tr>'
   })
@@ -6526,13 +6546,16 @@ function renderMiscFeeStatus(){
   el.innerHTML=h
 }
 async function adminToggleMiscFee(enrollmentId,feeId,markPaid){
+  let collectionMode=null;
+  if(markPaid) collectionMode=await askCollectionMode();
   const{error}=await sb.from('misc_fee_payments').upsert({
     misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,
     collected_by_type:'admin',collected_by_id:null,
-    paid_at:markPaid?new Date().toISOString():null
+    paid_at:markPaid?new Date().toISOString():null,
+    collection_mode:collectionMode
   },{onConflict:'misc_fee_id,enrollment_id'})
   if(error){toast('Failed: '+error.message,'error');return}
-  toast(markPaid?'Marked as paid':'Payment reversed','success')
+  toast(markPaid?'Marked as paid ('+collectionMode+')':'Payment reversed','success')
   const{data:p}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId)
   _mfStatusData.payments=p||[];renderMiscFeeStatus()
 }

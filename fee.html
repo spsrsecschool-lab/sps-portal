@@ -1375,13 +1375,14 @@ function refreshFamilyDues(){
     const youngest=sorted[sorted.length-1];
     const discLabel=(isDisc&&youngest.enrollment_id===stu.enrollment_id)?` <span style="color:var(--yellow);font-size:9px;">★ DISC</span>`:'';
     const snoLabel=(stu.sno==null||stu.sno==='')?` <span class="pill pill-yellow" style="font-size:8px">NO S.NO</span>`:'';
+    const relievedLabel=stu.relieved?` <span class="pill" style="font-size:8px;background:var(--red);color:#fff;font-weight:700">RELIEVED</span>`:'';
     summaryHTML+=`
-    <div class="sib-card">
+    <div class="sib-card"${stu.relieved?' style="opacity:0.7;border-left:3px solid var(--red)"':''}>
       <div class="hdr">
         <div class="hdr-name" style="display:flex;align-items:center;gap:6px">
           <input type="checkbox" class="sib-check" data-eid="${stu.enrollment_id}" checked onchange="onSibCheckChange()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
           <div>
-            <b onclick="openProfileModal('${stu.enrollment_id}', _getCurrentPage())" style="cursor:pointer;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px" title="View / edit profile">${esc(stu.name)}</b>${snoLabel}
+            <b onclick="openProfileModal('${stu.enrollment_id}', _getCurrentPage())" style="cursor:pointer;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px" title="View / edit profile">${esc(stu.name)}</b>${snoLabel}${relievedLabel}
             <span class="fee-rate">${fmtINR(mt)}/month${discLabel}</span>
           </div>
         </div>
@@ -1533,8 +1534,12 @@ function buildExtraFeesPanel(){
       const paid=f.pay?.is_paid;
       const by=f.pay?.collected_by_type;
       let status,action;
-      if(paid && by==='admin'){status='<span style="color:var(--muted);font-size:12px">✓ Paid via Admin</span>';action='<button class="btn btn-danger btn-sm" onclick="undoExtraFee(\''+f.kind+'\',\''+f.id+'\',\''+stu.enrollment_id+'\')">Undo</button>';}
-      else if(paid && by==='teacher'){status='<span style="color:var(--success);font-size:12px">✓ Paid via Teacher</span>';action='<span style="color:var(--muted);font-size:11px">collected in class</span>';}
+      const mode=f.pay?.collection_mode;
+      const paidAt=f.pay?.paid_at?new Date(f.pay.paid_at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+      const modeTag=mode?' <span style="font-size:10px;color:var(--muted)">('+mode+')</span>':'';
+      const timeTag=paidAt?' <div style="font-size:10px;color:var(--muted)">'+paidAt+'</div>':'';
+      if(paid && by==='admin'){status='<span style="color:var(--muted);font-size:12px">✓ Paid via Admin'+modeTag+'</span>'+timeTag;action='<button class="btn btn-danger btn-sm" onclick="undoExtraFee(\''+f.kind+'\',\''+f.id+'\',\''+stu.enrollment_id+'\')">Undo</button>';}
+      else if(paid && by==='teacher'){status='<span style="color:var(--success);font-size:12px">✓ Paid via Teacher'+modeTag+'</span>'+timeTag;action='<span style="color:var(--muted);font-size:11px">collected in class</span>';}
       else{status='<span style="color:var(--danger);font-size:12px">Pending</span>';action='<button class="btn btn-success btn-sm" onclick="collectExtraFee(\''+f.kind+'\',\''+f.id+'\',\''+stu.enrollment_id+'\','+f.amount+')">Collect ₹'+f.amount+'</button>';}
       html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-top:1px solid var(--border)">'
         +'<div style="min-width:0"><div style="font-size:13px;font-weight:600">'+esc(f.name)+' <span style="color:var(--muted);font-weight:500">(₹'+f.amount+')</span></div><div style="margin-top:2px">'+status+'</div></div>'
@@ -1546,22 +1551,23 @@ function buildExtraFeesPanel(){
 }
 
 async function collectExtraFee(kind, feeId, enrollmentId, amount){
+  const mode=await showConfirm('Collection Mode','How was this fee collected?',[],'Offline (Cash)','Online (UPI/Bank)');
+  const collectionMode=mode?'offline':'online';
   const table=kind==='exam'?'exam_fee_payments':'misc_fee_payments';
   const idCol=kind==='exam'?'exam_fee_id':'misc_fee_id';
-  const row={[idCol]:feeId,enrollment_id:enrollmentId,is_paid:true,collected_by_type:'admin',collected_by_id:(ME||'admin'),paid_at:new Date().toISOString()};
+  const row={[idCol]:feeId,enrollment_id:enrollmentId,is_paid:true,collected_by_type:'admin',collected_by_id:(ME||'admin'),paid_at:new Date().toISOString(),collection_mode:collectionMode};
   const{error}=await sb.from(table).upsert(row,{onConflict:idCol+',enrollment_id'});
   if(error){toast('Failed: '+error.message);return;}
-  // Update local cache so the panel reflects immediately without a full reload.
   const key=feeId+'_'+enrollmentId;
   if(kind==='exam')examFeePays[key]=row; else miscFeePays[key]=row;
-  toast('Collected ₹'+amount+' ✓');
+  toast('Collected ₹'+amount+' ('+collectionMode+') ✓');
   buildExtraFeesPanel();
 }
 
 async function undoExtraFee(kind, feeId, enrollmentId){
   const table=kind==='exam'?'exam_fee_payments':'misc_fee_payments';
   const idCol=kind==='exam'?'exam_fee_id':'misc_fee_id';
-  const row={[idCol]:feeId,enrollment_id:enrollmentId,is_paid:false,collected_by_type:null,collected_by_id:null,paid_at:null};
+  const row={[idCol]:feeId,enrollment_id:enrollmentId,is_paid:false,collected_by_type:null,collected_by_id:null,paid_at:null,collection_mode:null};
   const{error}=await sb.from(table).upsert(row,{onConflict:idCol+',enrollment_id'});
   if(error){toast('Failed: '+error.message);return;}
   const key=feeId+'_'+enrollmentId;
