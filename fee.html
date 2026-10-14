@@ -1578,6 +1578,32 @@ function isMonthFullyPaid(stu,month){
   const paid=payments.filter(p=>p.enrollment_id===stu.enrollment_id&&p.month===month).reduce((s,p)=>s+(p.tuition||0),0)
   return paid>=net
 }
+async function checkDuplicateMonths(txnEntries){
+  const tuitionItems=txnEntries.filter(e=>TUITION_HEADS.includes(e.month));
+  if(!tuitionItems.length)return null;
+  const {data:freshPays}=await sb.from('payments').select('payment_id').eq('session_id',viewSession||'');
+  const pids=(freshPays||[]).map(p=>p.payment_id);
+  if(!pids.length)return null;
+  const freshAlloc=await selectInChunks('payment_allocations','enrollment_id,head,amount','payment_id',pids);
+  const paidMap={};
+  (freshAlloc.data||[]).forEach(a=>{
+    if(!TUITION_HEADS.includes(a.head))return;
+    const k=a.enrollment_id+'|'+a.head;
+    paidMap[k]=(paidMap[k]||0)+(+a.amount||0);
+  });
+  const dupes=[];
+  tuitionItems.forEach(e=>{
+    const stu=students.find(s=>s.enrollment_id===e.enrollment_id);
+    if(!stu)return;
+    const mi=MONTHS.indexOf(e.month);
+    const mt=monthlyTuitionForMonth(stu,mi);
+    const net=Math.max(0,mt-getWaivedAmount(stu,e.month));
+    if(net<=0)return;
+    const alreadyPaid=paidMap[e.enrollment_id+'|'+e.month]||0;
+    if(alreadyPaid>=net) dupes.push(`${stu.name} — ${e.month} (already paid ${fmtINR(alreadyPaid)})`);
+  });
+  return dupes.length?dupes:null;
+}
 function monthOptionsFor(stu){
   // Show months that are NOT fully paid. Partially-paid months stay (labelled),
   // fully-paid months are hidden. Deleting a payment restores the month here,
@@ -1951,6 +1977,16 @@ async function submitFamilyPayment(){
   const markAllShortfall=autoAllocPlan.find(p=>p.type==='_shortfall');
   if(markAllShortfall){
     shortfallOps.push({eid:markAllShortfall.eid,amt:markAllShortfall.amt,source:`Mark-all-paid shortfall (cash ${fmtINR(totalProcessed)}, total due ${fmtINR(totalProcessed+markAllShortfall.amt)})`});
+  }
+  const dupes=await checkDuplicateMonths(txnEntries);
+  if(dupes){
+    updateStatus('connected');
+    toast('Duplicate month payment blocked','error');
+    await showConfirm('Duplicate Payment Blocked',
+      'The following months are already fully paid. Delete the existing bundle first if you need to re-record.',
+      dupes,'OK','Close');
+    btn.disabled=false; updateFamilyLock();
+    return;
   }
   await _commitBundle(bundleID,datetime,txnEntries,totalProcessed,remarks,strategy,shortfallOps);
 }
@@ -2709,6 +2745,11 @@ async function _saveBacklogFor(stu,d){
   const entries=[];
   if(d.annual>0) entries.push({head:HEAD_ANNUAL,amount:d.annual,date:d.annualDate||today()});
   MONTHS.forEach(m=>{const md=d[m]||{};if(md.amt>0)entries.push({head:m,amount:md.amt,date:md.date||today()})});
+  const txnCheck=entries.filter(e=>TUITION_HEADS.includes(e.head)).map(e=>({enrollment_id:stu.enrollment_id,month:e.head}));
+  if(txnCheck.length){
+    const dupes=await checkDuplicateMonths(txnCheck.map(e=>({...e,total:1})));
+    if(dupes) throw new Error('Duplicate blocked: '+dupes.join(', '));
+  }
 
   if(entries.length){
     const total=entries.reduce((s,e)=>s+e.amount,0);
