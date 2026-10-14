@@ -3606,7 +3606,7 @@ function importCSV(input){
         stuRows.push({
           student_id:studentId, full_name:r.full_name, father_name:r.father_name,
           mother_name:r.mother_name||null, phone:r.phone||null, alt_phone:r.alt_phone||null,
-          dob:parseAdmDate(r.dob), aadhar_no:r.aadhar_no||null, srn:r.srn||null, pen:r.pen||null, apaar_id:r.apaar_id||null, gender:r.gender||null, address:r.address||null,
+          dob:parseAdmDate(r.dob), aadhar_no:r.aadhar_no||null, srn:r.srn||null, pen:r.pen||null, apaar_id:r.apaar_id||null, gender:r.gender||null, admission_number:r.admission_number||null, address:r.address||null,
           admission_date:parseAdmDate(r.admission_date), family_code:fc
         });
         const _strs=streamsFor(CLASS_ID[r.class]);
