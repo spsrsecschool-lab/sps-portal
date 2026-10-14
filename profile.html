@@ -282,6 +282,8 @@ function showProfile(){
   if(STUDENT.alt_phone) add('Alt Phone',STUDENT.alt_phone)
   add('Date of Birth',STUDENT.dob?new Date(STUDENT.dob).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'')
   add('Gender',STUDENT.gender)
+  if(STUDENT.blood_group) add('Blood Group',STUDENT.blood_group)
+  if(STUDENT.admission_number) add('Admission No',STUDENT.admission_number)
   add('Address',STUDENT.address)
   if(STUDENT.srn) add('SRN',STUDENT.srn)
   if(STUDENT.pen) add('PEN',STUDENT.pen)
