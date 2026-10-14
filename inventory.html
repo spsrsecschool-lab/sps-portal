@@ -24,10 +24,7 @@
 </script>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-window.sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}})
-window.SPS={admin:null,ready:()=>Promise.resolve(),signOut:async()=>{try{await sb.auth.signOut({scope:'local'})}catch(_){}sessionStorage.removeItem('sps_inv_op');location.reload()}}
-</script>
+<script src="auth.js"></script>
 <script src="r2-storage.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -202,20 +199,6 @@ tbody tr:hover td{background:var(--lav-50)}
 </style>
 </head>
 <body>
-<div id="invLoginOverlay" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#F3E8FF,#EDE9FE);display:flex;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:36px 32px;box-shadow:0 8px 32px rgba(107,33,168,.15);max-width:360px;width:90%;text-align:center">
-    <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#6B21A8,#581C87);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;margin:0 auto 16px">SP</div>
-    <h2 style="font-size:20px;font-weight:800;color:#1e1b4b;margin:0 0 4px">Inventory Portal</h2>
-    <p style="font-size:13px;color:#6b7280;margin:0 0 24px">Shiv Public School</p>
-    <div id="invLoginForm">
-      <input id="invLoginUser" placeholder="Username" style="width:100%;padding:11px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
-      <input id="invLoginPass" type="password" placeholder="Password" style="width:100%;padding:11px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:16px;box-sizing:border-box" onkeydown="if(event.key==='Enter')invLogin()">
-      <button onclick="invLogin()" style="width:100%;padding:12px;background:linear-gradient(135deg,#6B21A8,#581C87);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">Sign In</button>
-      <div id="invLoginErr" style="color:#dc2626;font-size:13px;margin-top:10px;display:none"></div>
-    </div>
-    <div id="invLoginLoading" style="display:none"><div style="font-size:13px;color:#6b7280;padding:20px 0">Checking access...</div></div>
-  </div>
-</div>
 <div id="scrim" onclick="closeMobileSidebar()"></div>
 <aside id="sidebar">
   <div class="sb-brand">
@@ -1193,7 +1176,6 @@ const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qr
 let _invOperator=null
 
 async function invBoot(){
-  $('invLoginOverlay').style.display='none'
   await loadGlobals()
   renderDashboard()
   function tickClock(){const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()}
@@ -1203,42 +1185,13 @@ async function invBoot(){
   $('topName').textContent=who||'Operator'
 }
 
-async function invLogin(){
-  const user=$('invLoginUser').value.trim()
-  const pass=$('invLoginPass').value
-  if(!user||!pass){$('invLoginErr').style.display='block';$('invLoginErr').textContent='Enter username and password';return}
-  $('invLoginErr').style.display='none'
-  const{data,error}=await sb.from('inv_operators').select('*').eq('username',user).eq('password',pass).eq('is_active',true).maybeSingle()
-  if(error||!data){$('invLoginErr').style.display='block';$('invLoginErr').textContent='Invalid credentials';return}
-  _invOperator=data
-  try{sessionStorage.setItem('sps_inv_op',JSON.stringify({id:data.id,name:data.name,username:data.username}))}catch(_){}
-  invBoot()
-}
-
 ;(async function(){
-  $('invLoginLoading').style.display='block'
-  $('invLoginForm').style.display='none'
-  try{
-    const{data}=await sb.auth.getSession()
-    if(data?.session){
-      const{data:adm}=await sb.from('admins').select('admin_id,full_name,username').eq('auth_user_id',data.session.user.id).maybeSingle()
-      if(adm){
-        SPS.admin=adm
-        $('invLoginLoading').style.display='none'
-        invBoot()
-        return
-      }
-    }
-  }catch(_){}
-  try{
-    const cached=JSON.parse(sessionStorage.getItem('sps_inv_op')||'null')
-    if(cached?.id){
-      const{data}=await sb.from('inv_operators').select('*').eq('id',cached.id).eq('is_active',true).maybeSingle()
-      if(data){_invOperator=data;invBoot();return}
-    }
-  }catch(_){}
-  $('invLoginLoading').style.display='none'
-  $('invLoginForm').style.display='block'
+  await SPS.ready()
+  if(SPS.admin){invBoot();return}
+  const{data:op}=await sb.from('inv_operators').select('id,name,username,is_active').eq('auth_user_id',SPS.user.id).eq('is_active',true).maybeSingle()
+  if(op){_invOperator=op;invBoot();return}
+  alert('You do not have access to the Inventory Portal')
+  SPS.signOut()
 })()
 </script>
 </body>
