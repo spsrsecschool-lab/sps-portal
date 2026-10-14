@@ -829,7 +829,7 @@ function searchStudentsExch(){
   },150)
 }
 
-function selectExchStudent(eid,name,cls,sec,father){
+async function selectExchStudent(eid,name,cls,sec,father){
   _exchEid=eid;_exchOldItem=null;_exchNewItem=null
   $('exchSelectedStudent').style.display='block'
   $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+'-'+esc(sec)+' (s/o '+esc(father)+')</div>'
