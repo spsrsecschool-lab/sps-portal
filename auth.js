@@ -124,6 +124,21 @@
       return results
     }
 
+    // Inventory operator
+    try {
+      const { data: opRow } = await sb
+        .from('inv_operators')
+        .select('id, name, username, is_active')
+        .eq('auth_user_id', userId)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (opRow) {
+        results.operator = opRow
+        results.portals = ['inventory']
+        return results
+      }
+    } catch (_) {}
+
     // Coordinator — a standalone account (may optionally be linked to a teacher).
     // Checked before teacher so a pure coordinator routes to their own portal.
     let coordRow = null
