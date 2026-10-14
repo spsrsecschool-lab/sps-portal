@@ -236,14 +236,14 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item" onclick="goTo('exchange',this)"><svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Exchange</div>
     <div class="sb-item" onclick="goTo('history',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Purchase History</div>
 
-    <div class="sb-label" id="sbAdminLabel" style="display:none">Admin</div>
-    <div class="sb-item" id="sbOperators" style="display:none" onclick="goTo('operators',this)"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Operators</div>
-
     <div class="sb-label">Links</div>
     <a class="sb-link" href="admin.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg>Admin Portal<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
   </div>
   <div class="sb-foot">
-    <button class="sb-logout" onclick="SPS.signOut()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Log Out</button>
+    <div style="display:flex;gap:8px">
+      <button class="sb-logout" id="sbSettingsBtn" style="display:none;flex:0 0 auto;padding:9px 12px" onclick="goTo('settings',this)" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg></button>
+      <button class="sb-logout" style="flex:1" onclick="SPS.signOut()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Log Out</button>
+    </div>
   </div>
 </aside>
 
@@ -415,14 +415,17 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
   </div>
 
-  <!-- ════════ OPERATORS (admin only) ════════ -->
-  <div class="page" id="page-operators" style="display:none">
-    <div class="page-head"><div><h2>Operators</h2><p>Manage inventory portal login accounts</p></div><button class="btn btn-primary" onclick="openOperatorModal()">+ Add Operator</button></div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="operatorsBody"><tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
-      </table>
+  <!-- ════════ SETTINGS (admin only) ════════ -->
+  <div class="page" id="page-settings" style="display:none">
+    <div class="page-head"><div><h2>Settings</h2><p>Inventory portal configuration</p></div></div>
+    <div class="card" style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h3 style="margin:0">Operators</h3><button class="btn btn-primary btn-sm" onclick="openOperatorModal()">+ Add Operator</button></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="operatorsBody"><tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -1252,7 +1255,7 @@ async function deleteOperator(id){
   loadOperators()
 }
 
-const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sell:()=>{},exchange:()=>{},history:_loadHistory,operators:loadOperators}
+const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sell:()=>{},exchange:()=>{},history:_loadHistory,settings:loadOperators}
 
 // ═══════════ AUTH & INIT ═══════════
 let _invOperator=null
@@ -1260,8 +1263,7 @@ let _invOperator=null
 async function invBoot(){
   $('invLoginOverlay').style.display='none'
   if(SPS.admin){
-    $('sbAdminLabel').style.display=''
-    $('sbOperators').style.display=''
+    $('sbSettingsBtn').style.display=''
   }
   await loadGlobals()
   renderDashboard()
