@@ -1688,8 +1688,6 @@ function runFamilyAutoAllocate(){
       const annDue=getTotalDues(stu).annualDue
       if(annDue>0){autoAllocPlan.push({eid:stu.enrollment_id,name:stu.name,type:'Annual',month:HEAD_ANNUAL,amt:annDue,fullDue:annDue});totalDue+=annDue}
     })
-    const prevDue=getFamilyPrevBalance(activeFamilyCode)
-    if(prevDue>0){autoAllocPlan.push({eid:selectedSibs[0].enrollment_id,name:'Family Prev Balance',type:'Prev',month:HEAD_PREV,amt:prevDue,fullDue:prevDue});totalDue+=prevDue}
     const shortfall=totalDue-cash
     if(shortfall>0){
       autoAllocPlan.push({eid:selectedSibs[0].enrollment_id,name:'Shortfall → Arrears',type:'_shortfall',month:'_SHORTFALL',amt:shortfall,fullDue:shortfall})
