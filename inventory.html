@@ -996,7 +996,11 @@ async function selectExchStudent(eid,name,cls,sec,father){
   $('exchStudent').value=''
   $('exchReturnInfo').style.display='none'
   $('exchNewItemInfo').style.display='none'
-  $('exchBtn').disabled=true
+  $('exchCamWrap').style.display='none'
+  $('exchScanBtn').style.display='block'
+  $('exchScanBtn').disabled=true
+  $('exchBtn').style.display='none'
+  $('exchCancelBtn').style.display='none'
 
   const{data}=await sb.from('inv_items').select('*,inv_articles(name)').eq('sold_to_enrollment_id',eid).eq('status','sold').order('sold_at',{ascending:false})
   const box=$('exchStudentItems')
