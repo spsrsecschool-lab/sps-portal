@@ -109,7 +109,7 @@ body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-heigh
 .card h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:14px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
 .stat-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:6px}
 .stat-card .lbl{font-size:11px;color:var(--ink-faint);font-weight:600;display:flex;align-items:center;gap:6px}
 .stat-card .lbl svg{width:14px;height:14px;stroke:currentColor;fill:none}
@@ -266,10 +266,15 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Total In Stock</div><div class="val" id="dInStock">—</div></div>
       <div class="stat-card success"><div class="lbl"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Total Sold</div><div class="val" id="dSold">—</div></div>
       <div class="stat-card danger"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Low Stock</div><div class="val" id="dLowStock">—</div></div>
+      <div class="stat-card" style="border-left:3px solid var(--warning,#f59e0b)"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" stroke="currentColor" fill="none" stroke-width="2"/></svg>Pending Relabeling</div><div class="val" id="dReturned">—</div></div>
     </div>
     <div class="card" style="margin-top:18px">
       <h3>Low Stock Alerts</h3>
       <div id="lowStockList"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+    <div class="card" style="margin-top:18px" id="dReturnedCard">
+      <h3>Pending Relabeling</h3>
+      <div id="returnedList"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
     <div class="card" style="margin-top:18px">
       <h3>Recent Sales</h3>
@@ -308,8 +313,9 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="search-bar">
       <div class="fg" style="max-width:220px"><label>Article</label><select id="qrFilterArticle" onchange="loadQrItems()"><option value="">Select article</option></select></div>
       <div class="fg" style="max-width:160px"><label>Size</label><select id="qrFilterSize" onchange="loadQrItems()"><option value="">All</option></select></div>
-      <div class="fg" style="max-width:160px"><label>Status</label><select id="qrFilterStatus" onchange="loadQrItems()"><option value="in_stock">In Stock</option><option value="">All</option><option value="sold">Sold</option></select></div>
+      <div class="fg" style="max-width:160px"><label>Status</label><select id="qrFilterStatus" onchange="loadQrItems()"><option value="in_stock">In Stock</option><option value="returned">Returned (Needs Relabeling)</option><option value="">All</option><option value="sold">Sold</option></select></div>
       <button class="btn btn-primary btn-sm" onclick="printQrCodes()">Print QR Labels</button>
+      <button class="btn btn-success btn-sm" id="qrRelabelBtn" style="display:none" onclick="markRelabeled()">Mark All as Relabeled</button>
     </div>
     <div id="qrGrid" class="qr-grid"></div>
   </div>
@@ -483,17 +489,19 @@ async function renderDashboard(){
   const allItems=items||[]
   const artMap={};arts.forEach(a=>{artMap[a.id]=a})
 
-  let uniStock=0,uniSold=0,bookStock=0,bookSold=0,totalStock=0,totalSold=0
+  let uniStock=0,uniSold=0,bookStock=0,bookSold=0,totalStock=0,totalSold=0,totalReturned=0
   allItems.forEach(i=>{
     const cat=artMap[i.article_id]?.category
     if(i.status==='in_stock'){totalStock++;if(cat==='book_set')bookStock++;else uniStock++}
     if(i.status==='sold'){totalSold++;if(cat==='book_set')bookSold++;else uniSold++}
+    if(i.status==='returned')totalReturned++
   })
   $('dUniStock').textContent=uniStock;$('dUniSold').textContent=uniSold
   $('dBookStock').textContent=bookStock;$('dBookSold').textContent=bookSold
   $('dArticles').textContent=arts.length
   $('dInStock').textContent=totalStock
   $('dSold').textContent=totalSold
+  $('dReturned').textContent=totalReturned
 
   let lowCount=0
   const lowItems=[]
@@ -508,6 +516,16 @@ async function renderDashboard(){
   const lsl=$('lowStockList')
   if(!lowItems.length)lsl.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:8px">All items above threshold.</div>'
   else lsl.innerHTML=lowItems.map(i=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><span style="font-weight:600">'+esc(i.name)+'</span><span><span class="pill pill-danger">'+i.stock+' left</span> <span style="font-size:11px;color:var(--ink-faint)">(threshold: '+i.threshold+')</span></span></div>').join('')
+
+  const rl=$('returnedList')
+  const rc=$('dReturnedCard')
+  if(!totalReturned){rl.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:8px">No items pending relabeling.</div>';rc.style.display='none'}
+  else{
+    rc.style.display=''
+    const{data:retItems}=await sb.from('inv_items').select('*,inv_articles(name)').eq('status','returned').order('updated_at',{ascending:false}).limit(20)
+    if(retItems?.length)rl.innerHTML=retItems.map(i=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span><b>'+esc(i.inv_articles?.name||'—')+'</b>'+(i.size?' · '+esc(i.size):'')+'</span><span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(i.qr_code)+'</span></div>').join('')
+    else rl.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:8px">No items pending relabeling.</div>'
+  }
 
   const{data:recent}=await sb.from('inv_items').select('*,inv_articles(name)').eq('status','sold').order('sold_at',{ascending:false}).limit(10)
   const rsl=$('recentSalesList')
@@ -712,6 +730,7 @@ async function saveBatch(){
 }
 
 // ═══════════ QR CODES ═══════════
+let _qrLoadedItems=[]
 async function loadQrItems(){
   const grid=$('qrGrid')
   const artId=$('qrFilterArticle').value
@@ -727,7 +746,9 @@ async function loadQrItems(){
 
   const{data,error}=await q
   if(error){grid.innerHTML='<div style="color:var(--danger)">'+esc(error.message)+'</div>';return}
-  if(!data?.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">No items found.</div>';return}
+  if(!data?.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">No items found.</div>';_qrLoadedItems=[];$('qrRelabelBtn').style.display='none';return}
+  _qrLoadedItems=data
+  $('qrRelabelBtn').style.display=status==='returned'?'':'none'
 
   const art=ALL_ARTICLES.find(a=>a.id===artId)
   if(art?.has_sizes&&art.sizes?.length){
@@ -737,7 +758,7 @@ async function loadQrItems(){
     sel.value=cur
   }
 
-  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':'neutral')+'">'+esc(item.status)+'</span></div></div>').join('')
+  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':item.status==='returned'?'danger':'neutral')+'">'+esc(item.status)+'</span></div></div>').join('')
 
   data.forEach((item,idx)=>{
     new QRCode(document.getElementById('qrcanvas_'+idx),{text:item.qr_code,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})
@@ -766,6 +787,16 @@ function printQrCodes(){
   h+='</div></body></html>'
   w.document.write(h);w.document.close()
   setTimeout(()=>w.print(),400)
+}
+
+async function markRelabeled(){
+  const ids=_qrLoadedItems.filter(i=>i.status==='returned').map(i=>i.id)
+  if(!ids.length){toast('No returned items to mark','error');return}
+  if(!confirm('Mark '+ids.length+' item(s) as relabeled and back in stock?'))return
+  const{error}=await sb.from('inv_items').update({status:'in_stock'}).in('id',ids)
+  if(error){toast(error.message,'error');return}
+  toast(ids.length+' item(s) moved to In Stock','success')
+  loadQrItems()
 }
 
 // ═══════════ SELL / DISTRIBUTE ═══════════
@@ -1001,7 +1032,7 @@ async function confirmExchange(){
   if(!_exchEid||!_exchOldItem||!_exchNewItem)return
   const reason=$('exchReason').value.trim()
 
-  const{error:e1}=await sb.from('inv_items').update({status:'exchanged_out'}).eq('id',_exchOldItem.id)
+  const{error:e1}=await sb.from('inv_items').update({status:'returned',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',_exchOldItem.id)
   if(e1){toast(e1.message,'error');return}
 
   const{error:e2}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItem.id}).eq('id',_exchNewItem.id)
