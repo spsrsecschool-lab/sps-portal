@@ -240,7 +240,7 @@ tbody tr:hover td{background:var(--lav-50)}
   <!-- ════════ DASHBOARD ════════ -->
   <div class="page active" id="page-dashboard">
     <div class="page-head"><div><h2>Inventory Dashboard</h2><p>Overview of stock, sales and alerts</p></div></div>
-    <div onclick="nav('sell')" style="cursor:pointer;background:linear-gradient(135deg,var(--pur),var(--pur-dark));color:#fff;border-radius:var(--radius-md);padding:18px 24px;display:flex;align-items:center;gap:16px;margin-bottom:18px;box-shadow:0 4px 14px rgba(107,33,168,.35)">
+    <div onclick="goTo('sell',document.querySelector('.sb-item[onclick*=sell]'))" style="cursor:pointer;background:linear-gradient(135deg,var(--pur),var(--pur-dark));color:#fff;border-radius:var(--radius-md);padding:18px 24px;display:flex;align-items:center;gap:16px;margin-bottom:18px;box-shadow:0 4px 14px rgba(107,33,168,.35)">
       <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/></svg>
       <div><div style="font-size:18px;font-weight:700">Sell / Distribute</div><div style="font-size:13px;opacity:.85">Scan QR &amp; issue items to students — works on phone camera</div></div>
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
@@ -300,7 +300,7 @@ tbody tr:hover td{background:var(--lav-50)}
 
   <!-- ════════ SELL / DISTRIBUTE ════════ -->
   <div class="page" id="page-sell">
-    <div class="page-head"><div><h2>Sell / Distribute</h2><p>Scan QR or select item to assign to a student</p></div></div>
+    <div class="page-head"><div><h2>Sell / Distribute</h2><p>Select student, then scan items with phone camera</p></div></div>
     <div class="card" style="max-width:700px">
       <div class="form-row">
         <div class="fg" style="max-width:200px"><label>Class</label><select id="sellClass" onchange="onSellClassChange()"><option value="">Select class</option></select></div>
@@ -312,24 +312,18 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
       <div id="sellSelectedStudent" style="margin-bottom:14px;display:none"></div>
       <div class="form-row">
-        <div class="fg"><label>Scan QR / Enter Code</label><input id="sellQrCode" placeholder="Scan or type QR code..." onkeydown="if(event.key==='Enter')lookupQr()"></div>
-        <button class="btn btn-primary btn-sm" onclick="lookupQr()" style="margin-bottom:0">Lookup</button>
-        <button class="btn btn-soft btn-sm" onclick="toggleCamScanner('sell')" style="margin-bottom:0">📷 Scan</button>
-      </div>
-      <div id="sellCamWrap" style="display:none;margin-bottom:10px"><div id="sellCamReader" style="width:100%;max-width:350px"></div><button class="btn btn-ghost btn-xs" onclick="stopCamScanner('sell')" style="margin-top:6px">Stop Camera</button></div>
-      <div id="sellItemInfo" style="margin-top:10px;display:none"></div>
-      <div class="form-row" style="margin-top:14px">
         <div class="fg" style="max-width:180px"><label>Payment Mode</label><select id="sellPayMode"><option value="cash">Cash</option><option value="online">Online</option></select></div>
       </div>
-      <div style="margin-top:16px"><button class="btn btn-success" onclick="confirmSell()" id="sellBtn" disabled>Confirm Sale</button></div>
-    </div>
-    <div class="card" style="margin-top:18px;max-width:700px">
-      <h3>Quick Sell — Select from Stock</h3>
-      <div class="form-row">
-        <div class="fg" style="max-width:220px"><label>Article</label><select id="qsArticle" onchange="loadQsItems()"><option value="">Select</option></select></div>
-        <div class="fg" style="max-width:140px"><label>Size</label><select id="qsSize" onchange="loadQsItems()"><option value="">All</option></select></div>
+      <div id="sellCamWrap" style="display:none;margin:14px 0"><div id="sellCamReader" style="width:100%;max-width:350px"></div></div>
+      <div id="sellScannedList" style="display:none;margin:14px 0">
+        <div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">SCANNED ITEMS</div>
+        <div id="sellScannedItems"></div>
+        <div id="sellTotal" style="font-weight:700;text-align:right;padding:8px 0;font-size:14px"></div>
       </div>
-      <div id="qsItemsList" style="max-height:200px;overflow-y:auto"></div>
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" onclick="startSellScan()" id="sellScanBtn" disabled style="width:100%;padding:14px;font-size:15px">📷 Start Scanning</button>
+        <button class="btn btn-success" onclick="confirmSell()" id="sellBtn" disabled style="display:none;width:100%;padding:14px;font-size:15px">Confirm Sale</button>
+      </div>
     </div>
   </div>
 
@@ -424,7 +418,7 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ GLOBAL DATA ═══════════
-let ALL_ARTICLES=[], ALL_CLASSES=[], SESS=null, _sellEid=null, _sellItem=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
+let ALL_ARTICLES=[], ALL_CLASSES=[], SESS=null, _sellEid=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
 let _sellStudentsCache=[], _exchStudentsCache=[]
 
 async function loadGlobals(){
@@ -446,7 +440,7 @@ function populateClassDropdowns(){
 }
 
 function populateArticleDropdowns(){
-  const drops=['stockFilterArticle','qrFilterArticle','qsArticle','histArticle']
+  const drops=['stockFilterArticle','qrFilterArticle','histArticle']
   drops.forEach(id=>{
     const sel=$(id);if(!sel)return
     const val=sel.value
@@ -700,6 +694,18 @@ function printQrCodes(){
 }
 
 // ═══════════ SELL / DISTRIBUTE ═══════════
+let _sellItems=[], _beepCtx=null
+function _beep(){
+  try{
+    if(!_beepCtx)_beepCtx=new(window.AudioContext||window.webkitAudioContext)()
+    const o=_beepCtx.createOscillator(),g=_beepCtx.createGain()
+    o.connect(g);g.connect(_beepCtx.destination)
+    o.type='square';o.frequency.value=1800;g.gain.value=0.3
+    o.start();o.stop(_beepCtx.currentTime+0.12)
+  }catch(e){}
+  try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}
+}
+
 async function onSellClassChange(){
   _sellStudentsCache=[]
   $('sellStudentResults').style.display='none'
@@ -741,57 +747,90 @@ function selectSellStudent(eid,name,cls,sec,father){
   $('sellSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+'-'+esc(sec)+' (s/o '+esc(father)+')</div>'
   $('sellStudentResults').style.display='none'
   $('sellStudent').value=''
-  checkSellReady()
+  updateSellBtnState()
 }
 
-async function lookupQr(){
-  const code=$('sellQrCode').value.trim()
-  if(!code){toast('Enter a QR code','error');return}
+function updateSellBtnState(){
+  $('sellScanBtn').disabled=!_sellEid
+}
+
+function startSellScan(){
+  if(!_sellEid){toast('Select a student first','error');return}
+  _sellItems=[]
+  renderSellScannedItems()
+  $('sellScanBtn').style.display='none'
+  $('sellBtn').style.display='block'
+  $('sellBtn').disabled=false
+  $('sellCamWrap').style.display='block'
+  const readerId='sellCamReader'
+  _camMode='sell'
+  _camScanner=new Html5Qrcode(readerId)
+  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},onSellQrScanned,()=>{}).catch(err=>{
+    toast('Camera error: '+err,'error')
+    $('sellCamWrap').style.display='none'
+    $('sellScanBtn').style.display='block'
+    $('sellBtn').style.display='none'
+    _camScanner=null;_camMode=null
+  })
+}
+
+async function onSellQrScanned(code){
+  if(_sellItems.find(i=>i.qr_code===code)){_beep();return}
   const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,category)').eq('qr_code',code).maybeSingle()
-  if(error||!data){toast('Item not found','error');$('sellItemInfo').style.display='none';_sellItem=null;checkSellReady();return}
-  if(data.status!=='in_stock'){toast('Item is not in stock (status: '+data.status+')','error');_sellItem=null;checkSellReady();return}
-  _sellItem=data
-  $('sellItemInfo').style.display='block'
-  $('sellItemInfo').innerHTML='<div class="card" style="padding:12px"><b>'+esc(data.inv_articles?.name||'—')+'</b>'+(data.size?' · Size: '+esc(data.size):'')+' · <span class="mono">'+fmtINR(data.inv_articles?.selling_price)+'</span><br><span style="font-size:11px;color:var(--ink-faint)" class="mono">'+esc(data.qr_code)+'</span></div>'
-  $('sellQrCode').value=''
-  checkSellReady()
+  if(error||!data){toast('Item not found: '+code,'error');return}
+  if(data.status!=='in_stock'){toast(code+' not in stock ('+data.status+')','error');return}
+  _beep()
+  _sellItems.push(data)
+  renderSellScannedItems()
 }
 
-function checkSellReady(){$('sellBtn').disabled=!(_sellEid&&_sellItem)}
+function removeSellItem(idx){
+  _sellItems.splice(idx,1)
+  renderSellScannedItems()
+}
+
+function renderSellScannedItems(){
+  const wrap=$('sellScannedList')
+  const box=$('sellScannedItems')
+  if(!_sellItems.length){wrap.style.display='none';return}
+  wrap.style.display='block'
+  let total=0
+  box.innerHTML=_sellItems.map((item,i)=>{
+    const price=item.inv_articles?.selling_price||0
+    total+=price
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">'
+      +'<span><b>'+esc(item.inv_articles?.name||'—')+'</b>'+(item.size?' · '+esc(item.size):'')
+      +' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(item.qr_code)+'</span></span>'
+      +'<span style="display:flex;align-items:center;gap:8px"><span class="mono">'+fmtINR(price)+'</span>'
+      +'<button class="btn btn-danger btn-xs" onclick="removeSellItem('+i+')" style="padding:2px 6px;font-size:11px">✕</button></span>'
+      +'</div>'
+  }).join('')
+  $('sellTotal').textContent='Total: '+fmtINR(total)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')'
+}
 
 async function confirmSell(){
-  if(!_sellEid||!_sellItem)return
+  if(!_sellEid||!_sellItems.length){toast('No items scanned','error');return}
+  stopCamScanner('sell')
   const mode=$('sellPayMode').value
-  const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:mode}).eq('id',_sellItem.id)
-  if(error){toast(error.message,'error');return}
-  toast('Item sold successfully','success')
-  _sellItem=null;_sellEid=null
-  $('sellItemInfo').style.display='none'
+  const now=new Date().toISOString()
+  const by=SPS.admin?.admin_id||'admin'
+  let failed=0
+  for(const item of _sellItems){
+    const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:now,sold_by:by,payment_mode:mode}).eq('id',item.id)
+    if(error)failed++
+  }
+  if(failed)toast(failed+' item(s) failed to save','error')
+  else toast(_sellItems.length+' item(s) sold successfully','success')
+  _sellItems=[];_sellEid=null
+  $('sellScannedList').style.display='none'
+  $('sellScannedItems').innerHTML=''
   $('sellSelectedStudent').style.display='none'
-  $('sellBtn').disabled=true
+  $('sellScanBtn').style.display='block'
+  $('sellScanBtn').disabled=true
+  $('sellBtn').style.display='none'
+  $('sellClass').value=''
+  _sellStudentsCache=[]
 }
-
-// Quick sell
-function loadQsItems(){
-  const artId=$('qsArticle').value
-  const art=ALL_ARTICLES.find(a=>a.id===artId)
-  const sel=$('qsSize');sel.innerHTML='<option value="">All</option>'
-  if(art?.has_sizes&&art.sizes?.length)art.sizes.forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'})
-  loadQsItemList()
-}
-async function loadQsItemList(){
-  const box=$('qsItemsList')
-  const artId=$('qsArticle').value
-  if(!artId){box.innerHTML='';return}
-  box.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  let q=sb.from('inv_items').select('id,qr_code,size').eq('article_id',artId).eq('status','in_stock').order('created_at').limit(50)
-  const size=$('qsSize').value
-  if(size)q=q.eq('size',size)
-  const{data}=await q
-  if(!data?.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px">No items in stock.</div>';return}
-  box.innerHTML=data.map(i=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span class="mono" style="font-size:11px">'+esc(i.qr_code)+(i.size?' · '+esc(i.size):'')+'</span><button class="btn btn-soft btn-xs" onclick="pickQsItem(\''+esc(i.qr_code)+'\')">Select</button></div>').join('')
-}
-function pickQsItem(code){$('sellQrCode').value=code;lookupQr()}
 
 // ═══════════ EXCHANGE ═══════════
 async function onExchClassChange(){
@@ -938,20 +977,19 @@ let _camScanner=null,_camMode=null
 function toggleCamScanner(mode){
   if(_camScanner){stopCamScanner(_camMode);if(_camMode===mode)return}
   _camMode=mode
-  const readerId=mode==='sell'?'sellCamReader':'exchCamReader'
-  const wrapId=mode==='sell'?'sellCamWrap':'exchCamWrap'
+  const readerId=mode+'CamReader'
+  const wrapId=mode+'CamWrap'
   $(wrapId).style.display='block'
   _camScanner=new Html5Qrcode(readerId)
   _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},code=>{
     stopCamScanner(mode)
-    if(mode==='sell'){$('sellQrCode').value=code;lookupQr()}
-    else{$('exchNewQr').value=code;lookupExchNew()}
+    $('exchNewQr').value=code;lookupExchNew()
   },()=>{}).catch(err=>{toast('Camera error: '+err,'error');$(wrapId).style.display='none';_camScanner=null;_camMode=null})
 }
 function stopCamScanner(mode){
   if(_camScanner){try{_camScanner.stop().then(()=>{_camScanner.clear()}).catch(()=>{})}catch(e){}}
   _camScanner=null;_camMode=null
-  const wrapId=mode==='sell'?'sellCamWrap':'exchCamWrap'
+  const wrapId=(mode||'sell')+'CamWrap'
   $(wrapId).style.display='none'
 }
 
