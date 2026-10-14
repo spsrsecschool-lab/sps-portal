@@ -1374,9 +1374,12 @@ function refreshFamilyDues(){
     summaryHTML+=`
     <div class="sib-card">
       <div class="hdr">
-        <div class="hdr-name">
-          <b onclick="openProfileModal('${stu.enrollment_id}', _getCurrentPage())" style="cursor:pointer;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px" title="View / edit profile">${esc(stu.name)}</b>${snoLabel}
-          <span class="fee-rate">${fmtINR(mt)}/month${discLabel}</span>
+        <div class="hdr-name" style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" class="sib-check" data-eid="${stu.enrollment_id}" checked onchange="onSibCheckChange()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+          <div>
+            <b onclick="openProfileModal('${stu.enrollment_id}', _getCurrentPage())" style="cursor:pointer;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px" title="View / edit profile">${esc(stu.name)}</b>${snoLabel}
+            <span class="fee-rate">${fmtINR(mt)}/month${discLabel}</span>
+          </div>
         </div>
         <span class="pill pill-blue">${esc(stu.cls)}${stu.stream?' '+esc(stu.stream):''}</span>
       </div>
@@ -1440,6 +1443,16 @@ function refreshFamilyDues(){
     <div class="ft-item"><div class="ft-label">Total Annual Due</div><div class="ft-val" style="color:${totalAnnual>0?'var(--red)':'var(--green)'}">${fmtINR(totalAnnual)}</div></div>
     <div class="ft-item"><div class="ft-label">Prev Balance (Family)</div><div class="ft-val" style="color:${famPrevBal>0?'var(--red)':famPrevBal<0?'var(--green)':'var(--muted)'}">${fmtINR(famPrevBal)}</div></div>
     <div class="ft-item" style="margin-left:auto;padding-left:16px;border-left:1px solid var(--border)"><div class="ft-label">Grand Total Due</div><div class="ft-val" style="color:${grandTotal>0?'var(--red)':'var(--green)'}">${fmtINR(grandTotal)}</div></div>`;
+}
+
+function getCheckedSiblings(){
+  const checks=[...document.querySelectorAll('.sib-check')]
+  const eids=checks.filter(c=>c.checked).map(c=>c.dataset.eid)
+  return activeSiblings.filter(s=>eids.includes(s.enrollment_id))
+}
+
+function onSibCheckChange(){
+  if(counterMode==='auto')runFamilyAutoAllocate()
 }
 
 function togglePrevLedger(el){
@@ -1634,6 +1647,8 @@ function updateFamilyLock(){
 // ══════════════════════════════════════════════
 function runFamilyAutoAllocate(){
   if(counterMode!=='auto'||!activeSiblings.length)return;
+  const selectedSibs=getCheckedSiblings()
+  if(!selectedSibs.length){const pb=$('autoAllocPreview');pb.style.display='none';updateFamilyLock();return}
   let cash=parseFloat($('c_totalCash').value)||0;
   const previewBox=$('autoAllocPreview');
   autoAllocPlan=[];
@@ -1659,7 +1674,7 @@ function runFamilyAutoAllocate(){
     for(const m of activeMonths){
       if(cash<=0)return;
       // Compute per-sibling tuition due for this month.
-      const rows=activeSiblings.map(stu=>{
+      const rows=selectedSibs.map(stu=>{
         const mt=monthlyTuitionForMonth(stu,MONTHS.indexOf(m));
         const paid=getMonthPayments(stu.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0);
         const waivedAmt=getWaivedAmount(stu,m);
@@ -1679,7 +1694,7 @@ function runFamilyAutoAllocate(){
   }
 
   function allocAnnual(){
-    activeSiblings.forEach(stu=>{
+    selectedSibs.forEach(stu=>{
       if(cash<=0)return;
       const due=getTotalDues(stu).annualDue;
       if(due<=0)return;
@@ -1694,16 +1709,16 @@ function runFamilyAutoAllocate(){
     const prevDue=getFamilyPrevBalance(activeFamilyCode);
     if(prevDue>0){
       const pay=Math.min(cash,prevDue);
-      autoAllocPlan.push({eid:activeSiblings[0].enrollment_id,name:'Family Prev Balance',type:'Prev',month:HEAD_PREV,amt:pay,fullDue:prevDue});
+      autoAllocPlan.push({eid:selectedSibs[0].enrollment_id,name:'Family Prev Balance',type:'Prev',month:HEAD_PREV,amt:pay,fullDue:prevDue});
       cash-=pay;
     }else if(cash>0){
-      autoAllocPlan.push({eid:activeSiblings[0].enrollment_id,name:'Family Excess Credit',type:'Prev',month:HEAD_PREV,amt:cash,fullDue:0});
+      autoAllocPlan.push({eid:selectedSibs[0].enrollment_id,name:'Family Excess Credit',type:'Prev',month:HEAD_PREV,amt:cash,fullDue:0});
       cash=0;
     }
   }
 
   function allocPerStudentTA(){
-    const sorted=[...activeSiblings].sort((a,b)=>{
+    const sorted=[...selectedSibs].sort((a,b)=>{
       const aT=activeMonths.reduce((s,m)=>{const mt=monthlyTuitionForMonth(a,MONTHS.indexOf(m)),pd=getMonthPayments(a.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0),wv=getWaivedAmount(a,m);return s+Math.max(0,mt-wv-pd)},0);
       const bT=activeMonths.reduce((s,m)=>{const mt=monthlyTuitionForMonth(b,MONTHS.indexOf(m)),pd=getMonthPayments(b.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0),wv=getWaivedAmount(b,m);return s+Math.max(0,mt-wv-pd)},0);
       return aT-bT;
@@ -1728,7 +1743,7 @@ function runFamilyAutoAllocate(){
   }
 
   function allocPerStudentAT(){
-    const sorted=[...activeSiblings].sort((a,b)=>{
+    const sorted=[...selectedSibs].sort((a,b)=>{
       const aT=activeMonths.reduce((s,m)=>{const mt=monthlyTuitionForMonth(a,MONTHS.indexOf(m)),pd=getMonthPayments(a.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0),wv=getWaivedAmount(a,m);return s+Math.max(0,mt-wv-pd)},0);
       const bT=activeMonths.reduce((s,m)=>{const mt=monthlyTuitionForMonth(b,MONTHS.indexOf(m)),pd=getMonthPayments(b.enrollment_id,m).reduce((s,p)=>s+(p.tuition||0),0),wv=getWaivedAmount(b,m);return s+Math.max(0,mt-wv-pd)},0);
       return aT-bT;
