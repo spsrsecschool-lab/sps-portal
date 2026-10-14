@@ -10824,9 +10824,18 @@ async function saveInvOperator(editId){
     const password=$('opPassword').value
     if(!password){toast('Password required','error');return}
     const adminSb=supabase.createClient(SUPABASE_URL,SPS.serviceKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
+    let authId=null
     const{data:created,error:createErr}=await adminSb.auth.admin.createUser({email,password,email_confirm:true})
-    if(createErr){toast('Auth error: '+createErr.message,'error');return}
-    const authId=created.user?.id
+    if(createErr){
+      if(createErr.message.includes('already been registered')){
+        const{data:listData}=await adminSb.auth.admin.listUsers()
+        const found=listData?.users?.find(u=>u.email===email)
+        if(!found){toast('User exists in auth but lookup failed','error');return}
+        authId=found.id
+      }else{toast('Auth error: '+createErr.message,'error');return}
+    }else{
+      authId=created.user?.id
+    }
     if(!authId){toast('Failed to create auth account','error');return}
     const{error}=await sb.from('inv_operators').insert({auth_user_id:authId,name,username,is_active:$('opActive').value==='1'})
     if(error){toast(error.message,'error');return}
