@@ -505,6 +505,13 @@ const PORTALS = {
     color: '#0E7C6B',
     icon: `<svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
   },
+  inventory: {
+    label: 'Inventory Portal',
+    sub: 'Uniform & book inventory, stock, QR codes, sales',
+    href: 'inventory.html',
+    color: '#6B21A8',
+    icon: `<svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+  },
 }
 
 // ─── ROLE DETECTION ──────────────────────────────────────────
@@ -528,6 +535,21 @@ async function detectPortals(userId) {
       results.portals.push('admin')
       return results
     }
+
+    // 1a. Check inventory operators
+    try {
+      const { data: opRow } = await sb
+        .from('inv_operators')
+        .select('id, name, username, is_active')
+        .eq('auth_user_id', userId)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (opRow) {
+        results.operator = opRow
+        results.portals.push('inventory')
+        return results
+      }
+    } catch (_) {}
 
     // 1b. Check coordinators table (standalone account; may link to a teacher).
     let coordRow = null
