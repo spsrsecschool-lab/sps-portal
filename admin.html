@@ -1757,6 +1757,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="tab-btn" onclick="switchTab('settingsTab','ctcontrol',this)">Class Teacher Control</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','appearance',this)">Appearance</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','downloads',this);initDownloadCenter()">Download Center</button>
+        <button class="tab-btn" onclick="switchTab('settingsTab','inventory',this);loadInvOperators()">Inventory</button>
       </div>
 
       <div id="settingsTab-session">
@@ -1913,6 +1914,19 @@ tbody tr:hover td{background:var(--lav-50)}
           <button class="btn btn-dark btn-sm" onclick="dlFullBackup()"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Full Backup</button>
         </div>
         <div id="dlCategories"></div>
+      </div>
+
+      <div id="settingsTab-inventory" style="display:none">
+        <div class="card" style="max-width:640px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h3 style="margin:0">Inventory Operators</h3><button class="btn btn-dark btn-sm" onclick="openInvOperatorModal()">+ Add Operator</button></div>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Operators can log into the Inventory Portal with their own credentials (separate from staff accounts).</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="invOperatorsBody"><tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -10769,6 +10783,56 @@ function loadSettings(){
   loadStreamsList()
   loadClassTeacherControl()
   reflectThemeChoice()
+}
+
+// ═══════════ INVENTORY OPERATORS ═══════════
+async function loadInvOperators(){
+  const body=$('invOperatorsBody')
+  body.innerHTML='<tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
+  const{data,error}=await sb.from('inv_operators').select('*').order('name')
+  if(error){body.innerHTML='<tr><td colspan="4" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
+  if(!data?.length){body.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--ink-faint)">No operators yet.</td></tr>';return}
+  body.innerHTML=data.map(o=>'<tr><td><b>'+esc(o.name)+'</b></td><td class="mono">'+esc(o.username)+'</td><td><span class="pill pill-'+(o.is_active?'success':'neutral')+'">'+(o.is_active?'Active':'Inactive')+'</span></td><td><button class="btn btn-soft btn-xs" onclick="openInvOperatorModal(\''+o.id+'\')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteInvOperator(\''+o.id+'\')">Delete</button></td></tr>').join('')
+}
+
+function openInvOperatorModal(editId){
+  if(editId){
+    sb.from('inv_operators').select('*').eq('id',editId).maybeSingle().then(({data})=>{
+      if(!data)return
+      $('opName').value=data.name||''
+      $('opUsername').value=data.username||''
+      $('opPassword').value=data.password||''
+      $('opActive').value=data.is_active?'1':'0'
+    })
+  }
+  let body='<div class="form-row"><div class="fg"><label>Name</label><input id="opName" placeholder="Operator name"></div></div>'
+  body+='<div class="form-row"><div class="fg"><label>Username</label><input id="opUsername" placeholder="Login username"></div><div class="fg"><label>Password</label><input id="opPassword" placeholder="Login password"></div></div>'
+  body+='<div class="form-row"><div class="fg" style="max-width:120px"><label>Active</label><select id="opActive"><option value="1">Yes</option><option value="0">No</option></select></div></div>'
+  const foot='<button class="btn btn-dark" onclick="saveInvOperator('+(editId?"'"+editId+"'":"null")+')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  openModal(editId?'Edit Operator':'New Operator',body,foot)
+}
+
+async function saveInvOperator(editId){
+  const name=$('opName').value.trim()
+  const username=$('opUsername').value.trim()
+  const password=$('opPassword').value
+  if(!name||!username||!password){toast('All fields required','error');return}
+  const row={name,username,password,is_active:$('opActive').value==='1'}
+  let err
+  if(editId){({error:err}=await sb.from('inv_operators').update(row).eq('id',editId))}
+  else{({error:err}=await sb.from('inv_operators').insert(row))}
+  if(err){toast(err.message,'error');return}
+  toast(editId?'Operator updated':'Operator created','success')
+  closeModal()
+  loadInvOperators()
+}
+
+async function deleteInvOperator(id){
+  if(!confirm('Delete this operator?'))return
+  const{error}=await sb.from('inv_operators').delete().eq('id',id)
+  if(error){toast(error.message,'error');return}
+  toast('Operator deleted','success')
+  loadInvOperators()
 }
 
 // ═══════════ MERGE SECTIONS ═══════════

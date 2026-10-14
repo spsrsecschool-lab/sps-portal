@@ -15,7 +15,6 @@
 <title>Inventory Portal — Shiv Public School</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script>window.PORTAL_KEY = 'admin'</script>
 <script>
 (function(){try{
   var t=localStorage.getItem('sps_inv_theme')||'light'
@@ -25,7 +24,11 @@
 </script>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="auth.js"></script>
+<script>
+window.sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}})
+window.SPS={admin:null,ready:()=>Promise.resolve(),signOut:async()=>{try{await sb.auth.signOut({scope:'local'})}catch(_){}sessionStorage.removeItem('sps_inv_op');location.reload()}}
+</script>
+<script src="r2-storage.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
@@ -199,6 +202,20 @@ tbody tr:hover td{background:var(--lav-50)}
 </style>
 </head>
 <body>
+<div id="invLoginOverlay" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#F3E8FF,#EDE9FE);display:flex;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:36px 32px;box-shadow:0 8px 32px rgba(107,33,168,.15);max-width:360px;width:90%;text-align:center">
+    <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#6B21A8,#581C87);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;margin:0 auto 16px">SP</div>
+    <h2 style="font-size:20px;font-weight:800;color:#1e1b4b;margin:0 0 4px">Inventory Portal</h2>
+    <p style="font-size:13px;color:#6b7280;margin:0 0 24px">Shiv Public School</p>
+    <div id="invLoginForm">
+      <input id="invLoginUser" placeholder="Username" style="width:100%;padding:11px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <input id="invLoginPass" type="password" placeholder="Password" style="width:100%;padding:11px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;margin-bottom:16px;box-sizing:border-box" onkeydown="if(event.key==='Enter')invLogin()">
+      <button onclick="invLogin()" style="width:100%;padding:12px;background:linear-gradient(135deg,#6B21A8,#581C87);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">Sign In</button>
+      <div id="invLoginErr" style="color:#dc2626;font-size:13px;margin-top:10px;display:none"></div>
+    </div>
+    <div id="invLoginLoading" style="display:none"><div style="font-size:13px;color:#6b7280;padding:20px 0">Checking access...</div></div>
+  </div>
+</div>
 <div id="scrim" onclick="closeMobileSidebar()"></div>
 <aside id="sidebar">
   <div class="sb-brand">
@@ -287,7 +304,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page-head"><div><h2>Articles</h2><p>Manage item types — uniforms, books, accessories</p></div><button class="btn btn-primary" onclick="openArticleModal()">+ Add Article</button></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Name</th><th>Category</th><th>Sizes</th><th>Selling Price</th><th>In Stock</th><th>Low Threshold</th><th>Actions</th></tr></thead>
+        <thead><tr><th style="width:50px"></th><th>Name</th><th>Category</th><th>Sizes</th><th>Selling Price</th><th>In Stock</th><th>Low Threshold</th><th>Actions</th></tr></thead>
         <tbody id="articlesBody"><tr><td colspan="7"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table>
     </div>
@@ -545,7 +562,7 @@ async function loadArticles(){
   ALL_ARTICLES=data||[]
   populateArticleDropdowns()
   const body=$('articlesBody')
-  if(!data?.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--ink-faint)">No articles yet. Add one above.</td></tr>';return}
+  if(!data?.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No articles yet. Add one above.</td></tr>';return}
   const stockCounts={}
   const{data:counts}=await sb.from('inv_items').select('article_id').eq('status','in_stock')
   if(counts)counts.forEach(c=>{stockCounts[c.article_id]=(stockCounts[c.article_id]||0)+1})
@@ -554,6 +571,7 @@ async function loadArticles(){
     const stk=stockCounts[a.id]||0
     const isLow=stk<=a.low_stock_threshold
     return '<tr>'
+      +'<td>'+(a.image_url?'<img src="'+esc(R2.url(a.image_url))+'" style="width:40px;height:40px;object-fit:cover;border-radius:var(--radius-sm)">':'<div style="width:40px;height:40px;border-radius:var(--radius-sm);background:var(--bg-soft);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--ink-faint)">'+(a.category==='book_set'?'📚':'👔')+'</div>')+'</td>'
       +'<td><b>'+esc(a.name)+'</b>'+(a.book_set_class?' <span class="pill pill-neutral">Class '+esc(a.book_set_class)+'</span>':'')+'</td>'
       +'<td><span class="pill pill-'+(a.category==='book_set'?'pur':'neutral')+'">'+esc(a.category==='book_set'?'Book Set':'Uniform')+'</span></td>'
       +'<td>'+(a.has_sizes&&a.sizes?.length?a.sizes.map(s=>esc(s)+' <span class="mono" style="font-size:11px;color:var(--ink-faint)">'+fmtINR(a.size_prices?.[s]||a.selling_price)+'</span>').join(', '):'—')+'</td>'
@@ -569,6 +587,7 @@ function openArticleModal(editId){
   const art=editId?ALL_ARTICLES.find(a=>a.id===editId):null
   const title=art?'Edit Article':'New Article'
   let body='<div class="form-row"><div class="fg"><label>Name</label><input id="artName" value="'+esc(art?.name||'')+'"></div></div>'
+  body+='<div class="form-row" style="align-items:flex-end"><div class="fg" style="max-width:200px"><label>Image</label><div style="display:flex;align-items:center;gap:10px"><div id="artImgPreview" style="width:48px;height:48px;border-radius:var(--radius-sm);border:1px solid var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft)">'+(art?.image_url?'<img src="'+esc(R2.url(art.image_url))+'" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:20px;color:var(--ink-faint)">📷</span>')+'</div><input type="file" id="artImage" accept="image/*" onchange="previewArtImage(this)" style="font-size:12px;max-width:130px"></div></div></div>'
   body+='<div class="form-row"><div class="fg" style="max-width:180px"><label>Category</label><select id="artCategory" onchange="toggleBookSetClass()"><option value="uniform"'+(art?.category==='uniform'?' selected':'')+'>Uniform</option><option value="book_set"'+(art?.category==='book_set'?' selected':'')+'>Book Set</option></select></div>'
   body+='<div class="fg" style="max-width:180px;display:'+(art?.category==='book_set'?'flex':'none')+'" id="artBookClassWrap"><label>For Class</label><input id="artBookClass" value="'+esc(art?.book_set_class||'')+'"></div></div>'
   body+='<div class="form-row"><div class="fg" style="max-width:120px"><label>Has Sizes?</label><select id="artHasSizes" onchange="toggleSizesInput()"><option value="0"'+(art?.has_sizes?'':' selected')+'>No</option><option value="1"'+(art?.has_sizes?' selected':'')+'>Yes</option></select></div>'
@@ -578,6 +597,12 @@ function openArticleModal(editId){
   const foot='<button class="btn btn-primary" onclick="saveArticle('+(editId?"'"+editId+"'":"null")+')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   openModal(title,body,foot)
   setTimeout(()=>_initSizeRows(art),0)
+}
+function previewArtImage(inp){
+  const f=inp.files?.[0];if(!f)return
+  const reader=new FileReader()
+  reader.onload=e=>{$('artImgPreview').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">'}
+  reader.readAsDataURL(f)
 }
 function toggleBookSetClass(){$('artBookClassWrap').style.display=$('artCategory').value==='book_set'?'flex':'none'}
 function toggleSizesInput(){
@@ -622,7 +647,16 @@ async function saveArticle(editId){
   const threshold=parseInt($('artThreshold').value)||5
   const bookClass=category==='book_set'?$('artBookClass').value.trim():null
 
-  const row={name,category,has_sizes:hasSizes,sizes,size_prices:hasSizes?sizePrices:null,selling_price:price,low_stock_threshold:threshold,book_set_class:bookClass}
+  const imgFile=$('artImage')?.files?.[0]
+  let imageUrl=editId?ALL_ARTICLES.find(a=>a.id===editId)?.image_url||null:null
+  if(imgFile){
+    const path='inventory/articles/'+Date.now()+'_'+imgFile.name.replace(/[^a-zA-Z0-9._-]/g,'')
+    const{error:upErr}=await R2.upload(path,imgFile,{upsert:true})
+    if(upErr){toast('Image upload failed: '+upErr.message,'error');return}
+    imageUrl=R2.getPublicUrl(path).data.publicUrl
+  }
+
+  const row={name,category,has_sizes:hasSizes,sizes,size_prices:hasSizes?sizePrices:null,selling_price:price,low_stock_threshold:threshold,book_set_class:bookClass,image_url:imageUrl}
   let err
   if(editId){({error:err}=await sb.from('inv_articles').update(row).eq('id',editId))}
   else{({error:err}=await sb.from('inv_articles').insert(row))}
@@ -669,15 +703,23 @@ async function loadBatches(){
 }
 
 function openBatchModal(){
-  let body='<div class="form-row"><div class="fg"><label>Article</label><select id="batchArticle" onchange="updateBatchSizes()">'+ALL_ARTICLES.map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')+'</select></div>'
+  let body='<div class="form-row"><div class="fg"><label>Article</label><div style="position:relative"><div id="batchArticlePicker" onclick="toggleBatchArticleDD()" style="display:flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);cursor:pointer;background:var(--white);min-height:40px"><span id="batchArticleLabel">Select article</span></div><input type="hidden" id="batchArticle"><div id="batchArticleDD" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:60;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;margin-top:4px">'+ALL_ARTICLES.map(a=>'<div onclick="pickBatchArticle(\''+a.id+'\')" style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px" onmouseover="this.style.background=\'var(--lav-100)\'" onmouseout="this.style.background=\'\'">'+(a.image_url?'<img src="'+esc(R2.url(a.image_url))+'" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0">':'<div style="width:32px;height:32px;border-radius:4px;background:var(--bg-soft);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(a.category==='book_set'?'📚':'👔')+'</div>')+'<span>'+esc(a.name)+'</span></div>').join('')+'</div></div></div>'
   body+='<div class="fg" style="max-width:160px"><label>Date</label><input type="date" id="batchDate" value="'+today()+'"></div></div>'
   body+='<div id="batchSizeQtyWrap"></div>'
   body+='<div class="form-row"><div class="fg"><label>Notes</label><input id="batchNotes" placeholder="Optional notes"></div></div>'
   const foot='<button class="btn btn-primary" onclick="saveBatch()">Add Stock</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   openModal('Add Stock Batch',body,foot)
-  setTimeout(updateBatchSizes,0)
+  setTimeout(()=>{if(ALL_ARTICLES.length)pickBatchArticle(ALL_ARTICLES[0].id)},0)
 }
 
+function toggleBatchArticleDD(){const dd=$('batchArticleDD');dd.style.display=dd.style.display==='none'?'block':'none'}
+function pickBatchArticle(id){
+  $('batchArticle').value=id
+  const a=ALL_ARTICLES.find(x=>x.id===id)
+  $('batchArticleLabel').innerHTML=(a?.image_url?'<img src="'+esc(R2.url(a.image_url))+'" style="width:28px;height:28px;object-fit:cover;border-radius:4px">':'')+'<span>'+esc(a?.name||'—')+'</span>'
+  $('batchArticleDD').style.display='none'
+  updateBatchSizes()
+}
 function updateBatchSizes(){
   const artId=$('batchArticle').value
   const art=ALL_ARTICLES.find(a=>a.id===artId)
@@ -1147,18 +1189,57 @@ function stopCamScanner(mode){
 // ═══════════ LAZY LOAD ═══════════
 const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sell:()=>{},exchange:()=>{},history:_loadHistory}
 
-// ═══════════ INIT ═══════════
-SPS.ready().then(async()=>{
+// ═══════════ AUTH & INIT ═══════════
+let _invOperator=null
+
+async function invBoot(){
+  $('invLoginOverlay').style.display='none'
   await loadGlobals()
   renderDashboard()
   function tickClock(){const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()}
   tickClock();setInterval(tickClock,1000)
-  if(SPS.admin){
-    const ini=SPS.admin.full_name||SPS.admin.username||'AD'
-    $('topAvatar').textContent=ini.slice(0,2).toUpperCase()
-    $('topName').textContent=ini
-  }
-})
+  const who=SPS.admin?(SPS.admin.full_name||SPS.admin.username||'AD'):(_invOperator?.name||'OP')
+  $('topAvatar').textContent=(who||'OP').slice(0,2).toUpperCase()
+  $('topName').textContent=who||'Operator'
+}
+
+async function invLogin(){
+  const user=$('invLoginUser').value.trim()
+  const pass=$('invLoginPass').value
+  if(!user||!pass){$('invLoginErr').style.display='block';$('invLoginErr').textContent='Enter username and password';return}
+  $('invLoginErr').style.display='none'
+  const{data,error}=await sb.from('inv_operators').select('*').eq('username',user).eq('password',pass).eq('is_active',true).maybeSingle()
+  if(error||!data){$('invLoginErr').style.display='block';$('invLoginErr').textContent='Invalid credentials';return}
+  _invOperator=data
+  try{sessionStorage.setItem('sps_inv_op',JSON.stringify({id:data.id,name:data.name,username:data.username}))}catch(_){}
+  invBoot()
+}
+
+;(async function(){
+  $('invLoginLoading').style.display='block'
+  $('invLoginForm').style.display='none'
+  try{
+    const{data}=await sb.auth.getSession()
+    if(data?.session){
+      const{data:adm}=await sb.from('admins').select('admin_id,full_name,username').eq('auth_user_id',data.session.user.id).maybeSingle()
+      if(adm){
+        SPS.admin=adm
+        $('invLoginLoading').style.display='none'
+        invBoot()
+        return
+      }
+    }
+  }catch(_){}
+  try{
+    const cached=JSON.parse(sessionStorage.getItem('sps_inv_op')||'null')
+    if(cached?.id){
+      const{data}=await sb.from('inv_operators').select('*').eq('id',cached.id).eq('is_active',true).maybeSingle()
+      if(data){_invOperator=data;invBoot();return}
+    }
+  }catch(_){}
+  $('invLoginLoading').style.display='none'
+  $('invLoginForm').style.display='block'
+})()
 </script>
 </body>
 </html>
