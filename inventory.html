@@ -1029,7 +1029,7 @@ async function _loadHistory(){
   const body=$('historyBody')
   body.innerHTML='<tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
 
-  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices),student_enrollments!sold_to_enrollment_id(enrollment_id,students!inner(full_name),classes(name),class_sections(name))').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
+  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices)').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
   const artFilter=$('histArticle').value
   if(artFilter)q=q.eq('article_id',artFilter)
   const from=$('histFrom').value
@@ -1039,19 +1039,26 @@ async function _loadHistory(){
 
   const{data,error}=await q
   if(error){body.innerHTML='<tr><td colspan="8" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
+  if(!data?.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No records found.</td></tr>';return}
+
+  const eids=[...new Set(data.map(r=>r.sold_to_enrollment_id).filter(Boolean))]
+  const stuMap={}
+  if(eids.length){
+    const{data:enrs}=await sb.from('student_enrollments').select('enrollment_id,students!inner(full_name),classes(name),class_sections(name)').in('enrollment_id',eids)
+    if(enrs)enrs.forEach(e=>{stuMap[e.enrollment_id]=e})
+  }
 
   const search=($('histSearch').value||'').trim().toLowerCase()
-  let filtered=data||[]
-  if(search)filtered=filtered.filter(r=>r.student_enrollments?.students?.full_name?.toLowerCase().includes(search))
+  let filtered=data
+  if(search)filtered=filtered.filter(r=>{const e=stuMap[r.sold_to_enrollment_id];return e?.students?.full_name?.toLowerCase().includes(search)})
 
   if(!filtered.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No records found.</td></tr>';return}
 
   body.innerHTML=filtered.map(r=>{
-    const enr=r.student_enrollments
-    const stu=enr?.students
+    const enr=stuMap[r.sold_to_enrollment_id]
     return '<tr>'
       +'<td>'+new Date(r.sold_at).toLocaleDateString('en-IN')+'</td>'
-      +'<td><b>'+esc(stu?.full_name||'—')+'</b></td>'
+      +'<td><b>'+esc(enr?.students?.full_name||'—')+'</b></td>'
       +'<td>'+esc(enr?.classes?.name||'')+'-'+esc(enr?.class_sections?.name||'')+'</td>'
       +'<td>'+esc(r.inv_articles?.name||'—')+'</td>'
       +'<td>'+(r.size||'—')+'</td>'
