@@ -10800,13 +10800,14 @@ function openInvOperatorModal(editId){
     sb.from('inv_operators').select('*').eq('id',editId).maybeSingle().then(({data})=>{
       if(!data)return
       $('opName').value=data.name||''
-      $('opUsername').value=data.username||''
-      $('opPassword').value=data.password||''
+      $('opUsername').value=(data.username||'').replace(/\.inv$/,'')
       $('opActive').value=data.is_active?'1':'0'
     })
   }
   let body='<div class="form-row"><div class="fg"><label>Name</label><input id="opName" placeholder="Operator name"></div></div>'
-  body+='<div class="form-row"><div class="fg"><label>Username</label><input id="opUsername" placeholder="Login username"></div><div class="fg"><label>Password</label><input id="opPassword" placeholder="Login password"></div></div>'
+  body+='<div class="form-row"><div class="fg"><label>Username</label><div style="display:flex;align-items:center;gap:0"><input id="opUsername" placeholder="e.g. saksham" style="border-radius:8px 0 0 8px"><span style="padding:9px 10px;background:var(--lav-200);border:1px solid var(--line);border-left:0;border-radius:0 8px 8px 0;font-size:13px;color:var(--ink-soft);white-space:nowrap">.inv</span></div></div>'
+  if(!editId)body+='<div class="fg"><label>Password</label><input id="opPassword" type="password" placeholder="Login password"></div>'
+  body+='</div>'
   body+='<div class="form-row"><div class="fg" style="max-width:120px"><label>Active</label><select id="opActive"><option value="1">Yes</option><option value="0">No</option></select></div></div>'
   const foot='<button class="btn btn-dark" onclick="saveInvOperator('+(editId?"'"+editId+"'":"null")+')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   openModal(editId?'Edit Operator':'New Operator',body,foot)
@@ -10814,14 +10815,26 @@ function openInvOperatorModal(editId){
 
 async function saveInvOperator(editId){
   const name=$('opName').value.trim()
-  const username=$('opUsername').value.trim()
-  const password=$('opPassword').value
-  if(!name||!username||!password){toast('All fields required','error');return}
-  const row={name,username,password,is_active:$('opActive').value==='1'}
-  let err
-  if(editId){({error:err}=await sb.from('inv_operators').update(row).eq('id',editId))}
-  else{({error:err}=await sb.from('inv_operators').insert(row))}
-  if(err){toast(err.message,'error');return}
+  let username=$('opUsername').value.trim().toLowerCase()
+  if(!name||!username){toast('Name and username required','error');return}
+  if(!username.endsWith('.inv'))username+='.inv'
+  const email=username+'@'+AUTH_EMAIL_DOMAIN
+
+  if(!editId){
+    const password=$('opPassword').value
+    if(!password){toast('Password required','error');return}
+    const tmpSb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}})
+    const{data:signup,error:signErr}=await tmpSb.auth.signUp({email,password})
+    if(signErr){toast('Auth error: '+signErr.message,'error');return}
+    const authId=signup.user?.id
+    if(!authId){toast('Failed to create auth account','error');return}
+    const{error}=await sb.from('inv_operators').insert({auth_user_id:authId,name,username,is_active:$('opActive').value==='1'})
+    if(error){toast(error.message,'error');return}
+  }else{
+    const row={name,username,is_active:$('opActive').value==='1'}
+    const{error}=await sb.from('inv_operators').update(row).eq('id',editId)
+    if(error){toast(error.message,'error');return}
+  }
   toast(editId?'Operator updated':'Operator created','success')
   closeModal()
   loadInvOperators()
