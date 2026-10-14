@@ -320,9 +320,10 @@ tbody tr:hover td{background:var(--lav-50)}
         <div id="sellScannedItems"></div>
         <div id="sellTotal" style="font-weight:700;text-align:right;padding:8px 0;font-size:14px"></div>
       </div>
-      <div style="margin-top:16px">
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
         <button class="btn btn-primary" onclick="startSellScan()" id="sellScanBtn" disabled style="width:100%;padding:14px;font-size:15px">📷 Start Scanning</button>
         <button class="btn btn-success" onclick="confirmSell()" id="sellBtn" disabled style="display:none;width:100%;padding:14px;font-size:15px">Confirm Sale</button>
+        <button class="btn btn-danger" onclick="cancelSell()" id="sellCancelBtn" style="display:none;width:100%;padding:12px;font-size:14px">Cancel</button>
       </div>
     </div>
   </div>
@@ -398,6 +399,12 @@ function today(){return new Date().toISOString().slice(0,10)}
 
 // ═══════════ NAV ═══════════
 const TITLES={dashboard:'Dashboard',articles:'Articles',stock:'Stock & Batches',qrcodes:'QR Codes',sell:'Sell / Distribute',exchange:'Exchange',history:'Purchase History'}
+function getItemPrice(item){
+  const art=item.inv_articles
+  if(!art)return 0
+  if(item.size&&art.size_prices&&art.size_prices[item.size]!=null)return art.size_prices[item.size]
+  return art.selling_price||0
+}
 function goTo(id,el,_fromPop){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
   $('page-'+id)?.classList.add('active')
@@ -506,8 +513,8 @@ async function loadArticles(){
     return '<tr>'
       +'<td><b>'+esc(a.name)+'</b>'+(a.book_set_class?' <span class="pill pill-neutral">Class '+esc(a.book_set_class)+'</span>':'')+'</td>'
       +'<td><span class="pill pill-'+(a.category==='book_set'?'pur':'neutral')+'">'+esc(a.category==='book_set'?'Book Set':'Uniform')+'</span></td>'
-      +'<td>'+(a.has_sizes&&a.sizes?.length?a.sizes.join(', '):'—')+'</td>'
-      +'<td class="mono">'+fmtINR(a.selling_price)+'</td>'
+      +'<td>'+(a.has_sizes&&a.sizes?.length?a.sizes.map(s=>esc(s)+' <span class="mono" style="font-size:11px;color:var(--ink-faint)">'+fmtINR(a.size_prices?.[s]||a.selling_price)+'</span>').join(', '):'—')+'</td>'
+      +'<td class="mono">'+(a.has_sizes?'—':fmtINR(a.selling_price))+'</td>'
       +'<td><span class="pill '+(isLow?'pill-danger':'pill-success')+'">'+stk+'</span></td>'
       +'<td>'+a.low_stock_threshold+'</td>'
       +'<td><button class="btn btn-soft btn-xs" onclick="openArticleModal(\''+a.id+'\')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteArticle(\''+a.id+'\')">Delete</button></td>'
@@ -522,26 +529,57 @@ function openArticleModal(editId){
   body+='<div class="form-row"><div class="fg" style="max-width:180px"><label>Category</label><select id="artCategory" onchange="toggleBookSetClass()"><option value="uniform"'+(art?.category==='uniform'?' selected':'')+'>Uniform</option><option value="book_set"'+(art?.category==='book_set'?' selected':'')+'>Book Set</option></select></div>'
   body+='<div class="fg" style="max-width:180px;display:'+(art?.category==='book_set'?'flex':'none')+'" id="artBookClassWrap"><label>For Class</label><input id="artBookClass" value="'+esc(art?.book_set_class||'')+'"></div></div>'
   body+='<div class="form-row"><div class="fg" style="max-width:120px"><label>Has Sizes?</label><select id="artHasSizes" onchange="toggleSizesInput()"><option value="0"'+(art?.has_sizes?'':' selected')+'>No</option><option value="1"'+(art?.has_sizes?' selected':'')+'>Yes</option></select></div>'
-  body+='<div class="fg" id="artSizesWrap" style="display:'+(art?.has_sizes?'flex':'none')+'"><label>Sizes (comma separated)</label><input id="artSizes" value="'+esc((art?.sizes||[]).join(', '))+'"></div></div>'
-  body+='<div class="form-row"><div class="fg" style="max-width:160px"><label>Selling Price (₹)</label><input type="number" id="artPrice" value="'+(art?.selling_price||0)+'" min="0"></div>'
+  body+='<div class="fg" style="max-width:160px;display:'+(art?.has_sizes?'none':'flex')+'" id="artPriceNoSize"><label>Selling Price (₹)</label><input type="number" id="artPrice" value="'+(art?.selling_price||0)+'" min="0"></div>'
   body+='<div class="fg" style="max-width:160px"><label>Low Stock Threshold</label><input type="number" id="artThreshold" value="'+(art?.low_stock_threshold||5)+'" min="0"></div></div>'
+  body+='<div id="artSizesWrap" style="display:'+(art?.has_sizes?'block':'none')+';margin-top:10px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">SIZE — PRICE</div><div id="artSizeRows"></div><button type="button" class="btn btn-soft btn-xs" onclick="addSizeRow()" style="margin-top:6px">+ Add Size</button></div>'
   const foot='<button class="btn btn-primary" onclick="saveArticle('+(editId?"'"+editId+"'":"null")+')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   openModal(title,body,foot)
+  setTimeout(()=>_initSizeRows(art),0)
 }
 function toggleBookSetClass(){$('artBookClassWrap').style.display=$('artCategory').value==='book_set'?'flex':'none'}
-function toggleSizesInput(){$('artSizesWrap').style.display=$('artHasSizes').value==='1'?'flex':'none'}
+function toggleSizesInput(){
+  const on=$('artHasSizes').value==='1'
+  $('artSizesWrap').style.display=on?'block':'none'
+  $('artPriceNoSize').style.display=on?'none':'flex'
+  if(on&&!$('artSizeRows').children.length)addSizeRow()
+}
+function addSizeRow(sz,pr){
+  const row=document.createElement('div')
+  row.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:6px'
+  row.innerHTML='<input class="artSz" placeholder="Size" value="'+esc(sz||'')+'" style="width:100px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius-sm)">'
+    +'<input type="number" class="artSzPr" placeholder="Price ₹" value="'+(pr||'')+'" min="0" style="width:110px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius-sm)">'
+    +'<button type="button" class="btn btn-danger btn-xs" onclick="this.parentElement.remove()" style="padding:2px 8px">✕</button>'
+  $('artSizeRows').appendChild(row)
+}
+function _initSizeRows(art){
+  const box=$('artSizeRows');box.innerHTML=''
+  if(!art?.has_sizes)return
+  const sp=art.size_prices||{}
+  ;(art.sizes||[]).forEach(s=>addSizeRow(s,sp[s]||art.selling_price||0))
+}
 
 async function saveArticle(editId){
   const name=$('artName').value.trim()
   if(!name){toast('Name is required','error');return}
   const category=$('artCategory').value
   const hasSizes=$('artHasSizes').value==='1'
-  const sizes=hasSizes?$('artSizes').value.split(',').map(s=>s.trim()).filter(Boolean):[]
-  const price=parseFloat($('artPrice').value)||0
+  let sizes=[],sizePrices={},price=0
+  if(hasSizes){
+    const rows=$('artSizeRows').querySelectorAll('div')
+    rows.forEach(r=>{
+      const sz=r.querySelector('.artSz')?.value.trim()
+      const pr=parseFloat(r.querySelector('.artSzPr')?.value)||0
+      if(sz){sizes.push(sz);sizePrices[sz]=pr}
+    })
+    if(!sizes.length){toast('Add at least one size','error');return}
+    price=Math.max(...Object.values(sizePrices))
+  }else{
+    price=parseFloat($('artPrice').value)||0
+  }
   const threshold=parseInt($('artThreshold').value)||5
   const bookClass=category==='book_set'?$('artBookClass').value.trim():null
 
-  const row={name,category,has_sizes:hasSizes,sizes,selling_price:price,low_stock_threshold:threshold,book_set_class:bookClass}
+  const row={name,category,has_sizes:hasSizes,sizes,size_prices:hasSizes?sizePrices:null,selling_price:price,low_stock_threshold:threshold,book_set_class:bookClass}
   let err
   if(editId){({error:err}=await sb.from('inv_articles').update(row).eq('id',editId))}
   else{({error:err}=await sb.from('inv_articles').insert(row))}
@@ -761,6 +799,7 @@ function startSellScan(){
   $('sellScanBtn').style.display='none'
   $('sellBtn').style.display='block'
   $('sellBtn').disabled=false
+  $('sellCancelBtn').style.display='block'
   $('sellCamWrap').style.display='block'
   const readerId='sellCamReader'
   _camMode='sell'
@@ -770,13 +809,14 @@ function startSellScan(){
     $('sellCamWrap').style.display='none'
     $('sellScanBtn').style.display='block'
     $('sellBtn').style.display='none'
+    $('sellCancelBtn').style.display='none'
     _camScanner=null;_camMode=null
   })
 }
 
 async function onSellQrScanned(code){
   if(_sellItems.find(i=>i.qr_code===code)){_beep();return}
-  const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,category)').eq('qr_code',code).maybeSingle()
+  const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices,category)').eq('qr_code',code).maybeSingle()
   if(error||!data){toast('Item not found: '+code,'error');return}
   if(data.status!=='in_stock'){toast(code+' not in stock ('+data.status+')','error');return}
   _beep()
@@ -796,7 +836,7 @@ function renderSellScannedItems(){
   wrap.style.display='block'
   let total=0
   box.innerHTML=_sellItems.map((item,i)=>{
-    const price=item.inv_articles?.selling_price||0
+    const price=getItemPrice(item)
     total+=price
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">'
       +'<span><b>'+esc(item.inv_articles?.name||'—')+'</b>'+(item.size?' · '+esc(item.size):'')
@@ -821,6 +861,16 @@ async function confirmSell(){
   }
   if(failed)toast(failed+' item(s) failed to save','error')
   else toast(_sellItems.length+' item(s) sold successfully','success')
+  _resetSellUI()
+}
+
+function cancelSell(){
+  stopCamScanner('sell')
+  _sellItems=[]
+  _resetSellUI()
+}
+
+function _resetSellUI(){
   _sellItems=[];_sellEid=null
   $('sellScannedList').style.display='none'
   $('sellScannedItems').innerHTML=''
@@ -828,6 +878,7 @@ async function confirmSell(){
   $('sellScanBtn').style.display='block'
   $('sellScanBtn').disabled=true
   $('sellBtn').style.display='none'
+  $('sellCancelBtn').style.display='none'
   $('sellClass').value=''
   _sellStudentsCache=[]
 }
@@ -895,7 +946,7 @@ function selectExchReturn(itemId,artName,size,qr){
 async function lookupExchNew(){
   const code=$('exchNewQr').value.trim()
   if(!code){toast('Enter a QR code','error');return}
-  const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price)').eq('qr_code',code).maybeSingle()
+  const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices)').eq('qr_code',code).maybeSingle()
   if(error||!data){toast('Item not found','error');_exchNewItem=null;checkExchReady();return}
   if(data.status!=='in_stock'){toast('Item is not in stock (status: '+data.status+')','error');_exchNewItem=null;checkExchReady();return}
   _exchNewItem=data
@@ -939,7 +990,7 @@ async function _loadHistory(){
   const body=$('historyBody')
   body.innerHTML='<tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
 
-  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price),student_enrollments(enrollment_id,students!inner(full_name),classes(name),class_sections(name))').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
+  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices),student_enrollments(enrollment_id,students!inner(full_name),classes(name),class_sections(name))').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
   const artFilter=$('histArticle').value
   if(artFilter)q=q.eq('article_id',artFilter)
   const from=$('histFrom').value
@@ -967,7 +1018,7 @@ async function _loadHistory(){
       +'<td>'+(r.size||'—')+'</td>'
       +'<td class="mono" style="font-size:11px">'+esc(r.qr_code)+'</td>'
       +'<td><span class="pill pill-'+(r.payment_mode==='cash'?'success':r.payment_mode==='online'?'pur':'neutral')+'">'+esc(r.payment_mode||'—')+'</span></td>'
-      +'<td class="mono">'+fmtINR(r.inv_articles?.selling_price)+'</td>'
+      +'<td class="mono">'+fmtINR(getItemPrice(r))+'</td>'
     +'</tr>'
   }).join('')
 }
