@@ -26,7 +26,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 :root{
@@ -180,7 +180,7 @@ tbody tr:hover td{background:var(--lav-50)}
 /* ── QR GRID ── */
 .qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
 .qr-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:10px;text-align:center}
-.qr-card canvas{max-width:100%;height:auto}
+.qr-card img,.qr-card canvas{max-width:100%;height:auto}
 .qr-card .qr-label{font-size:10px;color:var(--ink-soft);margin-top:4px;font-family:var(--mono);word-break:break-all}
 
 /* ── MOBILE ── */
@@ -274,13 +274,13 @@ tbody tr:hover td{background:var(--lav-50)}
 
   <!-- ════════ STOCK & BATCHES ════════ -->
   <div class="page" id="page-stock">
-    <div class="page-head"><div><h2>Stock &amp; Batches</h2><p>Ingest new stock from vendors</p></div><button class="btn btn-primary" onclick="openBatchModal()">+ Add Batch</button></div>
+    <div class="page-head"><div><h2>Stock &amp; Batches</h2><p>Add new stock with QR codes</p></div><button class="btn btn-primary" onclick="openBatchModal()">+ Add Batch</button></div>
     <div class="search-bar">
       <div class="fg" style="max-width:220px"><label>Article</label><select id="stockFilterArticle" onchange="loadBatches()"><option value="">All</option></select></div>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Article</th><th>Size</th><th>Qty</th><th>Vendor</th><th>In Stock</th><th>Sold</th><th>Notes</th></tr></thead>
+        <thead><tr><th>Date</th><th>Article</th><th>Size</th><th>Qty</th><th>In Stock</th><th>Sold</th><th>Notes</th></tr></thead>
         <tbody id="batchesBody"><tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table>
     </div>
@@ -600,13 +600,13 @@ async function deleteArticle(id){
 // ═══════════ STOCK & BATCHES ═══════════
 async function loadBatches(){
   const body=$('batchesBody')
-  body.innerHTML='<tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
+  body.innerHTML='<tr><td colspan="7"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
   let q=sb.from('inv_batches').select('*,inv_articles(name)').order('batch_date',{ascending:false})
   const filter=$('stockFilterArticle').value
   if(filter)q=q.eq('article_id',filter)
   const{data,error}=await q.limit(200)
-  if(error){body.innerHTML='<tr><td colspan="8" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
-  if(!data?.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No batches yet.</td></tr>';return}
+  if(error){body.innerHTML='<tr><td colspan="7" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
+  if(!data?.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--ink-faint)">No batches yet.</td></tr>';return}
 
   const rows=[]
   for(const b of data){
@@ -619,7 +619,6 @@ async function loadBatches(){
     +'<td><b>'+esc(b.inv_articles?.name||'—')+'</b></td>'
     +'<td>'+(b.size||'—')+'</td>'
     +'<td class="mono">'+b.qty+'</td>'
-    +'<td>'+esc(b.vendor||'—')+'</td>'
     +'<td><span class="pill pill-success">'+b.inStock+'</span></td>'
     +'<td><span class="pill pill-neutral">'+b.soldCount+'</span></td>'
     +'<td style="font-size:11px;color:var(--ink-faint)">'+esc(b.notes||'')+'</td>'
@@ -627,11 +626,9 @@ async function loadBatches(){
 }
 
 function openBatchModal(){
-  let body='<div class="form-row"><div class="fg"><label>Article</label><select id="batchArticle" onchange="updateBatchSizes()">'+ALL_ARTICLES.map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')+'</select></div></div>'
-  body+='<div class="form-row"><div class="fg" style="max-width:140px" id="batchSizeWrap"><label>Size</label><select id="batchSize"><option value="">N/A</option></select></div>'
-  body+='<div class="fg" style="max-width:120px"><label>Quantity</label><input type="number" id="batchQty" value="1" min="1"></div></div>'
-  body+='<div class="form-row"><div class="fg"><label>Vendor</label><input id="batchVendor" placeholder="Vendor name"></div>'
+  let body='<div class="form-row"><div class="fg"><label>Article</label><select id="batchArticle" onchange="updateBatchSizes()">'+ALL_ARTICLES.map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')+'</select></div>'
   body+='<div class="fg" style="max-width:160px"><label>Date</label><input type="date" id="batchDate" value="'+today()+'"></div></div>'
+  body+='<div id="batchSizeQtyWrap"></div>'
   body+='<div class="form-row"><div class="fg"><label>Notes</label><input id="batchNotes" placeholder="Optional notes"></div></div>'
   const foot='<button class="btn btn-primary" onclick="saveBatch()">Add Stock</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
   openModal('Add Stock Batch',body,foot)
@@ -641,36 +638,49 @@ function openBatchModal(){
 function updateBatchSizes(){
   const artId=$('batchArticle').value
   const art=ALL_ARTICLES.find(a=>a.id===artId)
-  const sel=$('batchSize')
-  sel.innerHTML='<option value="">N/A</option>'
+  const wrap=$('batchSizeQtyWrap')
   if(art?.has_sizes&&art.sizes?.length){
-    art.sizes.forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'})
+    wrap.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">QUANTITY PER SIZE</div>'
+      +art.sizes.map(s=>'<div class="form-row" style="margin-bottom:4px"><div class="fg" style="flex:1"><label>'+esc(s)+'</label></div><div class="fg" style="max-width:100px"><input type="number" class="batchSzQty" data-size="'+esc(s)+'" value="0" min="0" style="padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius-sm)"></div></div>').join('')
+  }else{
+    wrap.innerHTML='<div class="form-row"><div class="fg" style="max-width:120px"><label>Quantity</label><input type="number" id="batchQty" value="1" min="1"></div></div>'
   }
 }
 
 async function saveBatch(){
   const articleId=$('batchArticle').value
-  const size=$('batchSize').value||null
-  const qty=parseInt($('batchQty').value)||0
-  const vendor=$('batchVendor').value.trim()
   const batchDate=$('batchDate').value||today()
   const notes=$('batchNotes').value.trim()
   if(!articleId){toast('Select an article','error');return}
-  if(qty<1){toast('Quantity must be at least 1','error');return}
-
   const art=ALL_ARTICLES.find(a=>a.id===articleId)
 
-  const{data:batch,error:bErr}=await sb.from('inv_batches').insert({article_id:articleId,vendor,qty,size,batch_date:batchDate,notes}).select().single()
+  const sizeQtys=[]
+  if(art?.has_sizes&&art.sizes?.length){
+    document.querySelectorAll('.batchSzQty').forEach(inp=>{
+      const q=parseInt(inp.value)||0
+      if(q>0)sizeQtys.push({size:inp.dataset.size,qty:q})
+    })
+    if(!sizeQtys.length){toast('Enter quantity for at least one size','error');return}
+  }else{
+    const qty=parseInt($('batchQty')?.value)||0
+    if(qty<1){toast('Quantity must be at least 1','error');return}
+    sizeQtys.push({size:null,qty})
+  }
+
+  const totalQty=sizeQtys.reduce((s,e)=>s+e.qty,0)
+  const{data:batch,error:bErr}=await sb.from('inv_batches').insert({article_id:articleId,qty:totalQty,batch_date:batchDate,notes}).select().single()
   if(bErr){toast(bErr.message,'error');return}
 
   const items=[]
-  for(let i=0;i<qty;i++){
-    const qr='SPS-'+art.name.replace(/[^A-Za-z0-9]/g,'').toUpperCase().slice(0,6)+'-'+(size||'X').toUpperCase().slice(0,4)+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6)
-    items.push({article_id:articleId,batch_id:batch.id,size,qr_code:qr})
+  for(const{size,qty} of sizeQtys){
+    for(let i=0;i<qty;i++){
+      const qr='SPS-'+art.name.replace(/[^A-Za-z0-9]/g,'').toUpperCase().slice(0,6)+'-'+(size||'X').toUpperCase().slice(0,4)+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6)
+      items.push({article_id:articleId,batch_id:batch.id,size,qr_code:qr})
+    }
   }
   const{error:iErr}=await sb.from('inv_items').insert(items)
   if(iErr){toast('Batch created but items failed: '+iErr.message,'error');return}
-  toast(qty+' items added with QR codes','success')
+  toast(totalQty+' items added with QR codes','success')
   closeModal()
   loadBatches()
 }
@@ -701,10 +711,10 @@ async function loadQrItems(){
     sel.value=cur
   }
 
-  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><canvas id="qrcanvas_'+idx+'" width="120" height="120"></canvas><div class="qr-label">'+esc(item.qr_code)+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':'neutral')+'">'+esc(item.status)+'</span>'+(item.size?' · '+esc(item.size):'')+'</div></div>').join('')
+  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">'+esc(item.qr_code)+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':'neutral')+'">'+esc(item.status)+'</span>'+(item.size?' · '+esc(item.size):'')+'</div></div>').join('')
 
   data.forEach((item,idx)=>{
-    QRCode.toCanvas(document.getElementById('qrcanvas_'+idx),item.qr_code,{width:120,margin:1},function(err){if(err)console.error(err)})
+    new QRCode(document.getElementById('qrcanvas_'+idx),{text:item.qr_code,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})
   })
 }
 
@@ -716,15 +726,16 @@ function printQrCodes(){
   h+='body{font-family:sans-serif;margin:10mm}'
   h+='.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8mm}'
   h+='.item{text-align:center;page-break-inside:avoid;border:1px solid #ddd;padding:4mm;border-radius:4px}'
-  h+='.item canvas{max-width:100%}'
+  h+='.item img{max-width:100%}'
   h+='.item .lbl{font-size:8px;font-family:monospace;word-break:break-all;margin-top:2mm}'
   h+='@page{size:A4 portrait;margin:8mm}'
   h+='</style></head><body><div class="grid">'
   const cards=grid.querySelectorAll('.qr-card')
   cards.forEach(card=>{
-    const canvas=card.querySelector('canvas')
+    const img=card.querySelector('img')||card.querySelector('canvas')
     const label=card.querySelector('.qr-label')
-    h+='<div class="item"><img src="'+canvas.toDataURL()+'" width="100"><div class="lbl">'+label.textContent+'</div></div>'
+    const src=img.tagName==='IMG'?img.src:img.toDataURL()
+    h+='<div class="item"><img src="'+src+'" width="100"><div class="lbl">'+label.textContent+'</div></div>'
   })
   h+='</div></body></html>'
   w.document.write(h);w.document.close()
