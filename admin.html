@@ -14444,6 +14444,8 @@ async function idcGeneratePDF(){
 function idcSplitAddress(addr){
   if(!addr)return ['','']
   addr=String(addr).trim().replace(/\s+/g,' ')
+  const m=addr.match(/^(.+?),\s*NIT Faridabad$/i)
+  if(m) return [m[1].trim(), 'NIT Faridabad, 121001']
   const mid=Math.floor(addr.length/2)
   let splitIdx=-1
   for(let i=mid;i>=0;i--){if(addr[i]===','){splitIdx=i;break}}
