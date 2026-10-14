@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SPS Portal">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#ffffff">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Portal — Shiv Public School</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>window.PORTAL_KEY = 'admin'</script>
+<script>
+(function(){try{
+  var t=localStorage.getItem('sps_inv_theme')||'light'
+  var dark = t==='dark' || (t==='system' && window.matchMedia && matchMedia('(prefers-color-scheme:dark)').matches)
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light')
+}catch(e){}})()
+</script>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+:root{
+  --pur:#6B21A8;--pur-dark:#581C87;--pur-100:#F3E8FF;
+  --lav-50:#FAF5FF;--lav-100:#F3E8FF;--lav-200:#E9D5FF;--lav-300:#D8B4FE;
+  --ink:#1E1035;--ink-soft:#5B4A6E;--ink-faint:#9A8DB0;
+  --white:#FFFFFF;--line:#E9D5FF;
+  --success:#2BB673;--success-soft:#E4F7EE;
+  --warn:#E8A23D;--warn-soft:#FCF1E0;
+  --danger:#E5556B;--danger-soft:#FCE7EA;
+  --radius-lg:22px;--radius-md:14px;--radius-sm:10px;
+  --font:'Plus Jakarta Sans',sans-serif;--mono:'DM Mono',monospace;
+  --sbw:252px;
+}
+html[data-theme="dark"]{
+  --lav-50:#14101F;--lav-100:#1E1830;--lav-200:#2E2545;--lav-300:#3F3360;
+  --ink:#EDE8F6;--ink-soft:#B0A4C8;--ink-faint:#7A6D96;
+  --pur:#A855F7;--pur-dark:#9333EA;--pur-100:#2A1B40;
+  --white:#1A1528;--line:#2E2545;
+  --success:#3BD088;--success-soft:#12301F;
+  --warn:#F0B85C;--warn-soft:#332711;
+  --danger:#F16A7E;--danger-soft:#33192022;
+}
+html[data-theme="dark"] body{background:var(--lav-50)}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{color:var(--ink)}
+html[data-theme="dark"] input::placeholder,html[data-theme="dark"] textarea::placeholder{color:var(--ink-faint)}
+html[data-theme="dark"] .topbar{background:rgba(20,16,31,.85)}
+html[data-theme="dark"] .btn-dark{background:var(--pur);color:#fff}
+html[data-theme="dark"] .btn-dark:hover:not(:disabled){background:var(--pur-dark)}
+html[data-theme="dark"] select option{background:var(--white);color:var(--ink)}
+html[data-theme="dark"] .sb-mark{background:linear-gradient(135deg,var(--pur),var(--pur-dark))!important}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--lav-50);color:var(--ink);min-height:100vh;overflow-x:hidden}
+
+/* ── SIDEBAR ── */
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sbw);background:var(--white);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:200;transition:transform .28s cubic-bezier(.4,0,.2,1)}
+#sidebar.collapsed{transform:translateX(-100%)}
+.sb-brand{display:flex;align-items:center;gap:11px;padding:22px 20px 18px;border-bottom:1px solid var(--line)}
+.sb-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--pur),var(--pur-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14.5px;flex-shrink:0}
+.sb-brand-text .name{font-size:13px;font-weight:700;line-height:1.25}
+.sb-brand-text .sub{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+.sb-scroll{flex:1;overflow-y:auto;padding:14px 12px}
+.sb-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);padding:10px 10px 6px}
+.sb-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--ink-soft);font-size:12.5px;font-weight:500;cursor:pointer;margin-bottom:2px;transition:background .14s,color .14s;text-decoration:none;position:relative}
+.sb-item svg{width:16px;height:16px;stroke:currentColor;fill:none;flex-shrink:0;stroke-width:1.8}
+.sb-item:hover{background:var(--lav-100);color:var(--ink)}
+.sb-item.active{background:var(--pur-100);color:var(--pur-dark);font-weight:700}
+.sb-item .bc{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.sb-link{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--ink-soft);font-size:12.5px;font-weight:500;cursor:pointer;margin-bottom:2px;transition:background .14s,color .14s;text-decoration:none}
+.sb-link svg{width:16px;height:16px;stroke:currentColor;fill:none;flex-shrink:0;stroke-width:1.8}
+.sb-link:hover{background:var(--lav-100);color:var(--ink)}
+.sb-link .ext{margin-left:auto;width:12px;height:12px;stroke:var(--ink-faint);fill:none}
+.sb-foot{padding:14px 16px 18px;border-top:1px solid var(--line)}
+.sb-logout{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:1px solid var(--line);color:var(--ink-soft);font-family:var(--font);font-size:12px;font-weight:600;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer}
+.sb-logout svg{width:14px;height:14px;stroke:currentColor;fill:none}
+
+/* ── MAIN AREA ── */
+#main{margin-left:var(--sbw);transition:margin-left .28s cubic-bezier(.4,0,.2,1);min-height:100vh;display:flex;flex-direction:column}
+#main.full{margin-left:0}
+.topbar{height:64px;background:rgba(250,245,255,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 26px;position:sticky;top:0;z-index:90}
+.sb-toggle{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.sb-toggle svg{width:17px;height:17px;stroke:var(--ink-soft);fill:none;stroke-width:1.8}
+.topbar-title{font-size:15px;font-weight:700;flex:1}
+.topbar-title .crumb{font-size:11.5px;color:var(--ink-faint);font-weight:500;display:block;margin-top:1px}
+.session-badge{font-size:11px;font-family:var(--mono);color:var(--pur-dark);background:var(--pur-100);padding:6px 12px;border-radius:999px;font-weight:700;white-space:nowrap}
+.header-clock{font-size:12px;font-family:var(--mono);color:var(--ink-soft);font-weight:600;white-space:nowrap}
+.user-chip{display:flex;align-items:center;gap:9px;padding:5px 12px 5px 5px;border:1px solid var(--line);background:var(--white);border-radius:999px;cursor:pointer}
+.av-sm{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--pur),var(--pur-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.user-chip .uname{font-size:12.5px;font-weight:700;line-height:1.2}
+.user-chip .urole{font-size:10px;color:var(--ink-faint)}
+.content{padding:26px;flex:1}
+.page{display:none}.page.active{display:block}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.page-head h2{font-size:21px;font-weight:800;letter-spacing:-.01em}
+.page-head p{font-size:12.5px;color:var(--ink-soft);margin-top:4px}
+
+/* ── REUSABLE COMPONENTS ── */
+.card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px}
+.card h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:14px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.stat-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:6px}
+.stat-card .lbl{font-size:11px;color:var(--ink-faint);font-weight:600;display:flex;align-items:center;gap:6px}
+.stat-card .lbl svg{width:14px;height:14px;stroke:currentColor;fill:none}
+.stat-card .val{font-size:26px;font-weight:800;font-family:var(--mono)}
+.stat-card .sub{font-size:11px;color:var(--ink-faint)}
+.stat-card.success .val{color:var(--success)}.stat-card.warn .val{color:var(--warn)}.stat-card.danger .val{color:var(--danger)}
+.pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.pill-success{background:var(--success-soft);color:var(--success)}
+.pill-warn{background:var(--warn-soft);color:var(--warn)}
+.pill-danger{background:var(--danger-soft);color:var(--danger)}
+.pill-neutral{background:var(--lav-100);color:var(--ink-soft)}
+.pill-pur{background:var(--pur-100);color:var(--pur-dark)}
+.table-wrap{overflow-x:auto;border-radius:var(--radius-md);border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{background:var(--lav-100);color:var(--ink-soft);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:11px 14px;text-align:left;white-space:nowrap}
+tbody td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+tbody tr:hover td{background:var(--lav-50)}
+.mono{font-family:var(--mono)}
+.form-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end}
+.fg{display:flex;flex-direction:column;gap:6px;flex:1;min-width:150px}
+.fg label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+.fg input,.fg select,.fg textarea{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px 13px;outline:none;transition:border-color .15s}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--pur);background:#fff}
+.fg textarea{resize:vertical;min-height:72px}
+.btn{font-family:var(--font);font-size:12.5px;font-weight:700;border-radius:var(--radius-sm);padding:10px 18px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;transition:opacity .15s}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.btn-dark{background:var(--ink);color:#fff}.btn-dark:hover:not(:disabled){background:#3a3552}
+.btn-primary{background:var(--pur);color:#fff}.btn-primary:hover:not(:disabled){background:var(--pur-dark)}
+.btn-ghost{background:var(--white);color:var(--ink-soft);border:1px solid var(--line)}
+.btn-ghost:hover:not(:disabled){border-color:var(--ink-faint);color:var(--ink)}
+.btn-soft{background:var(--pur-100);color:var(--pur-dark)}
+.btn-success{background:var(--success);color:#fff}
+.btn-danger{background:var(--danger-soft);color:var(--danger);border:1px solid rgba(229,85,107,.25)}
+.btn-sm{padding:6px 12px;font-size:11.5px}.btn-xs{padding:4px 9px;font-size:11px}
+.back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-soft);background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;margin-bottom:16px}
+.back-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+.search-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end}
+.tab-row{display:flex;gap:4px;background:var(--lav-100);padding:4px;border-radius:var(--radius-sm);width:fit-content;margin-bottom:18px;flex-wrap:wrap}
+.tab-btn{padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;border:none;background:transparent;color:var(--ink-soft);cursor:pointer}
+.tab-btn.active{background:#fff;color:var(--pur-dark);box-shadow:0 2px 6px rgba(107,33,168,.12)}
+
+/* ── MODAL ── */
+#modalOverlay{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+#modalOverlay.show{display:flex}
+#modalOverlay .backdrop{position:fixed;inset:0;background:rgba(30,16,53,.45)}
+.modal-sheet{position:relative;background:var(--white);border-radius:var(--radius-lg);max-width:600px;width:100%;max-height:90vh;overflow-y:auto;padding:26px;z-index:1}
+.modal-sheet.wide{max-width:760px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.modal-head h3{font-size:17px;font-weight:800}
+.modal-close{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.modal-close svg{width:14px;height:14px;stroke:var(--ink-soft);fill:none}
+.modal-foot{display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);flex-wrap:wrap}
+
+/* ── TOAST ── */
+.toast-container{position:fixed;top:80px;right:24px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast-item{padding:10px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;font-family:var(--font);box-shadow:0 6px 20px rgba(0,0,0,.15);animation:slideIn .25s ease}
+.toast-item.success{background:var(--success);color:#fff}
+.toast-item.error{background:var(--danger);color:#fff}
+.toast-item.info{background:var(--ink);color:#fff}
+@keyframes slideIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+
+/* ── SPINNER ── */
+.spinner{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--pur);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-row{display:flex;align-items:center;justify-content:center;padding:40px}
+
+/* ── QR GRID ── */
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.qr-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:10px;text-align:center}
+.qr-card canvas{max-width:100%;height:auto}
+.qr-card .qr-label{font-size:10px;color:var(--ink-soft);margin-top:4px;font-family:var(--mono);word-break:break-all}
+
+/* ── MOBILE ── */
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:199;display:none}
+#scrim.show{display:block}
+@media(max-width:760px){
+  #sidebar{transform:translateX(-100%)}
+  #sidebar.show{transform:translateX(0)}
+  #main{margin-left:0!important}
+}
+@media print{
+  #sidebar,#scrim,.topbar,.sb-toggle{display:none!important}
+  #main{margin-left:0!important}
+  .content{padding:0!important}
+}
+</style>
+</head>
+<body>
+<div id="scrim" onclick="closeMobileSidebar()"></div>
+<aside id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-mark">SP</div>
+    <div class="sb-brand-text"><div class="name">Shiv Public School</div><div class="sub">Inventory Portal</div></div>
+  </div>
+  <div class="sb-scroll">
+    <div class="sb-label">Overview</div>
+    <div class="sb-item active" onclick="goTo('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</div>
+
+    <div class="sb-label">Inventory</div>
+    <div class="sb-item" onclick="goTo('articles',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Articles</div>
+    <div class="sb-item" onclick="goTo('stock',this)"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Stock &amp; Batches</div>
+    <div class="sb-item" onclick="goTo('qrcodes',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="14.01"/><line x1="21" y1="21" x2="21" y2="21.01"/></svg>QR Codes</div>
+
+    <div class="sb-label">Transactions</div>
+    <div class="sb-item" onclick="goTo('sell',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Sell / Distribute</div>
+    <div class="sb-item" onclick="goTo('exchange',this)"><svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Exchange</div>
+    <div class="sb-item" onclick="goTo('history',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Purchase History</div>
+
+    <div class="sb-label">Links</div>
+    <a class="sb-link" href="admin.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg>Admin Portal<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+  </div>
+  <div class="sb-foot">
+    <button class="sb-logout" onclick="SPS.signOut()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Log Out</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div id="main">
+  <header class="topbar">
+    <div class="sb-toggle" onclick="toggleSidebar()"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></div>
+    <div class="topbar-title" id="pageTitle">Dashboard<span class="crumb">Inventory Portal</span></div>
+    <div class="header-clock" id="headerClock"></div>
+    <div class="user-chip"><div class="av-sm" id="topAvatar">AD</div><div><div class="uname" id="topName">Admin</div><div class="urole">Inventory</div></div></div>
+  </header>
+  <div class="content">
+
+  <!-- ════════ DASHBOARD ════════ -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-head"><div><h2>Inventory Dashboard</h2><p>Overview of stock, sales and alerts</p></div></div>
+    <div class="grid-4" id="dashStats">
+      <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Articles</div><div class="val" id="dArticles">—</div></div>
+      <div class="stat-card"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>In Stock</div><div class="val" id="dInStock">—</div></div>
+      <div class="stat-card success"><div class="lbl"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Sold</div><div class="val" id="dSold">—</div></div>
+      <div class="stat-card danger"><div class="lbl"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Low Stock</div><div class="val" id="dLowStock">—</div></div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h3>Low Stock Alerts</h3>
+      <div id="lowStockList"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h3>Recent Sales</h3>
+      <div id="recentSalesList"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- ════════ ARTICLES ════════ -->
+  <div class="page" id="page-articles">
+    <div class="page-head"><div><h2>Articles</h2><p>Manage item types — uniforms, books, accessories</p></div><button class="btn btn-primary" onclick="openArticleModal()">+ Add Article</button></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Category</th><th>Sizes</th><th>Selling Price</th><th>In Stock</th><th>Low Threshold</th><th>Actions</th></tr></thead>
+        <tbody id="articlesBody"><tr><td colspan="7"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ════════ STOCK & BATCHES ════════ -->
+  <div class="page" id="page-stock">
+    <div class="page-head"><div><h2>Stock &amp; Batches</h2><p>Ingest new stock from vendors</p></div><button class="btn btn-primary" onclick="openBatchModal()">+ Add Batch</button></div>
+    <div class="search-bar">
+      <div class="fg" style="max-width:220px"><label>Article</label><select id="stockFilterArticle" onchange="loadBatches()"><option value="">All</option></select></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Article</th><th>Size</th><th>Qty</th><th>Vendor</th><th>In Stock</th><th>Sold</th><th>Notes</th></tr></thead>
+        <tbody id="batchesBody"><tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ════════ QR CODES ════════ -->
+  <div class="page" id="page-qrcodes">
+    <div class="page-head"><div><h2>QR Codes</h2><p>Generate and print QR labels for stock items</p></div></div>
+    <div class="search-bar">
+      <div class="fg" style="max-width:220px"><label>Article</label><select id="qrFilterArticle" onchange="loadQrItems()"><option value="">Select article</option></select></div>
+      <div class="fg" style="max-width:160px"><label>Size</label><select id="qrFilterSize" onchange="loadQrItems()"><option value="">All</option></select></div>
+      <div class="fg" style="max-width:160px"><label>Status</label><select id="qrFilterStatus" onchange="loadQrItems()"><option value="in_stock">In Stock</option><option value="">All</option><option value="sold">Sold</option></select></div>
+      <button class="btn btn-primary btn-sm" onclick="printQrCodes()">Print QR Labels</button>
+    </div>
+    <div id="qrGrid" class="qr-grid"></div>
+  </div>
+
+  <!-- ════════ SELL / DISTRIBUTE ════════ -->
+  <div class="page" id="page-sell">
+    <div class="page-head"><div><h2>Sell / Distribute</h2><p>Scan QR or select item to assign to a student</p></div></div>
+    <div class="card" style="max-width:700px">
+      <div class="form-row">
+        <div class="fg" style="flex:2"><label>Student</label><input id="sellStudent" placeholder="Type student name..." oninput="searchStudentsSell()"></div>
+      </div>
+      <div id="sellStudentResults" style="margin-bottom:14px"></div>
+      <div id="sellSelectedStudent" style="margin-bottom:14px;display:none"></div>
+      <div class="form-row">
+        <div class="fg"><label>Scan QR / Enter Code</label><input id="sellQrCode" placeholder="Scan or type QR code..." onkeydown="if(event.key==='Enter')lookupQr()"></div>
+        <button class="btn btn-primary btn-sm" onclick="lookupQr()" style="margin-bottom:0">Lookup</button>
+      </div>
+      <div id="sellItemInfo" style="margin-top:10px;display:none"></div>
+      <div class="form-row" style="margin-top:14px">
+        <div class="fg" style="max-width:180px"><label>Payment Mode</label><select id="sellPayMode"><option value="cash">Cash</option><option value="online">Online</option></select></div>
+      </div>
+      <div style="margin-top:16px"><button class="btn btn-success" onclick="confirmSell()" id="sellBtn" disabled>Confirm Sale</button></div>
+    </div>
+    <div class="card" style="margin-top:18px;max-width:700px">
+      <h3>Quick Sell — Select from Stock</h3>
+      <div class="form-row">
+        <div class="fg" style="max-width:220px"><label>Article</label><select id="qsArticle" onchange="loadQsItems()"><option value="">Select</option></select></div>
+        <div class="fg" style="max-width:140px"><label>Size</label><select id="qsSize" onchange="loadQsItems()"><option value="">All</option></select></div>
+      </div>
+      <div id="qsItemsList" style="max-height:200px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <!-- ════════ EXCHANGE ════════ -->
+  <div class="page" id="page-exchange">
+    <div class="page-head"><div><h2>Exchange</h2><p>Return and replace items for students</p></div></div>
+    <div class="card" style="max-width:700px">
+      <div class="form-row">
+        <div class="fg" style="flex:2"><label>Student</label><input id="exchStudent" placeholder="Type student name..." oninput="searchStudentsExch()"></div>
+      </div>
+      <div id="exchStudentResults" style="margin-bottom:14px"></div>
+      <div id="exchSelectedStudent" style="margin-bottom:14px;display:none"></div>
+      <div id="exchStudentItems" style="margin-bottom:14px"></div>
+      <div id="exchReturnInfo" style="margin-bottom:14px;display:none"></div>
+      <div class="form-row">
+        <div class="fg"><label>New Item — Scan QR / Enter Code</label><input id="exchNewQr" placeholder="Scan new item QR..." onkeydown="if(event.key==='Enter')lookupExchNew()"></div>
+        <button class="btn btn-primary btn-sm" onclick="lookupExchNew()" style="margin-bottom:0">Lookup</button>
+      </div>
+      <div id="exchNewItemInfo" style="margin-top:10px;display:none"></div>
+      <div class="form-row" style="margin-top:14px">
+        <div class="fg" style="max-width:300px"><label>Reason</label><input id="exchReason" placeholder="e.g. Size change, defective..."></div>
+      </div>
+      <div style="margin-top:16px"><button class="btn btn-success" onclick="confirmExchange()" id="exchBtn" disabled>Confirm Exchange</button></div>
+    </div>
+  </div>
+
+  <!-- ════════ PURCHASE HISTORY ════════ -->
+  <div class="page" id="page-history">
+    <div class="page-head"><div><h2>Purchase History</h2><p>Items distributed to students</p></div></div>
+    <div class="search-bar">
+      <div class="fg" style="max-width:250px"><label>Search Student</label><input id="histSearch" placeholder="Student name..." oninput="loadHistory()"></div>
+      <div class="fg" style="max-width:160px"><label>Article</label><select id="histArticle" onchange="loadHistory()"><option value="">All</option></select></div>
+      <div class="fg" style="max-width:140px"><label>From</label><input type="date" id="histFrom" onchange="loadHistory()"></div>
+      <div class="fg" style="max-width:140px"><label>To</label><input type="date" id="histTo" onchange="loadHistory()"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Article</th><th>Size</th><th>QR Code</th><th>Payment</th><th>Amount</th></tr></thead>
+        <tbody id="historyBody"><tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- MODAL -->
+<div id="modalOverlay">
+  <div class="backdrop" onclick="closeModal()"></div>
+  <div class="modal-sheet" id="modalSheet">
+    <div class="modal-head"><h3 id="modalTitle">Modal</h3><button class="modal-close" onclick="closeModal()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toastBox"></div>
+
+<script>
+const $=id=>document.getElementById(id)
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function toast(msg,type='info'){const t=document.createElement('div');t.className='toast-item '+type;t.textContent=msg;$('toastBox').appendChild(t);setTimeout(()=>t.remove(),3500)}
+function fmtINR(n){return '₹'+Number(n||0).toLocaleString('en-IN')}
+function today(){return new Date().toISOString().slice(0,10)}
+
+// ═══════════ NAV ═══════════
+const TITLES={dashboard:'Dashboard',articles:'Articles',stock:'Stock & Batches',qrcodes:'QR Codes',sell:'Sell / Distribute',exchange:'Exchange',history:'Purchase History'}
+function goTo(id,el,_fromPop){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
+  $('page-'+id)?.classList.add('active')
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'))
+  if(el)el.classList.add('active')
+  $('pageTitle').innerHTML=esc(TITLES[id]||id)+'<span class="crumb">Inventory Portal</span>'
+  if(!_fromPop){if(id==='dashboard')history.replaceState({pg:'dashboard'},'');else history.pushState({pg:id},'')}
+  if(window.innerWidth<=760)closeMobileSidebar()
+  if(LAZY[id])LAZY[id]()
+}
+history.replaceState({pg:'dashboard'},'')
+window.addEventListener('popstate',function(e){var pg=e.state&&e.state.pg;if(pg)goTo(pg,null,true);else goTo('dashboard',null,true)})
+function toggleSidebar(){const sb=$('sidebar'),mn=$('main'),sc=$('scrim');if(window.innerWidth<=760){sb.classList.toggle('show');sc.classList.toggle('show')}else{sb.classList.toggle('collapsed');mn.classList.toggle('full')}}
+function closeMobileSidebar(){$('sidebar').classList.remove('show');$('scrim').classList.remove('show')}
+
+// ═══════════ MODAL ═══════════
+function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=title;$('modalBody').innerHTML=body;$('modalFoot').innerHTML=foot;$('modalSheet').className='modal-sheet'+(wide?' wide':'');$('modalOverlay').classList.add('show')}
+function closeModal(){$('modalOverlay').classList.remove('show')}
+
+// ═══════════ GLOBAL DATA ═══════════
+let ALL_ARTICLES=[], ALL_CLASSES=[], _sellEid=null, _sellItem=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
+
+async function loadGlobals(){
+  const{data}=await sb.from('inv_articles').select('*').order('name')
+  ALL_ARTICLES=data||[]
+  populateArticleDropdowns()
+  const{data:cls}=await sb.from('classes').select('class_id,class_name,section').order('class_name')
+  ALL_CLASSES=cls||[]
+}
+
+function populateArticleDropdowns(){
+  const drops=['stockFilterArticle','qrFilterArticle','qsArticle','histArticle']
+  drops.forEach(id=>{
+    const sel=$(id);if(!sel)return
+    const val=sel.value
+    const opts=sel.querySelectorAll('option:not(:first-child)');opts.forEach(o=>o.remove())
+    ALL_ARTICLES.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.name+(a.category==='book_set'?' (Book Set)':'');sel.appendChild(o)})
+    if(val)sel.value=val
+  })
+}
+
+// ═══════════ DASHBOARD ═══════════
+async function renderDashboard(){
+  const[{count:artCount},{count:inStock},{count:sold},{data:articles}]=await Promise.all([
+    sb.from('inv_articles').select('*',{count:'exact',head:true}),
+    sb.from('inv_items').select('*',{count:'exact',head:true}).eq('status','in_stock'),
+    sb.from('inv_items').select('*',{count:'exact',head:true}).eq('status','sold'),
+    sb.from('inv_articles').select('*')
+  ])
+  $('dArticles').textContent=artCount||0
+  $('dInStock').textContent=inStock||0
+  $('dSold').textContent=sold||0
+
+  let lowCount=0
+  const lowItems=[]
+  if(articles){
+    for(const art of articles){
+      const{count:stk}=await sb.from('inv_items').select('*',{count:'exact',head:true}).eq('article_id',art.id).eq('status','in_stock')
+      if((stk||0)<=(art.low_stock_threshold||5)){lowCount++;lowItems.push({name:art.name,stock:stk||0,threshold:art.low_stock_threshold||5})}
+    }
+  }
+  $('dLowStock').textContent=lowCount
+
+  const lsl=$('lowStockList')
+  if(!lowItems.length)lsl.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:8px">All items above threshold.</div>'
+  else lsl.innerHTML=lowItems.map(i=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><span style="font-weight:600">'+esc(i.name)+'</span><span><span class="pill pill-danger">'+i.stock+' left</span> <span style="font-size:11px;color:var(--ink-faint)">(threshold: '+i.threshold+')</span></span></div>').join('')
+
+  const{data:recent}=await sb.from('inv_items').select('*,inv_articles(name)').eq('status','sold').order('sold_at',{ascending:false}).limit(10)
+  const rsl=$('recentSalesList')
+  if(!recent?.length)rsl.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:8px">No sales yet.</div>'
+  else{
+    let h='<div class="table-wrap"><table><thead><tr><th>Date</th><th>Article</th><th>QR</th><th>Payment</th></tr></thead><tbody>'
+    recent.forEach(r=>{
+      h+='<tr><td>'+new Date(r.sold_at).toLocaleDateString('en-IN')+'</td><td>'+esc(r.inv_articles?.name||'—')+'</td><td class="mono" style="font-size:11px">'+esc(r.qr_code)+'</td><td><span class="pill pill-'+(r.payment_mode==='cash'?'success':'pur')+'">'+esc(r.payment_mode||'—')+'</span></td></tr>'
+    })
+    h+='</tbody></table></div>'
+    rsl.innerHTML=h
+  }
+}
+
+// ═══════════ ARTICLES ═══════════
+async function loadArticles(){
+  const{data}=await sb.from('inv_articles').select('*').order('name')
+  ALL_ARTICLES=data||[]
+  populateArticleDropdowns()
+  const body=$('articlesBody')
+  if(!data?.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--ink-faint)">No articles yet. Add one above.</td></tr>';return}
+  const stockCounts={}
+  const{data:counts}=await sb.from('inv_items').select('article_id').eq('status','in_stock')
+  if(counts)counts.forEach(c=>{stockCounts[c.article_id]=(stockCounts[c.article_id]||0)+1})
+
+  body.innerHTML=data.map(a=>{
+    const stk=stockCounts[a.id]||0
+    const isLow=stk<=a.low_stock_threshold
+    return '<tr>'
+      +'<td><b>'+esc(a.name)+'</b>'+(a.book_set_class?' <span class="pill pill-neutral">Class '+esc(a.book_set_class)+'</span>':'')+'</td>'
+      +'<td><span class="pill pill-'+(a.category==='book_set'?'pur':'neutral')+'">'+esc(a.category==='book_set'?'Book Set':'Uniform')+'</span></td>'
+      +'<td>'+(a.has_sizes&&a.sizes?.length?a.sizes.join(', '):'—')+'</td>'
+      +'<td class="mono">'+fmtINR(a.selling_price)+'</td>'
+      +'<td><span class="pill '+(isLow?'pill-danger':'pill-success')+'">'+stk+'</span></td>'
+      +'<td>'+a.low_stock_threshold+'</td>'
+      +'<td><button class="btn btn-soft btn-xs" onclick="openArticleModal(\''+a.id+'\')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteArticle(\''+a.id+'\')">Delete</button></td>'
+    +'</tr>'
+  }).join('')
+}
+
+function openArticleModal(editId){
+  const art=editId?ALL_ARTICLES.find(a=>a.id===editId):null
+  const title=art?'Edit Article':'New Article'
+  let body='<div class="form-row"><div class="fg"><label>Name</label><input id="artName" value="'+esc(art?.name||'')+'"></div></div>'
+  body+='<div class="form-row"><div class="fg" style="max-width:180px"><label>Category</label><select id="artCategory" onchange="toggleBookSetClass()"><option value="uniform"'+(art?.category==='uniform'?' selected':'')+'>Uniform</option><option value="book_set"'+(art?.category==='book_set'?' selected':'')+'>Book Set</option></select></div>'
+  body+='<div class="fg" style="max-width:180px;display:'+(art?.category==='book_set'?'flex':'none')+'" id="artBookClassWrap"><label>For Class</label><input id="artBookClass" value="'+esc(art?.book_set_class||'')+'"></div></div>'
+  body+='<div class="form-row"><div class="fg" style="max-width:120px"><label>Has Sizes?</label><select id="artHasSizes" onchange="toggleSizesInput()"><option value="0"'+(art?.has_sizes?'':' selected')+'>No</option><option value="1"'+(art?.has_sizes?' selected':'')+'>Yes</option></select></div>'
+  body+='<div class="fg" id="artSizesWrap" style="display:'+(art?.has_sizes?'flex':'none')+'"><label>Sizes (comma separated)</label><input id="artSizes" value="'+esc((art?.sizes||[]).join(', '))+'"></div></div>'
+  body+='<div class="form-row"><div class="fg" style="max-width:160px"><label>Selling Price (₹)</label><input type="number" id="artPrice" value="'+(art?.selling_price||0)+'" min="0"></div>'
+  body+='<div class="fg" style="max-width:160px"><label>Low Stock Threshold</label><input type="number" id="artThreshold" value="'+(art?.low_stock_threshold||5)+'" min="0"></div></div>'
+  const foot='<button class="btn btn-primary" onclick="saveArticle('+(editId?"'"+editId+"'":"null")+')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  openModal(title,body,foot)
+}
+function toggleBookSetClass(){$('artBookClassWrap').style.display=$('artCategory').value==='book_set'?'flex':'none'}
+function toggleSizesInput(){$('artSizesWrap').style.display=$('artHasSizes').value==='1'?'flex':'none'}
+
+async function saveArticle(editId){
+  const name=$('artName').value.trim()
+  if(!name){toast('Name is required','error');return}
+  const category=$('artCategory').value
+  const hasSizes=$('artHasSizes').value==='1'
+  const sizes=hasSizes?$('artSizes').value.split(',').map(s=>s.trim()).filter(Boolean):[]
+  const price=parseFloat($('artPrice').value)||0
+  const threshold=parseInt($('artThreshold').value)||5
+  const bookClass=category==='book_set'?$('artBookClass').value.trim():null
+
+  const row={name,category,has_sizes:hasSizes,sizes,selling_price:price,low_stock_threshold:threshold,book_set_class:bookClass}
+  let err
+  if(editId){({error:err}=await sb.from('inv_articles').update(row).eq('id',editId))}
+  else{({error:err}=await sb.from('inv_articles').insert(row))}
+  if(err){toast(err.message,'error');return}
+  toast(editId?'Article updated':'Article created','success')
+  closeModal()
+  loadArticles()
+}
+
+async function deleteArticle(id){
+  if(!confirm('Delete this article? All stock items under it will also be removed.'))return
+  const{error}=await sb.from('inv_articles').delete().eq('id',id)
+  if(error){toast(error.message,'error');return}
+  toast('Article deleted','success')
+  loadArticles()
+}
+
+// ═══════════ STOCK & BATCHES ═══════════
+async function loadBatches(){
+  const body=$('batchesBody')
+  body.innerHTML='<tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
+  let q=sb.from('inv_batches').select('*,inv_articles(name)').order('batch_date',{ascending:false})
+  const filter=$('stockFilterArticle').value
+  if(filter)q=q.eq('article_id',filter)
+  const{data,error}=await q.limit(200)
+  if(error){body.innerHTML='<tr><td colspan="8" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
+  if(!data?.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No batches yet.</td></tr>';return}
+
+  const rows=[]
+  for(const b of data){
+    const{count:inStock}=await sb.from('inv_items').select('*',{count:'exact',head:true}).eq('batch_id',b.id).eq('status','in_stock')
+    const{count:sold}=await sb.from('inv_items').select('*',{count:'exact',head:true}).eq('batch_id',b.id).eq('status','sold')
+    rows.push({...b,inStock:inStock||0,soldCount:sold||0})
+  }
+  body.innerHTML=rows.map(b=>'<tr>'
+    +'<td>'+new Date(b.batch_date).toLocaleDateString('en-IN')+'</td>'
+    +'<td><b>'+esc(b.inv_articles?.name||'—')+'</b></td>'
+    +'<td>'+(b.size||'—')+'</td>'
+    +'<td class="mono">'+b.qty+'</td>'
+    +'<td>'+esc(b.vendor||'—')+'</td>'
+    +'<td><span class="pill pill-success">'+b.inStock+'</span></td>'
+    +'<td><span class="pill pill-neutral">'+b.soldCount+'</span></td>'
+    +'<td style="font-size:11px;color:var(--ink-faint)">'+esc(b.notes||'')+'</td>'
+  +'</tr>').join('')
+}
+
+function openBatchModal(){
+  let body='<div class="form-row"><div class="fg"><label>Article</label><select id="batchArticle" onchange="updateBatchSizes()">'+ALL_ARTICLES.map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join('')+'</select></div></div>'
+  body+='<div class="form-row"><div class="fg" style="max-width:140px" id="batchSizeWrap"><label>Size</label><select id="batchSize"><option value="">N/A</option></select></div>'
+  body+='<div class="fg" style="max-width:120px"><label>Quantity</label><input type="number" id="batchQty" value="1" min="1"></div></div>'
+  body+='<div class="form-row"><div class="fg"><label>Vendor</label><input id="batchVendor" placeholder="Vendor name"></div>'
+  body+='<div class="fg" style="max-width:160px"><label>Date</label><input type="date" id="batchDate" value="'+today()+'"></div></div>'
+  body+='<div class="form-row"><div class="fg"><label>Notes</label><input id="batchNotes" placeholder="Optional notes"></div></div>'
+  const foot='<button class="btn btn-primary" onclick="saveBatch()">Add Stock</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+  openModal('Add Stock Batch',body,foot)
+  setTimeout(updateBatchSizes,0)
+}
+
+function updateBatchSizes(){
+  const artId=$('batchArticle').value
+  const art=ALL_ARTICLES.find(a=>a.id===artId)
+  const sel=$('batchSize')
+  sel.innerHTML='<option value="">N/A</option>'
+  if(art?.has_sizes&&art.sizes?.length){
+    art.sizes.forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'})
+  }
+}
+
+async function saveBatch(){
+  const articleId=$('batchArticle').value
+  const size=$('batchSize').value||null
+  const qty=parseInt($('batchQty').value)||0
+  const vendor=$('batchVendor').value.trim()
+  const batchDate=$('batchDate').value||today()
+  const notes=$('batchNotes').value.trim()
+  if(!articleId){toast('Select an article','error');return}
+  if(qty<1){toast('Quantity must be at least 1','error');return}
+
+  const art=ALL_ARTICLES.find(a=>a.id===articleId)
+
+  const{data:batch,error:bErr}=await sb.from('inv_batches').insert({article_id:articleId,vendor,qty,size,batch_date:batchDate,notes}).select().single()
+  if(bErr){toast(bErr.message,'error');return}
+
+  const items=[]
+  for(let i=0;i<qty;i++){
+    const qr='SPS-'+art.name.replace(/[^A-Za-z0-9]/g,'').toUpperCase().slice(0,6)+'-'+(size||'X').toUpperCase().slice(0,4)+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6)
+    items.push({article_id:articleId,batch_id:batch.id,size,qr_code:qr})
+  }
+  const{error:iErr}=await sb.from('inv_items').insert(items)
+  if(iErr){toast('Batch created but items failed: '+iErr.message,'error');return}
+  toast(qty+' items added with QR codes','success')
+  closeModal()
+  loadBatches()
+}
+
+// ═══════════ QR CODES ═══════════
+async function loadQrItems(){
+  const grid=$('qrGrid')
+  const artId=$('qrFilterArticle').value
+  if(!artId){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">Select an article to view QR codes.</div>';return}
+  grid.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+
+  let q=sb.from('inv_items').select('*,inv_articles(name)').eq('article_id',artId)
+  const size=$('qrFilterSize').value
+  if(size)q=q.eq('size',size)
+  const status=$('qrFilterStatus').value
+  if(status)q=q.eq('status',status)
+  q=q.order('created_at',{ascending:false}).limit(200)
+
+  const{data,error}=await q
+  if(error){grid.innerHTML='<div style="color:var(--danger)">'+esc(error.message)+'</div>';return}
+  if(!data?.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">No items found.</div>';return}
+
+  const art=ALL_ARTICLES.find(a=>a.id===artId)
+  if(art?.has_sizes&&art.sizes?.length){
+    const sel=$('qrFilterSize');const cur=sel.value
+    sel.innerHTML='<option value="">All</option>'
+    art.sizes.forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'})
+    sel.value=cur
+  }
+
+  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><canvas id="qrcanvas_'+idx+'" width="120" height="120"></canvas><div class="qr-label">'+esc(item.qr_code)+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':'neutral')+'">'+esc(item.status)+'</span>'+(item.size?' · '+esc(item.size):'')+'</div></div>').join('')
+
+  data.forEach((item,idx)=>{
+    QRCode.toCanvas(document.getElementById('qrcanvas_'+idx),item.qr_code,{width:120,margin:1},function(err){if(err)console.error(err)})
+  })
+}
+
+function printQrCodes(){
+  const grid=$('qrGrid')
+  if(!grid.children.length||grid.querySelector('.spinner')){toast('No QR codes to print','error');return}
+  const w=window.open('','_blank')
+  let h='<!DOCTYPE html><html><head><title>QR Labels</title><style>'
+  h+='body{font-family:sans-serif;margin:10mm}'
+  h+='.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8mm}'
+  h+='.item{text-align:center;page-break-inside:avoid;border:1px solid #ddd;padding:4mm;border-radius:4px}'
+  h+='.item canvas{max-width:100%}'
+  h+='.item .lbl{font-size:8px;font-family:monospace;word-break:break-all;margin-top:2mm}'
+  h+='@page{size:A4 portrait;margin:8mm}'
+  h+='</style></head><body><div class="grid">'
+  const cards=grid.querySelectorAll('.qr-card')
+  cards.forEach(card=>{
+    const canvas=card.querySelector('canvas')
+    const label=card.querySelector('.qr-label')
+    h+='<div class="item"><img src="'+canvas.toDataURL()+'" width="100"><div class="lbl">'+label.textContent+'</div></div>'
+  })
+  h+='</div></body></html>'
+  w.document.write(h);w.document.close()
+  setTimeout(()=>w.print(),400)
+}
+
+// ═══════════ SELL / DISTRIBUTE ═══════════
+let _sellSearchTimeout
+function searchStudentsSell(){
+  clearTimeout(_sellSearchTimeout)
+  _sellSearchTimeout=setTimeout(async()=>{
+    const q=$('sellStudent').value.trim()
+    const box=$('sellStudentResults')
+    if(q.length<2){box.innerHTML='';return}
+    const{data}=await sb.from('enrollments').select('enrollment_id,students(student_id,full_name,father_name),classes(class_name,section)').ilike('students.full_name','%'+q+'%').eq('status','active').limit(10)
+    const valid=(data||[]).filter(e=>e.students)
+    if(!valid.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:4px">No results.</div>';return}
+    box.innerHTML=valid.map(e=>'<div style="padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:12.5px" onclick="selectSellStudent(\''+e.enrollment_id+'\',\''+esc(e.students.full_name)+'\',\''+esc(e.classes?.class_name||'')+'\',\''+esc(e.classes?.section||'')+'\',\''+esc(e.students.father_name||'')+'\')"><b>'+esc(e.students.full_name)+'</b> <span style="color:var(--ink-faint)">s/o '+esc(e.students.father_name||'—')+' · '+esc(e.classes?.class_name||'')+' '+esc(e.classes?.section||'')+'</span></div>').join('')
+  },300)
+}
+
+function selectSellStudent(eid,name,cls,sec,father){
+  _sellEid=eid
+  $('sellSelectedStudent').style.display='block'
+  $('sellSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+' '+esc(sec)+' (s/o '+esc(father)+')</div>'
+  $('sellStudentResults').innerHTML=''
+  $('sellStudent').value=''
+  checkSellReady()
+}
+
+async function lookupQr(){
+  const code=$('sellQrCode').value.trim()
+  if(!code){toast('Enter a QR code','error');return}
+  const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,category)').eq('qr_code',code).maybeSingle()
+  if(error||!data){toast('Item not found','error');$('sellItemInfo').style.display='none';_sellItem=null;checkSellReady();return}
+  if(data.status!=='in_stock'){toast('Item is not in stock (status: '+data.status+')','error');_sellItem=null;checkSellReady();return}
+  _sellItem=data
+  $('sellItemInfo').style.display='block'
+  $('sellItemInfo').innerHTML='<div class="card" style="padding:12px"><b>'+esc(data.inv_articles?.name||'—')+'</b>'+(data.size?' · Size: '+esc(data.size):'')+' · <span class="mono">'+fmtINR(data.inv_articles?.selling_price)+'</span><br><span style="font-size:11px;color:var(--ink-faint)" class="mono">'+esc(data.qr_code)+'</span></div>'
+  $('sellQrCode').value=''
+  checkSellReady()
+}
+
+function checkSellReady(){$('sellBtn').disabled=!(_sellEid&&_sellItem)}
+
+async function confirmSell(){
+  if(!_sellEid||!_sellItem)return
+  const mode=$('sellPayMode').value
+  const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:mode}).eq('id',_sellItem.id)
+  if(error){toast(error.message,'error');return}
+  toast('Item sold successfully','success')
+  _sellItem=null;_sellEid=null
+  $('sellItemInfo').style.display='none'
+  $('sellSelectedStudent').style.display='none'
+  $('sellBtn').disabled=true
+}
+
+// Quick sell
+function loadQsItems(){
+  const artId=$('qsArticle').value
+  const art=ALL_ARTICLES.find(a=>a.id===artId)
+  const sel=$('qsSize');sel.innerHTML='<option value="">All</option>'
+  if(art?.has_sizes&&art.sizes?.length)art.sizes.forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'})
+  loadQsItemList()
+}
+async function loadQsItemList(){
+  const box=$('qsItemsList')
+  const artId=$('qsArticle').value
+  if(!artId){box.innerHTML='';return}
+  box.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  let q=sb.from('inv_items').select('id,qr_code,size').eq('article_id',artId).eq('status','in_stock').order('created_at').limit(50)
+  const size=$('qsSize').value
+  if(size)q=q.eq('size',size)
+  const{data}=await q
+  if(!data?.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px">No items in stock.</div>';return}
+  box.innerHTML=data.map(i=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span class="mono" style="font-size:11px">'+esc(i.qr_code)+(i.size?' · '+esc(i.size):'')+'</span><button class="btn btn-soft btn-xs" onclick="pickQsItem(\''+esc(i.qr_code)+'\')">Select</button></div>').join('')
+}
+function pickQsItem(code){$('sellQrCode').value=code;lookupQr()}
+
+// ═══════════ EXCHANGE ═══════════
+let _exchSearchTimeout
+function searchStudentsExch(){
+  clearTimeout(_exchSearchTimeout)
+  _exchSearchTimeout=setTimeout(async()=>{
+    const q=$('exchStudent').value.trim()
+    const box=$('exchStudentResults')
+    if(q.length<2){box.innerHTML='';return}
+    const{data}=await sb.from('enrollments').select('enrollment_id,students(student_id,full_name,father_name),classes(class_name,section)').ilike('students.full_name','%'+q+'%').eq('status','active').limit(10)
+    const valid=(data||[]).filter(e=>e.students)
+    if(!valid.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:4px">No results.</div>';return}
+    box.innerHTML=valid.map(e=>'<div style="padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--line);font-size:12.5px" onclick="selectExchStudent(\''+e.enrollment_id+'\',\''+esc(e.students.full_name)+'\',\''+esc(e.classes?.class_name||'')+'\',\''+esc(e.classes?.section||'')+'\',\''+esc(e.students.father_name||'')+'\')"><b>'+esc(e.students.full_name)+'</b> <span style="color:var(--ink-faint)">s/o '+esc(e.students.father_name||'—')+' · '+esc(e.classes?.class_name||'')+' '+esc(e.classes?.section||'')+'</span></div>').join('')
+  },300)
+}
+
+async function selectExchStudent(eid,name,cls,sec,father){
+  _exchEid=eid;_exchOldItem=null;_exchNewItem=null
+  $('exchSelectedStudent').style.display='block'
+  $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+' '+esc(sec)+' (s/o '+esc(father)+')</div>'
+  $('exchStudentResults').innerHTML=''
+  $('exchStudent').value=''
+  $('exchReturnInfo').style.display='none'
+  $('exchNewItemInfo').style.display='none'
+  $('exchBtn').disabled=true
+
+  const{data}=await sb.from('inv_items').select('*,inv_articles(name)').eq('sold_to_enrollment_id',eid).eq('status','sold').order('sold_at',{ascending:false})
+  const box=$('exchStudentItems')
+  if(!data?.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:8px">No items found for this student.</div>';return}
+  box.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">ITEMS ISSUED TO STUDENT — Select item to return:</div>'
+    +data.map(i=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>'+esc(i.inv_articles?.name||'—')+'</b>'+(i.size?' · '+esc(i.size):'')+' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(i.qr_code)+'</span></span><button class="btn btn-danger btn-xs" onclick="selectExchReturn(\''+i.id+'\',\''+esc(i.inv_articles?.name||'')+'\',\''+esc(i.size||'')+'\',\''+esc(i.qr_code)+'\')">Return This</button></div>').join('')
+}
+
+function selectExchReturn(itemId,artName,size,qr){
+  _exchOldItem={id:itemId,name:artName,size,qr}
+  $('exchReturnInfo').style.display='block'
+  $('exchReturnInfo').innerHTML='<div class="card" style="padding:10px;background:var(--danger-soft);border-color:var(--danger)"><b>Returning:</b> '+esc(artName)+(size?' · '+esc(size):'')+' <span class="mono" style="font-size:10px">'+esc(qr)+'</span></div>'
+  checkExchReady()
+}
+
+async function lookupExchNew(){
+  const code=$('exchNewQr').value.trim()
+  if(!code){toast('Enter a QR code','error');return}
+  const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price)').eq('qr_code',code).maybeSingle()
+  if(error||!data){toast('Item not found','error');_exchNewItem=null;checkExchReady();return}
+  if(data.status!=='in_stock'){toast('Item is not in stock (status: '+data.status+')','error');_exchNewItem=null;checkExchReady();return}
+  _exchNewItem=data
+  $('exchNewItemInfo').style.display='block'
+  $('exchNewItemInfo').innerHTML='<div class="card" style="padding:10px;background:var(--success-soft);border-color:var(--success)"><b>New item:</b> '+esc(data.inv_articles?.name||'—')+(data.size?' · '+esc(data.size):'')+' <span class="mono" style="font-size:10px">'+esc(data.qr_code)+'</span></div>'
+  $('exchNewQr').value=''
+  checkExchReady()
+}
+
+function checkExchReady(){$('exchBtn').disabled=!(_exchEid&&_exchOldItem&&_exchNewItem)}
+
+async function confirmExchange(){
+  if(!_exchEid||!_exchOldItem||!_exchNewItem)return
+  const reason=$('exchReason').value.trim()
+
+  const{error:e1}=await sb.from('inv_items').update({status:'exchanged_out'}).eq('id',_exchOldItem.id)
+  if(e1){toast(e1.message,'error');return}
+
+  const{error:e2}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItem.id}).eq('id',_exchNewItem.id)
+  if(e2){toast(e2.message,'error');return}
+
+  const{error:e3}=await sb.from('inv_exchanges').insert({old_item_id:_exchOldItem.id,new_item_id:_exchNewItem.id,enrollment_id:_exchEid,reason,exchanged_by:SPS.admin?.admin_id||'admin'})
+  if(e3)console.error('Exchange log failed:',e3.message)
+
+  toast('Exchange completed','success')
+  _exchOldItem=null;_exchNewItem=null;_exchEid=null
+  $('exchReturnInfo').style.display='none'
+  $('exchNewItemInfo').style.display='none'
+  $('exchSelectedStudent').style.display='none'
+  $('exchStudentItems').innerHTML=''
+  $('exchBtn').disabled=true
+}
+
+// ═══════════ PURCHASE HISTORY ═══════════
+let _histTimeout
+function loadHistory(){
+  clearTimeout(_histTimeout)
+  _histTimeout=setTimeout(_loadHistory,300)
+}
+async function _loadHistory(){
+  const body=$('historyBody')
+  body.innerHTML='<tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
+
+  let q=sb.from('inv_items').select('*,inv_articles(name,selling_price),enrollments(enrollment_id,students(full_name),classes(class_name,section))').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
+  const artFilter=$('histArticle').value
+  if(artFilter)q=q.eq('article_id',artFilter)
+  const from=$('histFrom').value
+  if(from)q=q.gte('sold_at',from+'T00:00:00')
+  const to=$('histTo').value
+  if(to)q=q.lte('sold_at',to+'T23:59:59')
+
+  const{data,error}=await q
+  if(error){body.innerHTML='<tr><td colspan="8" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
+
+  const search=($('histSearch').value||'').trim().toLowerCase()
+  let filtered=data||[]
+  if(search)filtered=filtered.filter(r=>r.enrollments?.students?.full_name?.toLowerCase().includes(search))
+
+  if(!filtered.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No records found.</td></tr>';return}
+
+  body.innerHTML=filtered.map(r=>{
+    const stu=r.enrollments?.students
+    const cls=r.enrollments?.classes
+    return '<tr>'
+      +'<td>'+new Date(r.sold_at).toLocaleDateString('en-IN')+'</td>'
+      +'<td><b>'+esc(stu?.full_name||'—')+'</b></td>'
+      +'<td>'+esc(cls?.class_name||'')+' '+esc(cls?.section||'')+'</td>'
+      +'<td>'+esc(r.inv_articles?.name||'—')+'</td>'
+      +'<td>'+(r.size||'—')+'</td>'
+      +'<td class="mono" style="font-size:11px">'+esc(r.qr_code)+'</td>'
+      +'<td><span class="pill pill-'+(r.payment_mode==='cash'?'success':r.payment_mode==='online'?'pur':'neutral')+'">'+esc(r.payment_mode||'—')+'</span></td>'
+      +'<td class="mono">'+fmtINR(r.inv_articles?.selling_price)+'</td>'
+    +'</tr>'
+  }).join('')
+}
+
+// ═══════════ LAZY LOAD ═══════════
+const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sell:()=>{},exchange:()=>{},history:_loadHistory}
+
+// ═══════════ INIT ═══════════
+SPS.ready().then(async()=>{
+  await loadGlobals()
+  renderDashboard()
+  function tickClock(){const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()}
+  tickClock();setInterval(tickClock,1000)
+  if(SPS.admin){
+    const ini=SPS.admin.full_name||SPS.admin.username||'AD'
+    $('topAvatar').textContent=ini.slice(0,2).toUpperCase()
+    $('topName').textContent=ini
+  }
+})
+</script>
+</body>
+</html>
