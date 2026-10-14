@@ -240,10 +240,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <a class="sb-link" href="admin.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg>Admin Portal<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
   </div>
   <div class="sb-foot">
-    <div style="display:flex;gap:8px">
-      <button class="sb-logout" id="sbSettingsBtn" style="display:none;flex:0 0 auto;padding:9px 12px" onclick="goTo('settings',this)" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg></button>
-      <button class="sb-logout" style="flex:1" onclick="SPS.signOut()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Log Out</button>
-    </div>
+    <button class="sb-logout" onclick="SPS.signOut()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Log Out</button>
   </div>
 </aside>
 
@@ -412,20 +409,6 @@ tbody tr:hover td{background:var(--lav-50)}
         <thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Article</th><th>Size</th><th>QR Code</th><th>Payment</th><th>Amount</th></tr></thead>
         <tbody id="historyBody"><tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table>
-    </div>
-  </div>
-
-  <!-- ════════ SETTINGS (admin only) ════════ -->
-  <div class="page" id="page-settings" style="display:none">
-    <div class="page-head"><div><h2>Settings</h2><p>Inventory portal configuration</p></div></div>
-    <div class="card" style="margin-bottom:18px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h3 style="margin:0">Operators</h3><button class="btn btn-primary btn-sm" onclick="openOperatorModal()">+ Add Operator</button></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="operatorsBody"><tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
-        </table>
-      </div>
     </div>
   </div>
 
@@ -1204,67 +1187,13 @@ function stopCamScanner(mode){
 }
 
 // ═══════════ LAZY LOAD ═══════════
-// ═══════════ OPERATORS (admin only) ═══════════
-async function loadOperators(){
-  const body=$('operatorsBody')
-  body.innerHTML='<tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
-  const{data,error}=await sb.from('inv_operators').select('*').order('name')
-  if(error){body.innerHTML='<tr><td colspan="4" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
-  if(!data?.length){body.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--ink-faint)">No operators yet.</td></tr>';return}
-  body.innerHTML=data.map(o=>'<tr><td><b>'+esc(o.name)+'</b></td><td class="mono">'+esc(o.username)+'</td><td><span class="pill pill-'+(o.is_active?'success':'neutral')+'">'+(o.is_active?'Active':'Inactive')+'</span></td><td><button class="btn btn-soft btn-xs" onclick="openOperatorModal(\''+o.id+'\')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteOperator(\''+o.id+'\')">Delete</button></td></tr>').join('')
-}
-
-function openOperatorModal(editId){
-  let op=null
-  if(editId){
-    sb.from('inv_operators').select('*').eq('id',editId).maybeSingle().then(({data})=>{
-      if(!data)return
-      $('opName').value=data.name||''
-      $('opUsername').value=data.username||''
-      $('opPassword').value=data.password||''
-      $('opActive').value=data.is_active?'1':'0'
-    })
-  }
-  let body='<div class="form-row"><div class="fg"><label>Name</label><input id="opName" placeholder="Operator name"></div></div>'
-  body+='<div class="form-row"><div class="fg"><label>Username</label><input id="opUsername" placeholder="Login username"></div><div class="fg"><label>Password</label><input id="opPassword" placeholder="Login password"></div></div>'
-  body+='<div class="form-row"><div class="fg" style="max-width:120px"><label>Active</label><select id="opActive"><option value="1">Yes</option><option value="0">No</option></select></div></div>'
-  const foot='<button class="btn btn-primary" onclick="saveOperator('+(editId?"'"+editId+"'":"null")+')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
-  openModal(editId?'Edit Operator':'New Operator',body,foot)
-}
-
-async function saveOperator(editId){
-  const name=$('opName').value.trim()
-  const username=$('opUsername').value.trim()
-  const password=$('opPassword').value
-  if(!name||!username||!password){toast('All fields required','error');return}
-  const row={name,username,password,is_active:$('opActive').value==='1'}
-  let err
-  if(editId){({error:err}=await sb.from('inv_operators').update(row).eq('id',editId))}
-  else{({error:err}=await sb.from('inv_operators').insert(row))}
-  if(err){toast(err.message,'error');return}
-  toast(editId?'Operator updated':'Operator created','success')
-  closeModal()
-  loadOperators()
-}
-
-async function deleteOperator(id){
-  if(!confirm('Delete this operator?'))return
-  const{error}=await sb.from('inv_operators').delete().eq('id',id)
-  if(error){toast(error.message,'error');return}
-  toast('Operator deleted','success')
-  loadOperators()
-}
-
-const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sell:()=>{},exchange:()=>{},history:_loadHistory,settings:loadOperators}
+const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sell:()=>{},exchange:()=>{},history:_loadHistory}
 
 // ═══════════ AUTH & INIT ═══════════
 let _invOperator=null
 
 async function invBoot(){
   $('invLoginOverlay').style.display='none'
-  if(SPS.admin){
-    $('sbSettingsBtn').style.display=''
-  }
   await loadGlobals()
   renderDashboard()
   function tickClock(){const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()}
