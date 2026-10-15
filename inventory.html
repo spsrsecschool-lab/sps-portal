@@ -354,6 +354,11 @@ tbody tr:hover td{background:var(--lav-50)}
   <div class="page" id="page-exchange">
     <div class="page-head"><div><h2>Exchange</h2><p>Return and replace items for students</p></div></div>
     <div class="card" style="max-width:700px">
+      <div style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="startReturnQrScan()" id="exchReturnScanBtn" style="width:100%;padding:14px;font-size:15px">📷 Scan Return Item QR</button>
+      </div>
+      <div id="exchReturnCamWrap" style="display:none;margin:0 0 14px"><div id="exchReturnCamReader"></div><button class="btn btn-danger btn-xs" onclick="cancelReturnQrScan()" style="margin-top:8px;width:100%">Cancel Scan</button></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;color:var(--ink-faint);font-size:12px;font-weight:600"><div style="flex:1;height:1px;background:var(--line)"></div>OR SELECT MANUALLY<div style="flex:1;height:1px;background:var(--line)"></div></div>
       <div class="form-row">
         <div class="fg" style="max-width:200px"><label>Class</label><select id="exchClass" onchange="onExchClassChange()"><option value="">Select class</option></select></div>
         <div class="fg" style="flex:2;position:relative">
@@ -1041,6 +1046,42 @@ function selectExchReturn(itemId,artName,size,qr){
   checkExchReady()
 }
 
+let _exchReturnScanner=null,_exchReturnScannedCode=null
+function startReturnQrScan(){
+  _exchReturnScannedCode=null
+  $('exchReturnScanBtn').style.display='none'
+  $('exchReturnCamWrap').style.display='block'
+  _exchReturnScanner=new Html5Qrcode('exchReturnCamReader')
+  _exchReturnScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},onReturnQrScanned,()=>{}).catch(err=>{
+    toast('Camera error: '+err,'error')
+    cancelReturnQrScan()
+  })
+}
+function cancelReturnQrScan(){
+  if(_exchReturnScanner){try{_exchReturnScanner.stop().then(()=>{_exchReturnScanner.clear()}).catch(()=>{})}catch(e){}}
+  _exchReturnScanner=null;_exchReturnScannedCode=null
+  $('exchReturnCamWrap').style.display='none'
+  $('exchReturnScanBtn').style.display='block'
+}
+async function onReturnQrScanned(code){
+  if(_exchReturnScannedCode)return
+  _exchReturnScannedCode=code
+  const{data:item,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices)').eq('qr_code',code).maybeSingle()
+  if(error||!item){toast('Item not found: '+code,'error');_exchReturnScannedCode=null;return}
+  if(item.status!=='sold'){toast(code+' is not a sold item (status: '+item.status+')','error');_exchReturnScannedCode=null;return}
+  if(!item.sold_to_enrollment_id){toast('No student linked to this item','error');_exchReturnScannedCode=null;return}
+  _beep()
+  cancelReturnQrScan()
+  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,students!inner(full_name,father_name),classes(name),class_sections(name)').eq('enrollment_id',item.sold_to_enrollment_id).maybeSingle()
+  if(!enr||!enr.students){toast('Student record not found for this item','error');return}
+  _exchEid=enr.enrollment_id;_exchOldItem=null;_exchNewItem=null
+  $('exchSelectedStudent').style.display='block'
+  $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(enr.students.full_name)+' — '+esc(enr.classes?.name||'')+'-'+esc(enr.class_sections?.name||'')+' (s/o '+esc(enr.students.father_name||'—')+')</div>'
+  $('exchStudentItems').innerHTML=''
+  selectExchReturn(item.id,item.inv_articles?.name||'—',item.size||'',item.qr_code)
+  $('exchScanBtn').disabled=false
+}
+
 let _exchScannedCode=null
 function startExchScan(){
   if(!_exchEid||!_exchOldItem){toast('Select a student and item to return first','error');return}
@@ -1104,10 +1145,12 @@ async function confirmExchange(){
   $('exchNewItemInfo').style.display='none'
   $('exchSelectedStudent').style.display='none'
   $('exchStudentItems').innerHTML=''
+  $('exchReason').value=''
   $('exchScanBtn').style.display='block'
   $('exchScanBtn').disabled=true
   $('exchBtn').style.display='none'
   $('exchCancelBtn').style.display='none'
+  $('exchReturnScanBtn').style.display='block'
 }
 
 // ═══════════ PURCHASE HISTORY ═══════════
