@@ -625,7 +625,7 @@ async function loadMarks(){
   console.log('Marks debug:',{sessId,classId,acRows})
   if(!acRows?.length){$('marksBody').innerHTML='<div class="empty-s">No assessments yet</div>';return}
   const assessIds=[...new Set(acRows.map(r=>r.assessment_id))]
-  const{data:assessments,error:asErr}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks,created_at').eq('session_id',sessId).in('assessment_id',assessIds).order('created_at')
+  const{data:assessments,error:asErr}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks,start_date').eq('session_id',sessId).in('assessment_id',assessIds).order('start_date')
   if(asErr)console.error('assessments error:',asErr)
   console.log('Assessments found:',assessments)
   const official=assessments||[]
