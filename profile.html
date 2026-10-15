@@ -133,12 +133,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
 .att-hd{background:linear-gradient(135deg,#FEF3C7,#FDE68A);color:#92400E}
 .att-n{background:var(--p6);color:var(--ink3)}
 
-.att-sec-label{font-size:13px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 6px;padding-left:2px}
-.att-sec-label:first-child,.att-sec-label:first-of-type{margin-top:0}
 .att-row{display:flex;gap:6px;margin:0 0 8px}
 .att-box{flex:1;text-align:center;padding:10px 2px;border-radius:var(--rs);background:var(--p6)}
 .att-box .ab-n{font-size:20px;font-weight:800}
 .att-box .ab-l{font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;font-weight:700}
+.hol-prep{color:var(--blue);font-style:italic}
 
 .mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .mnav button{background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:8px 16px;cursor:pointer;font-family:var(--font);font-size:12px;color:var(--ink);font-weight:700;-webkit-tap-highlight-color:transparent;box-shadow:var(--sh);transition:.15s}
@@ -581,16 +580,35 @@ async function loadAttendance(){
   const last=new Date(y,m+1,0)
   const to=y+'-'+String(m+1).padStart(2,'0')+'-'+String(last.getDate()).padStart(2,'0')
   const months=['January','February','March','April','May','June','July','August','September','October','November','December']
-  const[{data:att},{data:allAtt},{data:hols}]=await Promise.all([
+  // Fetch month attendance, all session attendance, holidays, and exam datesheets for prep leaves
+  const sessId=ENR.session_id,classId=ENR.class_id
+  const[{data:att},{data:allAtt},{data:hols},{data:acRows}]=await Promise.all([
     sb.from('student_attendance').select('date,status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date'),
     sb.from('student_attendance').select('date,status').eq('enrollment_id',ENR.enrollment_id),
-    sb.from('holidays').select('date,label,class_ids').eq('session_id',ENR.session_id).gte('date',from).lte('date',to)
+    sb.from('holidays').select('date,label,class_ids').eq('session_id',sessId).gte('date',from).lte('date',to),
+    sb.from('assessment_classes').select('assessment_id').eq('class_id',classId)
   ])
+  // Fetch datesheets for assessments this class is part of
+  let prepMap={}
+  if(acRows?.length){
+    const aIds=[...new Set(acRows.map(r=>r.assessment_id))]
+    const{data:dsRows}=await sb.from('exam_datesheets').select('schedule,assessment_id').in('assessment_id',aIds)
+    ;(dsRows||[]).forEach(ds=>{
+      ;(ds.schedule||[]).forEach(row=>{
+        if(!row.date)return
+        const val=row.entries?.[classId]||''
+        const isDash=!val||val.trim()==='-'
+        if(isDash&&row.date>=from&&row.date<=to) prepMap[row.date]='Exam Prep. Leave'
+      })
+    })
+  }
   const map={};(att||[]).forEach(a=>map[a.date]=a)
   const holMap={};(hols||[]).forEach(h=>{
     const applies=!h.class_ids||!h.class_ids.length||h.class_ids.includes(ENR.class_id)
     if(applies) holMap[h.date]=h.label||'Holiday'
   })
+  // Merge prep leaves into holMap
+  Object.entries(prepMap).forEach(([dt,lbl])=>{if(!holMap[dt])holMap[dt]=lbl})
 
   // Overall session stats
   let sP=0,sA=0,sHD=0,sT=(allAtt||[]).length
@@ -614,28 +632,6 @@ async function loadAttendance(){
     }
   }
 
-  // Session overall
-  h+='<div class="att-sec-label">Session Overall</div>'
-  h+='<div class="att-row">'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--green)">'+sP+'</div><div class="ab-l">Present</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--red)">'+sA+'</div><div class="ab-l">Absent</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--amber)">'+sHD+'</div><div class="ab-l">Half Day</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--blue)">'+sT+'</div><div class="ab-l">Working</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--p1)">'+sPct+'%</div><div class="ab-l">Rate</div></div>'
-  h+='</div>'
-
-  // Month stats
-  let pres=0,abs=0,hd2=0,tot=(att||[]).length
-  ;(att||[]).forEach(a=>{if(a.status==='P'){pres++}else if(a.status==='A'){abs++}else if(a.status==='HD'){hd2++}})
-  h+='<div class="att-sec-label">'+months[m]+' '+y+'</div>'
-  h+='<div class="att-row">'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--green)">'+pres+'</div><div class="ab-l">Present</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--red)">'+abs+'</div><div class="ab-l">Absent</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--amber)">'+hd2+'</div><div class="ab-l">Half Day</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--blue)">'+tot+'</div><div class="ab-l">Working</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--p1)">'+(tot?Math.round(pres/tot*100):0)+'%</div><div class="ab-l">Rate</div></div>'
-  h+='</div>'
-
   // Calendar
   h+='<div class="dcard"><div class="mnav"><button onclick="attPrev()">&#9664; Prev</button><span>'+months[m]+' '+y+'</span><button onclick="attNext()">Next &#9654;</button></div>'
   h+='<div class="cal">'
@@ -653,7 +649,21 @@ async function loadAttendance(){
     h+='<div class="cd '+c+'"'+title+'>'+d+'</div>'
   }
   h+='</div>'
-  // Holiday list below calendar
+
+  // Month stats card (below calendar, above holidays)
+  let pres=0,abs=0,hd2=0,tot=(att||[]).length
+  ;(att||[]).forEach(a=>{if(a.status==='P'){pres++}else if(a.status==='A'){abs++}else if(a.status==='HD'){hd2++}})
+  h+='<div class="hol-list" style="margin-top:14px">'
+  h+='<div class="hol-title"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--p2)" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> '+months[m]+' Summary</div>'
+  h+='<div class="att-row" style="margin:8px 0 0">'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--green)">'+pres+'</div><div class="ab-l">Present</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--red)">'+abs+'</div><div class="ab-l">Absent</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--amber)">'+hd2+'</div><div class="ab-l">Half Day</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--blue)">'+tot+'</div><div class="ab-l">Working</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--p1)">'+(tot?Math.round(pres/tot*100):0)+'%</div><div class="ab-l">Rate</div></div>'
+  h+='</div></div>'
+
+  // Holiday + Exam Prep list
   const holEntries=Object.entries(holMap).sort((a,b)=>a[0].localeCompare(b[0]))
   if(holEntries.length){
     h+='<div class="hol-list">'
@@ -662,10 +672,23 @@ async function loadAttendance(){
       const d=new Date(dt+'T00:00:00')
       const dayStr=d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]
       const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]
-      h+='<div class="hol-row"><span class="hol-date">'+dayStr+' <small>('+dayName+')</small></span><span class="hol-name">'+esc(name)+'</span></div>'
+      const isPrep=name==='Exam Prep. Leave'
+      h+='<div class="hol-row"><span class="hol-date">'+dayStr+' <small>('+dayName+')</small></span><span class="hol-name'+(isPrep?' hol-prep':'')+'">'+esc(name)+'</span></div>'
     })
     h+='</div>'
   }
+
+  // Session overall (below holidays)
+  h+='<div class="hol-list">'
+  h+='<div class="hol-title"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--p2)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Session Overall</div>'
+  h+='<div class="att-row" style="margin:8px 0 0">'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--green)">'+sP+'</div><div class="ab-l">Present</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--red)">'+sA+'</div><div class="ab-l">Absent</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--amber)">'+sHD+'</div><div class="ab-l">Half Day</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--blue)">'+sT+'</div><div class="ab-l">Working</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--p1)">'+sPct+'%</div><div class="ab-l">Rate</div></div>'
+  h+='</div></div>'
+
   h+='</div>'
   $('attBody').innerHTML=h
 }
