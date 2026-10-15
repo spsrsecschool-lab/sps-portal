@@ -13983,8 +13983,7 @@ const IDC_FIELD_DEFS = [
   {key:'class_section', label:'Class & Section', sample:'CLASS 5 A', isRect:false, default:{x:10,y:54,w:80,h:6,fontSize:70,color:'#000000',fontWeight:'bold',align:'center'}},
   {key:'father_name', label:"Father's Name", sample:'Mr. RAJESH KUMAR', isRect:false, default:{x:25,y:65,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
   {key:'phone', label:'Phone', sample:'9876543210', isRect:false, default:{x:25,y:71,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
-  {key:'address_line1', label:'Address Line 1', sample:'A-221/A, Dabua Colony', isRect:false, default:{x:25,y:77,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
-  {key:'address_line2', label:'Address Line 2', sample:'NIT Faridabad, 121001', isRect:false, default:{x:25,y:81,w:65,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
+  {key:'address', label:'Address', sample:'H.No. 21/9, EWS Flat, Dabua Colony, NIT Faridabad, 121001', isRect:false, multiline:true, default:{x:25,y:77,w:65,h:8,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
   {key:'session_year', label:'Session Year', sample:'2026-2027', isRect:false, default:{x:10,y:90,w:40,h:5,fontSize:50,color:'#000000',fontWeight:'bold',align:'center'}},
   {key:'blood_group', label:'Blood Group', sample:'B+', isRect:false, default:{x:25,y:85,w:30,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
   {key:'dob', label:'Date of Birth', sample:'15-08-2012', isRect:false, default:{x:25,y:89,w:40,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
@@ -14003,6 +14002,15 @@ async function loadIdCards(){
       _idcTemplate=typeof data.value==='string'?JSON.parse(data.value):data.value
     }
   }catch(e){console.warn('ID card template load failed',e)}
+
+  // Migrate old address_line1/2 to single address field
+  if(_idcTemplate?.fields){
+    const f=_idcTemplate.fields
+    if(f.address_line1&&!f.address){
+      f.address={...f.address_line1,h:(f.address_line1.h||4)+(f.address_line2?.h||4)}
+      delete f.address_line1;delete f.address_line2
+    }
+  }
 
   _idcFields={}
   // Restore saved fonts
@@ -14037,7 +14045,7 @@ function idcRenderEditor(){
 }
 
 function idcFieldColor(key){
-  const colors={photo:'#e74c3c',student_name:'#3498db',class_section:'#2ecc71',father_name:'#9b59b6',phone:'#e67e22',address_line1:'#1abc9c',address_line2:'#16a085',session_year:'#f39c12',blood_group:'#e91e63',dob:'#00bcd4',admission_no:'#8bc34a',qr_code:'#c0392b'}
+  const colors={photo:'#e74c3c',student_name:'#3498db',class_section:'#2ecc71',father_name:'#9b59b6',phone:'#e67e22',address:'#1abc9c',session_year:'#f39c12',blood_group:'#e91e63',dob:'#00bcd4',admission_no:'#8bc34a',qr_code:'#c0392b'}
   return colors[key]||'#999'
 }
 
@@ -14419,14 +14427,12 @@ async function idcGeneratePDF(){
       }
 
       // Text fields
-      const addrParts = idcSplitAddress(s.students?.address || '')
       const textFields = [
         {key:'student_name', value:(s.students?.full_name||'').toUpperCase()},
         {key:'class_section', value:((s.classes?.name||'')+(s.class_sections?.name?' '+s.class_sections.name:'')).toUpperCase()},
         {key:'father_name', value:s.students?.father_name?'Mr. '+s.students.father_name.toUpperCase():''},
         {key:'phone', value:s.students?.phone||''},
-        {key:'address_line1', value:addrParts[0]},
-        {key:'address_line2', value:addrParts[1]},
+        {key:'address', value:idcTitleCase(s.students?.address||'')},
         {key:'session_year', value:sessionYear},
         {key:'blood_group', value:s.students?.blood_group||''},
         {key:'dob', value:s.students?.dob?new Date(s.students.dob+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}):''},
@@ -14436,6 +14442,8 @@ async function idcGeneratePDF(){
         const f=fields[tf.key]
         if(!f||!tf.value||f.visible===false)return
         const x=f.x/100*cardW_mm, y=f.y/100*cardH_mm, w=f.w/100*cardW_mm, h=f.h/100*cardH_mm
+        const isDef=IDC_FIELD_DEFS.find(d=>d.key===tf.key)
+        const isMulti=isDef&&isDef.multiline
 
         // fontSize is px relative to a 1000px-wide card -> mm -> pt
         let pt = (f.fontSize||40) / IDC_FONT_REF_W * cardW_mm * 2.83465
@@ -14444,15 +14452,22 @@ async function idcGeneratePDF(){
         try{doc.setFont(ff,fw)}catch(_){doc.setFont('helvetica',fw)}
         doc.setTextColor(f.color||'#000000')
         doc.setFontSize(pt)
-        // shrink to fit the box width (never below 4pt)
-        const tw=doc.getTextWidth(tf.value)
-        if(tw>w){ pt=Math.max(4, pt*w/tw); doc.setFontSize(pt) }
 
         const align=f.align||'center'
         const textX = align==='center' ? x+w/2 : align==='right' ? x+w : x
-        // vertically centre the text in the box (baseline ~ 0.35 * font height below centre)
-        const ptMm = pt/2.83465
-        doc.text(tf.value, textX, y + h/2 + ptMm*0.35, {align:align})
+
+        if(isMulti){
+          const lines=doc.splitTextToSize(tf.value,w)
+          const lineH=pt/2.83465*1.25
+          const totalH=lines.length*lineH
+          const startY=y+(h-totalH)/2+pt/2.83465*0.8
+          lines.forEach((ln,i)=>doc.text(ln,textX,startY+i*lineH,{align:align}))
+        }else{
+          const tw=doc.getTextWidth(tf.value)
+          if(tw>w){ pt=Math.max(4, pt*w/tw); doc.setFontSize(pt) }
+          const ptMm = pt/2.83465
+          doc.text(tf.value, textX, y + h/2 + ptMm*0.35, {align:align})
+        }
       })
 
       // QR code
@@ -14511,14 +14526,12 @@ function idcRenderPreview(){
   $('idcNextBtn').disabled=_idcPreviewIdx>=_idcPreviewList.length-1
   const fields=_idcTemplate.fields||_idcFields
   const sessionYear=SESS?.name||SESS?.session_name||SESS?.session_id||''
-  const addrParts=idcSplitAddress(s.students?.address||'')
   const textFields=[
     {key:'student_name',value:(s.students?.full_name||'').toUpperCase()},
     {key:'class_section',value:((s.classes?.name||'')+(s.class_sections?.name?' '+s.class_sections.name:'')).toUpperCase()},
     {key:'father_name',value:s.students?.father_name?'Mr. '+s.students.father_name.toUpperCase():''},
     {key:'phone',value:s.students?.phone||''},
-    {key:'address_line1',value:addrParts[0]},
-    {key:'address_line2',value:addrParts[1]},
+    {key:'address',value:idcTitleCase(s.students?.address||'')},
     {key:'session_year',value:sessionYear},
     {key:'blood_group',value:s.students?.blood_group||''},
     {key:'dob',value:s.students?.dob?new Date(s.students.dob+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}):''},
@@ -14531,7 +14544,9 @@ function idcRenderPreview(){
     const fsPct=(f.fontSize||40)/IDC_FONT_REF_W*100
     const fw=f.fontWeight||'normal'
     const align=f.align||'center'
-    overlays+='<div style="position:absolute;left:'+f.x+'%;top:'+f.y+'%;width:'+f.w+'%;height:'+f.h+'%;display:flex;align-items:center;justify-content:'+(align==='center'?'center':align==='right'?'flex-end':'flex-start')+';overflow:hidden;font-size:calc('+fsPct+' * var(--cw) / 100);font-weight:'+fw+';color:'+(f.color||'#000')+';white-space:nowrap;line-height:1">'+esc(tf.value)+'</div>'
+    const isDef=IDC_FIELD_DEFS.find(d=>d.key===tf.key)
+    const isMulti=isDef&&isDef.multiline
+    overlays+='<div style="position:absolute;left:'+f.x+'%;top:'+f.y+'%;width:'+f.w+'%;height:'+f.h+'%;display:flex;align-items:'+(isMulti?'flex-start':'center')+';justify-content:'+(align==='center'?'center':align==='right'?'flex-end':'flex-start')+';overflow:hidden;font-size:calc('+fsPct+' * var(--cw) / 100);font-weight:'+fw+';color:'+(f.color||'#000')+(isMulti?';white-space:normal;line-height:1.3;word-break:break-word':';white-space:nowrap;line-height:1')+'">'+esc(tf.value)+'</div>'
   })
   if(fields.photo&&fields.photo.visible!==false){
     const p=fields.photo
@@ -14551,23 +14566,7 @@ function idcSyncPreviewFont(){
   el.style.setProperty('--cw',el.offsetWidth+'px')
 }
 
-function idcSplitAddress(addr){
-  if(!addr)return ['','']
-  addr=String(addr).trim().replace(/\s+/g,' ')
-  const m=addr.match(/^(.+?),\s*NIT Faridabad$/i)
-  if(m) return [m[1].trim(), 'NIT Faridabad, 121001']
-  const mid=Math.floor(addr.length/2)
-  let splitIdx=-1
-  for(let i=mid;i>=0;i--){if(addr[i]===','){splitIdx=i;break}}
-  if(splitIdx<0){for(let i=mid;i<addr.length;i++){if(addr[i]===','){splitIdx=i;break}}}
-  if(splitIdx<0){
-    for(let i=mid;i>=0;i--){if(addr[i]===' '){splitIdx=i;break}}
-  }
-  if(splitIdx>0){
-    return [addr.slice(0,splitIdx+1).trim(), addr.slice(splitIdx+1).trim()]
-  }
-  return [addr, '']
-}
+function idcTitleCase(s){return s?s.replace(/\b\w/g,c=>c.toUpperCase()):''}
 
 function loadScript(url){
   return new Promise((resolve,reject)=>{
