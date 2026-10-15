@@ -3970,6 +3970,9 @@ async function uploadProfilePhoto(){
     const{data:old}=await R2.list('student-photos',{search:sid})
     const del=(old||[]).filter(f=>f.name.startsWith(sid+'.')).map(f=>f.key||('student-photos/'+f.name))
     if(del.length){const{error:rErr}=await R2.remove(del);if(rErr)console.warn('Old photo cleanup failed',rErr)}
+    const{data:legacy}=await R2.list('students/'+sid)
+    const ldel=(legacy||[]).map(f=>f.key||('students/'+sid+'/'+f.name))
+    if(ldel.length)await R2.remove(ldel)
   }catch(e){console.warn('Photo cleanup error',e)}
   const path='student-photos/'+sid+'.'+((file.name.split('.').pop()||'jpg').toLowerCase())
   const{error:upErr}=await R2.upload(path,file,{upsert:true})
@@ -4476,6 +4479,9 @@ async function runBulkPhotoUpload(){
         const{data:old}=await R2.list('student-photos',{search:student_id})
         const del=(old||[]).filter(f=>f.name.startsWith(student_id+'.')).map(f=>f.key||('student-photos/'+f.name))
         if(del.length)await R2.remove(del)
+        const{data:legacy}=await R2.list('students/'+student_id)
+        const ldel=(legacy||[]).map(f=>f.key||('students/'+student_id+'/'+f.name))
+        if(ldel.length)await R2.remove(ldel)
       }catch(_){}
       const path='student-photos/'+student_id+'.'+ext
       const{error:upErr}=await R2.upload(path,file,{upsert:true})
@@ -4512,6 +4518,9 @@ async function runDeleteClassPhotos(){
         const{data:old}=await R2.list('student-photos',{search:s.student_id})
         const del=(old||[]).filter(f=>f.name.startsWith(s.student_id+'.')).map(f=>f.key||('student-photos/'+f.name))
         if(del.length)await R2.remove(del)
+        const{data:legacy}=await R2.list('students/'+s.student_id)
+        const ldel=(legacy||[]).map(f=>f.key||('students/'+s.student_id+'/'+f.name))
+        if(ldel.length)await R2.remove(ldel)
       }catch(_){}
       await sb.from('students').update({photo_url:null}).eq('student_id',s.student_id)
       ok++
