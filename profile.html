@@ -464,13 +464,15 @@ async function loadHomeStats(){
     }else if(st==='absent'){
       bg='linear-gradient(135deg,#EF4444,#DC2626)';title='Absent Today'
       ic='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
-    }else{
+    }else if(st==='half_day'){
       bg='linear-gradient(135deg,#F59E0B,#D97706)';title='Half Day Today'
       ic='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
     }
-    const sub='Tap to view calendar'
-    $('todayBanner').style.display='block'
-    $('todayBanner').innerHTML='<div class="today-banner" style="background:'+bg+'" onclick="navTo(\'attendance\')"><div class="today-ic">'+ic+'</div><div class="today-info"><div class="today-t">'+title+'</div><div class="today-s">'+sub+'</div></div><svg class="today-arr" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></div>'
+    if(bg){
+      const sub='Tap to view calendar'
+      $('todayBanner').style.display='block'
+      $('todayBanner').innerHTML='<div class="today-banner" style="background:'+bg+'" onclick="navTo(\'attendance\')"><div class="today-ic">'+ic+'</div><div class="today-info"><div class="today-t">'+title+'</div><div class="today-s">'+sub+'</div></div><svg class="today-arr" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></div>'
+    }
   }
 }
 
@@ -573,22 +575,30 @@ async function loadAttendance(){
   const last=new Date(y,m+1,0)
   const to=y+'-'+String(m+1).padStart(2,'0')+'-'+String(last.getDate()).padStart(2,'0')
   const months=['January','February','March','April','May','June','July','August','September','October','November','December']
-  const{data:att,error:attErr}=await sb.from('student_attendance').select('date,status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date')
+  const[{data:att,error:attErr},{data:hols}]=await Promise.all([
+    sb.from('student_attendance').select('date,status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date'),
+    sb.from('holidays').select('date,label,class_ids').eq('session_id',ENR.session_id).gte('date',from).lte('date',to)
+  ])
   if(attErr)console.error('Attendance error:',attErr)
-  console.log('Attendance data:',{enrollment_id:ENR.enrollment_id,from,to,count:att?.length,att})
   const map={};(att||[]).forEach(a=>map[a.date]=a)
+  const holMap={};(hols||[]).forEach(h=>{
+    const applies=!h.class_ids||!h.class_ids.length||h.class_ids.includes(ENR.class_id)
+    if(applies) holMap[h.date]=h.label||'Holiday'
+  })
   const today=new Date().toISOString().slice(0,10)
   const rec=map[today]
   let h=''
   if(rec){
     const st=rec.status
-    const c=st==='present'?'att-p':st==='absent'?'att-a':st==='half_day'?'att-hd':'att-n'
-    const lab=st==='present'?'Present Today':st==='absent'?'Absent Today':st==='half_day'?'Half Day Today':'—'
-    h+='<div class="dcard"><div class="att-strip '+c+'">'
-    if(st==='present') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>'
-    else if(st==='absent') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
-    else h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
-    h+='<div><strong>'+lab+'</strong></div></div></div>'
+    if(st==='present'||st==='absent'||st==='half_day'){
+      const c=st==='present'?'att-p':st==='absent'?'att-a':'att-hd'
+      const lab=st==='present'?'Present Today':st==='absent'?'Absent Today':'Half Day Today'
+      h+='<div class="dcard"><div class="att-strip '+c+'">'
+      if(st==='present') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>'
+      else if(st==='absent') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
+      else h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
+      h+='<div><strong>'+lab+'</strong></div></div></div>'
+    }
   }
   let pres=0,abs=0,hd=0,tot=(att||[]).length
   ;(att||[]).forEach(a=>{if(a.status==='present'){pres++}else if(a.status==='absent'){abs++}else if(a.status==='half_day'){hd++}})
@@ -607,8 +617,11 @@ async function loadAttendance(){
     const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')
     const dw=new Date(y,m,d).getDay()
     const r=map[ds];let c='no'
-    if(r){c=r.status==='present'?'p':r.status==='absent'?'a':r.status==='half_day'?'hd':'no'}else if(dw===0) c='h'
-    h+='<div class="cd '+c+'">'+d+'</div>'
+    if(r){c=r.status==='present'?'p':r.status==='absent'?'a':r.status==='half_day'?'hd':'no'}
+    else if(holMap[ds]) c='h'
+    else if(dw===0) c='h'
+    const title=holMap[ds]?' title="'+esc(holMap[ds])+'"':''
+    h+='<div class="cd '+c+'"'+title+'>'+d+'</div>'
   }
   h+='</div></div>'
   $('attBody').innerHTML=h
@@ -625,7 +638,7 @@ async function loadMarks(){
   console.log('Marks debug:',{sessId,classId,acRows})
   if(!acRows?.length){$('marksBody').innerHTML='<div class="empty-s">No assessments yet</div>';return}
   const assessIds=[...new Set(acRows.map(r=>r.assessment_id))]
-  const{data:assessments,error:asErr}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks,start_date').eq('session_id',sessId).in('assessment_id',assessIds).order('start_date')
+  const{data:assessments,error:asErr}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks,commencement_date').eq('session_id',sessId).in('assessment_id',assessIds).order('commencement_date')
   if(asErr)console.error('assessments error:',asErr)
   console.log('Assessments found:',assessments)
   const official=assessments||[]
