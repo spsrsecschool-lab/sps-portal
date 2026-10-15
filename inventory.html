@@ -1130,7 +1130,7 @@ async function confirmExchange(){
   if(!_exchEid||!_exchOldItem||!_exchNewItem)return
   const reason=$('exchReason').value.trim()
 
-  const{error:e1}=await sb.from('inv_items').update({status:'returned',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',_exchOldItem.id)
+  const{error:e1}=await sb.from('inv_items').update({status:'in_stock',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',_exchOldItem.id)
   if(e1){toast(e1.message,'error');return}
 
   const{error:e2}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItem.id}).eq('id',_exchNewItem.id)
