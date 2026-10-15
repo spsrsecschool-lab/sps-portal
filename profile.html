@@ -93,7 +93,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
 .home-sec{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink3);margin-bottom:14px}
 
 /* ═══ FEATURE CARDS ═══ */
-.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+.feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:24px}
 .feat-card{border-radius:var(--r);padding:20px 12px 16px;text-align:center;cursor:pointer;transition:all .2s;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden}
 .feat-card:active{transform:scale(.94)}
 .feat-card::before{content:'';position:absolute;inset:0;border-radius:var(--r);opacity:0;background:rgba(0,0,0,.05);transition:.2s}
@@ -113,6 +113,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
 .fc-fin{background:linear-gradient(145deg,#CCFBF1 0%,#99F6E4 100%);box-shadow:0 4px 14px rgba(20,184,166,.1)}
 .fc-pyq{background:linear-gradient(145deg,#FFE4E6 0%,#FECDD3 100%);box-shadow:0 4px 14px rgba(244,63,94,.1)}
 .fc-not{background:linear-gradient(145deg,#FFF7ED 0%,#FED7AA 100%);box-shadow:0 4px 14px rgba(234,88,12,.1)}
+.fc-pro{background:linear-gradient(145deg,#F0ABFC 0%,#E879F9 30%,#D946EF 100%);box-shadow:0 4px 14px rgba(217,70,239,.2)}
+.fc-pro .fc-nm{color:#fff}
+.fc-pro .fc-icon{background:rgba(255,255,255,.3)}
+.fc-pro .fc-icon svg{stroke:#fff}
 
 /* ═══ DETAIL PAGES ═══ */
 .det-hdr{display:flex;align-items:center;gap:14px;padding:18px 16px 14px;position:sticky;top:0;background:var(--bg);z-index:10}
@@ -317,6 +321,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
           <div class="feat-card fc-not" onclick="navTo('notices')">
             <div class="fc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#EA580C"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg></div>
             <div class="fc-nm">Notices</div>
+          </div>
+          <div class="feat-card fc-pro" onclick="navTo('profile')">
+            <div class="fc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div class="fc-nm">My Profile</div>
           </div>
         </div>
       </div>
