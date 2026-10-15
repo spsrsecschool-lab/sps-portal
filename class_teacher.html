@@ -2219,8 +2219,10 @@ async function saveStudentProfile(studentId){
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
-  toast('Profile saved ✓','success');closeModal()
+  toast('Profile saved ✓','success')
   logActivity('profile_edit', TEACHER.full_name+' edited the profile of '+(updates.full_name||'a student')+' ('+myClassLabel()+')')
+  const eid2=CLASS_STUDENTS.find(s=>s.students?.student_id===sid)?.enrollment_id
+  if(eid2) viewStudentProfile(eid2)
 }
 
 async function deleteStudentDoc(sid,fileUrl,fileType,btn){
