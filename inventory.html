@@ -357,7 +357,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div style="margin-bottom:16px">
         <button class="btn btn-primary" onclick="startReturnQrScan()" id="exchReturnScanBtn" style="width:100%;padding:14px;font-size:15px">📷 Scan Return Item QR</button>
       </div>
-      <div id="exchReturnCamWrap" style="display:none;margin:0 0 14px"><div id="exchReturnCamReader"></div><button class="btn btn-danger btn-xs" onclick="cancelReturnQrScan()" style="margin-top:8px;width:100%">Cancel Scan</button></div>
+      <div id="exchReturnCamWrap" style="display:none;margin:0 0 14px"><div id="exchReturnCamReader"></div><button class="btn btn-danger" onclick="cancelReturnQrScan()" style="margin-top:8px;width:100%;padding:14px;font-size:15px">Cancel Scan</button></div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;color:var(--ink-faint);font-size:12px;font-weight:600"><div style="flex:1;height:1px;background:var(--line)"></div>OR SELECT MANUALLY<div style="flex:1;height:1px;background:var(--line)"></div></div>
       <div class="form-row">
         <div class="fg" style="max-width:200px"><label>Class</label><select id="exchClass" onchange="onExchClassChange()"><option value="">Select class</option></select></div>
@@ -1130,7 +1130,7 @@ async function confirmExchange(){
   if(!_exchEid||!_exchOldItem||!_exchNewItem)return
   const reason=$('exchReason').value.trim()
 
-  const{error:e1}=await sb.from('inv_items').update({status:'returned',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',_exchOldItem.id)
+  const{error:e1}=await sb.from('inv_items').update({status:'in_stock',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',_exchOldItem.id)
   if(e1){toast(e1.message,'error');return}
 
   const{error:e2}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItem.id}).eq('id',_exchNewItem.id)
