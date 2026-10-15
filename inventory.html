@@ -1039,8 +1039,8 @@ async function selectExchStudent(eid,name,cls,sec,father){
     +data.map(i=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>'+esc(i.inv_articles?.name||'—')+'</b>'+(i.size?' · '+esc(i.size):'')+' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(i.qr_code)+'</span></span><button class="btn btn-danger btn-xs" onclick="selectExchReturn(\''+i.id+'\',\''+esc(i.inv_articles?.name||'')+'\',\''+esc(i.size||'')+'\',\''+esc(i.qr_code)+'\')">Return This</button></div>').join('')
 }
 
-function selectExchReturn(itemId,artName,size,qr){
-  _exchOldItem={id:itemId,name:artName,size,qr}
+function selectExchReturn(itemId,artName,size,qr,viaQr){
+  _exchOldItem={id:itemId,name:artName,size,qr,viaQr:!!viaQr}
   $('exchReturnInfo').style.display='block'
   $('exchReturnInfo').innerHTML='<div class="card" style="padding:10px;background:var(--danger-soft);border-color:var(--danger)"><b>Returning:</b> '+esc(artName)+(size?' · '+esc(size):'')+' <span class="mono" style="font-size:10px">'+esc(qr)+'</span></div>'
   checkExchReady()
@@ -1078,7 +1078,7 @@ async function onReturnQrScanned(code){
   $('exchSelectedStudent').style.display='block'
   $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(enr.students.full_name)+' — '+esc(enr.classes?.name||'')+'-'+esc(enr.class_sections?.name||'')+' (s/o '+esc(enr.students.father_name||'—')+')</div>'
   $('exchStudentItems').innerHTML=''
-  selectExchReturn(item.id,item.inv_articles?.name||'—',item.size||'',item.qr_code)
+  selectExchReturn(item.id,item.inv_articles?.name||'—',item.size||'',item.qr_code,true)
   $('exchScanBtn').disabled=false
 }
 
@@ -1130,7 +1130,8 @@ async function confirmExchange(){
   if(!_exchEid||!_exchOldItem||!_exchNewItem)return
   const reason=$('exchReason').value.trim()
 
-  const{error:e1}=await sb.from('inv_items').update({status:'in_stock',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',_exchOldItem.id)
+  const returnStatus=_exchOldItem.viaQr?'in_stock':'returned'
+  const{error:e1}=await sb.from('inv_items').update({status:returnStatus,sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',_exchOldItem.id)
   if(e1){toast(e1.message,'error');return}
 
   const{error:e2}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItem.id}).eq('id',_exchNewItem.id)
