@@ -1274,7 +1274,7 @@ SPS.ready().then(async()=>{
 
   // Load all students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -1982,7 +1982,7 @@ async function loadMyClass(){
   if(!CLASS_STUDENTS.length){
     ldg(el)
     const{data:students}=await sb.from('student_enrollments')
-      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
       .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
     CLASS_STUDENTS=students||[]
@@ -2049,6 +2049,7 @@ async function viewStudentProfile(eid){
     {k:'alt_phone',label:'Alt Phone',val:s.alt_phone},
     {k:'aadhar_no',label:'Aadhaar No',val:s.aadhar_no},
     {k:'gender',label:'Gender',val:s.gender,type:'select',options:['','Male','Female']},
+    {k:'blood_group',label:'Blood Group',val:s.blood_group,type:'select',options:['','A+','A-','B+','B-','AB+','AB-','O+','O-']},
     {k:'admission_number',label:'Admission No',val:s.admission_number,locked:true},
     {k:'dob',label:'Date of Birth',val:s.dob,type:'date'},
     {k:'admission_date',label:'Date of Admission / Joining',val:s.admission_date,type:'date',locked:admLocked},
@@ -2256,6 +2257,7 @@ async function saveStudentProfile(){
     alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
     aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
     gender:document.getElementById('sp_gender')?.value||null,
+    blood_group:document.getElementById('sp_blood_group')?.value||null,
     dob:document.getElementById('sp_dob')?.value||null,
     admission_date:document.getElementById('sp_admission_date')?.value||null,
   }
@@ -2266,7 +2268,7 @@ async function saveStudentProfile(){
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -2416,6 +2418,7 @@ async function saveStudentProfile(studentId){
     alt_phone:document.getElementById('sp_alt_phone')?.value?.trim(),
     aadhar_no:document.getElementById('sp_aadhar_no')?.value?.trim(),
     gender:document.getElementById('sp_gender')?.value||null,
+    blood_group:document.getElementById('sp_blood_group')?.value||null,
     dob:document.getElementById('sp_dob')?.value||null,
     admission_date:document.getElementById('sp_admission_date')?.value||null,
   }
@@ -2429,7 +2432,7 @@ async function saveStudentProfile(studentId){
   if(!updated||!updated.length){toast('Save did not persist — the database blocked this update (permissions).','error');console.warn('[profile] UPDATE affected 0 rows — likely RLS on students table',{sid});return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -2649,7 +2652,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
