@@ -453,7 +453,7 @@ async function loadHomeStats(){
     $('sAtt').textContent=Math.round(p/att.length*100)+'%'
   }
   const today=now.toISOString().slice(0,10)
-  const{data:todayAtt}=await sb.from('student_attendance').select('status,check_in_time').eq('enrollment_id',ENR.enrollment_id).eq('date',today).maybeSingle()
+  const{data:todayAtt}=await sb.from('student_attendance').select('status').eq('enrollment_id',ENR.enrollment_id).eq('date',today).maybeSingle()
   if(todayAtt){
     const st=todayAtt.status
     let bg,ic,title
@@ -467,7 +467,7 @@ async function loadHomeStats(){
       bg='linear-gradient(135deg,#F59E0B,#D97706)';title='Late Today'
       ic='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
     }
-    const sub=todayAtt.check_in_time?'Check-in at '+todayAtt.check_in_time.slice(0,5):'Tap to view calendar'
+    const sub='Tap to view calendar'
     $('todayBanner').style.display='block'
     $('todayBanner').innerHTML='<div class="today-banner" style="background:'+bg+'" onclick="navTo(\'attendance\')"><div class="today-ic">'+ic+'</div><div class="today-info"><div class="today-t">'+title+'</div><div class="today-s">'+sub+'</div></div><svg class="today-arr" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></div>'
   }
@@ -572,7 +572,7 @@ async function loadAttendance(){
   const last=new Date(y,m+1,0)
   const to=y+'-'+String(m+1).padStart(2,'0')+'-'+String(last.getDate()).padStart(2,'0')
   const months=['January','February','March','April','May','June','July','August','September','October','November','December']
-  const{data:att,error:attErr}=await sb.from('student_attendance').select('date,status,check_in_time').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date')
+  const{data:att,error:attErr}=await sb.from('student_attendance').select('date,status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date')
   if(attErr)console.error('Attendance error:',attErr)
   console.log('Attendance data:',{enrollment_id:ENR.enrollment_id,from,to,count:att?.length,att})
   const map={};(att||[]).forEach(a=>map[a.date]=a)
@@ -583,12 +583,11 @@ async function loadAttendance(){
     const st=rec.status
     const c=st==='present'?'att-p':st==='absent'?'att-a':st==='late'?'att-l':'att-n'
     const lab=st==='present'?'Present Today':st==='absent'?'Absent Today':st==='late'?'Late Today':'—'
-    const tm=rec.check_in_time?rec.check_in_time.slice(0,5):''
     h+='<div class="dcard"><div class="att-strip '+c+'">'
     if(st==='present') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>'
     else if(st==='absent') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
     else h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
-    h+='<div><strong>'+lab+'</strong>'+(tm?'<div class="att-tm">Check-in: '+tm+'</div>':'')+'</div></div></div>'
+    h+='<div><strong>'+lab+'</strong></div></div></div>'
   }
   let pres=0,abs=0,late=0,tot=(att||[]).length
   ;(att||[]).forEach(a=>{if(a.status==='present'){pres++}else if(a.status==='absent'){abs++}else if(a.status==='late'){late++;pres++}else{pres++}})
@@ -625,10 +624,10 @@ async function loadMarks(){
   console.log('Marks debug:',{sessId,classId,acRows})
   if(!acRows?.length){$('marksBody').innerHTML='<div class="empty-s">No assessments yet</div>';return}
   const assessIds=[...new Set(acRows.map(r=>r.assessment_id))]
-  const{data:assessments,error:asErr}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks,is_fee_only,created_by_teacher_id').eq('session_id',sessId).in('assessment_id',assessIds)
+  const{data:assessments,error:asErr}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks').eq('session_id',sessId).in('assessment_id',assessIds)
   if(asErr)console.error('assessments error:',asErr)
   console.log('Assessments found:',assessments)
-  const official=(assessments||[]).filter(a=>!a.is_fee_only)
+  const official=assessments||[]
   if(!official.length){$('marksBody').innerHTML='<div class="empty-s">No assessments yet</div>';return}
   const inclMap={};acRows.forEach(r=>{inclMap[r.assessment_id]=r.included_subjects})
   const{data:ovRows}=await sb.from('assessment_mark_overrides').select('assessment_id,subject_id,max_marks,pass_marks').eq('class_id',classId).in('assessment_id',official.map(a=>a.assessment_id)).not('subject_id','is',null)
