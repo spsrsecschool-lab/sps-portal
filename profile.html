@@ -458,7 +458,7 @@ async function loadHomeStats(){
   const{data:att,error:attE}=await sb.from('student_attendance').select('status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to)
   console.log('Home att:',{enrollment_id:ENR.enrollment_id,from,to,att,error:attE})
   if(att?.length){
-    const p=att.filter(a=>a.status==='present').length
+    const p=att.filter(a=>a.status==='P').length
     $('sAtt').textContent=Math.round(p/att.length*100)+'%'
   }
   const today=now.toISOString().slice(0,10)
@@ -466,13 +466,13 @@ async function loadHomeStats(){
   if(todayAtt){
     const st=todayAtt.status
     let bg,ic,title
-    if(st==='present'){
+    if(st==='P'){
       bg='linear-gradient(135deg,#22C55E,#16A34A)';title='Present Today'
       ic='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>'
-    }else if(st==='absent'){
+    }else if(st==='A'){
       bg='linear-gradient(135deg,#EF4444,#DC2626)';title='Absent Today'
       ic='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
-    }else if(st==='half_day'){
+    }else if(st==='HD'){
       bg='linear-gradient(135deg,#F59E0B,#D97706)';title='Half Day Today'
       ic='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
     }
@@ -601,18 +601,18 @@ async function loadAttendance(){
   let h=''
   if(rec){
     const st=rec.status
-    if(st==='present'||st==='absent'||st==='half_day'){
-      const c=st==='present'?'att-p':st==='absent'?'att-a':'att-hd'
-      const lab=st==='present'?'Present Today':st==='absent'?'Absent Today':'Half Day Today'
+    if(st==='P'||st==='A'||st==='HD'){
+      const c=st==='P'?'att-p':st==='A'?'att-a':'att-hd'
+      const lab=st==='P'?'Present Today':st==='A'?'Absent Today':'Half Day Today'
       h+='<div class="dcard"><div class="att-strip '+c+'">'
-      if(st==='present') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>'
-      else if(st==='absent') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
+      if(st==='P') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>'
+      else if(st==='A') h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>'
       else h+='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
       h+='<div><strong>'+lab+'</strong></div></div></div>'
     }
   }
   let pres=0,abs=0,hd=0,tot=(att||[]).length
-  ;(att||[]).forEach(a=>{if(a.status==='present'){pres++}else if(a.status==='absent'){abs++}else if(a.status==='half_day'){hd++}})
+  ;(att||[]).forEach(a=>{if(a.status==='P'){pres++}else if(a.status==='A'){abs++}else if(a.status==='HD'){hd++}})
   h+='<div class="att-row">'
   h+='<div class="att-box"><div class="ab-n" style="color:var(--green)">'+pres+'</div><div class="ab-l">Present</div></div>'
   h+='<div class="att-box"><div class="ab-n" style="color:var(--red)">'+abs+'</div><div class="ab-l">Absent</div></div>'
@@ -628,7 +628,7 @@ async function loadAttendance(){
     const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')
     const dw=new Date(y,m,d).getDay()
     const r=map[ds];let c='no'
-    if(r){c=r.status==='present'?'p':r.status==='absent'?'a':r.status==='half_day'?'hd':'no'}
+    if(r){c=r.status==='P'?'p':r.status==='A'?'a':r.status==='HD'?'hd':'no'}
     else if(holMap[ds]) c='h'
     else if(dw===0) c='h'
     const title=holMap[ds]?' title="'+esc(holMap[ds])+'"':''
