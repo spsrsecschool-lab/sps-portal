@@ -2078,19 +2078,12 @@ async function viewStudentProfile(eid){
     +(s.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:14px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':'')
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
     +function(){
-      var _addrParts={hno:'',area:''}
       var _addrRaw=s.address||''
-      var _m=_addrRaw.match(/^H\.No\.\s*(.+?),\s*(.+?),\s*NIT Faridabad$/i)
-      if(_m){_addrParts.hno=_m[1].trim();_addrParts.area=_m[2].trim()}
-      if(canEdit) return '<div style="margin-bottom:14px"><label style="'+lbl+'">Address (Current Address Only)</label>'
-        +(_addrRaw?'<div style="font-size:13px;color:var(--ink);margin-bottom:8px;padding:8px 12px;background:var(--lav-50);border-radius:var(--radius-sm);border:1px solid var(--line)">'+esc(_addrRaw)+'</div>':'')
-        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'
-        +'<div style="margin-bottom:8px"><label style="font-size:10.5px;color:var(--ink-faint);display:block;margin-bottom:4px">H.No.</label><input id="sp_addr_hno" value="'+esc(_addrParts.hno)+'" placeholder="e.g. 4585" style="'+inp+'"></div>'
-        +'<div style="margin-bottom:8px"><label style="font-size:10.5px;color:var(--ink-faint);display:block;margin-bottom:4px">Area / Colony</label><input id="sp_addr_area" value="'+esc(_addrParts.area)+'" placeholder="e.g. Nehru Colony" style="'+inp+'"></div>'
+      if(canEdit) return '<div style="margin-bottom:14px"><label style="'+lbl+'">Address</label>'
+        +'<input id="sp_address" value="'+esc(_addrRaw)+'" placeholder="e.g. H.No. 4585, Nehru Colony, NIT Faridabad, 121001" style="'+inp+'">'
+        +'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">Enter the student\'s current residential address only.</div>'
         +'</div>'
-        +'<div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">City: NIT Faridabad (fixed). Enter the student\'s current residential address only — not a native / home-state address.</div>'
-        +'</div>'
-      return '<div style="margin-bottom:12px"><label style="'+lbl+'">Address</label><div style="font-size:13px;color:var(--ink)">'+esc(_addrRaw||'—')+'</div></div>'
+      return '<div style="margin-bottom:12px"><label style="'+lbl+'">Address</label><div style="font-size:13px;color:var(--ink);word-break:break-word">'+esc(_addrRaw||'—')+'</div></div>'
     }()
     +'<div style="margin-top:6px;margin-bottom:14px"><label style="'+lbl+'">Class &amp; Section</label>'
     +(canEdit
@@ -2261,9 +2254,8 @@ async function saveStudentProfile(){
     dob:document.getElementById('sp_dob')?.value||null,
     admission_date:document.getElementById('sp_admission_date')?.value||null,
   }
-  const _hno=document.getElementById('sp_addr_hno')?.value?.trim()
-  const _area=document.getElementById('sp_addr_area')?.value?.trim()
-  if(_hno||_area) updates.address='H.No. '+(_hno||'—')+', '+(_area||'—')+', NIT Faridabad'
+  const _addr=document.getElementById('sp_address')?.value?.trim()
+  if(_addr) updates.address=_addr.replace(/\b\w/g,c=>c.toUpperCase())
   if(!updates.full_name){toast('Name cannot be empty','error');return}
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
@@ -2422,9 +2414,8 @@ async function saveStudentProfile(studentId){
     dob:document.getElementById('sp_dob')?.value||null,
     admission_date:document.getElementById('sp_admission_date')?.value||null,
   }
-  const _hno2=document.getElementById('sp_addr_hno')?.value?.trim()
-  const _area2=document.getElementById('sp_addr_area')?.value?.trim()
-  if(_hno2||_area2) updates.address='H.No. '+(_hno2||'—')+', '+(_area2||'—')+', NIT Faridabad'
+  const _addr2=document.getElementById('sp_address')?.value?.trim()
+  if(_addr2) updates.address=_addr2.replace(/\b\w/g,c=>c.toUpperCase())
   if(!updates.full_name){toast("Student name can't be empty",'error');return}
   const{data:updated,error}=await sb.from('students').update(updates).eq('student_id',sid).select()
   console.log('[profile] update result →',{sid,rows:updated?.length,error})
