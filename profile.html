@@ -455,7 +455,8 @@ async function loadHomeStats(){
   const now=new Date()
   const from=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01'
   const to=now.toISOString().slice(0,10)
-  const{data:att}=await sb.from('student_attendance').select('status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to)
+  const{data:att,error:attE}=await sb.from('student_attendance').select('status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to)
+  console.log('Home att:',{enrollment_id:ENR.enrollment_id,from,to,att,error:attE})
   if(att?.length){
     const p=att.filter(a=>a.status==='present').length
     $('sAtt').textContent=Math.round(p/att.length*100)+'%'
@@ -582,11 +583,14 @@ async function loadAttendance(){
   const last=new Date(y,m+1,0)
   const to=y+'-'+String(m+1).padStart(2,'0')+'-'+String(last.getDate()).padStart(2,'0')
   const months=['January','February','March','April','May','June','July','August','September','October','November','December']
-  const[{data:att,error:attErr},{data:hols}]=await Promise.all([
+  console.log('Attendance query:',{enrollment_id:ENR.enrollment_id,session_id:ENR.session_id,from,to})
+  const[{data:att,error:attErr},{data:hols,error:holErr}]=await Promise.all([
     sb.from('student_attendance').select('date,status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date'),
     sb.from('holidays').select('date,label,class_ids').eq('session_id',ENR.session_id).gte('date',from).lte('date',to)
   ])
   if(attErr)console.error('Attendance error:',attErr)
+  if(holErr)console.error('Holidays error:',holErr)
+  console.log('Attendance data:',att,'Holidays data:',hols)
   const map={};(att||[]).forEach(a=>map[a.date]=a)
   const holMap={};(hols||[]).forEach(h=>{
     const applies=!h.class_ids||!h.class_ids.length||h.class_ids.includes(ENR.class_id)
