@@ -364,7 +364,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON)
 const params=new URLSearchParams(location.search)
 const studentId=params.get('sid')
-let STU=null,ENR=null,_attMo=new Date(),_curPage='home'
+let STU=null,ENR=null,_attMo=new Date(),_curPage='home',_navReady=false
 
 function $(id){return document.getElementById(id)}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
@@ -490,8 +490,15 @@ async function loadHomeStats(){
 }
 
 // ── Navigation ──
-function navTo(pg){
+function navTo(pg,fromPop){
+  if(pg===_curPage&&_navReady)return
+  const prev=_curPage
   _curPage=pg
+  if(!fromPop&&_navReady){
+    if(pg==='home') history.replaceState({pg:'home'},'')
+    else history.pushState({pg},'')
+  }
+  _navReady=true
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
 
   const placeholders={work:'Homework & Classwork',syllabus:'Syllabus',datesheet:'Datesheet',finances:'Finances',pyqs:'Past Year Questions',notices:'Announcements'}
@@ -770,6 +777,13 @@ function renderTT(){
   $('ttBody').innerHTML=h
 }
 function pickDay(d){_ttDay=d;renderTT()}
+
+// ── Browser back button → go home instead of leaving ──
+history.replaceState({pg:'home'},'')
+window.addEventListener('popstate',function(e){
+  const pg=e.state?.pg||'home'
+  navTo(pg,true)
+})
 </script>
 </body>
 </html>
