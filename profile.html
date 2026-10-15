@@ -27,7 +27,6 @@
   --sh-md:0 4px 12px rgba(108,63,227,.08),0 1px 3px rgba(0,0,0,.04);
   --sh-lg:0 8px 24px rgba(108,63,227,.12),0 2px 6px rgba(0,0,0,.04);
   --sh-xl:0 12px 40px rgba(108,63,227,.15),0 4px 12px rgba(0,0,0,.06);
-  --nav-h:68px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -56,18 +55,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
 
 /* ═══ SHELL ═══ */
 .shell{display:flex;flex-direction:column;height:100%;height:100dvh}
-.page-area{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--nav-h) + 20px)}
+.page-area{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:20px}
 .page{display:none;animation:pageIn .3s cubic-bezier(.4,0,.2,1)}
 .page.active{display:block}
 @keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
-/* ═══ BOTTOM NAV ═══ */
-.bnav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:var(--card);border-top:1px solid rgba(108,63,227,.08);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0);box-shadow:0 -2px 20px rgba(108,63,227,.06)}
-.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;color:var(--ink4);transition:all .2s;-webkit-tap-highlight-color:transparent;position:relative}
-.bnav-item svg{width:22px;height:22px;transition:.2s}
-.bnav-item span{font-size:10px;font-weight:700;letter-spacing:.3px}
-.bnav-item.active{color:var(--p1)}
-.bnav-item.active::after{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:28px;height:3px;border-radius:0 0 4px 4px;background:var(--g1)}
+/* bottom nav removed */
 
 /* ═══ HOME ═══ */
 .home-hdr{background:var(--g1);padding:32px 24px 64px;position:relative;overflow:hidden}
@@ -278,7 +271,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
         <div id="todayBanner" style="display:none"></div>
       </div>
       <div class="home-body">
-        <div class="home-sec">Quick Access</div>
         <div class="feat-grid">
           <div class="feat-card fc-att" onclick="navTo('attendance')">
             <div class="fc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#16A34A"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 16l2 2 4-4" stroke-width="2.2"/></svg></div>
@@ -354,28 +346,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
     <div id="pgNotices" class="page"></div>
   </div>
 
-  <div class="bnav">
-    <div class="bnav-item active" data-nav="home" onclick="navTo('home')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      <span>Home</span>
-    </div>
-    <div class="bnav-item" data-nav="attendance" onclick="navTo('attendance')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-      <span>Attendance</span>
-    </div>
-    <div class="bnav-item" data-nav="marks" onclick="navTo('marks')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-      <span>Marks</span>
-    </div>
-    <div class="bnav-item" data-nav="timetable" onclick="navTo('timetable')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M3 16h18"/></svg>
-      <span>Schedule</span>
-    </div>
-    <div class="bnav-item" data-nav="profile" onclick="navTo('profile')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <span>Profile</span>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -523,10 +493,6 @@ function navTo(pg,fromPop){
     if(target) target.classList.add('active')
     if(pg==='profile') renderProfile()
   }
-  document.querySelectorAll('.bnav-item').forEach(b=>{
-    const nav=b.dataset.nav
-    b.classList.toggle('active',nav===pg||(placeholders[pg]&&nav==='home'))
-  })
   $('pageArea').scrollTop=0
 }
 
@@ -606,7 +572,9 @@ async function loadAttendance(){
   const last=new Date(y,m+1,0)
   const to=y+'-'+String(m+1).padStart(2,'0')+'-'+String(last.getDate()).padStart(2,'0')
   const months=['January','February','March','April','May','June','July','August','September','October','November','December']
-  const{data:att}=await sb.from('student_attendance').select('date,status,check_in_time').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date')
+  const{data:att,error:attErr}=await sb.from('student_attendance').select('date,status,check_in_time').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date')
+  if(attErr)console.error('Attendance error:',attErr)
+  console.log('Attendance data:',{enrollment_id:ENR.enrollment_id,from,to,count:att?.length,att})
   const map={};(att||[]).forEach(a=>map[a.date]=a)
   const today=new Date().toISOString().slice(0,10)
   const rec=map[today]
@@ -652,11 +620,15 @@ async function loadMarks(){
   if(!ENR){$('marksBody').innerHTML='<div class="empty-s">No enrollment found</div>';return}
   const sessId=ENR.session_id,classId=ENR.class_id
   if(!sessId){$('marksBody').innerHTML='<div class="empty-s">No session found</div>';return}
-  const{data:acRows}=await sb.from('assessment_classes').select('assessment_id,included_subjects').eq('class_id',classId)
+  const{data:acRows,error:acErr}=await sb.from('assessment_classes').select('assessment_id,included_subjects').eq('class_id',classId)
+  if(acErr)console.error('assessment_classes error:',acErr)
+  console.log('Marks debug:',{sessId,classId,acRows})
   if(!acRows?.length){$('marksBody').innerHTML='<div class="empty-s">No assessments yet</div>';return}
   const assessIds=[...new Set(acRows.map(r=>r.assessment_id))]
-  const{data:assessments}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks,is_fee_only,created_by_teacher_id').eq('session_id',sessId).in('assessment_id',assessIds)
-  const official=(assessments||[]).filter(a=>!a.is_fee_only&&!a.created_by_teacher_id)
+  const{data:assessments,error:asErr}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks,is_fee_only,created_by_teacher_id').eq('session_id',sessId).in('assessment_id',assessIds)
+  if(asErr)console.error('assessments error:',asErr)
+  console.log('Assessments found:',assessments)
+  const official=(assessments||[]).filter(a=>!a.is_fee_only)
   if(!official.length){$('marksBody').innerHTML='<div class="empty-s">No assessments yet</div>';return}
   const inclMap={};acRows.forEach(r=>{inclMap[r.assessment_id]=r.included_subjects})
   const{data:ovRows}=await sb.from('assessment_mark_overrides').select('assessment_id,subject_id,max_marks,pass_marks').eq('class_id',classId).in('assessment_id',official.map(a=>a.assessment_id)).not('subject_id','is',null)
