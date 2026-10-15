@@ -357,7 +357,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div style="margin-bottom:16px">
         <button class="btn btn-primary" onclick="startReturnQrScan()" id="exchReturnScanBtn" style="width:100%;padding:14px;font-size:15px">📷 Scan Return Item QR</button>
       </div>
-      <div id="exchReturnCamWrap" style="display:none;margin:0 0 14px"><div id="exchReturnCamReader"></div><button class="btn btn-danger btn-xs" onclick="cancelReturnQrScan()" style="margin-top:8px;width:100%">Cancel Scan</button></div>
+      <div id="exchReturnCamWrap" style="display:none;margin:0 0 14px"><div id="exchReturnCamReader"></div><button class="btn btn-danger" onclick="cancelReturnQrScan()" style="margin-top:8px;width:100%;padding:14px;font-size:15px">Cancel Scan</button></div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;color:var(--ink-faint);font-size:12px;font-weight:600"><div style="flex:1;height:1px;background:var(--line)"></div>OR SELECT MANUALLY<div style="flex:1;height:1px;background:var(--line)"></div></div>
       <div class="form-row">
         <div class="fg" style="max-width:200px"><label>Class</label><select id="exchClass" onchange="onExchClassChange()"><option value="">Select class</option></select></div>
