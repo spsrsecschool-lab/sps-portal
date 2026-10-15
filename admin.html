@@ -1321,13 +1321,13 @@ tbody tr:hover td{background:var(--lav-50)}
               <span id="idcGenStatus" style="margin-left:4px;font-size:13px;color:var(--ink-soft)"></span>
             </div>
           </div>
-          <div id="idcPreviewPanel" style="flex:1;min-width:300px;max-width:500px;display:none">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <h3 style="margin:0;font-size:15px">Preview</h3>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-ghost btn-xs" onclick="idcPreviewNav(-1)" id="idcPrevBtn" disabled>&larr; Prev</button>
-                <span id="idcPreviewCounter" style="font-size:12px;color:var(--ink-soft)"></span>
-                <button class="btn btn-ghost btn-xs" onclick="idcPreviewNav(1)" id="idcNextBtn" disabled>Next &rarr;</button>
+          <div id="idcPreviewPanel" style="min-width:220px;max-width:280px;display:none;position:sticky;top:20px;align-self:flex-start">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <h3 style="margin:0;font-size:13px">Preview</h3>
+              <div style="display:flex;gap:6px;align-items:center">
+                <button class="btn btn-ghost btn-xs" onclick="idcPreviewNav(-1)" id="idcPrevBtn" disabled style="padding:2px 6px;font-size:11px">&larr;</button>
+                <span id="idcPreviewCounter" style="font-size:11px;color:var(--ink-soft)"></span>
+                <button class="btn btn-ghost btn-xs" onclick="idcPreviewNav(1)" id="idcNextBtn" disabled style="padding:2px 6px;font-size:11px">&rarr;</button>
               </div>
             </div>
             <div id="idcPreviewCard" style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#f5f5f5"></div>
@@ -14527,11 +14527,11 @@ function idcRenderPreview(){
   if(fields.photo&&fields.photo.visible!==false){
     const p=fields.photo
     const src=s.students?.photo_url?R2.url(s.students.photo_url):''
-    if(src) overlays+='<div style="position:absolute;left:'+p.x+'%;top:'+p.y+'%;width:'+p.w+'%;height:'+p.h+'%;overflow:hidden'+(p.borderWidth?';border:'+p.borderWidth/IDC_FONT_REF_W*100+'% solid '+(p.borderColor||'#000'):'')+'"><img src="'+esc(src)+'" style="width:100%;height:100%;object-fit:cover"></div>'
+    if(src) overlays+='<div style="position:absolute;left:'+p.x+'%;top:'+p.y+'%;width:'+p.w+'%;height:'+p.h+'%;overflow:hidden;box-sizing:border-box'+(p.borderWidth?';border:calc('+p.borderWidth/IDC_FONT_REF_W*100+' * var(--cw) / 100) solid '+(p.borderColor||'#000'):'')+'"><img src="'+esc(src)+'" style="width:100%;height:100%;object-fit:cover"></div>'
   }
   if(fields.qr_code&&fields.qr_code.visible!==false){
     const q=fields.qr_code
-    overlays+='<div style="position:absolute;left:'+q.x+'%;top:'+q.y+'%;width:'+q.w+'%;height:'+q.h+'%;display:flex;align-items:center;justify-content:center;background:#fff'+(q.borderWidth?';border:'+q.borderWidth/IDC_FONT_REF_W*100+'% solid '+(q.borderColor||'#000'):'')+'"><span style="font-size:10px;color:var(--ink-faint)">QR</span></div>'
+    overlays+='<div style="position:absolute;left:'+q.x+'%;top:'+q.y+'%;width:'+q.w+'%;height:'+q.h+'%;display:flex;align-items:center;justify-content:center;background:#fff;box-sizing:border-box'+(q.borderWidth?';border:calc('+q.borderWidth/IDC_FONT_REF_W*100+' * var(--cw) / 100) solid '+(q.borderColor||'#000'):'')+'"><span style="font-size:10px;color:var(--ink-faint)">QR</span></div>'
   }
   const wrap=$('idcPreviewCard')
   wrap.innerHTML='<div id="idcPrevInner" style="position:relative;width:100%"><img src="'+esc(_idcTemplate.bgUrl)+'" style="width:100%;display:block" crossorigin="anonymous" onload="idcSyncPreviewFont()">'+overlays+'</div>'
