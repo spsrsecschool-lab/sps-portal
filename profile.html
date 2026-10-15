@@ -450,7 +450,7 @@ async function loadHomeStats(){
   const to=now.toISOString().slice(0,10)
   const{data:att}=await sb.from('student_attendance').select('status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to)
   if(att?.length){
-    const p=att.filter(a=>a.status==='present'||a.status==='half_day').length
+    const p=att.filter(a=>a.status==='present').length
     $('sAtt').textContent=Math.round(p/att.length*100)+'%'
   }
   const today=now.toISOString().slice(0,10)
@@ -596,7 +596,7 @@ async function loadAttendance(){
   h+='<div class="att-box"><div class="ab-n" style="color:var(--green)">'+pres+'</div><div class="ab-l">Present</div></div>'
   h+='<div class="att-box"><div class="ab-n" style="color:var(--red)">'+abs+'</div><div class="ab-l">Absent</div></div>'
   h+='<div class="att-box"><div class="ab-n" style="color:var(--amber)">'+hd+'</div><div class="ab-l">Half Day</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--p1)">'+(tot?Math.round((pres+hd)/tot*100):0)+'%</div><div class="ab-l">Rate</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--p1)">'+(tot?Math.round(pres/tot*100):0)+'%</div><div class="ab-l">Rate</div></div>'
   h+='</div>'
   h+='<div class="dcard"><div class="mnav"><button onclick="attPrev()">&#9664; Prev</button><span>'+months[m]+' '+y+'</span><button onclick="attNext()">Next &#9654;</button></div>'
   h+='<div class="cal">'
