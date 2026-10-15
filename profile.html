@@ -133,10 +133,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);overflow-x:hi
 .att-hd{background:linear-gradient(135deg,#FEF3C7,#FDE68A);color:#92400E}
 .att-n{background:var(--p6);color:var(--ink3)}
 
-.att-row{display:flex;gap:8px;margin:16px 0}
-.att-box{flex:1;text-align:center;padding:12px 4px;border-radius:var(--rs);background:var(--p6)}
-.att-box .ab-n{font-size:22px;font-weight:800}
-.att-box .ab-l{font-size:9px;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;font-weight:700}
+.att-sec-label{font-size:13px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 6px;padding-left:2px}
+.att-sec-label:first-child,.att-sec-label:first-of-type{margin-top:0}
+.att-row{display:flex;gap:6px;margin:0 0 8px}
+.att-box{flex:1;text-align:center;padding:10px 2px;border-radius:var(--rs);background:var(--p6)}
+.att-box .ab-n{font-size:20px;font-weight:800}
+.att-box .ab-l{font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;font-weight:700}
 
 .mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .mnav button{background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:8px 16px;cursor:pointer;font-family:var(--font);font-size:12px;color:var(--ink);font-weight:700;-webkit-tap-highlight-color:transparent;box-shadow:var(--sh);transition:.15s}
@@ -452,11 +454,7 @@ function startApp(){
 
 async function loadHomeStats(){
   if(!ENR)return
-  const now=new Date()
-  const from=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01'
-  const to=now.toISOString().slice(0,10)
-  const{data:att,error:attE}=await sb.from('student_attendance').select('status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to)
-  console.log('Home att:',{enrollment_id:ENR.enrollment_id,from,to,att,error:attE})
+  const{data:att}=await sb.from('student_attendance').select('status').eq('enrollment_id',ENR.enrollment_id)
   if(att?.length){
     const p=att.filter(a=>a.status==='P').length
     $('sAtt').textContent=Math.round(p/att.length*100)+'%'
@@ -583,19 +581,23 @@ async function loadAttendance(){
   const last=new Date(y,m+1,0)
   const to=y+'-'+String(m+1).padStart(2,'0')+'-'+String(last.getDate()).padStart(2,'0')
   const months=['January','February','March','April','May','June','July','August','September','October','November','December']
-  console.log('Attendance query:',{enrollment_id:ENR.enrollment_id,session_id:ENR.session_id,from,to})
-  const[{data:att,error:attErr},{data:hols,error:holErr}]=await Promise.all([
+  const[{data:att},{data:allAtt},{data:hols}]=await Promise.all([
     sb.from('student_attendance').select('date,status').eq('enrollment_id',ENR.enrollment_id).gte('date',from).lte('date',to).order('date'),
+    sb.from('student_attendance').select('date,status').eq('enrollment_id',ENR.enrollment_id),
     sb.from('holidays').select('date,label,class_ids').eq('session_id',ENR.session_id).gte('date',from).lte('date',to)
   ])
-  if(attErr)console.error('Attendance error:',attErr)
-  if(holErr)console.error('Holidays error:',holErr)
-  console.log('Attendance data:',att,'Holidays data:',hols)
   const map={};(att||[]).forEach(a=>map[a.date]=a)
   const holMap={};(hols||[]).forEach(h=>{
     const applies=!h.class_ids||!h.class_ids.length||h.class_ids.includes(ENR.class_id)
     if(applies) holMap[h.date]=h.label||'Holiday'
   })
+
+  // Overall session stats
+  let sP=0,sA=0,sHD=0,sT=(allAtt||[]).length
+  ;(allAtt||[]).forEach(a=>{if(a.status==='P')sP++;else if(a.status==='A')sA++;else if(a.status==='HD')sHD++})
+  const sPct=sT?Math.round(sP/sT*100):0
+
+  // Today banner
   const today=new Date().toISOString().slice(0,10)
   const rec=map[today]
   let h=''
@@ -611,14 +613,30 @@ async function loadAttendance(){
       h+='<div><strong>'+lab+'</strong></div></div></div>'
     }
   }
-  let pres=0,abs=0,hd=0,tot=(att||[]).length
-  ;(att||[]).forEach(a=>{if(a.status==='P'){pres++}else if(a.status==='A'){abs++}else if(a.status==='HD'){hd++}})
+
+  // Session overall
+  h+='<div class="att-sec-label">Session Overall</div>'
+  h+='<div class="att-row">'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--green)">'+sP+'</div><div class="ab-l">Present</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--red)">'+sA+'</div><div class="ab-l">Absent</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--amber)">'+sHD+'</div><div class="ab-l">Half Day</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--blue)">'+sT+'</div><div class="ab-l">Working</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--p1)">'+sPct+'%</div><div class="ab-l">Rate</div></div>'
+  h+='</div>'
+
+  // Month stats
+  let pres=0,abs=0,hd2=0,tot=(att||[]).length
+  ;(att||[]).forEach(a=>{if(a.status==='P'){pres++}else if(a.status==='A'){abs++}else if(a.status==='HD'){hd2++}})
+  h+='<div class="att-sec-label">'+months[m]+' '+y+'</div>'
   h+='<div class="att-row">'
   h+='<div class="att-box"><div class="ab-n" style="color:var(--green)">'+pres+'</div><div class="ab-l">Present</div></div>'
   h+='<div class="att-box"><div class="ab-n" style="color:var(--red)">'+abs+'</div><div class="ab-l">Absent</div></div>'
-  h+='<div class="att-box"><div class="ab-n" style="color:var(--amber)">'+hd+'</div><div class="ab-l">Half Day</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--amber)">'+hd2+'</div><div class="ab-l">Half Day</div></div>'
+  h+='<div class="att-box"><div class="ab-n" style="color:var(--blue)">'+tot+'</div><div class="ab-l">Working</div></div>'
   h+='<div class="att-box"><div class="ab-n" style="color:var(--p1)">'+(tot?Math.round(pres/tot*100):0)+'%</div><div class="ab-l">Rate</div></div>'
   h+='</div>'
+
+  // Calendar
   h+='<div class="dcard"><div class="mnav"><button onclick="attPrev()">&#9664; Prev</button><span>'+months[m]+' '+y+'</span><button onclick="attNext()">Next &#9654;</button></div>'
   h+='<div class="cal">'
   ;['S','M','T','W','T','F','S'].forEach(d=>h+='<div class="dw">'+d+'</div>')
