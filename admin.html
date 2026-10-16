@@ -4557,14 +4557,19 @@ async function bpiLoadStudents(){
   const classId=$('bpi_class')?.value
   $('bpi_table').innerHTML='';$('bpi_upload_btn').disabled=true;$('bpi_progress').textContent='';_bpiStudents=[]
   if(!classId||!SESS)return
-  const{data:enrolls}=await sb.from('student_enrollments').select('student_id,roll_no,students(student_id,full_name,photo_url)')
-    .eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false).order('roll_no')
-  _bpiStudents=(enrolls||[]).filter(e=>e.students).map(e=>({student_id:e.student_id,name:e.students.full_name,photo_url:e.students.photo_url,roll:e.roll_no}))
+  const{data:enrolls}=await sb.from('student_enrollments').select('student_id,roll_no,section_id,students(student_id,full_name,photo_url),class_sections(name)')
+    .eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false)
+  _bpiStudents=(enrolls||[]).filter(e=>e.students).map(e=>({student_id:e.student_id,name:e.students.full_name,photo_url:e.students.photo_url,roll:e.roll_no,section:e.class_sections?.name||'—'}))
+  _bpiStudents.sort((a,b)=>{const s=(a.section||'').localeCompare(b.section||'');return s!==0?s:(a.roll||0)-(b.roll||0)})
   if(!_bpiStudents.length){$('bpi_table').innerHTML='<p style="color:var(--ink-soft);font-size:13px">No students found in this class.</p>';return}
-  let h='<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="background:var(--lav-50);text-align:left"><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Roll</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Student ID</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Name</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Photo</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Image No.</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Match</th></tr></thead><tbody>'
+  const thS='padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)'
+  let h='<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="background:var(--lav-50);text-align:left"><th style="'+thS+'">Sec</th><th style="'+thS+'">Roll</th><th style="'+thS+'">Student ID</th><th style="'+thS+'">Name</th><th style="'+thS+'">Photo</th><th style="'+thS+'">Image No.</th><th style="'+thS+'">Match</th></tr></thead><tbody>'
+  let lastSec=null
   _bpiStudents.forEach((s,i)=>{
+    const secChanged=s.section!==lastSec;lastSec=s.section
+    if(secChanged&&i>0)h+='<tr><td colspan="7" style="padding:0;border-bottom:2px solid var(--lav-200)"></td></tr>'
     const thumb=s.photo_url?'<img src="'+R2.url(s.photo_url)+'" style="width:32px;height:32px;border-radius:6px;object-fit:cover">':'<span style="display:inline-block;width:32px;height:32px;border-radius:6px;background:var(--lav-100);text-align:center;line-height:32px;font-size:11px;color:var(--ink-faint)">—</span>'
-    h+='<tr style="border-bottom:1px solid var(--line)"><td style="padding:6px 8px">'+(s.roll||'—')+'</td><td style="padding:6px 8px;font-weight:600">'+esc(s.student_id)+'</td><td style="padding:6px 8px">'+esc(s.name)+'</td><td style="padding:6px 8px">'+thumb+'</td><td style="padding:6px 8px"><input type="text" id="bpi_num_'+i+'" placeholder="e.g. 0001" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px" oninput="bpiCheckMatch('+i+')"></td><td style="padding:6px 8px" id="bpi_match_'+i+'"><span style="color:var(--ink-faint);font-size:12px">—</span></td></tr>'
+    h+='<tr style="border-bottom:1px solid var(--line)"><td style="padding:6px 8px;font-weight:600">'+esc(s.section)+'</td><td style="padding:6px 8px">'+(s.roll||'—')+'</td><td style="padding:6px 8px;font-weight:600">'+esc(s.student_id)+'</td><td style="padding:6px 8px">'+esc(s.name)+'</td><td style="padding:6px 8px">'+thumb+'</td><td style="padding:6px 8px"><input type="text" id="bpi_num_'+i+'" placeholder="e.g. 0001" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px" oninput="bpiCheckMatch('+i+')"></td><td style="padding:6px 8px" id="bpi_match_'+i+'"><span style="color:var(--ink-faint);font-size:12px">—</span></td></tr>'
   })
   h+='</tbody></table>'
   $('bpi_table').innerHTML=h
