@@ -390,6 +390,7 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
       ENR=e
     }
     $('bootScreen').style.display='none'
+    try{if(sessionStorage.getItem('pin_ok_'+studentId)){startApp();return}}catch(_){}
     showPin()
   }catch(ex){showErr('Error loading student data.')}
 })()
@@ -425,6 +426,7 @@ function verifyPin(){
     return
   }
   $('pinWrap').style.display='none'
+  try{sessionStorage.setItem('pin_ok_'+studentId,'1')}catch(_){}
   startApp()
 }
 
@@ -555,8 +557,6 @@ function renderProfile(){
   const ids=[]
   if(STU.admission_number) ids.push({ic:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>',l:'Admission No',v:STU.admission_number,bg:var_bg('blue')})
   if(STU.aadhar_no) ids.push({ic:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',l:'Aadhar No',v:STU.aadhar_no,bg:var_bg('purple')})
-  if(STU.srn) ids.push({ic:'<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>',l:'SRN',v:STU.srn,bg:var_bg('green')})
-  if(STU.pen) ids.push({ic:'<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>',l:'PEN',v:STU.pen,bg:var_bg('cyan')})
   if(STU.apaar_id) ids.push({ic:'<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>',l:'APAAR ID',v:STU.apaar_id,bg:var_bg('amber')})
   if(ids.length){
     h+='<div class="prof-section">Identifiers</div>'
