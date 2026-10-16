@@ -2244,6 +2244,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="openEditDemoModal()">Edit Student</button>
       <button class="btn btn-ghost btn-sm" onclick="openUploadPhotoModal()">Change Photo</button>
+      <button class="btn btn-ghost btn-sm" id="pm_remove_photo_btn" style="display:none;border-color:var(--warn);color:var(--warn-dark)" onclick="removeStudentPhoto()">Remove Photo</button>
       <button class="btn btn-ghost btn-sm" onclick="openUploadDocModal()">Upload Document</button>
     </div>
   </div>
@@ -3914,6 +3915,7 @@ async function openProfile(enrollId){
   if(!e){$('pm_name').textContent='Not found';return}
   const s=e.students
   if(s?.photo_url){$('pm_av').innerHTML='<img src="'+R2.url(s.photo_url)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'}else{$('pm_av').textContent=ini(s?.full_name||'')}; $('pm_name').textContent=s?.full_name||'Unknown'
+  const rpb=$('pm_remove_photo_btn');if(rpb)rpb.style.display=s?.photo_url?'':'none'
   $('pm_class').textContent='Class '+(e.classes?.name||'?')+'-'+(e.class_sections?.name||'?')+(e.streams?.name?' · '+e.streams.name:'')+' · Roll '+(e.roll_no||'—')
   $('pm_tags').innerHTML='<span class="pill pill-neutral">'+esc(s?.student_id||'')+'</span><span class="pill pill-neutral">S.No '+esc(e.s_no||'—')+'</span><span class="pill '+(e.status==='active'?'pill-success':'pill-warn')+'">'+esc(e.status||'')+'</span>'
   // MIS / UDISE class mismatch highlight
@@ -4003,6 +4005,26 @@ async function uploadProfilePhoto(){
   if(dbErr){hideUploadOverlay();toast('Photo uploaded but DB update failed: '+dbErr.message,'error');return}
   _photoPicked=null
   hideUploadOverlay();toast('Photo updated','success');closeModal();openProfile(_profileEnrollId)
+}
+
+async function removeStudentPhoto(){
+  if(!_profileEnrollId)return
+  if(!confirm('Remove this student\'s profile photo? This cannot be undone.'))return
+  const{data:e}=await sb.from('student_enrollments').select('student_id,students(student_id,photo_url)').eq('enrollment_id',_profileEnrollId).maybeSingle()
+  const s=e?.students;if(!s)return
+  try{
+    const p=R2.extractPath(s.photo_url)
+    if(p)await R2.remove([p])
+    const{data:old}=await R2.list('student-photos',{search:s.student_id})
+    const del=(old||[]).filter(f=>f.name.startsWith(s.student_id+'.')).map(f=>f.key||('student-photos/'+f.name))
+    if(del.length)await R2.remove(del)
+    const{data:legacy}=await R2.list('students/'+s.student_id)
+    const ldel=(legacy||[]).map(f=>f.key||('students/'+s.student_id+'/'+f.name))
+    if(ldel.length)await R2.remove(ldel)
+  }catch(_){}
+  await sb.from('students').update({photo_url:null}).eq('student_id',s.student_id)
+  toast('Photo removed','success')
+  openProfile(_profileEnrollId)
 }
 
 // Edits the students row AND the student_enrollments row (class, section,

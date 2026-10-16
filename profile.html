@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="config.js"></script>
-<script src="r2-storage.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -526,7 +525,6 @@ function renderProfile(){
     photoHtml=esc((STU.full_name||'?').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase())
   }
   let h='<div class="prof-hdr"><div class="prof-bg"></div><div class="prof-av">'+photoHtml+'</div>'
-  if(STU.photo_url) h+='<button onclick="removeProfilePhoto()" style="margin-top:6px;background:none;border:1px solid var(--warn);color:var(--warn-dark);font-size:11px;padding:3px 12px;border-radius:20px;cursor:pointer">Remove Photo</button>'
   h+='<div class="prof-nm">'+esc(STU.full_name||'')+'</div>'
   h+='<div class="prof-cls">Class '+esc(cls)+'</div>'
   h+='<div class="prof-stats">'
@@ -578,25 +576,6 @@ function prRow(f,i,total){
   else if(i===total-1) r+='0 0 var(--r) var(--r)'
   else r+='0'
   return '<div class="pr" style="'+r+'"><div class="pr-ic" style="background:'+f.bg+'"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ink2)">'+f.ic+'</svg></div><div><div class="pr-l">'+esc(f.l)+'</div><div class="pr-v">'+esc(f.v)+'</div></div></div>'
-}
-
-async function removeProfilePhoto(){
-  if(!STU?.photo_url)return
-  if(!confirm('Remove your profile photo?'))return
-  try{
-    const path=R2.extractPath(STU.photo_url)
-    if(path)await R2.remove([path])
-    try{
-      const{data:old}=await R2.list('student-photos',{search:STU.student_id})
-      const del=(old||[]).filter(f=>f.name.startsWith(STU.student_id+'.')).map(f=>f.key||('student-photos/'+f.name))
-      if(del.length)await R2.remove(del)
-    }catch(_){}
-    await sb.from('students').update({photo_url:null}).eq('student_id',STU.student_id)
-    STU.photo_url=null
-    renderProfile()
-    const av=$('hAvatar')
-    av.innerHTML='';av.textContent=(STU.full_name||'?').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase()
-  }catch(e){alert('Failed to remove photo: '+(e.message||e))}
 }
 
 async function loadAttendance(){
