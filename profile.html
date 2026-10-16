@@ -706,12 +706,10 @@ async function loadMarks(){
   if(!sessId){$('marksBody').innerHTML='<div class="empty-s">No session found</div>';return}
   const{data:acRows,error:acErr}=await sb.from('assessment_classes').select('assessment_id,included_subjects').eq('class_id',classId)
   if(acErr)console.error('assessment_classes error:',acErr)
-  console.log('Marks debug:',{sessId,classId,acRows})
   if(!acRows?.length){$('marksBody').innerHTML='<div class="empty-s">No assessments yet</div>';return}
   const assessIds=[...new Set(acRows.map(r=>r.assessment_id))]
   const{data:assessments,error:asErr}=await sb.from('assessments').select('assessment_id,name,max_marks,pass_marks,commencement_date').eq('session_id',sessId).in('assessment_id',assessIds).order('commencement_date')
   if(asErr)console.error('assessments error:',asErr)
-  console.log('Assessments found:',assessments)
   const official=assessments||[]
   if(!official.length){$('marksBody').innerHTML='<div class="empty-s">No assessments yet</div>';return}
   const inclMap={};acRows.forEach(r=>{inclMap[r.assessment_id]=r.included_subjects})

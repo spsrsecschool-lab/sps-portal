@@ -1044,6 +1044,26 @@ tbody tr:hover td{background:var(--lav-50)}
         <div id="dp_progress" style="font-size:13px;color:var(--ink-soft);margin-top:4px"></div>
       </div>
 
+      <!-- BULK PHOTOS BY IMAGE NUMBER -->
+      <hr style="border:none;border-top:1px solid var(--lav-200);max-width:760px;margin-bottom:24px">
+      <div class="card" style="max-width:760px;margin-bottom:18px">
+        <h3>Bulk Photos by Image Number</h3>
+        <div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--ink-soft);line-height:1.6;margin-bottom:14px">
+          <b>How it works:</b> Select a class, upload all photos from your phone, then type the image number (e.g. <code>0001</code>) next to each student. The system matches <code>IMG_0001</code> (or <code>0001</code>) to the student and uploads.<br>
+          Supports file names like <code>IMG_0001.jpg</code>, <code>IMG_20261015_0001.jpg</code>, or just <code>0001.jpg</code>.
+        </div>
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="fg" style="max-width:200px"><label>Class *</label><select id="bpi_class" onchange="bpiLoadStudents()"><option value="">Select class</option></select></div>
+          <div class="fg"><label>Select Photos *</label><input type="file" id="bpi_files" multiple accept="image/*" onchange="bpiOnFilesChange()"></div>
+        </div>
+        <div id="bpi_file_count" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:12px"></div>
+        <div id="bpi_table" style="max-height:500px;overflow-y:auto"></div>
+        <div style="display:flex;gap:10px;margin-top:14px;align-items:center">
+          <button class="btn btn-dark" id="bpi_upload_btn" onclick="bpiUpload()" disabled>Upload Matched Photos</button>
+          <div id="bpi_progress" style="font-size:13px;color:var(--ink-soft)"></div>
+        </div>
+      </div>
+
       <hr style="border:none;border-top:1px solid var(--lav-200);max-width:760px;margin-bottom:24px">
 
       <!-- BULK DOCUMENTS -->
@@ -2912,6 +2932,7 @@ async function loadGlobals(){
   const coName=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+esc(c.name)+'">'+esc(c.name)+'</option>').join('')
   ;['adm_mis_class','adm_udise_class'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">— Same as class —</option>'+coName})
   const dpSel=$('dp_class');if(dpSel)dpSel.innerHTML='<option value="">Select class</option>'+co
+  const bpiSel=$('bpi_class');if(bpiSel)bpiSel.innerHTML='<option value="">Select class</option>'+co
   populateDocTypeDropdowns()
   checkUnread()
 }
@@ -4528,6 +4549,100 @@ async function runDeleteClassPhotos(){
   }
   prog.textContent='Done — '+ok+' deleted'+(fail?' · '+fail+' failed':'')
   toast(ok+' photos deleted for '+className+(fail?', '+fail+' failed':''),'success')
+}
+
+// ═══════════ BULK PHOTOS BY IMAGE NUMBER ═══════════
+let _bpiStudents=[],_bpiFileIndex={}
+async function bpiLoadStudents(){
+  const classId=$('bpi_class')?.value
+  $('bpi_table').innerHTML='';$('bpi_upload_btn').disabled=true;$('bpi_progress').textContent='';_bpiStudents=[]
+  if(!classId||!SESS)return
+  const{data:enrolls}=await sb.from('student_enrollments').select('student_id,roll_no,students(student_id,full_name,photo_url)')
+    .eq('session_id',SESS.session_id).eq('class_id',classId).eq('status','active').eq('relieved',false).order('roll_no')
+  _bpiStudents=(enrolls||[]).filter(e=>e.students).map(e=>({student_id:e.student_id,name:e.students.full_name,photo_url:e.students.photo_url,roll:e.roll_no}))
+  if(!_bpiStudents.length){$('bpi_table').innerHTML='<p style="color:var(--ink-soft);font-size:13px">No students found in this class.</p>';return}
+  let h='<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="background:var(--lav-50);text-align:left"><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Roll</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Student ID</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Name</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Photo</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Image No.</th><th style="padding:6px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft)">Match</th></tr></thead><tbody>'
+  _bpiStudents.forEach((s,i)=>{
+    const thumb=s.photo_url?'<img src="'+R2.url(s.photo_url)+'" style="width:32px;height:32px;border-radius:6px;object-fit:cover">':'<span style="display:inline-block;width:32px;height:32px;border-radius:6px;background:var(--lav-100);text-align:center;line-height:32px;font-size:11px;color:var(--ink-faint)">—</span>'
+    h+='<tr style="border-bottom:1px solid var(--line)"><td style="padding:6px 8px">'+(s.roll||'—')+'</td><td style="padding:6px 8px;font-weight:600">'+esc(s.student_id)+'</td><td style="padding:6px 8px">'+esc(s.name)+'</td><td style="padding:6px 8px">'+thumb+'</td><td style="padding:6px 8px"><input type="text" id="bpi_num_'+i+'" placeholder="e.g. 0001" style="width:90px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px" oninput="bpiCheckMatch('+i+')"></td><td style="padding:6px 8px" id="bpi_match_'+i+'"><span style="color:var(--ink-faint);font-size:12px">—</span></td></tr>'
+  })
+  h+='</tbody></table>'
+  $('bpi_table').innerHTML=h
+}
+function bpiOnFilesChange(){
+  const files=$('bpi_files')?.files;if(!files?.length){$('bpi_file_count').textContent='';_bpiFileIndex={};return}
+  _bpiFileIndex={}
+  for(const f of files){
+    const base=f.name.replace(/\.[^.]+$/,'')
+    const parts=base.split(/[_\-]/)
+    const lastNum=parts.filter(p=>/^\d{1,6}$/.test(p)).pop()
+    if(lastNum){const key=lastNum.replace(/^0+/,'')||'0';_bpiFileIndex[key]=f}
+    _bpiFileIndex[base]=f
+  }
+  $('bpi_file_count').textContent=files.length+' photo(s) selected'
+  _bpiStudents.forEach((_,i)=>bpiCheckMatch(i))
+}
+function bpiCheckMatch(idx){
+  const inp=$('bpi_num_'+idx),cell=$('bpi_match_'+idx)
+  if(!inp||!cell)return
+  const v=inp.value.trim()
+  if(!v){cell.innerHTML='<span style="color:var(--ink-faint);font-size:12px">—</span>';bpiUpdateBtn();return}
+  const key=v.replace(/^0+/,'')||'0'
+  const f=_bpiFileIndex[key]||_bpiFileIndex[v]||_bpiFileIndex['IMG_'+v]
+  if(f){cell.innerHTML='<span style="color:var(--grn);font-size:12px;font-weight:600">✓ '+esc(f.name)+'</span>'}
+  else{cell.innerHTML='<span style="color:var(--warn);font-size:12px">No match</span>'}
+  bpiUpdateBtn()
+}
+function bpiUpdateBtn(){
+  let count=0
+  _bpiStudents.forEach((_,i)=>{
+    const v=($('bpi_num_'+i)?.value||'').trim()
+    if(!v)return
+    const key=v.replace(/^0+/,'')||'0'
+    if(_bpiFileIndex[key]||_bpiFileIndex[v]||_bpiFileIndex['IMG_'+v])count++
+  })
+  $('bpi_upload_btn').disabled=!count
+  $('bpi_upload_btn').textContent='Upload Matched Photos'+(count?' ('+count+')':'')
+}
+async function bpiUpload(){
+  const pairs=[]
+  _bpiStudents.forEach((s,i)=>{
+    const v=($('bpi_num_'+i)?.value||'').trim()
+    if(!v)return
+    const key=v.replace(/^0+/,'')||'0'
+    const f=_bpiFileIndex[key]||_bpiFileIndex[v]||_bpiFileIndex['IMG_'+v]
+    if(f)pairs.push({student_id:s.student_id,file:f})
+  })
+  if(!pairs.length)return
+  const btn=$('bpi_upload_btn');btn.disabled=true;btn.textContent='Uploading…'
+  const prog=$('bpi_progress')
+  let ok=0,fail=0
+  for(let i=0;i<pairs.length;i++){
+    const{student_id,file}=pairs[i]
+    prog.textContent=(i+1)+' / '+pairs.length+' — '+student_id+'…'
+    try{
+      const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
+      try{
+        const{data:old}=await R2.list('student-photos',{search:student_id})
+        const del=(old||[]).filter(f=>f.name.startsWith(student_id+'.')).map(f=>f.key||('student-photos/'+f.name))
+        if(del.length)await R2.remove(del)
+        const{data:legacy}=await R2.list('students/'+student_id)
+        const ldel=(legacy||[]).map(f=>f.key||('students/'+student_id+'/'+f.name))
+        if(ldel.length)await R2.remove(ldel)
+      }catch(_){}
+      const path='student-photos/'+student_id+'.'+ext
+      const{error:upErr}=await R2.upload(path,file,{upsert:true})
+      if(upErr){fail++;continue}
+      const{data:{publicUrl}}=R2.getPublicUrl(path)
+      await sb.from('students').update({photo_url:publicUrl+'&t='+Date.now()}).eq('student_id',student_id)
+      ok++
+    }catch(e){fail++}
+  }
+  prog.textContent='Done — '+ok+' uploaded'+(fail?' · '+fail+' failed':'')
+  btn.textContent='Upload Matched Photos';btn.disabled=true
+  toast(ok+' photos uploaded'+(fail?', '+fail+' failed':''),'success')
+  $('bpi_files').value='';_bpiFileIndex={}
+  bpiLoadStudents()
 }
 
 // ═══════════ NEW ADMISSION ═══════════
