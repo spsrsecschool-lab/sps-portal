@@ -873,6 +873,11 @@ tbody tr:hover td{background:var(--lav-50)}
     <!-- STUDENTS -->
     <div class="page" id="page-students">
       <div class="page-head"><div><h2>Students</h2><p>All enrolled students — current session</p></div></div>
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="switchTab('stuTab','list',this)">All Students</button>
+        <button class="tab-btn" onclick="switchTab('stuTab','bifurcation',this);renderBifurcation()">Bifurcation</button>
+      </div>
+      <div id="stuTab-list">
       <div class="search-bar">
         <div class="fg" style="max-width:280px"><label>Search</label><input type="text" id="studentSearch" placeholder="Name, Father's Name, Student ID, S.No…" oninput="filterStudents()"></div>
         <div class="fg" style="max-width:160px"><label>Class</label><select id="studentClassFilter" onchange="filterStudents();loadStreamsFor(this.value,'studentStreamFilter');loadStudentSections(this.value)"><option value="">All Classes</option></select></div>
@@ -891,6 +896,10 @@ tbody tr:hover td{background:var(--lav-50)}
         <thead><tr><th class="sortable asc" onclick="sortStudentCol('student_id',this)">ID</th><th class="sortable" onclick="sortStudentCol('full_name',this)">Student Name</th><th class="sortable" onclick="sortStudentCol('father_name',this)">Father's Name</th><th class="sortable" onclick="sortStudentCol('class',this)">Class</th><th class="sortable" onclick="sortStudentCol('section',this)">Sec</th><th class="sortable" onclick="sortStudentCol('roll_no',this)">Roll</th><th class="sortable" onclick="sortStudentCol('s_no',this)">S.No</th><th class="sortable" onclick="sortStudentCol('family_code',this)">Family</th><th class="sortable" onclick="sortStudentCol('phone',this)">Phone</th><th>Profile</th><th></th></tr></thead>
         <tbody id="studentBody"><tr><td colspan="11"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table></div></div>
+      </div>
+      <div id="stuTab-bifurcation" style="display:none">
+        <div class="card" style="max-width:600px"><div id="bifurcationTable"><div class="loading-row"><div class="spinner"></div></div></div></div>
+      </div>
     </div>
 
     <!-- NEW ADMISSION -->
@@ -3912,6 +3921,30 @@ function filterStudents(){
       (s?.profile_updated_at?'<span class="pbadge-last">'+fmtDT(s.profile_updated_at)+'</span>':'')
     return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(s?.father_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td style="white-space:nowrap">'+badges+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
 }
+function renderBifurcation(){
+  const el=$('bifurcationTable');if(!el)return
+  const active=(_studentsRaw||[]).filter(e=>!e.relieved&&e.status==='active')
+  const classOrder=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order??999)-(b.sort_order??999))
+  const rows=classOrder.map(c=>{
+    const inClass=active.filter(e=>e.classes?.class_id===c.class_id)
+    const newC=inClass.filter(e=>e.is_new_admission).length
+    const oldC=inClass.length-newC
+    return{name:c.name,total:inClass.length,newC,oldC}
+  }).filter(r=>r.total>0)
+  const tTotal=rows.reduce((s,r)=>s+r.total,0)
+  const tNew=rows.reduce((s,r)=>s+r.newC,0)
+  const tOld=rows.reduce((s,r)=>s+r.oldC,0)
+  const th='padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);text-align:left'
+  const td='padding:8px 14px;font-size:13px;border-top:1px solid var(--line)'
+  let h='<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--lav-50)"><th style="'+th+'">Class</th><th style="'+th+';text-align:center">Total</th><th style="'+th+';text-align:center">New</th><th style="'+th+';text-align:center">Old</th></tr></thead><tbody>'
+  rows.forEach(r=>{
+    h+='<tr><td style="'+td+';font-weight:600">'+esc(r.name)+'</td><td style="'+td+';text-align:center;font-weight:600">'+r.total+'</td><td style="'+td+';text-align:center;color:var(--grn-dark)">'+r.newC+'</td><td style="'+td+';text-align:center">'+r.oldC+'</td></tr>'
+  })
+  h+='<tr style="background:var(--lav-50);font-weight:700"><td style="'+td+';font-weight:700">Total</td><td style="'+td+';text-align:center;font-weight:700">'+tTotal+'</td><td style="'+td+';text-align:center;font-weight:700;color:var(--grn-dark)">'+tNew+'</td><td style="'+td+';text-align:center;font-weight:700">'+tOld+'</td></tr>'
+  h+='</tbody></table>'
+  el.innerHTML=h
+}
+
 async function openProfile(enrollId){
   _profileEnrollId=enrollId; $('profileModal').classList.add('show')
   $('pm_name').textContent='Loading…'; $('pm_fields').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'; $('pm_tags').innerHTML=''; $('pm_docs').innerHTML=''
