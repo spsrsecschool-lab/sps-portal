@@ -884,6 +884,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="fg" style="max-width:150px"><label>PEN</label><select id="studentPenFilter" onchange="filterStudents()"><option value="">All</option><option value="has">Has PEN</option><option value="no">No PEN</option></select></div>
         <div class="fg" style="max-width:150px"><label>APAAR ID</label><select id="studentApaarFilter" onchange="filterStudents()"><option value="">All</option><option value="has">Has APAAR</option><option value="no">No APAAR</option></select></div>
         <div class="fg" style="max-width:140px"><label>Gender</label><select id="studentGenderFilter" onchange="filterStudents()"><option value="">All</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+        <div class="fg" style="max-width:160px"><label>Admission</label><select id="studentNewFilter" onchange="filterStudents()"><option value="">All</option><option value="new">New Admissions</option><option value="old">Not New</option></select></div>
       </div>
       <div id="studentCount" style="font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:10px"></div>
       <div class="card"><div class="table-wrap"><table>
@@ -3846,6 +3847,7 @@ function filterStudents(){
   const penF=$('studentPenFilter')?.value||''
   const apaarF=$('studentApaarFilter')?.value||''
   const genderF=$('studentGenderFilter')?.value||''
+  const newF=$('studentNewFilter')?.value||''
   const hasSno=e=>e.s_no!=null&&String(e.s_no).trim()!==''
   const hasSrn=e=>e.students?.srn!=null&&String(e.students.srn).trim()!==''
   const hasPen=e=>e.students?.pen!=null&&String(e.students.pen).trim()!==''
@@ -3865,6 +3867,8 @@ function filterStudents(){
     if(apaarF==='has'&&!hasApaar(e))return false
     if(apaarF==='no'&&hasApaar(e))return false
     if(genderF&&e.students?.gender!==genderF)return false
+    if(newF==='new'&&!e.is_new_admission)return false
+    if(newF==='old'&&e.is_new_admission)return false
     const matchStat = stat==='left' ? true : (!stat || e.status===stat)
     return (!s||st?.full_name?.toLowerCase().includes(s)||st?.father_name?.toLowerCase().includes(s)||st?.student_id?.toLowerCase().includes(s)||e.s_no?.toLowerCase().includes(s))
       &&(!cls||e.classes?.class_id===cls)&&matchStat&&(!streamF||e.stream_id===streamF)&&(!secF||e.section_id===secF)
@@ -3872,7 +3876,7 @@ function filterStudents(){
   // Count line: shows filtered total, and the overall total when a filter is on.
   const cnt=$('studentCount')
   if(cnt){
-    const anyFilter=!!(s||cls||stat||streamF||secF||snoF||srnF||penF||apaarF||genderF)
+    const anyFilter=!!(s||cls||stat||streamF||secF||snoF||srnF||penF||apaarF||genderF||newF)
     // Overall active roster (relieved hidden) for context.
     const grandTotal=(_studentsRaw||[]).filter(e=>!e.relieved).length
     cnt.textContent=anyFilter
