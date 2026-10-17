@@ -981,8 +981,19 @@ function confirmSell(){
   body+='<div style="margin-bottom:8px;font-size:12px">Payment: <b>'+esc(mode==='cash'?'Cash':'Online')+'</b></div>'
   body+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--lav-100)"><th style="padding:6px 8px;text-align:left">#</th><th style="padding:6px 8px;text-align:left">Article</th><th style="padding:6px 8px;text-align:left">Size</th><th style="padding:6px 8px;text-align:right">Price</th></tr></thead><tbody>'+rows+'</tbody></table>'
   body+='<div style="text-align:right;font-weight:700;font-size:15px;padding:10px 8px 0;border-top:2px solid var(--ink)">Total: '+fmtINR(total)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')</div>'
-  const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="closeModal()" style="padding:12px 20px">Back to Scanning</button>'
+  const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="resumeSellScan()" style="padding:12px 20px">Back to Scanning</button>'
   openModal('Sale Bill',body,foot)
+}
+
+function resumeSellScan(){
+  closeModal()
+  $('sellCamWrap').style.display='block'
+  const readerId='sellCamReader'
+  _camMode='sell'
+  _camScanner=new Html5Qrcode(readerId)
+  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:280,height:280}},onSellQrScanned,()=>{}).then(()=>{
+    setTimeout(()=>{$('sellCamWrap').scrollIntoView({behavior:'smooth',block:'center'})},300)
+  }).catch(()=>{})
 }
 
 async function processSell(){
