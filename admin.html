@@ -3795,7 +3795,7 @@ async function toggleTeacher(id,active){
 // ═══════════ STUDENTS ═══════════
 async function loadStudents(){
   if(!SESS)return; ldg($('studentBody'))
-  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,stream_id,section_id,students(student_id,full_name,father_name,mother_name,phone,address,dob,family_code,srn,pen,apaar_id,aadhar_no,gender,blood_group,admission_number,profile_updated_at,profile_updated_by),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(2000)
+  const{data,error}=await sb.from('student_enrollments').select('enrollment_id,roll_no,s_no,status,relieved,stream_id,section_id,is_new_admission,students(student_id,full_name,father_name,mother_name,phone,address,dob,family_code,srn,pen,apaar_id,aadhar_no,gender,blood_group,admission_number,profile_updated_at,profile_updated_by),classes(name,class_id),class_sections(name)').eq('session_id',SESS.session_id).limit(2000)
   if(error){toast('Failed to load students','error');console.error('[loadStudents] error:',error);return}
   _studentsRaw=(data||[]).sort((a,b)=>{
     const x=a.students?.student_id||'', y=b.students?.student_id||''
