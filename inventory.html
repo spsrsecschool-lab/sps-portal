@@ -396,8 +396,8 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Article</th><th>Size</th><th>QR Code</th><th>Payment</th><th>Amount</th></tr></thead>
-        <tbody id="historyBody"><tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+        <thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Article</th><th>Size</th><th>QR Code</th><th>Payment</th><th>Amount</th><th>Actions</th></tr></thead>
+        <tbody id="historyBody"><tr><td colspan="9"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -843,7 +843,7 @@ async function markRelabeled(){
 }
 
 // ═══════════ SELL / DISTRIBUTE ═══════════
-let _sellItems=[], _sellScannedCodes=new Set(), _beepCtx=null
+let _sellItems=[], _sellScannedCodes=new Set(), _beepCtx=null, _sellStudentInfo=null
 function _beep(){
   try{
     if(!_beepCtx)_beepCtx=new(window.AudioContext||window.webkitAudioContext)()
@@ -892,6 +892,7 @@ function searchStudentsSell(){
 
 function selectSellStudent(eid,name,cls,sec,father){
   _sellEid=eid
+  _sellStudentInfo={name,cls,sec,father}
   $('sellSelectedStudent').style.display='block'
   $('sellSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+'-'+esc(sec)+' (s/o '+esc(father)+')</div>'
   $('sellStudentResults').style.display='none'
@@ -961,9 +962,26 @@ function renderSellScannedItems(){
   $('sellTotal').textContent='Total: '+fmtINR(total)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')'
 }
 
-async function confirmSell(){
+function confirmSell(){
   if(!_sellEid||!_sellItems.length){toast('No items scanned','error');return}
   stopCamScanner('sell')
+  const s=_sellStudentInfo||{}
+  const mode=$('sellPayMode').value
+  let total=0
+  let rows=_sellItems.map((item,i)=>{
+    const price=getItemPrice(item)
+    total+=price
+    return '<tr><td style="padding:6px 8px">'+(i+1)+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono">'+fmtINR(price)+'</td></tr>'
+  }).join('')
+  let body='<div style="margin-bottom:12px;font-size:13px"><b>'+esc(s.name||'—')+'</b> — '+esc(s.cls||'')+'-'+esc(s.sec||'')+' (s/o '+esc(s.father||'—')+')</div>'
+  body+='<div style="margin-bottom:8px;font-size:12px">Payment: <b>'+esc(mode==='cash'?'Cash':'Online')+'</b></div>'
+  body+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--lav-100)"><th style="padding:6px 8px;text-align:left">#</th><th style="padding:6px 8px;text-align:left">Article</th><th style="padding:6px 8px;text-align:left">Size</th><th style="padding:6px 8px;text-align:right">Price</th></tr></thead><tbody>'+rows+'</tbody></table>'
+  body+='<div style="text-align:right;font-weight:700;font-size:15px;padding:10px 8px 0;border-top:2px solid var(--ink)">Total: '+fmtINR(total)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')</div>'
+  const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="closeModal()" style="padding:12px 20px">Back to Scanning</button>'
+  openModal('Sale Bill',body,foot)
+}
+
+async function processSell(){
   const mode=$('sellPayMode').value
   const now=new Date().toISOString()
   const by=SPS.admin?.admin_id||'admin'
@@ -972,6 +990,7 @@ async function confirmSell(){
     const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:now,sold_by:by,payment_mode:mode}).eq('id',item.id)
     if(error)failed++
   }
+  closeModal()
   if(failed)toast(failed+' item(s) failed to save','error')
   else toast(_sellItems.length+' item(s) sold successfully','success')
   _resetSellUI()
@@ -984,7 +1003,7 @@ function cancelSell(){
 }
 
 function _resetSellUI(){
-  _sellItems=[];_sellEid=null;_sellScannedCodes.clear()
+  _sellItems=[];_sellEid=null;_sellStudentInfo=null;_sellScannedCodes.clear()
   $('sellScannedList').style.display='none'
   $('sellScannedItems').innerHTML=''
   $('sellSelectedStudent').style.display='none'
@@ -1175,7 +1194,7 @@ function loadHistory(){
 }
 async function _loadHistory(){
   const body=$('historyBody')
-  body.innerHTML='<tr><td colspan="8"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
+  body.innerHTML='<tr><td colspan="9"><div class="loading-row"><div class="spinner"></div></div></td></tr>'
 
   let q=sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices)').in('status',['sold','exchanged_out']).order('sold_at',{ascending:false}).limit(200)
   const artFilter=$('histArticle').value
@@ -1186,8 +1205,8 @@ async function _loadHistory(){
   if(to)q=q.lte('sold_at',to+'T23:59:59')
 
   const{data,error}=await q
-  if(error){body.innerHTML='<tr><td colspan="8" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
-  if(!data?.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No records found.</td></tr>';return}
+  if(error){body.innerHTML='<tr><td colspan="9" style="color:var(--danger)">'+esc(error.message)+'</td></tr>';return}
+  if(!data?.length){body.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--ink-faint)">No records found.</td></tr>';return}
 
   const eids=[...new Set(data.map(r=>r.sold_to_enrollment_id).filter(Boolean))]
   const stuMap={}
@@ -1200,7 +1219,7 @@ async function _loadHistory(){
   let filtered=data
   if(search)filtered=filtered.filter(r=>{const e=stuMap[r.sold_to_enrollment_id];return e?.students?.full_name?.toLowerCase().includes(search)})
 
-  if(!filtered.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--ink-faint)">No records found.</td></tr>';return}
+  if(!filtered.length){body.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--ink-faint)">No records found.</td></tr>';return}
 
   body.innerHTML=filtered.map(r=>{
     const enr=stuMap[r.sold_to_enrollment_id]
@@ -1213,8 +1232,18 @@ async function _loadHistory(){
       +'<td class="mono" style="font-size:11px">'+esc(r.qr_code)+'</td>'
       +'<td><span class="pill pill-'+(r.payment_mode==='cash'?'success':r.payment_mode==='online'?'pur':'neutral')+'">'+esc(r.payment_mode||'—')+'</span></td>'
       +'<td class="mono">'+fmtINR(getItemPrice(r))+'</td>'
+      +'<td><button class="btn btn-danger btn-xs" onclick="deleteTransaction(\''+r.id+'\')">Delete</button></td>'
     +'</tr>'
   }).join('')
+}
+
+async function deleteTransaction(itemId){
+  if(!confirm('Delete this transaction? The item will be returned to stock.'))return
+  const{error}=await sb.from('inv_items').update({status:'in_stock',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null}).eq('id',itemId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Transaction deleted, item returned to stock','success')
+  _tabLoaded.delete('history')
+  _loadHistory()
 }
 
 // ═══════════ CAMERA QR SCANNER ═══════════
