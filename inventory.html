@@ -336,7 +336,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="form-row">
         <div class="fg" style="max-width:180px"><label>Payment Mode</label><select id="sellPayMode"><option value="cash">Cash</option><option value="online">Online</option></select></div>
       </div>
-      <div id="sellCamWrap" style="display:none;margin:14px 0"><div id="sellCamReader" style="width:100%;max-width:350px"></div></div>
+      <div id="sellCamWrap" style="display:none;margin:14px -20px 14px -20px"><div id="sellCamReader" style="width:100%"></div></div>
       <div id="sellScannedList" style="display:none;margin:14px 0">
         <div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">SCANNED ITEMS</div>
         <div id="sellScannedItems"></div>
@@ -912,10 +912,11 @@ function startSellScan(){
   $('sellBottomBar').style.display='block'
   $('sellBtn').disabled=false
   $('sellCamWrap').style.display='block'
+  setTimeout(()=>{$('sellCamWrap').scrollIntoView({behavior:'smooth',block:'start'})},100)
   const readerId='sellCamReader'
   _camMode='sell'
   _camScanner=new Html5Qrcode(readerId)
-  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},onSellQrScanned,()=>{}).catch(err=>{
+  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:280,height:280}},onSellQrScanned,()=>{}).catch(err=>{
     toast('Camera error: '+err,'error')
     $('sellCamWrap').style.display='none'
     $('sellScanBtn').style.display='block'
@@ -934,7 +935,7 @@ async function onSellQrScanned(code){
   const isFirst=_sellItems.length===0
   _sellItems.push(data)
   renderSellScannedItems()
-  if(isFirst){const el=$('sellPayMode');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
+  if(isFirst){const el=$('sellCamWrap');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
 }
 
 function removeSellItem(idx){
