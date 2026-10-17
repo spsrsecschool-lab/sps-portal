@@ -687,7 +687,7 @@ async function loadBatches(){
     +'<td><span class="pill pill-success">'+b.inStock+'</span></td>'
     +'<td><span class="pill pill-neutral">'+b.soldCount+'</span></td>'
     +'<td style="font-size:11px;color:var(--ink-faint)">'+esc(b.notes||'')+'</td>'
-    +'<td><button class="btn btn-soft btn-xs" onclick="openEditBatchModal(\''+b.id+'\')">Edit</button></td>'
+    +'<td><button class="btn btn-danger btn-xs" onclick="deleteBatch(\''+b.id+'\','+b.qty+')">Delete</button></td>'
   +'</tr>').join('')
 }
 
@@ -759,28 +759,13 @@ async function saveBatch(){
   loadBatches()
 }
 
-async function openEditBatchModal(batchId){
-  const{data:b}=await sb.from('inv_batches').select('*,inv_articles(name,has_sizes,sizes,category,image_url)').eq('id',batchId).maybeSingle()
-  if(!b){toast('Batch not found','error');return}
-  const art=b.inv_articles
-  const artLabel=art?(art.image_url?'<img src="'+esc(R2.url(art.image_url))+'" style="width:36px;height:36px;object-fit:cover;border-radius:6px;vertical-align:middle"> ':'')+'<b>'+esc(art.name)+'</b>':'—'
-  let body='<div style="margin-bottom:14px;font-size:14px">'+artLabel+(b.size?' · Size: <b>'+esc(b.size)+'</b>':'')+'</div>'
-  body+='<div class="form-row"><div class="fg" style="max-width:160px"><label>Date</label><input type="date" id="ebDate" value="'+esc(b.batch_date||'')+'"></div>'
-  body+='<div class="fg" style="max-width:120px"><label>Qty</label><input type="number" id="ebQty" value="'+b.qty+'" min="0"></div></div>'
-  body+='<div class="form-row"><div class="fg"><label>Notes</label><input id="ebNotes" value="'+esc(b.notes||'')+'"></div></div>'
-  body+='<div style="background:var(--lav-100);border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;color:var(--ink-soft);line-height:1.5;margin-top:8px"><b>Note:</b> Changing the quantity here updates only the batch record. It does not add or remove QR-coded items — use "Add Batch" for new stock.</div>'
-  const foot='<button class="btn btn-primary" onclick="updateBatch(\''+batchId+'\')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
-  openModal('Edit Batch',body,foot)
-}
-async function updateBatch(batchId){
-  const batchDate=$('ebDate').value
-  const qty=parseInt($('ebQty').value)||0
-  const notes=$('ebNotes').value.trim()
-  if(!batchDate){toast('Date is required','error');return}
-  const{error}=await sb.from('inv_batches').update({batch_date:batchDate,qty,notes:notes||null}).eq('id',batchId)
-  if(error){toast(error.message,'error');return}
-  toast('Batch updated','success')
-  closeModal()
+async function deleteBatch(batchId,qty){
+  if(!confirm('Delete this batch of '+qty+' items? This will also delete all QR-coded items in this batch.'))return
+  const{error:itemErr}=await sb.from('inv_items').delete().eq('batch_id',batchId)
+  if(itemErr){toast('Failed to delete items: '+itemErr.message,'error');return}
+  const{error}=await sb.from('inv_batches').delete().eq('id',batchId)
+  if(error){toast('Failed to delete batch: '+error.message,'error');return}
+  toast('Batch and '+qty+' items deleted','success')
   loadBatches()
 }
 
