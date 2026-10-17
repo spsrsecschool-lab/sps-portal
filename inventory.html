@@ -933,7 +933,7 @@ async function onSellQrScanned(code){
   const isFirst=_sellItems.length===0
   _sellItems.push(data)
   renderSellScannedItems()
-  if(isFirst){const cam=$('sellCamWrap');if(cam)cam.scrollIntoView({behavior:'smooth',block:'start'})}
+  if(isFirst){const el=$('sellPayMode');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
 }
 
 function removeSellItem(idx){
