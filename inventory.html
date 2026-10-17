@@ -340,12 +340,14 @@ tbody tr:hover td{background:var(--lav-50)}
       <div id="sellScannedList" style="display:none;margin:14px 0">
         <div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">SCANNED ITEMS</div>
         <div id="sellScannedItems"></div>
-        <div id="sellTotal" style="font-weight:700;text-align:right;padding:8px 0;font-size:14px"></div>
       </div>
       <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
         <button class="btn btn-primary" onclick="startSellScan()" id="sellScanBtn" disabled style="width:100%;padding:14px;font-size:15px">📷 Start Scanning</button>
-        <button class="btn btn-success" onclick="confirmSell()" id="sellBtn" disabled style="display:none;width:100%;padding:14px;font-size:15px">Confirm Sale</button>
-        <button class="btn btn-danger" onclick="cancelSell()" id="sellCancelBtn" style="display:none;width:100%;padding:12px;font-size:14px">Cancel</button>
+      </div>
+      <div id="sellBottomBar" style="display:none;position:sticky;bottom:0;background:var(--white);padding:12px 0 4px;border-top:1px solid var(--line);margin-top:12px;z-index:10">
+        <div id="sellTotal" style="font-weight:700;text-align:right;padding:4px 0 10px;font-size:14px"></div>
+        <button class="btn btn-success" onclick="confirmSell()" id="sellBtn" disabled style="width:100%;padding:14px;font-size:15px">Confirm Sale</button>
+        <button class="btn btn-danger" onclick="cancelSell()" id="sellCancelBtn" style="width:100%;padding:12px;font-size:14px;margin-top:8px">Cancel</button>
       </div>
     </div>
   </div>
@@ -906,9 +908,8 @@ function startSellScan(){
   _sellItems=[];_sellScannedCodes.clear()
   renderSellScannedItems()
   $('sellScanBtn').style.display='none'
-  $('sellBtn').style.display='block'
+  $('sellBottomBar').style.display='block'
   $('sellBtn').disabled=false
-  $('sellCancelBtn').style.display='block'
   $('sellCamWrap').style.display='block'
   const readerId='sellCamReader'
   _camMode='sell'
@@ -917,8 +918,7 @@ function startSellScan(){
     toast('Camera error: '+err,'error')
     $('sellCamWrap').style.display='none'
     $('sellScanBtn').style.display='block'
-    $('sellBtn').style.display='none'
-    $('sellCancelBtn').style.display='none'
+    $('sellBottomBar').style.display='none'
     _camScanner=null;_camMode=null
   })
 }
@@ -930,8 +930,10 @@ async function onSellQrScanned(code){
   if(error||!data){toast('Item not found: '+code,'error');return}
   if(data.status!=='in_stock'){toast(code+' not in stock ('+data.status+')','error');return}
   _beep()
+  const isFirst=_sellItems.length===0
   _sellItems.push(data)
   renderSellScannedItems()
+  if(isFirst){const cam=$('sellCamWrap');if(cam)cam.scrollIntoView({behavior:'smooth',block:'start'})}
 }
 
 function removeSellItem(idx){
@@ -988,8 +990,7 @@ function _resetSellUI(){
   $('sellSelectedStudent').style.display='none'
   $('sellScanBtn').style.display='block'
   $('sellScanBtn').disabled=true
-  $('sellBtn').style.display='none'
-  $('sellCancelBtn').style.display='none'
+  $('sellBottomBar').style.display='none'
   $('sellClass').value=''
   _sellStudentsCache=[]
 }
