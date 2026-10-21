@@ -3169,7 +3169,7 @@ async function buildLiveClassSnapshot(iso,off){
   const[{data:slots},{data:entries},{data:adjs},{data:subs},{data:tScheds},{data:mtRows}]=await Promise.all([
     sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order'),
     sb.from('timetable_entries').select('entry_id,slot_id,teacher_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name),teachers(full_name)').eq('roster_id',roster.roster_id),
-    sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name)').then(r=>r,()=>({data:[]})),
+    sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name),classes(name),class_sections(name)').then(r=>r,()=>({data:[]})),
     sb.from('substitutions').select('entry_id,substitute_teacher_id,absent_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]})),
     sb.from('teacher_schedules').select('teacher_id,shift_start,shift_end').then(r=>r,()=>({data:[]})),
     sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
@@ -3348,6 +3348,16 @@ function renderSlotView(idx,dir){
       +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc((e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'))+badge+'</div>'
       +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(teacherName)+'</div>'
       +'<div style="font-size:10px;color:var(--ink-faint);margin-top:1px">'+esc(e.subjects?.name||'')+'</div>'
+      +'</div>'
+  })
+  const entryKeys=new Set(dayEntries.map(e=>e.class_id+'_'+e.section_id))
+  ;(d.adjs||[]).filter(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id&&!entryKeys.has(a.class_id+'_'+a.section_id)).sort((a,b)=>{
+    const an=a.classes?.name||'',bn=b.classes?.name||''
+    return an.localeCompare(bn,undefined,{numeric:true})||(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'')
+  }).forEach(a=>{
+    h+='<div style="border:1px solid var(--indigo-100,#6366F140);background:#6366F108;border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc((a.classes?.name||'?')+'-'+(a.class_sections?.name||'?'))+'<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span></div>'
+      +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(a.teachers?.full_name||'—')+'</div>'
       +'</div>'
   })
   h+='</div>'
