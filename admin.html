@@ -3166,13 +3166,14 @@ async function buildLiveClassSnapshot(iso,off){
   if(dow==='Sun')return ''
   const roster=await getActiveRoster()
   if(!roster)return ''
-  const[{data:slots},{data:entries},{data:adjs},{data:subs},{data:tScheds},{data:mtRows}]=await Promise.all([
+  const[{data:slots},{data:entries},{data:adjs},{data:subs},{data:tScheds},{data:mtRows},{data:allSecs}]=await Promise.all([
     sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order'),
     sb.from('timetable_entries').select('entry_id,slot_id,teacher_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name),teachers(full_name)').eq('roster_id',roster.roster_id),
-    sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name),classes(name),class_sections(name)').then(r=>r,()=>({data:[]})),
+    sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name)').then(r=>r,()=>({data:[]})),
     sb.from('substitutions').select('entry_id,substitute_teacher_id,absent_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]})),
     sb.from('teacher_schedules').select('teacher_id,shift_start,shift_end').then(r=>r,()=>({data:[]})),
-    sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
+    sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]})),
+    sb.from('class_sections').select('section_id,name').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
   ])
   const motherIds=new Set((mtRows||[]).map(r=>r.teacher_id))
   ALL_TEACHERS.forEach(t=>{if(/mother/i.test(t.designation||''))motherIds.add(t.teacher_id)})
@@ -3198,7 +3199,10 @@ async function buildLiveClassSnapshot(iso,off){
   })
   const defaultIdx=curIdx>=0?curIdx:(nextIdx>=0?nextIdx:todaySlots.length-1)
 
-  _liveSnap={slots:todaySlots,entries,adjs,subs,subMap,absentIds,schedMap,defShift,defShiftEnd,motherIds,dow,curIdx,defaultIdx}
+  const rosterSlotIds=new Set((slots||[]).map(s=>s.slot_id))
+  const filteredAdjs=(adjs||[]).filter(a=>rosterSlotIds.has(a.slot_id))
+  const secNameMap={};(allSecs||[]).forEach(s=>{secNameMap[s.section_id]=s.name})
+  _liveSnap={slots:todaySlots,entries,adjs:filteredAdjs,subs,subMap,absentIds,schedMap,defShift,defShiftEnd,motherIds,dow,curIdx,defaultIdx,secNameMap}
 
   let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px;overflow:hidden">'
     +'<div id="liveSnapInner" style="transition:opacity .25s ease,transform .25s ease"></div></div>'
@@ -3352,11 +3356,14 @@ function renderSlotView(idx,dir){
   })
   const entryKeys=new Set(dayEntries.map(e=>e.class_id+'_'+e.section_id))
   ;(d.adjs||[]).filter(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id&&!entryKeys.has(a.class_id+'_'+a.section_id)).sort((a,b)=>{
-    const an=a.classes?.name||'',bn=b.classes?.name||''
-    return an.localeCompare(bn,undefined,{numeric:true})||(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'')
+    const an=(ALL_CLASSES.find(c=>c.class_id===a.class_id)||{}).name||''
+    const bn=(ALL_CLASSES.find(c=>c.class_id===b.class_id)||{}).name||''
+    return an.localeCompare(bn,undefined,{numeric:true})||((d.secNameMap||{})[a.section_id]||'').localeCompare((d.secNameMap||{})[b.section_id]||'')
   }).forEach(a=>{
+    const cn=(ALL_CLASSES.find(c=>c.class_id===a.class_id)||{}).name||'?'
+    const sn=(d.secNameMap||{})[a.section_id]||'?'
     h+='<div style="border:1px solid var(--indigo-100,#6366F140);background:#6366F108;border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto">'
-      +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc((a.classes?.name||'?')+'-'+(a.class_sections?.name||'?'))+'<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span></div>'
+      +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc(cn+'-'+sn)+'<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span></div>'
       +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(a.teachers?.full_name||'—')+'</div>'
       +'</div>'
   })
