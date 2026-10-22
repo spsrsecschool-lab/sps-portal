@@ -4170,22 +4170,25 @@ async function tSylLoadRecheck(){
   _tSylRecheckLoaded=true
   if(!SESS){$('tSylRecheckTab').innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No active session.</div>';return}
   $('tSylRecheckTab').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const{data:assignments,error:rcErr}=await sb.from('rechecking_assignments').select('*,classes(name),subjects(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS.session_id)
-  if(rcErr)console.error('[RECHECK] query error:',rcErr)
-  console.log('[RECHECK] teacher_id=',TEACHER.teacher_id,'session_id=',SESS.session_id,'results=',assignments?.length,assignments)
-  _rcAssignments=assignments||[]
-  if(!_rcAssignments.length){
-    const{data:allAssign}=await sb.from('rechecking_assignments').select('id,teacher_id,session_id').eq('teacher_id',TEACHER.teacher_id)
-    console.log('[RECHECK] all assignments for this teacher (any session):',allAssign)
-    if(allAssign?.length){
-      const matchSess=allAssign.find(a=>a.session_id===SESS.session_id)
-      if(!matchSess){
-        const{data:retryAssign}=await sb.from('rechecking_assignments').select('*,classes(name),subjects(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id)
-        _rcAssignments=retryAssign||[]
-        console.log('[RECHECK] retried without session filter, got:',_rcAssignments.length)
-      }
-    }
-  }
+  // Fetch without joins to avoid PostgREST FK embedding errors
+  const{data:raw,error:rcErr}=await sb.from('rechecking_assignments').select('*').eq('teacher_id',TEACHER.teacher_id)
+  if(rcErr)console.error('[RECHECK] error:',rcErr)
+  console.log('[RECHECK] teacher_id=',TEACHER.teacher_id,'session_id=',SESS.session_id,'raw=',raw)
+  const filtered=(raw||[]).filter(a=>a.session_id===SESS.session_id)
+  // Look up class/subject/section names separately
+  const classIds=[...new Set(filtered.map(a=>a.class_id))].filter(Boolean)
+  const subjectIds=[...new Set(filtered.map(a=>a.subject_id))].filter(Boolean)
+  const sectionIds=[...new Set(filtered.map(a=>a.section_id))].filter(Boolean)
+  const[{data:classes},{data:subjects},{data:sections}]=await Promise.all([
+    classIds.length?sb.from('classes').select('class_id,name').in('class_id',classIds):{data:[]},
+    subjectIds.length?sb.from('subjects').select('subject_id,name').in('subject_id',subjectIds):{data:[]},
+    sectionIds.length?sb.from('class_sections').select('section_id,name').in('section_id',sectionIds):{data:[]}
+  ])
+  const classMap=Object.fromEntries((classes||[]).map(c=>[c.class_id,c.name]))
+  const subjectMap=Object.fromEntries((subjects||[]).map(s=>[s.subject_id,s.name]))
+  const sectionMap=Object.fromEntries((sections||[]).map(s=>[s.section_id,s.name]))
+  _rcAssignments=filtered.map(a=>({...a,_className:classMap[a.class_id]||'?',_subjectName:subjectMap[a.subject_id]||'?',_sectionName:sectionMap[a.section_id]||'?'}))
+  console.log('[RECHECK] final assignments:',_rcAssignments.length)
   rcRenderMain()
 }
 
@@ -4197,9 +4200,9 @@ function rcRenderMain(){
   let h='<div style="font-size:13px;color:var(--ink-soft);margin-bottom:12px">Select an assignment to start rechecking:</div>'
   _rcAssignments.forEach((a,i)=>{
     h+='<div onclick="rcSelectAssignment('+i+')" style="background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,box-shadow .15s" onmouseover="this.style.borderColor=\'var(--indigo)\';this.style.boxShadow=\'0 2px 8px rgba(53,92,125,.1)\'" onmouseout="this.style.borderColor=\'var(--line)\';this.style.boxShadow=\'none\'">'
-    h+='<div style="font-size:14px;font-weight:700;margin-bottom:3px">'+esc((a.classes?.name||'?')+' – '+(a.class_sections?.name||'?'))+'</div>'
+    h+='<div style="font-size:14px;font-weight:700;margin-bottom:3px">'+esc(a._className+' – '+a._sectionName)+'</div>'
     h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-    h+='<span style="font-size:12px;color:var(--indigo-dark);font-weight:600">'+esc(a.subjects?.name||'?')+'</span>'
+    h+='<span style="font-size:12px;color:var(--indigo-dark);font-weight:600">'+esc(a._subjectName)+'</span>'
     h+='<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:var(--lav-100);color:var(--ink-soft)">'+esc(a.frequency)+'</span>'
     h+='</div></div>'
   })
@@ -4212,8 +4215,15 @@ async function rcSelectAssignment(idx){
   _rcCurrentAssign=a
   $('tSylRecheckTab').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   // Load students for this section
-  const{data:enrollments}=await sb.from('student_enrollments').select('student_id,roll_no,students(full_name)').eq('class_id',a.class_id).eq('section_id',a.section_id).eq('session_id',SESS.session_id).eq('status','active').order('roll_no')
-  _rcStudents=(enrollments||[]).map(e=>({student_id:e.student_id,full_name:e.students?.full_name||'?',roll_no:e.roll_no}))
+  const{data:enrollments,error:enrErr}=await sb.from('student_enrollments').select('student_id,roll_no').eq('class_id',a.class_id).eq('section_id',a.section_id).eq('session_id',SESS.session_id).eq('status','active').order('roll_no')
+  if(enrErr)console.error('[RECHECK] enrollment error:',enrErr)
+  const stuIds=(enrollments||[]).map(e=>e.student_id).filter(Boolean)
+  let stuMap={}
+  if(stuIds.length){
+    const{data:stuRows}=await sb.from('students').select('student_id,full_name').in('student_id',stuIds)
+    stuMap=Object.fromEntries((stuRows||[]).map(s=>[s.student_id,s.full_name]))
+  }
+  _rcStudents=(enrollments||[]).map(e=>({student_id:e.student_id,full_name:stuMap[e.student_id]||'?',roll_no:e.roll_no}))
   // Load existing rechecking records
   const{data:records}=await sb.from('rechecking_records').select('*').eq('assignment_id',a.id)
   _rcRecords=records||[]
@@ -4224,8 +4234,8 @@ function rcRenderStudents(){
   const a=_rcCurrentAssign
   let h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
   h+='<button class="btn btn-ghost btn-sm" onclick="rcRenderMain()" style="padding:4px 8px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>'
-  h+='<div style="flex:1"><div style="font-size:15px;font-weight:700">'+esc((a.classes?.name||'')+' – '+(a.class_sections?.name||''))+'</div>'
-  h+='<div style="font-size:12px;color:var(--ink-soft)">'+esc(a.subjects?.name||'')+'</div></div>'
+  h+='<div style="flex:1"><div style="font-size:15px;font-weight:700">'+esc(a._className+' – '+a._sectionName)+'</div>'
+  h+='<div style="font-size:12px;color:var(--ink-soft)">'+esc(a._subjectName)+'</div></div>'
   const doneCnt=_rcStudents.filter(s=>_rcRecords.some(r=>r.student_id===s.student_id&&r.is_checked)).length
   h+='<span style="font-size:12px;font-weight:600;color:var(--success)">'+doneCnt+'/'+_rcStudents.length+' checked</span>'
   h+='</div>'
