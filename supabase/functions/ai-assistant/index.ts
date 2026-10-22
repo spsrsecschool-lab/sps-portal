@@ -995,6 +995,17 @@ Deno.serve(async (req) => {
 
     const db = createClient(url, serviceKey, { auth: { persistSession: false } })
 
+    // Debug mode — temporarily returns auth info to diagnose identify() failure
+    if (body.mode === 'debug_auth') {
+      const { data: adminRow } = await db.from('admins').select('admin_id, auth_user_id').maybeSingle()
+      return json({
+        auth_user_id: userData.user.id,
+        email: userData.user.email,
+        admin_row: adminRow,
+        match: adminRow?.auth_user_id === userData.user.id,
+      })
+    }
+
     const caller = await identify(db, userData.user.id)
       ?? { kind: 'guest' as const, id: userData.user.id, name: userData.user.email ?? 'User', sessionId: null, sections: [] }
 
