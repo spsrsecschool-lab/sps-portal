@@ -14919,7 +14919,7 @@ function sylRenderPlan(){
       }else{
         h+='<table class="tbl"><thead><tr><th style="width:36px">#</th><th>Title</th><th style="width:80px">Type</th><th style="width:100px">Month</th><th style="width:90px">Actions</th></tr></thead><tbody>'
         items.forEach((item,i)=>{
-          h+='<tr><td>'+(i+1)+'</td><td>'+esc(item.title)+'</td><td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:var(--lav-100);color:var(--indigo-dark)">'+(item.type==='chapter'?'Ch':'Topic')+'</span></td><td>'+sylMonthLabel(item.month)+'</td>'
+          h+='<tr><td>'+(i+1)+'</td><td>'+esc(item.title)+'</td><td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:'+(item.type==='revision'?'var(--warn-soft)':'var(--lav-100)')+';color:'+(item.type==='revision'?'var(--warn-dark)':'var(--indigo-dark)')+'">'+(item.type==='chapter'?'Ch':item.type==='revision'?'Rev':'Topic')+'</span></td><td>'+sylMonthLabel(item.month)+'</td>'
           h+='<td><button class="btn btn-ghost btn-sm" style="padding:3px 6px" onclick="sylEditItemModal(\''+item.id+'\')">Edit</button> <button class="btn btn-ghost btn-sm" style="padding:3px 6px;color:var(--warn-dark)" onclick="sylDeleteItem(\''+item.id+'\')">Del</button></td></tr>'
         })
         h+='</tbody></table>'
@@ -14960,7 +14960,7 @@ async function sylDeletePart(partId){
 function sylAddItemModal(partId){
   const mopts=SYL_MONTHS.map(m=>'<option value="'+m+'">'+sylMonthLabel(m)+'</option>').join('')
   const body='<div class="fg" style="margin-bottom:12px"><label>Title</label><input id="syl_item_title" placeholder="e.g. Ch 1 - The Lost Child"></div>'+
-    '<div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:160px"><label>Type</label><select id="syl_item_type"><option value="chapter">Chapter</option><option value="topic">Topic</option></select></div>'+
+    '<div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:160px"><label>Type</label><select id="syl_item_type"><option value="chapter">Chapter</option><option value="topic">Topic</option><option value="revision">Revision</option></select></div>'+
     '<div class="fg" style="max-width:160px"><label>Month</label><select id="syl_item_month"><option value="">—</option>'+mopts+'</select></div></div>'
   const foot='<button class="btn btn-dark" onclick="sylSaveItem(\''+partId+'\')">Add Item</button>'
   openModal('Add Syllabus Item',body,foot)
@@ -14983,7 +14983,7 @@ function sylEditItemModal(itemId){
   if(!item)return
   const mopts=SYL_MONTHS.map(m=>'<option value="'+m+'"'+(item.month===m?' selected':'')+'>'+sylMonthLabel(m)+'</option>').join('')
   const body='<div class="fg" style="margin-bottom:12px"><label>Title</label><input id="syl_item_title" value="'+esc(item.title)+'"></div>'+
-    '<div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:160px"><label>Type</label><select id="syl_item_type"><option value="chapter"'+(item.type==='chapter'?' selected':'')+'>Chapter</option><option value="topic"'+(item.type==='topic'?' selected':'')+'>Topic</option></select></div>'+
+    '<div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:160px"><label>Type</label><select id="syl_item_type"><option value="chapter"'+(item.type==='chapter'?' selected':'')+'>Chapter</option><option value="topic"'+(item.type==='topic'?' selected':'')+'>Topic</option><option value="revision"'+(item.type==='revision'?' selected':'')+'>Revision</option></select></div>'+
     '<div class="fg" style="max-width:160px"><label>Month</label><select id="syl_item_month"><option value="">—</option>'+mopts+'</select></div></div>'
   const foot='<button class="btn btn-dark" onclick="sylUpdateItem(\''+itemId+'\')">Save</button>'
   openModal('Edit Syllabus Item',body,foot)
@@ -15054,13 +15054,13 @@ function sylParseBulk(){
         const raw2=monthMatch[2],hasSemi=raw2.includes(';')
         const items=raw2.split(hasSemi?/[;；]/:/[,،]/).map(s=>s.trim()).filter(Boolean)
         const partObj=result.find(r=>r.part===currentPart)
-        items.forEach(t=>partObj.items.push({title:t,month,type:t.match(/^ch\s*\d/i)?'chapter':'topic'}))
+        items.forEach(t=>partObj.items.push({title:t,month,type:t.match(/^ch\s*\d/i)?'chapter':t.match(/revision/i)?'revision':'topic'}))
         return
       }
     }
     if(!currentPart){currentPart='General';if(!result.find(r=>r.part===currentPart))result.push({part:currentPart,items:[]})}
     const partObj=result.find(r=>r.part===currentPart)
-    partObj.items.push({title:line,month:null,type:line.match(/^ch\s*\d/i)?'chapter':'topic'})
+    partObj.items.push({title:line,month:null,type:line.match(/^ch\s*\d/i)?'chapter':line.match(/revision/i)?'revision':'topic'})
   })
   if(!result.length||!result.some(r=>r.items.length)){toast('Could not parse any items','error');return}
   _sylBulkParsed=result
@@ -15111,7 +15111,7 @@ function sylOpenQuickAdd(){
   const body='<div class="form-row" style="margin-bottom:12px">'+
     '<div class="fg" style="max-width:200px"><label>Part</label><select id="syl_qa_part"><option value="">Select part</option>'+partOpts+'<option value="__new">+ New Part</option></select></div>'+
     '<div class="fg" style="max-width:160px"><label>Month</label><select id="syl_qa_month"><option value="">—</option>'+mopts+'</select></div>'+
-    '<div class="fg" style="max-width:120px"><label>Type</label><select id="syl_qa_type"><option value="chapter">Chapter</option><option value="topic">Topic</option></select></div>'+
+    '<div class="fg" style="max-width:120px"><label>Type</label><select id="syl_qa_type"><option value="chapter">Chapter</option><option value="topic">Topic</option><option value="revision">Revision</option></select></div>'+
     '</div>'+
     '<div class="fg" style="margin-bottom:8px"><label>Items (one per line, or comma-separated)</label>'+
     '<textarea id="syl_qa_items" rows="6" style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical" placeholder="Ch 1 - The Lost Child\nCh 2 - Sound of Music\n\nor: Noun, Pronoun, Tense"></textarea></div>'
