@@ -964,7 +964,7 @@ Deno.serve(async (req) => {
       const r = await callLLM(ak, {
         model: GROQ_MODEL,
         messages: [
-          { role: 'system', content: 'You are a note formatting assistant for a school teacher. The teacher dictated a note using voice input. Clean it up: fix grammar, remove filler words, repetitions, and gibberish. Format it as a clear, professional teacher\'s note. Keep the original language — if Hindi, keep Hindi; if English, keep English; if Hinglish (mixed), keep it natural. Be concise. Return ONLY the cleaned note text, nothing else.' },
+          { role: 'system', content: 'You are a note formatting assistant for a school teacher. The teacher dictated a note using voice input — it may be in Hindi, Hinglish, or English. Your job: translate everything into clean, professional English. Fix grammar, remove filler words, repetitions, and gibberish. Frame it as a proper teacher\'s remark about the student. Be concise — one or two sentences. Return ONLY the cleaned English note, nothing else.' },
           { role: 'user', content: rawText },
         ],
         temperature: 0.3,
