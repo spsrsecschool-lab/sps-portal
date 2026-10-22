@@ -4362,22 +4362,23 @@ function rcStartVoiceForNote(){
   if(_rcRecognition){_rcRecognition.stop();return}
   _rcRecognition=new SpeechRecognition()
   _rcRecognition.lang=_rcVoiceLang
-  _rcRecognition.continuous=true
+  _rcRecognition.continuous=false
   _rcRecognition.interimResults=true
-  const ta0=$('rc_note_text')
-  const baseText=(ta0?ta0.value.replace(/\n?\[.*?\]$/,'').trim():'')
-  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#E5556B" stroke-width="2" style="margin-right:4px;vertical-align:middle"><circle cx="12" cy="12" r="8"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Stop Recording'
+  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#E5556B" stroke-width="2" style="margin-right:4px;vertical-align:middle"><circle cx="12" cy="12" r="8"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Listening...'
   btn.style.borderColor='var(--danger)';btn.style.color='var(--danger)'
   _rcRecognition.onresult=function(e){
-    let final='',interim=''
-    for(let i=0;i<e.results.length;i++){
-      if(e.results[i].isFinal)final+=e.results[i][0].transcript+' '
-      else interim+=e.results[i][0].transcript
-    }
+    const result=e.results[0]
+    const text=result[0].transcript
     const ta=$('rc_note_text')
-    if(ta)ta.value=(baseText+(baseText&&final?' ':'')+final.trim()+(interim?' ['+interim+']':'')).trim()
+    if(!ta)return
+    const prev=ta.value.replace(/\s*\[.*?\]$/,'').trim()
+    if(result.isFinal){
+      ta.value=(prev?(prev+' '):'')+text.trim()
+    }else{
+      ta.value=prev+(prev?' ':'')+' ['+text+']'
+    }
   }
-  _rcRecognition.onerror=function(e){toast('Voice error: '+e.error,'error');rcStopVoice()}
+  _rcRecognition.onerror=function(e){if(e.error!=='no-speech')toast('Voice error: '+e.error,'error');rcStopVoice()}
   _rcRecognition.onend=function(){rcStopVoice()}
   _rcRecognition.start()
 }
@@ -4385,9 +4386,9 @@ function rcStartVoiceForNote(){
 function rcStopVoice(){
   if(_rcRecognition){try{_rcRecognition.stop()}catch(_){}_rcRecognition=null}
   const btn=$('rc_voice_btn')
-  if(btn){btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice Input';btn.style.borderColor='';btn.style.color=''}
+  if(btn){btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice';btn.style.borderColor='';btn.style.color=''}
   const ta=$('rc_note_text')
-  if(ta)ta.value=ta.value.replace(/\[.*?\]$/,'').trim()
+  if(ta)ta.value=ta.value.replace(/\s*\[.*?\]$/,'').trim()
 }
 
 
