@@ -6,7 +6,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const GROQ_MODEL = Deno.env.get('GROQ_MODEL') ?? 'llama-3.3-70b-versatile'
+const GROQ_MODEL = Deno.env.get('GROQ_MODEL') ?? 'llama-3.1-70b-versatile'
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 async function callLLM(apiKey: string, payload: unknown, attempt = 0): Promise<Response> {
