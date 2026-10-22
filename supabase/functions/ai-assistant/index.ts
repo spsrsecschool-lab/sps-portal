@@ -948,6 +948,32 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
+    const body = await req.json()
+
+    // ── Note cleanup mode — completely separate path ──
+    if (body.mode === 'cleanup_note') {
+      const ak = Deno.env.get('XAI_API_KEY')
+      if (!ak) return json({ error: 'XAI_API_KEY is not configured.' }, 500)
+      const ah = req.headers.get('Authorization') ?? ''
+      if (!ah) return json({ error: 'Not signed in.' }, 401)
+      const rawText = String(body.text ?? '').trim()
+      if (!rawText) return json({ error: 'No text to clean up.' }, 400)
+      const r = await callLLM(ak, {
+        model: GROK_MODEL,
+        messages: [
+          { role: 'system', content: 'You are a note formatting assistant for a school teacher. The teacher dictated a note using voice input. Clean it up: fix grammar, remove filler words, repetitions, and gibberish. Format it as a clear, professional teacher\'s note. Keep the original language — if Hindi, keep Hindi; if English, keep English; if Hinglish (mixed), keep it natural. Be concise. Return ONLY the cleaned note text, nothing else.' },
+          { role: 'user', content: rawText },
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
+      })
+      if (!r.ok) return json({ error: 'AI cleanup failed.' }, 502)
+      const d = await r.json()
+      const cleaned = d?.choices?.[0]?.message?.content?.trim() || rawText
+      return json({ cleaned })
+    }
+
+    // ── Sakha chatbot flow ──
     const apiKey = Deno.env.get('XAI_API_KEY')
     if (!apiKey) return json({ error: 'XAI_API_KEY is not configured. Add it as a secret in the Edge Function settings.' }, 500)
 
@@ -965,28 +991,6 @@ Deno.serve(async (req) => {
     if (userErr || !userData?.user) return json({ error: 'Session expired. Please sign in again.' }, 401)
 
     const db = createClient(url, serviceKey, { auth: { persistSession: false } })
-
-    const body = await req.json()
-
-    // ── Note cleanup mode (voice transcription → clean text) ──
-    // Runs before caller identification — any authenticated user can clean up notes
-    if (body.mode === 'cleanup_note') {
-      const rawText = String(body.text ?? '').trim()
-      if (!rawText) return json({ error: 'No text to clean up.' }, 400)
-      const r = await callLLM(apiKey, {
-        model: GROK_MODEL,
-        messages: [
-          { role: 'system', content: 'You are a note formatting assistant for a school teacher. The teacher dictated a note using voice input. Clean it up: fix grammar, remove filler words, repetitions, and gibberish. Format it as a clear, professional teacher\'s note. Keep the original language — if Hindi, keep Hindi; if English, keep English; if Hinglish (mixed), keep it natural. Be concise. Return ONLY the cleaned note text, nothing else.' },
-          { role: 'user', content: rawText },
-        ],
-        temperature: 0.3,
-        max_tokens: 500,
-      })
-      if (!r.ok) return json({ error: 'AI cleanup failed.' }, 502)
-      const d = await r.json()
-      const cleaned = d?.choices?.[0]?.message?.content?.trim() || rawText
-      return json({ cleaned })
-    }
 
     const caller = await identify(db, userData.user.id)
     if (!caller) return json({ error: 'Your account is not linked to a staff profile.' }, 403)
