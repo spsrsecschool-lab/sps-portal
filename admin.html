@@ -738,6 +738,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="sb-item" onclick="goTo('mapping',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Class &amp; Subject Mapping</div>
       <div class="sb-item" onclick="goTo('subjcombos',this)"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Subject Combinations</div>
     </div>
+    <div class="sb-item" onclick="goTo('syllabus',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="9" y1="7" x2="17" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>Syllabus</div>
     <div class="sb-group-head" onclick="sbToggle(this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Examinations<svg class="sb-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
     <div class="sb-group-items">
       <div class="sb-item" onclick="goTo('assessments',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Assessments &amp; Exam Fees</div>
@@ -2234,6 +2235,31 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
     </div>
 
+    <!-- SYLLABUS -->
+    <div class="page" id="page-syllabus">
+      <div class="page-head"><div><h2>Syllabus</h2><p>Create syllabus plans, track progress, and manage rechecking</p></div></div>
+      <div class="tab-row" id="sylTabRow">
+        <button class="tab-btn active" onclick="switchTab('sylTab','plans',this)">Syllabus Plans</button>
+        <button class="tab-btn" onclick="switchTab('sylTab','assess',this);sylLoadAssessTab()">Assessment Mapping</button>
+        <button class="tab-btn" onclick="switchTab('sylTab','recheck',this);sylLoadRecheckTab()">Rechecking</button>
+      </div>
+      <div id="sylTab-plans" style="display:block">
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row" style="align-items:flex-end;flex-wrap:wrap">
+            <div class="fg" style="max-width:220px"><label>Class</label><select id="syl_class" onchange="sylClassChanged()"><option value="">Select class</option></select></div>
+            <div class="fg" style="max-width:220px"><label>Subject</label><select id="syl_subject" onchange="sylLoadPlan()"><option value="">Select subject</option></select></div>
+          </div>
+        </div>
+        <div id="sylPlanBody"><div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select a class and subject to view or create a syllabus plan.</div></div>
+      </div>
+      <div id="sylTab-assess" style="display:none">
+        <div id="sylAssessBody"><div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select Assessment Mapping tab to load.</div></div>
+      </div>
+      <div id="sylTab-recheck" style="display:none">
+        <div id="sylRecheckBody"><div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select Rechecking tab to load.</div></div>
+      </div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -2552,7 +2578,7 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',bulkdocs:'Bulk Uploads',idcards:'ID Card Generator',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',bulkdocs:'Bulk Uploads',idcards:'ID Card Generator',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments & Exam Fees',miscfees:'Misc Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log',syllabus:'Syllabus'}
 // ═══════════ TEACHER DECLARATION (admin) — section → rules ═══════════
 let _decSecs=[], _decRules={}, _decMeta=null
 async function loadDeclarationAdmin(){ decSwitch('edit') }
@@ -2711,7 +2737,7 @@ async function loadDecSigned(){
     +'</tbody></table></div>'
 }
 
-const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,questionpapers:loadQPList,examconduct:loadExamConduct,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,idcards:loadIdCards,reportcards:loadTemplates,maintenance:loadMaintenance,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt,declaration:loadDeclarationAdmin,activitylog:loadActivityLog}
+const LAZY={dashboard:renderTodayPanel,messages:loadMessages,staff:loadStaff,students:loadStudents,admission:initAdmission,mapping:()=>{populateMapFilter();loadMapping()},subjcombos:loadSubjCombos,assessments:loadAssessments,miscfees:loadMiscFees,marksoverview:loadMarksOverviewShell,timetable:loadTimetable,questionpapers:loadQPList,examconduct:loadExamConduct,calendar:renderCalendar,classatt:caInit,promotion:loadPromotionShell,relieving:loadRelievingShell,readmission:loadReadmission,idcards:loadIdCards,reportcards:loadTemplates,maintenance:loadMaintenance,settings:loadSettings,requests:loadRequests,staffatt:initStaffAtt,declaration:loadDeclarationAdmin,activitylog:loadActivityLog,syllabus:loadSyllabus}
 
 // Admission page setup: next-S.No placeholder + build the father-name suggestion
 // list (so admitting a sibling can reuse the family's existing family_code).
@@ -14812,6 +14838,449 @@ function idcGenerateQR(text){
       },150)
     }catch(e){div.remove();resolve(null)}
   })
+}
+
+// ═══════════ SYLLABUS MODULE ═══════════
+const SYL_MONTHS=['april','may','june','july','august','september','october','november','december','january','february','march']
+const sylMonthLabel=m=>m?m.charAt(0).toUpperCase()+m.slice(1):'—'
+let _sylPlan=null,_sylParts=[],_sylItems=[],_sylBulkParsed=null
+
+function loadSyllabus(){
+  const co=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order??999)-(b.sort_order??999)).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  $('syl_class').innerHTML='<option value="">Select class</option>'+co
+  $('syl_subject').innerHTML='<option value="">Select subject</option>'
+  $('sylPlanBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select a class and subject to view or create a syllabus plan.</div>'
+}
+
+function sylClassChanged(){
+  const so=(ALL_SUBJECTS||[]).filter(s=>s.is_active).map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
+  $('syl_subject').innerHTML='<option value="">Select subject</option>'+so
+  $('sylPlanBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select a subject.</div>'
+}
+
+async function sylLoadPlan(){
+  const classId=$('syl_class').value,subjectId=$('syl_subject').value
+  if(!classId||!subjectId){$('sylPlanBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">Select both class and subject.</div>';return}
+  if(!SESS){$('sylPlanBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">No active session.</div>';return}
+  $('sylPlanBody').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data:plan}=await sb.from('syllabus_plans').select('*').eq('session_id',SESS.session_id).eq('class_id',classId).eq('subject_id',subjectId).maybeSingle()
+  if(!plan){
+    $('sylPlanBody').innerHTML='<div class="card" style="text-align:center;padding:30px"><p style="color:var(--ink-faint);margin-bottom:16px">No syllabus plan exists for this class + subject yet.</p><button class="btn btn-dark" onclick="sylCreatePlan()">Create Syllabus Plan</button></div>'
+    _sylPlan=null;_sylParts=[];_sylItems=[];return
+  }
+  _sylPlan=plan
+  const{data:parts}=await sb.from('syllabus_parts').select('*').eq('plan_id',plan.id).order('sort_order')
+  _sylParts=parts||[]
+  if(_sylParts.length){
+    const pids=_sylParts.map(p=>p.id)
+    const{data:items}=await sb.from('syllabus_items').select('*').in('part_id',pids).order('sort_order')
+    _sylItems=items||[]
+  }else _sylItems=[]
+  sylRenderPlan()
+}
+
+async function sylCreatePlan(){
+  const classId=$('syl_class').value,subjectId=$('syl_subject').value
+  if(!classId||!subjectId||!SESS)return
+  const{error}=await sb.from('syllabus_plans').insert({session_id:SESS.session_id,class_id:classId,subject_id:subjectId,created_by:SPS.admin?.admin_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Plan created','success');sylLoadPlan()
+}
+
+async function sylDeletePlan(){
+  if(!_sylPlan||!confirm('Delete this entire syllabus plan? All parts, items, and progress will be lost.'))return
+  const{error}=await sb.from('syllabus_plans').delete().eq('id',_sylPlan.id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Plan deleted','success');_sylPlan=null;_sylParts=[];_sylItems=[];sylLoadPlan()
+}
+
+function sylRenderPlan(){
+  if(!_sylPlan)return
+  let h='<div class="card" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">'
+  h+='<button class="btn btn-dark btn-sm" onclick="sylOpenBulkPaste()">Bulk Paste</button>'
+  h+='<button class="btn btn-soft btn-sm" onclick="sylOpenQuickAdd()">Quick Add</button>'
+  h+='<button class="btn btn-soft btn-sm" onclick="sylAddPartPrompt()">+ Add Part</button>'
+  h+='<button class="btn btn-ghost btn-sm" style="margin-left:auto;color:var(--warn-dark)" onclick="sylDeletePlan()">Delete Plan</button>'
+  h+='</div>'
+  if(!_sylParts.length){
+    h+='<div class="card" style="text-align:center;padding:30px;color:var(--ink-faint)">No parts yet. Use <b>Bulk Paste</b> or <b>+ Add Part</b> to get started.</div>'
+  }else{
+    _sylParts.forEach(part=>{
+      const items=_sylItems.filter(i=>i.part_id===part.id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
+      h+='<div class="card" style="margin-bottom:12px">'
+      h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">'
+      h+='<h3 style="margin:0;font-size:15px;flex:1">'+esc(part.name)+'</h3>'
+      h+='<button class="btn btn-ghost btn-sm" onclick="sylAddItemModal(\''+part.id+'\')">+ Item</button>'
+      h+='<button class="btn btn-ghost btn-sm" onclick="sylRenamePart(\''+part.id+'\')">Rename</button>'
+      h+='<button class="btn btn-ghost btn-sm" style="color:var(--warn-dark)" onclick="sylDeletePart(\''+part.id+'\')">Del</button>'
+      h+='</div>'
+      if(!items.length){
+        h+='<div style="color:var(--ink-faint);font-size:13px;padding:8px 0">No items yet.</div>'
+      }else{
+        h+='<table class="tbl"><thead><tr><th style="width:36px">#</th><th>Title</th><th style="width:80px">Type</th><th style="width:100px">Month</th><th style="width:90px">Actions</th></tr></thead><tbody>'
+        items.forEach((item,i)=>{
+          h+='<tr><td>'+(i+1)+'</td><td>'+esc(item.title)+'</td><td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:var(--lav-100);color:var(--indigo-dark)">'+(item.type==='chapter'?'Ch':'Topic')+'</span></td><td>'+sylMonthLabel(item.month)+'</td>'
+          h+='<td><button class="btn btn-ghost btn-sm" style="padding:3px 6px" onclick="sylEditItemModal(\''+item.id+'\')">Edit</button> <button class="btn btn-ghost btn-sm" style="padding:3px 6px;color:var(--warn-dark)" onclick="sylDeleteItem(\''+item.id+'\')">Del</button></td></tr>'
+        })
+        h+='</tbody></table>'
+      }
+      h+='</div>'
+    })
+  }
+  $('sylPlanBody').innerHTML=h
+}
+
+async function sylAddPartPrompt(){
+  if(!_sylPlan)return
+  const name=prompt('Part name (e.g. Grammar, Reader, History):')
+  if(!name||!name.trim())return
+  const order=_sylParts.length
+  const{error}=await sb.from('syllabus_parts').insert({plan_id:_sylPlan.id,name:name.trim(),sort_order:order})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Part added','success');sylLoadPlan()
+}
+
+async function sylRenamePart(partId){
+  const part=_sylParts.find(p=>p.id===partId)
+  if(!part)return
+  const name=prompt('Rename part:',part.name)
+  if(!name||!name.trim()||name.trim()===part.name)return
+  const{error}=await sb.from('syllabus_parts').update({name:name.trim()}).eq('id',partId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Renamed','success');sylLoadPlan()
+}
+
+async function sylDeletePart(partId){
+  if(!confirm('Delete this part and all its items?'))return
+  const{error}=await sb.from('syllabus_parts').delete().eq('id',partId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Deleted','success');sylLoadPlan()
+}
+
+function sylAddItemModal(partId){
+  const mopts=SYL_MONTHS.map(m=>'<option value="'+m+'">'+sylMonthLabel(m)+'</option>').join('')
+  const body='<div class="fg" style="margin-bottom:12px"><label>Title</label><input id="syl_item_title" placeholder="e.g. Ch 1 - The Lost Child"></div>'+
+    '<div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:160px"><label>Type</label><select id="syl_item_type"><option value="chapter">Chapter</option><option value="topic">Topic</option></select></div>'+
+    '<div class="fg" style="max-width:160px"><label>Month</label><select id="syl_item_month"><option value="">—</option>'+mopts+'</select></div></div>'
+  const foot='<button class="btn btn-dark" onclick="sylSaveItem(\''+partId+'\')">Add Item</button>'
+  openModal('Add Syllabus Item',body,foot)
+  setTimeout(()=>$('syl_item_title')?.focus(),200)
+}
+
+async function sylSaveItem(partId){
+  const title=$('syl_item_title')?.value?.trim()
+  if(!title){toast('Title required','error');return}
+  const type=$('syl_item_type')?.value||'chapter'
+  const month=$('syl_item_month')?.value||null
+  const order=_sylItems.filter(i=>i.part_id===partId).length
+  const{error}=await sb.from('syllabus_items').insert({part_id:partId,type,title,month,sort_order:order})
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal();toast('Item added','success');sylLoadPlan()
+}
+
+function sylEditItemModal(itemId){
+  const item=_sylItems.find(i=>i.id===itemId)
+  if(!item)return
+  const mopts=SYL_MONTHS.map(m=>'<option value="'+m+'"'+(item.month===m?' selected':'')+'>'+sylMonthLabel(m)+'</option>').join('')
+  const body='<div class="fg" style="margin-bottom:12px"><label>Title</label><input id="syl_item_title" value="'+esc(item.title)+'"></div>'+
+    '<div class="form-row" style="margin-bottom:12px"><div class="fg" style="max-width:160px"><label>Type</label><select id="syl_item_type"><option value="chapter"'+(item.type==='chapter'?' selected':'')+'>Chapter</option><option value="topic"'+(item.type==='topic'?' selected':'')+'>Topic</option></select></div>'+
+    '<div class="fg" style="max-width:160px"><label>Month</label><select id="syl_item_month"><option value="">—</option>'+mopts+'</select></div></div>'
+  const foot='<button class="btn btn-dark" onclick="sylUpdateItem(\''+itemId+'\')">Save</button>'
+  openModal('Edit Syllabus Item',body,foot)
+  setTimeout(()=>$('syl_item_title')?.focus(),200)
+}
+
+async function sylUpdateItem(itemId){
+  const title=$('syl_item_title')?.value?.trim()
+  if(!title){toast('Title required','error');return}
+  const type=$('syl_item_type')?.value||'chapter'
+  const month=$('syl_item_month')?.value||null
+  const{error}=await sb.from('syllabus_items').update({title,type,month}).eq('id',itemId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal();toast('Updated','success');sylLoadPlan()
+}
+
+async function sylDeleteItem(itemId){
+  if(!confirm('Delete this item?'))return
+  const{error}=await sb.from('syllabus_items').delete().eq('id',itemId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Deleted','success');sylLoadPlan()
+}
+
+// ─── BULK PASTE ───
+function sylOpenBulkPaste(){
+  if(!_sylPlan)return
+  const body='<div style="margin-bottom:10px;font-size:13px;color:var(--ink-soft);line-height:1.6">'+
+    'Paste syllabus in this format:<br><code style="background:var(--bg);padding:8px;border-radius:6px;display:block;margin:8px 0;font-size:12px;white-space:pre;line-height:1.7">Part: Grammar\nOctober: Noun, Pronoun, Tense\nNovember: Active-Passive, Letter Writing\n\nPart: Reader\nOctober: Ch 1 - The Lost Child\nNovember: Ch 2 - Sound of Music</code>'+
+    'If no "Part:" line, all items go under a default part.</div>'+
+    '<textarea id="syl_bulk_text" rows="12" style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);font-family:monospace;resize:vertical" placeholder="Paste syllabus here..."></textarea>'+
+    '<div id="syl_bulk_preview" style="margin-top:12px"></div>'
+  const foot='<button class="btn btn-soft" onclick="sylParseBulk()">Preview</button> <button class="btn btn-dark" id="syl_bulk_save_btn" onclick="sylSaveBulk()" disabled>Save All</button>'
+  openModal('Bulk Paste Syllabus',body,foot,true)
+  _sylBulkParsed=null
+  setTimeout(()=>$('syl_bulk_text')?.focus(),200)
+}
+
+function sylParseBulk(){
+  const raw=$('syl_bulk_text')?.value||''
+  if(!raw.trim()){toast('Nothing to parse','error');return}
+  const lines=raw.split('\n')
+  const result=[]
+  let currentPart=null
+  const monthMap={}
+  SYL_MONTHS.forEach(m=>monthMap[m.toLowerCase()]=m)
+  const aliases={jan:'january',feb:'february',mar:'march',apr:'april',jun:'june',jul:'july',aug:'august',sep:'september',sept:'september',oct:'october',nov:'november',dec:'december'}
+  function resolveMonth(s){
+    s=s.toLowerCase().trim()
+    if(monthMap[s])return monthMap[s]
+    if(aliases[s])return aliases[s]
+    for(const m of SYL_MONTHS){if(m.startsWith(s))return m}
+    return null
+  }
+  lines.forEach(line=>{
+    line=line.trim()
+    if(!line)return
+    const partMatch=line.match(/^part\s*[:：]\s*(.+)/i)
+    if(partMatch){
+      currentPart=partMatch[1].trim()
+      if(!result.find(r=>r.part===currentPart))result.push({part:currentPart,items:[]})
+      return
+    }
+    const monthMatch=line.match(/^([a-z]+)\s*[:：]\s*(.+)/i)
+    if(monthMatch){
+      const month=resolveMonth(monthMatch[1])
+      if(month){
+        if(!currentPart){currentPart='General';if(!result.find(r=>r.part===currentPart))result.push({part:currentPart,items:[]})}
+        const items=monthMatch[2].split(/[,،]/).map(s=>s.trim()).filter(Boolean)
+        const partObj=result.find(r=>r.part===currentPart)
+        items.forEach(t=>partObj.items.push({title:t,month,type:t.match(/^ch\s/i)?'chapter':'topic'}))
+        return
+      }
+    }
+    if(!currentPart){currentPart='General';if(!result.find(r=>r.part===currentPart))result.push({part:currentPart,items:[]})}
+    const partObj=result.find(r=>r.part===currentPart)
+    partObj.items.push({title:line,month:null,type:line.match(/^ch\s/i)?'chapter':'topic'})
+  })
+  if(!result.length||!result.some(r=>r.items.length)){toast('Could not parse any items','error');return}
+  _sylBulkParsed=result
+  let preview='<div style="font-size:13px;font-weight:600;margin-bottom:8px">Preview ('+result.reduce((s,r)=>s+r.items.length,0)+' items in '+result.length+' parts):</div>'
+  result.forEach(r=>{
+    preview+='<div style="margin-bottom:8px"><div style="font-weight:600;font-size:13px;color:var(--indigo-dark);margin-bottom:4px">'+esc(r.part)+'</div>'
+    preview+='<table class="tbl" style="font-size:12px"><thead><tr><th>Title</th><th style="width:70px">Type</th><th style="width:90px">Month</th></tr></thead><tbody>'
+    r.items.forEach(it=>{
+      preview+='<tr><td>'+esc(it.title)+'</td><td>'+it.type+'</td><td>'+sylMonthLabel(it.month)+'</td></tr>'
+    })
+    preview+='</tbody></table></div>'
+  })
+  $('syl_bulk_preview').innerHTML=preview
+  $('syl_bulk_save_btn').disabled=false
+}
+
+async function sylSaveBulk(){
+  if(!_sylBulkParsed||!_sylPlan)return
+  $('syl_bulk_save_btn').disabled=true
+  $('syl_bulk_save_btn').textContent='Saving...'
+  let totalItems=0
+  for(const r of _sylBulkParsed){
+    let part=_sylParts.find(p=>p.name.toLowerCase()===r.part.toLowerCase())
+    if(!part){
+      const{data,error}=await sb.from('syllabus_parts').insert({plan_id:_sylPlan.id,name:r.part,sort_order:_sylParts.length}).select().single()
+      if(error){toast('Failed creating part '+r.part+': '+error.message,'error');continue}
+      part=data;_sylParts.push(part)
+    }
+    const existingCount=_sylItems.filter(i=>i.part_id===part.id).length
+    const rows=r.items.map((it,i)=>({part_id:part.id,type:it.type,title:it.title,month:it.month,sort_order:existingCount+i}))
+    if(rows.length){
+      const{data:inserted,error}=await sb.from('syllabus_items').insert(rows).select()
+      if(error){toast('Failed inserting items: '+error.message,'error');continue}
+      if(inserted)_sylItems.push(...inserted)
+      totalItems+=rows.length
+    }
+  }
+  closeModal()
+  toast(totalItems+' items added','success')
+  sylLoadPlan()
+}
+
+// ─── QUICK ADD ───
+function sylOpenQuickAdd(){
+  if(!_sylPlan)return
+  const partOpts=_sylParts.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('')
+  const mopts=SYL_MONTHS.map(m=>'<option value="'+m+'">'+sylMonthLabel(m)+'</option>').join('')
+  const body='<div class="form-row" style="margin-bottom:12px">'+
+    '<div class="fg" style="max-width:200px"><label>Part</label><select id="syl_qa_part"><option value="">Select part</option>'+partOpts+'<option value="__new">+ New Part</option></select></div>'+
+    '<div class="fg" style="max-width:160px"><label>Month</label><select id="syl_qa_month"><option value="">—</option>'+mopts+'</select></div>'+
+    '<div class="fg" style="max-width:120px"><label>Type</label><select id="syl_qa_type"><option value="chapter">Chapter</option><option value="topic">Topic</option></select></div>'+
+    '</div>'+
+    '<div class="fg" style="margin-bottom:8px"><label>Items (one per line, or comma-separated)</label>'+
+    '<textarea id="syl_qa_items" rows="6" style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical" placeholder="Ch 1 - The Lost Child\nCh 2 - Sound of Music\n\nor: Noun, Pronoun, Tense"></textarea></div>'
+  const foot='<button class="btn btn-dark" onclick="sylSaveQuickAdd()">Add Items</button>'
+  openModal('Quick Add Items',body,foot)
+  $('syl_qa_part').addEventListener('change',function(){if(this.value==='__new'){const n=prompt('New part name:');if(n&&n.trim()){sylQuickAddNewPart(n.trim())}else{this.value=''}}})
+  setTimeout(()=>$('syl_qa_items')?.focus(),200)
+}
+
+async function sylQuickAddNewPart(name){
+  const{data,error}=await sb.from('syllabus_parts').insert({plan_id:_sylPlan.id,name,sort_order:_sylParts.length}).select().single()
+  if(error){toast('Failed: '+error.message,'error');$('syl_qa_part').value='';return}
+  _sylParts.push(data)
+  const opt=document.createElement('option')
+  opt.value=data.id;opt.textContent=name
+  const sel=$('syl_qa_part')
+  sel.insertBefore(opt,sel.querySelector('option[value="__new"]'))
+  sel.value=data.id
+}
+
+async function sylSaveQuickAdd(){
+  const partId=$('syl_qa_part')?.value
+  if(!partId||partId==='__new'){toast('Select a part','error');return}
+  const month=$('syl_qa_month')?.value||null
+  const type=$('syl_qa_type')?.value||'chapter'
+  const raw=$('syl_qa_items')?.value||''
+  let titles
+  if(raw.includes('\n'))titles=raw.split('\n').map(s=>s.trim()).filter(Boolean)
+  else titles=raw.split(/[,،]/).map(s=>s.trim()).filter(Boolean)
+  if(!titles.length){toast('Enter at least one item','error');return}
+  const existingCount=_sylItems.filter(i=>i.part_id===partId).length
+  const rows=titles.map((t,i)=>({part_id:partId,type,title:t,month,sort_order:existingCount+i}))
+  const{error}=await sb.from('syllabus_items').insert(rows)
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal();toast(titles.length+' items added','success');sylLoadPlan()
+}
+
+// ─── ASSESSMENT MAPPING ───
+let _sylAssessLoaded=false
+async function sylLoadAssessTab(){
+  if(_sylAssessLoaded)return
+  _sylAssessLoaded=true
+  if(!SESS){$('sylAssessBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">No active session.</div>';return}
+  $('sylAssessBody').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,is_fee_only').eq('session_id',SESS.session_id).eq('is_fee_only',false).order('commencement_date',{nullsFirst:false})
+  if(!asmts?.length){$('sylAssessBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">No assessments found. Create assessments first.</div>';return}
+  const{data:plans}=await sb.from('syllabus_plans').select('id,class_id,subject_id').eq('session_id',SESS.session_id)
+  if(!plans?.length){$('sylAssessBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">No syllabus plans created yet. Go to Syllabus Plans tab first.</div>';return}
+  const planIds=plans.map(p=>p.id)
+  const[{data:allParts},{data:allItems},{data:linked}]=await Promise.all([
+    sb.from('syllabus_parts').select('id,plan_id,name').in('plan_id',planIds),
+    sb.from('syllabus_items').select('id,part_id,title,month,type').in('part_id',(await sb.from('syllabus_parts').select('id').in('plan_id',planIds)).data?.map(p=>p.id)||[]).order('sort_order'),
+    sb.from('assessment_syllabus').select('*')
+  ])
+  const assessOpts=asmts.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
+  let h='<div class="card" style="margin-bottom:16px"><div class="form-row" style="align-items:flex-end"><div class="fg" style="max-width:300px"><label>Assessment</label><select id="syl_am_assess" onchange="sylRenderAssessMapping()"><option value="">Select assessment</option>'+assessOpts+'</select></div></div></div>'
+  h+='<div id="sylAMBody"></div>'
+  $('sylAssessBody').innerHTML=h
+  window._sylAMData={plans,allParts:allParts||[],allItems:allItems||[],linked:linked||[],asmts}
+}
+
+function sylRenderAssessMapping(){
+  const assessId=$('syl_am_assess')?.value
+  const d=window._sylAMData
+  if(!assessId||!d){$('sylAMBody').innerHTML='';return}
+  const linkedIds=new Set(d.linked.filter(l=>l.assessment_id===assessId).map(l=>l.item_id))
+  let h=''
+  d.plans.forEach(plan=>{
+    const cls=(ALL_CLASSES||[]).find(c=>c.class_id===plan.class_id)
+    const sub=(ALL_SUBJECTS||[]).find(s=>s.subject_id===plan.subject_id)
+    const parts=d.allParts.filter(p=>p.plan_id===plan.id)
+    if(!parts.length)return
+    const items=d.allItems.filter(i=>parts.some(p=>p.id===i.part_id))
+    if(!items.length)return
+    h+='<div class="card" style="margin-bottom:12px"><h3 style="font-size:14px;margin:0 0 10px">'+esc((cls?.name||'?')+' — '+(sub?.name||'?'))+'</h3>'
+    parts.forEach(part=>{
+      const pItems=items.filter(i=>i.part_id===part.id)
+      if(!pItems.length)return
+      h+='<div style="font-size:12px;font-weight:600;color:var(--ink-soft);margin:8px 0 4px">'+esc(part.name)+'</div>'
+      pItems.forEach(item=>{
+        const checked=linkedIds.has(item.id)
+        h+='<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer"><input type="checkbox" '+(checked?'checked':'')+' onchange="sylToggleAM(\''+assessId+'\',\''+item.id+'\',this.checked)"> '+esc(item.title)+' <span style="color:var(--ink-faint);font-size:11px">'+sylMonthLabel(item.month)+'</span></label>'
+      })
+    })
+    h+='</div>'
+  })
+  if(!h)h='<div class="empty-hint" style="text-align:center;padding:20px;color:var(--ink-faint)">No syllabus items to map.</div>'
+  $('sylAMBody').innerHTML=h
+}
+
+async function sylToggleAM(assessId,itemId,checked){
+  if(checked){
+    const{error}=await sb.from('assessment_syllabus').insert({assessment_id:assessId,item_id:itemId})
+    if(error&&!error.message.includes('duplicate')){toast('Failed: '+error.message,'error');return}
+    window._sylAMData.linked.push({assessment_id:assessId,item_id:itemId})
+  }else{
+    await sb.from('assessment_syllabus').delete().eq('assessment_id',assessId).eq('item_id',itemId)
+    window._sylAMData.linked=window._sylAMData.linked.filter(l=>!(l.assessment_id===assessId&&l.item_id===itemId))
+  }
+}
+
+// ─── RECHECKING ───
+let _sylRecheckLoaded=false
+async function sylLoadRecheckTab(){
+  if(_sylRecheckLoaded)return
+  _sylRecheckLoaded=true
+  if(!SESS){$('sylRecheckBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">No active session.</div>';return}
+  $('sylRecheckBody').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const[{data:assignments},{data:sections}]=await Promise.all([
+    sb.from('rechecking_assignments').select('*,teachers(full_name)').eq('session_id',SESS.session_id),
+    sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS.session_id).eq('is_active',true)
+  ])
+  window._sylRCSections=sections||[]
+  window._sylRCAssignments=assignments||[]
+  sylRenderRecheckTab()
+}
+
+function sylRenderRecheckTab(){
+  const assignments=window._sylRCAssignments||[]
+  const sections=window._sylRCSections||[]
+  const teachers=(ALL_TEACHERS||[]).filter(t=>t.is_active)
+  const tOpts=teachers.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  const cOpts=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order??999)-(b.sort_order??999)).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  const sOpts=(ALL_SUBJECTS||[]).filter(s=>s.is_active).map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
+  let h='<div class="card" style="margin-bottom:16px"><h3 style="font-size:14px;margin:0 0 12px">Assign Rechecking</h3>'
+  h+='<div class="form-row" style="align-items:flex-end;flex-wrap:wrap">'
+  h+='<div class="fg" style="max-width:200px"><label>Teacher</label><select id="rc_teacher"><option value="">Select</option>'+tOpts+'</select></div>'
+  h+='<div class="fg" style="max-width:160px"><label>Class</label><select id="rc_class" onchange="sylRCClassChanged()"><option value="">Select</option>'+cOpts+'</select></div>'
+  h+='<div class="fg" style="max-width:160px"><label>Section</label><select id="rc_section"><option value="">Select</option></select></div>'
+  h+='<div class="fg" style="max-width:160px"><label>Subject</label><select id="rc_subject"><option value="">Select</option>'+sOpts+'</select></div>'
+  h+='<div class="fg" style="max-width:140px"><label>Frequency</label><select id="rc_freq"><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="monthly" selected>Monthly</option></select></div>'
+  h+='<button class="btn btn-dark btn-sm" style="margin-bottom:1px" onclick="sylAddRC()">Assign</button>'
+  h+='</div></div>'
+  if(!assignments.length){
+    h+='<div class="card" style="text-align:center;padding:20px;color:var(--ink-faint)">No rechecking assignments yet.</div>'
+  }else{
+    h+='<div class="card"><table class="tbl"><thead><tr><th>Teacher</th><th>Class</th><th>Section</th><th>Subject</th><th>Frequency</th><th style="width:70px">Action</th></tr></thead><tbody>'
+    assignments.forEach(a=>{
+      const cls=(ALL_CLASSES||[]).find(c=>c.class_id===a.class_id)
+      const sub=(ALL_SUBJECTS||[]).find(s=>s.subject_id===a.subject_id)
+      const sec=sections.find(s=>s.section_id===a.section_id)
+      h+='<tr><td>'+esc(a.teachers?.full_name||'?')+'</td><td>'+esc(cls?.name||'?')+'</td><td>'+esc(sec?.name||'?')+'</td><td>'+esc(sub?.name||'?')+'</td><td>'+esc(a.frequency)+'</td>'
+      h+='<td><button class="btn btn-ghost btn-sm" style="color:var(--warn-dark)" onclick="sylDeleteRC(\''+a.id+'\')">Del</button></td></tr>'
+    })
+    h+='</tbody></table></div>'
+  }
+  $('sylRecheckBody').innerHTML=h
+}
+
+function sylRCClassChanged(){
+  const classId=$('rc_class')?.value
+  const secs=(window._sylRCSections||[]).filter(s=>s.class_id===classId)
+  $('rc_section').innerHTML='<option value="">Select</option>'+secs.map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+}
+
+async function sylAddRC(){
+  const teacherId=$('rc_teacher')?.value,classId=$('rc_class')?.value,sectionId=$('rc_section')?.value,subjectId=$('rc_subject')?.value,frequency=$('rc_freq')?.value
+  if(!teacherId||!classId||!sectionId||!subjectId){toast('Fill all fields','error');return}
+  const{data,error}=await sb.from('rechecking_assignments').insert({session_id:SESS.session_id,teacher_id:teacherId,class_id:classId,subject_id:subjectId,section_id:sectionId,frequency}).select('*,teachers(full_name)').single()
+  if(error){toast('Failed: '+error.message,'error');return}
+  window._sylRCAssignments.push(data)
+  toast('Assigned','success');sylRenderRecheckTab()
+}
+
+async function sylDeleteRC(id){
+  if(!confirm('Remove this rechecking assignment?'))return
+  const{error}=await sb.from('rechecking_assignments').delete().eq('id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  window._sylRCAssignments=window._sylRCAssignments.filter(a=>a.id!==id)
+  toast('Removed','success');sylRenderRecheckTab()
 }
 
 </script>
