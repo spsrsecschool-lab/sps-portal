@@ -1195,9 +1195,9 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <div id="tSylPlanTab">
         <div class="card" style="margin-bottom:16px;padding:16px">
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-            <div style="flex:1;min-width:140px"><label style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;display:block">Class-Section</label><select id="tsyl_class" onchange="tSylClassChanged()" style="width:100%"><option value="">Select</option></select></div>
-            <div style="flex:1;min-width:140px"><label style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;display:block">Subject</label><select id="tsyl_subject" style="width:100%"><option value="">Select</option></select></div>
-            <button class="btn btn-primary btn-sm" onclick="tSylLoadPlan()" style="white-space:nowrap">Load Plan</button>
+            <div class="field-grp" style="flex:1;min-width:140px"><label>Class-Section</label><select id="tsyl_class" onchange="tSylClassChanged()"><option value="">Select</option></select></div>
+            <div class="field-grp" style="flex:1;min-width:140px"><label>Subject</label><select id="tsyl_subject"><option value="">Select</option></select></div>
+            <button class="btn btn-primary btn-sm" onclick="tSylLoadPlan()" style="white-space:nowrap;align-self:flex-end">Load Plan</button>
           </div>
         </div>
         <div id="tSylPlanBody"></div>
@@ -4149,7 +4149,7 @@ async function tSylSetStatus(itemId,newStatus){
     row.started_at=null;row.completed_at=null
   }
   const{error}=await sb.from('syllabus_progress').upsert(row,{onConflict:'item_id,teacher_id,section_id'})
-  if(error){toast('Failed: '+error.message,'error');return}
+  if(error){toast('Failed: '+error.message,'error');tSylRender();return}
   _tSylProgress=_tSylProgress.filter(p=>p.item_id!==itemId)
   _tSylProgress.push(row)
   tSylRender()
