@@ -966,12 +966,10 @@ Deno.serve(async (req) => {
 
     const db = createClient(url, serviceKey, { auth: { persistSession: false } })
 
-    const caller = await identify(db, userData.user.id)
-    if (!caller) return json({ error: 'Your account is not linked to a staff profile.' }, 403)
-
     const body = await req.json()
 
     // ── Note cleanup mode (voice transcription → clean text) ──
+    // Runs before caller identification — any authenticated user can clean up notes
     if (body.mode === 'cleanup_note') {
       const rawText = String(body.text ?? '').trim()
       if (!rawText) return json({ error: 'No text to clean up.' }, 400)
@@ -989,6 +987,9 @@ Deno.serve(async (req) => {
       const cleaned = d?.choices?.[0]?.message?.content?.trim() || rawText
       return json({ cleaned })
     }
+
+    const caller = await identify(db, userData.user.id)
+    if (!caller) return json({ error: 'Your account is not linked to a staff profile.' }, 403)
 
     const history: any[] = Array.isArray(body.history) ? body.history.slice(-16) : []
     const confirmed = body.confirmedAction as { name: string; args: any } | undefined
