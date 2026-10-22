@@ -1,16 +1,16 @@
 // SPS AI Assistant — Supabase Edge Function
 //
-// Model: NVIDIA Nemotron Ultra (OpenAI-compatible API via build.nvidia.com)
-// Secret: NVIDIA_API_KEY
-// Optional: NVIDIA_MODEL to override the default model.
+// Model: Grok (xAI, OpenAI-compatible API)
+// Secret: XAI_API_KEY
+// Optional: GROK_MODEL to override the default model.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const NVIDIA_MODEL = Deno.env.get('NVIDIA_MODEL') ?? 'nvidia/llama-3.3-nemotron-super-49b-v1'
-const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
+const GROK_MODEL = Deno.env.get('GROK_MODEL') ?? 'grok-3-mini'
+const GROK_URL = 'https://api.x.ai/v1/chat/completions'
 
 async function callLLM(apiKey: string, payload: unknown, attempt = 0): Promise<Response> {
-  const res = await fetch(NVIDIA_URL, {
+  const res = await fetch(GROK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(payload),
@@ -948,8 +948,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const apiKey = Deno.env.get('NVIDIA_API_KEY')
-    if (!apiKey) return json({ error: 'NVIDIA_API_KEY is not configured. Add it as a secret in the Edge Function settings.' }, 500)
+    const apiKey = Deno.env.get('XAI_API_KEY')
+    if (!apiKey) return json({ error: 'XAI_API_KEY is not configured. Add it as a secret in the Edge Function settings.' }, 500)
 
     const authHeader = req.headers.get('Authorization') ?? ''
     const token = authHeader.replace('Bearer ', '')
@@ -970,6 +970,26 @@ Deno.serve(async (req) => {
     if (!caller) return json({ error: 'Your account is not linked to a staff profile.' }, 403)
 
     const body = await req.json()
+
+    // ── Note cleanup mode (voice transcription → clean text) ──
+    if (body.mode === 'cleanup_note') {
+      const rawText = String(body.text ?? '').trim()
+      if (!rawText) return json({ error: 'No text to clean up.' }, 400)
+      const r = await callLLM(apiKey, {
+        model: GROK_MODEL,
+        messages: [
+          { role: 'system', content: 'You are a note formatting assistant for a school teacher. The teacher dictated a note using voice input. Clean it up: fix grammar, remove filler words, repetitions, and gibberish. Format it as a clear, professional teacher\'s note. Keep the original language — if Hindi, keep Hindi; if English, keep English; if Hinglish (mixed), keep it natural. Be concise. Return ONLY the cleaned note text, nothing else.' },
+          { role: 'user', content: rawText },
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
+      })
+      if (!r.ok) return json({ error: 'AI cleanup failed.' }, 502)
+      const d = await r.json()
+      const cleaned = d?.choices?.[0]?.message?.content?.trim() || rawText
+      return json({ cleaned })
+    }
+
     const history: any[] = Array.isArray(body.history) ? body.history.slice(-16) : []
     const confirmed = body.confirmedAction as { name: string; args: any } | undefined
 
@@ -984,7 +1004,7 @@ Deno.serve(async (req) => {
         ...history.filter((m) => m.role !== 'system'),
         { role: 'user', content: `[The user approved the action. Result: ${JSON.stringify(result)}. Tell them what happened in one or two sentences.]` },
       ]
-      const r = await callLLM(apiKey, { model: NVIDIA_MODEL, messages, temperature: 0.2 })
+      const r = await callLLM(apiKey, { model: GROK_MODEL, messages, temperature: 0.2 })
       if (!r.ok) return json({ reply: 'Done.', executed: result })
       const d = await r.json()
       const text = d?.choices?.[0]?.message?.content?.trim() || 'Done.'
@@ -1002,7 +1022,7 @@ Deno.serve(async (req) => {
 
     for (let hop = 0; hop < 5; hop++) {
       const r = await callLLM(apiKey, {
-        model: NVIDIA_MODEL,
+        model: GROK_MODEL,
         messages,
         tools: wrappedTools,
         tool_choice: 'auto',
