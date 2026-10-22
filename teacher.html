@@ -853,6 +853,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       My Attendance
     </div>
     <div class="sb-item" onclick="goTo('qpapers',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Question Papers</div>
+    <div class="sb-item" onclick="goTo('syllabus',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Syllabus</div>
     <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Code of Conduct</div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -1176,6 +1177,25 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       </div>
     </div>
 
+    <div class="page" id="page-syllabus">
+      <div class="page-head"><div><h2>Syllabus</h2><p>View syllabus plans and track your progress</p></div></div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="tab-btn active" onclick="tSylSwitchTab('plan',this)">My Syllabus</button>
+        <button class="tab-btn" onclick="tSylSwitchTab('recheck',this)" id="tSylRecheckBtn" style="display:none">Rechecking</button>
+      </div>
+      <div id="tSylPlanTab">
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row" style="align-items:flex-end;flex-wrap:wrap">
+            <div class="fg" style="max-width:200px"><label>Class-Section</label><select id="tsyl_class" onchange="tSylClassChanged()"><option value="">Select</option></select></div>
+            <div class="fg" style="max-width:200px"><label>Subject</label><select id="tsyl_subject"><option value="">Select</option></select></div>
+            <button class="btn btn-dark btn-sm" onclick="tSylLoadPlan()">Load</button>
+          </div>
+        </div>
+        <div id="tSylPlanBody"></div>
+      </div>
+      <div id="tSylRecheckTab" style="display:none"></div>
+    </div>
+
     <div class="page" id="page-handbook">
       <div class="page-head"><div><h2>Code of Conduct and Declaration</h2><p>Staff code of conduct &amp; declaration</p></div></div>
       <div id="hbHost"></div>
@@ -1223,7 +1243,7 @@ let _isClassView=false
 
 const TITLES={
   dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks & Assessment',
-  critical:'Critical Students',myattendance:'My Attendance',qpapers:'Question Papers',handbook:'Code of Conduct',messages:'Messages',profile:'My Profile'
+  critical:'Critical Students',myattendance:'My Attendance',qpapers:'Question Papers',syllabus:'Syllabus',handbook:'Code of Conduct',messages:'Messages',profile:'My Profile'
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1589,6 +1609,7 @@ function goTo(id,el){
   if(id==='messages'){ showMsgView(window._forceInbox?'inbox':'compose'); window._forceInbox=false }
   if(id==='profile')loadProfile()
   if(id==='qpapers'){document.querySelectorAll('#page-qpapers .sub-page').forEach(sp=>sp.classList.remove('active'));$('sub-qp-list').classList.add('active');loadTeacherQPapers()}
+  if(id==='syllabus')tSylInit()
   if(id==='critical')loadCriticalStudents()
   if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t;loadDeductionHistory()}
 }
@@ -3932,6 +3953,145 @@ async function tqpMarkFinal(){
 }
 
 
+// ═══════════════════════════════════════════════════════════════
+// TEACHER SYLLABUS
+// ═══════════════════════════════════════════════════════════════
+let _tSylInited=false,_tSylPlan=null,_tSylParts=[],_tSylItems=[],_tSylProgress=[]
+const TSYL_MONTHS=['april','may','june','july','august','september','october','november','december','january','february','march']
+function tSylMonthLabel(m){if(!m)return '—';return m.charAt(0).toUpperCase()+m.slice(1)}
+
+async function tSylInit(){
+  if(_tSylInited)return
+  _tSylInited=true
+  const classSections=[...new Map(MY_MAPPINGS.map(m=>[(m.class_id||'')+'_'+(m.section_id||''),m])).values()]
+  const sel=$('tsyl_class')
+  sel.innerHTML='<option value="">Select</option>'+classSections.map(m=>'<option value="'+m.class_id+'|'+m.section_id+'">'+esc((m.classes?.name||'?')+'-'+(m.class_sections?.name||'?'))+'</option>').join('')
+  // Check rechecking assignments
+  if(SESS){
+    const{data}=await sb.from('rechecking_assignments').select('id').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS.session_id).limit(1)
+    if(data?.length){$('tSylRecheckBtn').style.display=''}
+  }
+}
+
+function tSylClassChanged(){
+  const val=$('tsyl_class')?.value
+  if(!val){$('tsyl_subject').innerHTML='<option value="">Select</option>';return}
+  const[classId]=val.split('|')
+  const subs=[...new Map(MY_MAPPINGS.filter(m=>m.class_id===classId).map(m=>[m.subject_id,m])).values()]
+  $('tsyl_subject').innerHTML='<option value="">Select</option>'+subs.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||m.subject_id)+'</option>').join('')
+}
+
+async function tSylLoadPlan(){
+  const cv=$('tsyl_class')?.value,subId=$('tsyl_subject')?.value
+  if(!cv||!subId){toast('Select class and subject','error');return}
+  const[classId,sectionId]=cv.split('|')
+  if(!SESS){toast('No active session','error');return}
+  $('tSylPlanBody').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data:plan}=await sb.from('syllabus_plans').select('*').eq('class_id',classId).eq('subject_id',subId).eq('session_id',SESS.session_id).maybeSingle()
+  if(!plan){$('tSylPlanBody').innerHTML='<div class="card" style="text-align:center;padding:30px;color:var(--ink-faint)">No syllabus plan created for this class-subject yet.</div>';return}
+  _tSylPlan=plan
+  const{data:parts}=await sb.from('syllabus_parts').select('*').eq('plan_id',plan.id).order('sort_order')
+  _tSylParts=parts||[]
+  if(!_tSylParts.length){$('tSylPlanBody').innerHTML='<div class="card" style="text-align:center;padding:30px;color:var(--ink-faint)">Syllabus plan exists but no parts/items added yet.</div>';return}
+  const partIds=_tSylParts.map(p=>p.id)
+  const[{data:items},{data:prog}]=await Promise.all([
+    sb.from('syllabus_items').select('*').in('part_id',partIds).order('sort_order'),
+    sb.from('syllabus_progress').select('*').eq('plan_id',plan.id).eq('teacher_id',TEACHER.teacher_id).eq('section_id',sectionId)
+  ])
+  _tSylItems=items||[]
+  _tSylProgress=prog||[]
+  tSylRender(sectionId)
+}
+
+function tSylRender(sectionId){
+  const doneSet=new Set(_tSylProgress.filter(p=>p.is_done).map(p=>p.item_id))
+  const total=_tSylItems.length,done=_tSylItems.filter(i=>doneSet.has(i.id)).length
+  const pct=total?Math.round(done*100/total):0
+  let h='<div class="card" style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
+  h+='<div style="font-size:14px;font-weight:700">Progress: '+done+'/'+total+'</div>'
+  h+='<div style="flex:1;min-width:120px;height:8px;background:var(--lav-100);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--success);border-radius:4px;transition:width .3s"></div></div>'
+  h+='<div style="font-size:13px;font-weight:600;color:var(--success)">'+pct+'%</div></div></div>'
+  _tSylParts.forEach(part=>{
+    const items=_tSylItems.filter(i=>i.part_id===part.id)
+    if(!items.length)return
+    const pDone=items.filter(i=>doneSet.has(i.id)).length
+    h+='<div class="card" style="margin-bottom:12px">'
+    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h3 style="margin:0;font-size:15px;flex:1">'+esc(part.name)+'</h3><span style="font-size:12px;color:var(--ink-soft)">'+pDone+'/'+items.length+'</span></div>'
+    h+='<table class="tbl"><thead><tr><th style="width:40px">Done</th><th style="width:36px">#</th><th>Title</th><th style="width:80px">Type</th><th style="width:100px">Month</th></tr></thead><tbody>'
+    items.forEach((item,i)=>{
+      const checked=doneSet.has(item.id)
+      h+='<tr><td><input type="checkbox" '+(checked?'checked':'')+' onchange="tSylToggle(\''+item.id+'\',\''+sectionId+'\',this.checked)"></td>'
+      h+='<td>'+(i+1)+'</td><td>'+esc(item.title)+'</td>'
+      h+='<td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:'+(item.type==='revision'?'var(--warn-soft)':'var(--lav-100)')+';color:'+(item.type==='revision'?'var(--warn-dark)':'var(--indigo-dark)')+'">'+(item.type==='chapter'?'Ch':item.type==='revision'?'Rev':'Topic')+'</span></td>'
+      h+='<td>'+tSylMonthLabel(item.month)+'</td></tr>'
+    })
+    h+='</tbody></table></div>'
+  })
+  $('tSylPlanBody').innerHTML=h
+}
+
+async function tSylToggle(itemId,sectionId,checked){
+  if(checked){
+    const{error}=await sb.from('syllabus_progress').upsert({plan_id:_tSylPlan.id,item_id:itemId,teacher_id:TEACHER.teacher_id,section_id:sectionId,is_done:true,done_at:new Date().toISOString()},{onConflict:'plan_id,item_id,teacher_id,section_id'})
+    if(error){toast('Failed: '+error.message,'error');return}
+    _tSylProgress=_tSylProgress.filter(p=>p.item_id!==itemId)
+    _tSylProgress.push({plan_id:_tSylPlan.id,item_id:itemId,teacher_id:TEACHER.teacher_id,section_id:sectionId,is_done:true})
+  }else{
+    await sb.from('syllabus_progress').delete().eq('plan_id',_tSylPlan.id).eq('item_id',itemId).eq('teacher_id',TEACHER.teacher_id).eq('section_id',sectionId)
+    _tSylProgress=_tSylProgress.filter(p=>!(p.item_id===itemId&&p.section_id===sectionId))
+  }
+  tSylRender(sectionId)
+}
+
+function tSylSwitchTab(tab,btn){
+  document.querySelectorAll('#page-syllabus .tab-btn').forEach(b=>b.classList.remove('active'))
+  if(btn)btn.classList.add('active')
+  $('tSylPlanTab').style.display=tab==='plan'?'':'none'
+  $('tSylRecheckTab').style.display=tab==='recheck'?'':'none'
+  if(tab==='recheck')tSylLoadRecheck()
+}
+
+let _tSylRecheckLoaded=false
+async function tSylLoadRecheck(){
+  if(_tSylRecheckLoaded)return
+  _tSylRecheckLoaded=true
+  if(!SESS){$('tSylRecheckTab').innerHTML='<div class="card" style="text-align:center;padding:30px;color:var(--ink-faint)">No active session.</div>';return}
+  $('tSylRecheckTab').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data:assignments}=await sb.from('rechecking_assignments').select('*,classes(name),subjects(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS.session_id)
+  if(!assignments?.length){$('tSylRecheckTab').innerHTML='<div class="card" style="text-align:center;padding:30px;color:var(--ink-faint)">No rechecking assignments for you.</div>';return}
+  // For each assignment, load the syllabus plan and progress of assigned teacher
+  let h='<div style="font-size:13px;color:var(--ink-soft);margin-bottom:12px">You are assigned to recheck the following teachers\' syllabus progress:</div>'
+  for(const a of assignments){
+    h+='<div class="card" style="margin-bottom:12px">'
+    h+='<h3 style="font-size:14px;margin:0 0 6px">'+esc((a.classes?.name||'?')+' — '+(a.class_sections?.name||'?')+' — '+(a.subjects?.name||'?'))+'</h3>'
+    h+='<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Frequency: '+esc(a.frequency)+'</div>'
+    // Find plan for this class-subject
+    const{data:plan}=await sb.from('syllabus_plans').select('id').eq('class_id',a.class_id).eq('subject_id',a.subject_id).eq('session_id',SESS.session_id).maybeSingle()
+    if(!plan){h+='<div style="color:var(--ink-faint);font-size:13px;padding:8px 0">No syllabus plan found.</div></div>';continue}
+    // Get all items
+    const{data:parts}=await sb.from('syllabus_parts').select('id,name').eq('plan_id',plan.id).order('sort_order')
+    if(!parts?.length){h+='<div style="color:var(--ink-faint);font-size:13px;padding:8px 0">No items in plan.</div></div>';continue}
+    const{data:items}=await sb.from('syllabus_items').select('id,part_id,title,type,month').in('part_id',parts.map(p=>p.id)).order('sort_order')
+    // Get progress for all teachers in this section
+    const{data:progress}=await sb.from('syllabus_progress').select('*,teachers(full_name)').eq('plan_id',plan.id).eq('section_id',a.section_id)
+    const byTeacher={}
+    ;(progress||[]).forEach(p=>{
+      const tid=p.teacher_id;if(!byTeacher[tid])byTeacher[tid]={name:p.teachers?.full_name||tid,done:new Set()}
+      if(p.is_done)byTeacher[tid].done.add(p.item_id)
+    })
+    const teachers=Object.entries(byTeacher)
+    if(!teachers.length){h+='<div style="color:var(--ink-faint);font-size:13px;padding:8px 0">No teacher has marked progress yet.</div></div>';continue}
+    const totalItems=(items||[]).length
+    teachers.forEach(([tid,t])=>{
+      const doneCnt=t.done.size
+      const pct=totalItems?Math.round(doneCnt*100/totalItems):0
+      h+='<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span style="font-size:13px;font-weight:600">'+esc(t.name)+'</span><span style="font-size:12px;color:var(--ink-soft)">'+doneCnt+'/'+totalItems+' ('+pct+'%)</span></div>'
+      h+='<div style="height:6px;background:var(--lav-100);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+(pct>=80?'var(--success)':pct>=50?'var(--warn)':'var(--danger)')+';border-radius:3px"></div></div></div>'
+    })
+    h+='</div>'
+  }
+  $('tSylRecheckTab').innerHTML=h
+}
 
 
 </script>

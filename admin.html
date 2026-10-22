@@ -15054,13 +15054,13 @@ function sylParseBulk(){
         const raw2=monthMatch[2],hasSemi=raw2.includes(';')
         const items=raw2.split(hasSemi?/[;；]/:/[,،]/).map(s=>s.trim()).filter(Boolean)
         const partObj=result.find(r=>r.part===currentPart)
-        items.forEach(t=>partObj.items.push({title:t,month,type:t.match(/^ch\s*\d/i)?'chapter':t.match(/revision/i)?'revision':'topic'}))
+        items.forEach(t=>partObj.items.push({title:t,month,type:t.match(/revision/i)?'revision':t.match(/^ch[\s.-]*\d|पाठ|^lesson/i)?'chapter':'topic'}))
         return
       }
     }
     if(!currentPart){currentPart='General';if(!result.find(r=>r.part===currentPart))result.push({part:currentPart,items:[]})}
     const partObj=result.find(r=>r.part===currentPart)
-    partObj.items.push({title:line,month:null,type:line.match(/^ch\s*\d/i)?'chapter':line.match(/revision/i)?'revision':'topic'})
+    partObj.items.push({title:line,month:null,type:line.match(/revision/i)?'revision':line.match(/^ch[\s.-]*\d|पाठ|^lesson/i)?'chapter':'topic'})
   })
   if(!result.length||!result.some(r=>r.items.length)){toast('Could not parse any items','error');return}
   _sylBulkParsed=result

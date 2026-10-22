@@ -497,8 +497,8 @@ function navTo(pg,fromPop){
   }
   _navReady=true
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
-  const placeholders={work:'Homework & Classwork',syllabus:'Syllabus',datesheet:'Datesheet',finances:'Finances',pyqs:'Past Year Questions',notices:'Announcements'}
-  const phIcons={work:'<path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>',syllabus:'<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>',datesheet:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="16" r="1"/>',finances:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',pyqs:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',notices:'<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>'}
+  const placeholders={work:'Homework & Classwork',datesheet:'Datesheet',finances:'Finances',pyqs:'Past Year Questions',notices:'Announcements'}
+  const phIcons={work:'<path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>',datesheet:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="16" r="1"/>',finances:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',pyqs:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',notices:'<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>'}
   if(placeholders[pg]){
     const el=$('pg'+pg.charAt(0).toUpperCase()+pg.slice(1))
     el.innerHTML='<div class="det-hdr"><div class="back-btn" onclick="navTo(\'home\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></div><div class="det-title">'+placeholders[pg]+'</div></div><div class="det-body"><div class="cs-wrap"><div class="cs-ic"><svg viewBox="0 0 24 24" fill="none">'+phIcons[pg]+'</svg></div><div class="cs-t">'+placeholders[pg]+'</div><div class="cs-d">Coming soon</div></div></div>'
@@ -507,6 +507,7 @@ function navTo(pg,fromPop){
     const target=$('pg'+pg.charAt(0).toUpperCase()+pg.slice(1))
     if(target) target.classList.add('active')
     if(pg==='profile') renderProfile()
+    if(pg==='syllabus') loadStudentSyllabus()
   }
   $('pageArea').scrollTop=0
 }
@@ -798,6 +799,50 @@ function renderTT(){
   $('ttBody').innerHTML=h
 }
 function pickDay(d){_ttDay=d;renderTT()}
+
+// ─── STUDENT SYLLABUS (read-only) ───
+let _stuSylLoaded=false
+async function loadStudentSyllabus(){
+  const el=$('pgSyllabus')
+  if(_stuSylLoaded){el.classList.add('active');return}
+  _stuSylLoaded=true
+  let h='<div class="det-hdr"><div class="back-btn" onclick="navTo(\'home\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></div><div class="det-title">Syllabus</div></div>'
+  h+='<div class="det-body" id="stuSylBody"><div style="text-align:center;padding:30px;color:#a8a3c2">Loading…</div></div>'
+  el.innerHTML=h;el.classList.add('active')
+  if(!ENR||!ENR.session_id||!ENR.class_id){$('stuSylBody').innerHTML='<div style="text-align:center;padding:30px;color:#a8a3c2">No enrollment found.</div>';return}
+  const{data:plans}=await sb.from('syllabus_plans').select('id,subject_id').eq('class_id',ENR.class_id).eq('session_id',ENR.session_id)
+  if(!plans?.length){$('stuSylBody').innerHTML='<div style="text-align:center;padding:30px;color:#a8a3c2">No syllabus plans available for your class.</div>';return}
+  const planIds=plans.map(p=>p.id)
+  const{data:subs}=await sb.from('subjects').select('subject_id,name').in('subject_id',plans.map(p=>p.subject_id))
+  const subMap={};(subs||[]).forEach(s=>subMap[s.subject_id]=s.name)
+  const{data:allParts}=await sb.from('syllabus_parts').select('id,plan_id,name,sort_order').in('plan_id',planIds).order('sort_order')
+  const partIds=(allParts||[]).map(p=>p.id)
+  const{data:allItems}=await sb.from('syllabus_items').select('id,part_id,title,type,month,sort_order').in('part_id',partIds).order('sort_order')
+  let out=''
+  plans.forEach(plan=>{
+    const parts=(allParts||[]).filter(p=>p.plan_id===plan.id)
+    const items=(allItems||[]).filter(i=>parts.some(p=>p.id===i.part_id))
+    if(!items.length)return
+    out+='<div style="background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.06)">'
+    out+='<div style="font-size:15px;font-weight:700;margin-bottom:10px;color:#355C7D">'+esc(subMap[plan.subject_id]||'Subject')+'</div>'
+    parts.forEach(part=>{
+      const pItems=items.filter(i=>i.part_id===part.id)
+      if(!pItems.length)return
+      out+='<div style="font-size:12px;font-weight:600;color:#6B6685;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.04em">'+esc(part.name)+'</div>'
+      pItems.forEach((item,i)=>{
+        out+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid #f0eef8">'
+        out+='<span style="color:#a8a3c2;font-size:11px;min-width:20px">'+(i+1)+'</span>'
+        out+='<span style="flex:1">'+esc(item.title)+'</span>'
+        out+='<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:'+(item.type==='revision'?'#FCF1E0':'#EDF4F8')+';color:'+(item.type==='revision'?'#B8860B':'#355C7D')+'">'+(item.type==='chapter'?'Ch':item.type==='revision'?'Rev':'Topic')+'</span>'
+        if(item.month)out+='<span style="font-size:10px;color:#a8a3c2">'+item.month.charAt(0).toUpperCase()+item.month.slice(1)+'</span>'
+        out+='</div>'
+      })
+    })
+    out+='</div>'
+  })
+  if(!out)out='<div style="text-align:center;padding:30px;color:#a8a3c2">No syllabus items available.</div>'
+  $('stuSylBody').innerHTML=out
+}
 
 history.replaceState({pg:'home'},'')
 window.addEventListener('popstate',function(e){navTo(e.state?.pg||'home',true)})
