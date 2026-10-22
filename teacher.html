@@ -4343,7 +4343,7 @@ async function rcCleanupNote(){
     const sess=await sb.auth.getSession()
     const token=sess?.data?.session?.access_token
     if(!token){toast('Not signed in','error');return}
-    const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/ai-assistant',{
+    const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/super-action',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body:JSON.stringify({mode:'cleanup_note',text:ta.value.trim()})
