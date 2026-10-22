@@ -4289,7 +4289,14 @@ function rcAddNote(studentId){
   const stu=_rcStudents.find(s=>s.student_id===studentId)
   const body='<div style="margin-bottom:12px;font-size:13px;color:var(--ink-soft)">Notes for <b>'+esc(stu?.full_name||'')+'</b></div>'+
     '<textarea id="rc_note_text" rows="4" style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical;font-family:var(--font)" placeholder="Type or use voice input...">'+(rec?.notes||'')+'</textarea>'+
-    '<div style="margin-top:8px"><button class="btn btn-soft btn-sm" onclick="rcStartVoiceForNote()" id="rc_voice_btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice Input</button></div>'
+    '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+      '<button class="btn btn-soft btn-sm" onclick="rcStartVoiceForNote()" id="rc_voice_btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice</button>'+
+      '<span style="display:inline-flex;border:1.5px solid var(--line);border-radius:999px;overflow:hidden;font-size:11px;font-weight:700">'+
+        '<button id="rc_lang_en" onclick="rcSetLang(\'en-IN\')" style="padding:4px 10px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;background:var(--indigo);color:#fff">EN</button>'+
+        '<button id="rc_lang_hi" onclick="rcSetLang(\'hi-IN\')" style="padding:4px 10px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;background:transparent;color:var(--ink-soft)">हिं</button>'+
+      '</span>'+
+      '<button class="btn btn-soft btn-sm" onclick="rcCleanupNote()" id="rc_ai_btn" style="margin-left:auto"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup</button>'+
+    '</div>'
   const foot='<button class="btn btn-primary" onclick="rcSaveNote(\''+studentId+'\')">Save Note</button>'
   openModal('Rechecking Note',body,foot)
 }
@@ -4315,13 +4322,46 @@ function rcVoiceNote(studentId){
 }
 
 let _rcRecognition=null
+let _rcVoiceLang='en-IN'
+function rcSetLang(lang){
+  _rcVoiceLang=lang
+  const enBtn=$('rc_lang_en'),hiBtn=$('rc_lang_hi')
+  if(enBtn&&hiBtn){
+    enBtn.style.background=lang==='en-IN'?'var(--indigo)':'transparent'
+    enBtn.style.color=lang==='en-IN'?'#fff':'var(--ink-soft)'
+    hiBtn.style.background=lang==='hi-IN'?'var(--indigo)':'transparent'
+    hiBtn.style.color=lang==='hi-IN'?'#fff':'var(--ink-soft)'
+  }
+  if(_rcRecognition){_rcRecognition.stop();setTimeout(()=>rcStartVoiceForNote(),300)}
+}
+async function rcCleanupNote(){
+  const ta=$('rc_note_text')
+  if(!ta||!ta.value.trim()){toast('Nothing to clean up','warn');return}
+  const btn=$('rc_ai_btn')
+  if(btn){btn.disabled=true;btn.textContent='Cleaning up...'}
+  try{
+    const sess=await sb.auth.getSession()
+    const token=sess?.data?.session?.access_token
+    if(!token){toast('Not signed in','error');return}
+    const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/ai-assistant',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({mode:'cleanup_note',text:ta.value.trim()})
+    })
+    const data=await res.json()
+    if(!res.ok){toast(data.error||'Cleanup failed','error');return}
+    if(data.cleaned)ta.value=data.cleaned
+    toast('Note cleaned up','success')
+  }catch(e){toast('AI error: '+e.message,'error')}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup'}}
+}
 function rcStartVoiceForNote(){
   const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition
   if(!SpeechRecognition){toast('Voice input not supported on this browser','error');return}
   const btn=$('rc_voice_btn')
   if(_rcRecognition){_rcRecognition.stop();return}
   _rcRecognition=new SpeechRecognition()
-  _rcRecognition.lang='hi-IN'
+  _rcRecognition.lang=_rcVoiceLang
   _rcRecognition.continuous=true
   _rcRecognition.interimResults=true
   let finalText=''
