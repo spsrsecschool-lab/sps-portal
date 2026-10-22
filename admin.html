@@ -15011,8 +15011,8 @@ async function sylDeleteItem(itemId){
 function sylOpenBulkPaste(){
   if(!_sylPlan)return
   const body='<div style="margin-bottom:10px;font-size:13px;color:var(--ink-soft);line-height:1.6">'+
-    'Paste syllabus in this format:<br><code style="background:var(--bg);padding:8px;border-radius:6px;display:block;margin:8px 0;font-size:12px;white-space:pre;line-height:1.7">Part: Grammar\nOctober: Noun, Pronoun, Tense\nNovember: Active-Passive, Letter Writing\n\nPart: Reader\nOctober: Ch 1 - The Lost Child\nNovember: Ch 2 - Sound of Music</code>'+
-    'If no "Part:" line, all items go under a default part.</div>'+
+    'Paste syllabus in this format:<br><code style="background:var(--bg);padding:8px;border-radius:6px;display:block;margin:8px 0;font-size:12px;white-space:pre;line-height:1.7">Part: Grammar\nOctober: Noun, Pronoun, Tense\nNovember: Active-Passive; Letter Writing\n\nPart: Reader\nOctober: Ch 1 - The Lost Child; Ch 2 - Sound of Music</code>'+
+    'Separate items with <b>semicolons (;)</b> or <b>commas (,)</b>. If no "Part:" line, all items go under a default part.</div>'+
     '<textarea id="syl_bulk_text" rows="12" style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);font-family:monospace;resize:vertical" placeholder="Paste syllabus here..."></textarea>'+
     '<div id="syl_bulk_preview" style="margin-top:12px"></div>'
   const foot='<button class="btn btn-soft" onclick="sylParseBulk()">Preview</button> <button class="btn btn-dark" id="syl_bulk_save_btn" onclick="sylSaveBulk()" disabled>Save All</button>'
@@ -15051,15 +15051,16 @@ function sylParseBulk(){
       const month=resolveMonth(monthMatch[1])
       if(month){
         if(!currentPart){currentPart='General';if(!result.find(r=>r.part===currentPart))result.push({part:currentPart,items:[]})}
-        const items=monthMatch[2].split(/[,،]/).map(s=>s.trim()).filter(Boolean)
+        const raw2=monthMatch[2],hasSemi=raw2.includes(';')
+        const items=raw2.split(hasSemi?/[;；]/:/[,،]/).map(s=>s.trim()).filter(Boolean)
         const partObj=result.find(r=>r.part===currentPart)
-        items.forEach(t=>partObj.items.push({title:t,month,type:t.match(/^ch\s/i)?'chapter':'topic'}))
+        items.forEach(t=>partObj.items.push({title:t,month,type:t.match(/^ch\s*\d/i)?'chapter':'topic'}))
         return
       }
     }
     if(!currentPart){currentPart='General';if(!result.find(r=>r.part===currentPart))result.push({part:currentPart,items:[]})}
     const partObj=result.find(r=>r.part===currentPart)
-    partObj.items.push({title:line,month:null,type:line.match(/^ch\s/i)?'chapter':'topic'})
+    partObj.items.push({title:line,month:null,type:line.match(/^ch\s*\d/i)?'chapter':'topic'})
   })
   if(!result.length||!result.some(r=>r.items.length)){toast('Could not parse any items','error');return}
   _sylBulkParsed=result
