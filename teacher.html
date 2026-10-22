@@ -335,6 +335,12 @@
   .btn-soft{background:var(--indigo-100);color:var(--indigo-dark)}
   .btn-success{background:var(--success);color:#fff}
   .btn-sm{padding:6px 12px;font-size:11.5px}
+  .btn-dark{background:var(--ink);color:#fff}
+  .btn-dark:active{opacity:.85}
+
+  .tab-btn{font-family:var(--font);font-size:13px;font-weight:700;padding:8px 18px;border-radius:999px;border:1.5px solid var(--line);background:var(--white);color:var(--ink-soft);cursor:pointer;transition:all .15s}
+  .tab-btn.active{background:var(--indigo);color:#fff;border-color:var(--indigo);box-shadow:0 2px 8px rgba(53,92,125,.18)}
+  .tab-btn:not(.active):hover{border-color:var(--indigo);color:var(--indigo)}
 
   /* profile */
   .profile-hero{
@@ -515,6 +521,9 @@ body.dark .field-grp input,body.dark .field-grp select,body.dark .field-grp text
 body.dark .field-grp input:focus,body.dark .field-grp select:focus,body.dark .field-grp textarea:focus{background:#1E1E1E;border-color:#355C7D}
 body.dark .btn-ghost{background:#111111;border-color:#2A2A2A;color:#A0A0A0}
 body.dark .btn-soft{background:#0E2030;color:#5A9ABE}
+body.dark .btn-dark{background:#E0E0E0;color:#111}
+body.dark .tab-btn{background:#111;border-color:#2A2A2A;color:#888}
+body.dark .tab-btn.active{background:var(--indigo);color:#fff;border-color:var(--indigo)}
 body.dark .banner{background:linear-gradient(120deg,#1A3A52 0%,#2A5070 100%)}
 body.dark .profile-hero{background:#111111;border-color:#1A1A1A}
 body.dark .field-row{border-color:#1A1A1A}
@@ -1188,7 +1197,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
             <div style="flex:1;min-width:140px"><label style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;display:block">Class-Section</label><select id="tsyl_class" onchange="tSylClassChanged()" style="width:100%"><option value="">Select</option></select></div>
             <div style="flex:1;min-width:140px"><label style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;display:block">Subject</label><select id="tsyl_subject" style="width:100%"><option value="">Select</option></select></div>
-            <button class="btn btn-dark btn-sm" onclick="tSylLoadPlan()" style="white-space:nowrap">Load Plan</button>
+            <button class="btn btn-primary btn-sm" onclick="tSylLoadPlan()" style="white-space:nowrap">Load Plan</button>
           </div>
         </div>
         <div id="tSylPlanBody"></div>
@@ -3956,7 +3965,7 @@ async function tqpMarkFinal(){
 // ═══════════════════════════════════════════════════════════════
 // TEACHER SYLLABUS
 // ═══════════════════════════════════════════════════════════════
-let _tSylInited=false,_tSylPlan=null,_tSylParts=[],_tSylItems=[],_tSylProgress=[],_tSylSectionId=null
+let _tSylInited=false,_tSylPlan=null,_tSylParts=[],_tSylItems=[],_tSylProgress=[],_tSylSectionId=null,_tSylClassId=null,_tSylSubjectId=null
 const TSYL_MONTHS=['april','may','june','july','august','september','october','november','december','january','february','march']
 function tSylMonthLabel(m){if(!m)return '';return m.charAt(0).toUpperCase()+m.slice(1)}
 const TSYL_STATUS_CFG={
@@ -3985,7 +3994,7 @@ async function tSylLoadPlan(){
   const cv=$('tsyl_class')?.value,subId=$('tsyl_subject')?.value
   if(!cv||!subId){toast('Select class and subject','error');return}
   const[classId,sectionId]=cv.split('|')
-  _tSylSectionId=sectionId
+  _tSylSectionId=sectionId;_tSylClassId=classId;_tSylSubjectId=subId
   if(!SESS){toast('No active session','error');return}
   $('tSylPlanBody').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   const{data:plan}=await sb.from('syllabus_plans').select('*').eq('class_id',classId).eq('subject_id',subId).eq('session_id',SESS.session_id).maybeSingle()
@@ -3995,12 +4004,13 @@ async function tSylLoadPlan(){
   _tSylParts=parts||[]
   if(!_tSylParts.length){$('tSylPlanBody').innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--ink-faint)"><div style="font-size:14px;font-weight:600">Plan Exists</div><div style="font-size:12px">But no chapters/items have been added yet.</div></div>';return}
   const partIds=_tSylParts.map(p=>p.id)
-  const[{data:items},{data:prog}]=await Promise.all([
-    sb.from('syllabus_items').select('*').in('part_id',partIds).order('sort_order'),
-    sb.from('syllabus_progress').select('*').eq('teacher_id',TEACHER.teacher_id).eq('section_id',sectionId).in('item_id',(await sb.from('syllabus_items').select('id').in('part_id',partIds)).data?.map(i=>i.id)||[])
-  ])
+  const{data:items}=await sb.from('syllabus_items').select('*').in('part_id',partIds).order('sort_order')
   _tSylItems=items||[]
-  _tSylProgress=prog||[]
+  const itemIds=_tSylItems.map(i=>i.id)
+  if(itemIds.length){
+    const{data:prog}=await sb.from('syllabus_progress').select('*').eq('teacher_id',TEACHER.teacher_id).eq('section_id',sectionId).in('item_id',itemIds)
+    _tSylProgress=prog||[]
+  }else{_tSylProgress=[]}
   tSylRender()
 }
 
@@ -4011,41 +4021,40 @@ function tSylGetStatus(itemId){
 }
 
 function tSylRender(){
-  const sectionId=_tSylSectionId
   const total=_tSylItems.length
   const completed=_tSylItems.filter(i=>tSylGetStatus(i.id).status==='completed').length
   const ongoing=_tSylItems.filter(i=>tSylGetStatus(i.id).status==='ongoing').length
   const pct=total?Math.round(completed*100/total):0
   let h=''
-  // Progress summary card
-  h+='<div class="card" style="padding:16px;margin-bottom:14px;background:linear-gradient(135deg,var(--indigo) 0%,var(--indigo-dark) 100%);color:#fff;border-radius:var(--radius-md)">'
+  h+='<div style="padding:16px;margin-bottom:14px;background:linear-gradient(135deg,var(--indigo) 0%,var(--indigo-dark) 100%);color:#fff;border-radius:var(--radius-md)">'
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:13px;font-weight:600;opacity:.9">Overall Progress</span><span style="font-size:22px;font-weight:800">'+pct+'%</span></div>'
   h+='<div style="height:6px;background:rgba(255,255,255,.25);border-radius:3px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:'+pct+'%;background:#fff;border-radius:3px;transition:width .4s ease"></div></div>'
   h+='<div style="display:flex;gap:16px;font-size:12px;opacity:.85">'
-  h+='<span>'+TSYL_STATUS_CFG.completed.icon+' '+completed+' Completed</span>'
+  h+='<span>'+TSYL_STATUS_CFG.completed.icon+' '+completed+' Done</span>'
   h+='<span>'+TSYL_STATUS_CFG.ongoing.icon+' '+ongoing+' Ongoing</span>'
   h+='<span>'+TSYL_STATUS_CFG.not_started.icon+' '+(total-completed-ongoing)+' Pending</span>'
   h+='</div></div>'
-  // Group by month
   const byMonth={}
-  _tSylItems.forEach(item=>{
-    const m=item.month||'unscheduled'
-    if(!byMonth[m])byMonth[m]=[]
-    byMonth[m].push(item)
-  })
+  _tSylItems.forEach(item=>{const m=item.month||'unscheduled';if(!byMonth[m])byMonth[m]=[];byMonth[m].push(item)})
   const monthOrder=[...TSYL_MONTHS,'unscheduled']
   monthOrder.forEach(month=>{
     const items=byMonth[month]
     if(!items)return
     const mLabel=month==='unscheduled'?'Unscheduled':tSylMonthLabel(month)
     const mDone=items.filter(i=>tSylGetStatus(i.id).status==='completed').length
-    h+='<div style="margin-bottom:14px">'
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 2px"><span style="font-size:13px;font-weight:700;color:var(--ink)">'+esc(mLabel)+'</span><span style="font-size:11px;color:var(--ink-faint);font-weight:500">'+mDone+'/'+items.length+'</span></div>'
+    h+='<div style="margin-bottom:16px">'
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 2px">'
+    h+='<span style="font-size:14px;font-weight:800;color:var(--ink)">'+esc(mLabel)+'</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint);font-weight:500">'+mDone+'/'+items.length+'</span>'
+    h+='<span style="flex:1"></span>'
+    h+='<button onclick="tSylAddItem(\''+month+'\')" style="background:none;border:1.5px dashed var(--line);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-faint);font-size:16px;line-height:1" title="Add item to '+esc(mLabel)+'">+</button>'
+    h+='</div>'
     items.forEach(item=>{
       const st=tSylGetStatus(item.id)
       const cfg=TSYL_STATUS_CFG[st.status]
       const part=_tSylParts.find(p=>p.id===item.part_id)
-      h+='<div style="background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px">'
+      const borderColor=st.status==='completed'?'var(--success)':st.status==='ongoing'?'#93C5FD':'var(--line)'
+      h+='<div ontouchstart="tSylLongPress(event,\''+item.id+'\')" onmousedown="tSylLongPress(event,\''+item.id+'\')" ontouchend="tSylCancelLong()" onmouseup="tSylCancelLong()" ontouchmove="tSylCancelLong()" style="background:var(--white);border:1.5px solid '+borderColor+';border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px;transition:border-color .2s;-webkit-user-select:none;user-select:none">'
       h+='<div style="display:flex;align-items:flex-start;gap:10px">'
       h+='<div style="flex:1;min-width:0">'
       h+='<div style="font-size:13.5px;font-weight:600;line-height:1.35;margin-bottom:4px">'+esc(item.title)+'</div>'
@@ -4060,17 +4069,69 @@ function tSylRender(){
         h+='</div>'
       }
       h+='</div>'
-      // Status dropdown
-      h+='<select onchange="tSylSetStatus(\''+item.id+'\',this.value)" style="font-size:11px;padding:5px 8px;border-radius:20px;border:1.5px solid '+cfg.color+';background:'+cfg.bg+';color:'+cfg.color+';font-weight:700;cursor:pointer;min-width:100px;appearance:auto;-webkit-appearance:auto">'
-      Object.entries(TSYL_STATUS_CFG).forEach(([k,v])=>{
-        h+='<option value="'+k+'"'+(st.status===k?' selected':'')+'>'+v.label+'</option>'
-      })
+      h+='<select onchange="tSylSetStatus(\''+item.id+'\',this.value)" style="font-size:11px;padding:5px 8px;border-radius:20px;border:1.5px solid '+cfg.color+';background:'+cfg.bg+';color:'+cfg.color+';font-weight:700;cursor:pointer;min-width:100px;appearance:auto;-webkit-appearance:auto;flex-shrink:0">'
+      Object.entries(TSYL_STATUS_CFG).forEach(([k,v])=>{h+='<option value="'+k+'"'+(st.status===k?' selected':'')+'>'+v.label+'</option>'})
       h+='</select>'
       h+='</div></div>'
     })
     h+='</div>'
   })
   $('tSylPlanBody').innerHTML=h
+}
+
+// ─── Long-press to move item between months ───
+let _tSylLongTimer=null
+function tSylLongPress(e,itemId){
+  _tSylLongTimer=setTimeout(()=>{
+    _tSylLongTimer=null
+    e.preventDefault()
+    tSylShowMoveModal(itemId)
+  },500)
+}
+function tSylCancelLong(){if(_tSylLongTimer){clearTimeout(_tSylLongTimer);_tSylLongTimer=null}}
+
+function tSylShowMoveModal(itemId){
+  const item=_tSylItems.find(i=>i.id===itemId)
+  if(!item)return
+  let body='<div style="margin-bottom:12px;font-size:13px;color:var(--ink-soft)">Move <b>'+esc(item.title)+'</b> to:</div>'
+  body+='<div style="display:flex;flex-wrap:wrap;gap:8px">'
+  TSYL_MONTHS.forEach(m=>{
+    const active=item.month===m
+    body+='<button onclick="tSylMoveItem(\''+itemId+'\',\''+m+'\')" class="btn btn-sm" style="border-radius:20px;'+(active?'background:var(--indigo);color:#fff;':'background:var(--white);border:1.5px solid var(--line);color:var(--ink);')+'">'+tSylMonthLabel(m)+'</button>'
+  })
+  body+='</div>'
+  openModal('Move to Month',body,'')
+}
+
+async function tSylMoveItem(itemId,newMonth){
+  const{error}=await sb.from('syllabus_items').update({month:newMonth}).eq('id',itemId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const item=_tSylItems.find(i=>i.id===itemId)
+  if(item)item.month=newMonth
+  closeModal();toast('Moved to '+tSylMonthLabel(newMonth),'success');tSylRender()
+}
+
+// ─── Add item (teacher adds topic to a month) ───
+function tSylAddItem(month){
+  const mLabel=month==='unscheduled'?'Unscheduled':tSylMonthLabel(month)
+  const partOpts=_tSylParts.map((p,i)=>'<option value="'+p.id+'"'+(i===0?' selected':'')+'>'+esc(p.name)+'</option>').join('')
+  let body='<div class="field-grp"><label>Title</label><input id="tsyl_add_title" placeholder="e.g. Revision: Units 1-3"></div>'
+  body+='<div class="field-grp"><label>Section</label><select id="tsyl_add_part">'+partOpts+'</select></div>'
+  body+='<div class="field-grp"><label>Type</label><select id="tsyl_add_type"><option value="topic">Topic</option><option value="chapter">Chapter</option><option value="revision">Revision</option></select></div>'
+  const foot='<button class="btn btn-primary" onclick="tSylSaveNewItem(\''+month+'\')">Add</button>'
+  openModal('Add Item — '+mLabel,body,foot)
+}
+
+async function tSylSaveNewItem(month){
+  const title=$('tsyl_add_title')?.value?.trim()
+  const partId=$('tsyl_add_part')?.value
+  const type=$('tsyl_add_type')?.value||'topic'
+  if(!title){toast('Enter a title','error');return}
+  const maxSort=_tSylItems.filter(i=>i.part_id===partId).reduce((mx,i)=>Math.max(mx,i.sort_order||0),0)
+  const{data,error}=await sb.from('syllabus_items').insert({part_id:partId,title,type,month:month==='unscheduled'?null:month,sort_order:maxSort+1}).select().single()
+  if(error){toast('Failed: '+error.message,'error');return}
+  _tSylItems.push(data)
+  closeModal();toast('Item added','success');tSylRender()
 }
 
 async function tSylSetStatus(itemId,newStatus){
@@ -4109,8 +4170,22 @@ async function tSylLoadRecheck(){
   _tSylRecheckLoaded=true
   if(!SESS){$('tSylRecheckTab').innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No active session.</div>';return}
   $('tSylRecheckTab').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const{data:assignments}=await sb.from('rechecking_assignments').select('*,classes(name),subjects(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS.session_id)
+  const{data:assignments,error:rcErr}=await sb.from('rechecking_assignments').select('*,classes(name),subjects(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id).eq('session_id',SESS.session_id)
+  if(rcErr)console.error('[RECHECK] query error:',rcErr)
+  console.log('[RECHECK] teacher_id=',TEACHER.teacher_id,'session_id=',SESS.session_id,'results=',assignments?.length,assignments)
   _rcAssignments=assignments||[]
+  if(!_rcAssignments.length){
+    const{data:allAssign}=await sb.from('rechecking_assignments').select('id,teacher_id,session_id').eq('teacher_id',TEACHER.teacher_id)
+    console.log('[RECHECK] all assignments for this teacher (any session):',allAssign)
+    if(allAssign?.length){
+      const matchSess=allAssign.find(a=>a.session_id===SESS.session_id)
+      if(!matchSess){
+        const{data:retryAssign}=await sb.from('rechecking_assignments').select('*,classes(name),subjects(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id)
+        _rcAssignments=retryAssign||[]
+        console.log('[RECHECK] retried without session filter, got:',_rcAssignments.length)
+      }
+    }
+  }
   rcRenderMain()
 }
 
@@ -4205,7 +4280,7 @@ function rcAddNote(studentId){
   const body='<div style="margin-bottom:12px;font-size:13px;color:var(--ink-soft)">Notes for <b>'+esc(stu?.full_name||'')+'</b></div>'+
     '<textarea id="rc_note_text" rows="4" style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical;font-family:var(--font)" placeholder="Type or use voice input...">'+(rec?.notes||'')+'</textarea>'+
     '<div style="margin-top:8px"><button class="btn btn-soft btn-sm" onclick="rcStartVoiceForNote()" id="rc_voice_btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice Input</button></div>'
-  const foot='<button class="btn btn-dark" onclick="rcSaveNote(\''+studentId+'\')">Save Note</button>'
+  const foot='<button class="btn btn-primary" onclick="rcSaveNote(\''+studentId+'\')">Save Note</button>'
   openModal('Rechecking Note',body,foot)
 }
 
