@@ -1,16 +1,16 @@
 // SPS AI Assistant — Supabase Edge Function
 //
-// Model: Grok (xAI, OpenAI-compatible API)
-// Secret: XAI_API_KEY
-// Optional: GROK_MODEL to override the default model.
+// Model: Groq (free tier, OpenAI-compatible API)
+// Secret: GROQ_API_KEY
+// Optional: GROQ_MODEL to override the default model.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const GROK_MODEL = Deno.env.get('GROK_MODEL') ?? 'grok-3-mini'
-const GROK_URL = 'https://api.x.ai/v1/chat/completions'
+const GROQ_MODEL = Deno.env.get('GROQ_MODEL') ?? 'llama-3.3-70b-versatile'
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 async function callLLM(apiKey: string, payload: unknown, attempt = 0): Promise<Response> {
-  const res = await fetch(GROK_URL, {
+  const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(payload),
@@ -955,14 +955,14 @@ Deno.serve(async (req) => {
 
     // ── Note cleanup mode — completely separate path ──
     if (body.mode === 'cleanup_note') {
-      const ak = Deno.env.get('XAI_API_KEY')
-      if (!ak) return json({ error: 'XAI_API_KEY is not configured.' }, 500)
+      const ak = Deno.env.get('GROQ_API_KEY')
+      if (!ak) return json({ error: 'GROQ_API_KEY is not configured.' }, 500)
       const ah = req.headers.get('Authorization') ?? ''
       if (!ah) return json({ error: 'Not signed in.' }, 401)
       const rawText = String(body.text ?? '').trim()
       if (!rawText) return json({ error: 'No text to clean up.' }, 400)
       const r = await callLLM(ak, {
-        model: GROK_MODEL,
+        model: GROQ_MODEL,
         messages: [
           { role: 'system', content: 'You are a note formatting assistant for a school teacher. The teacher dictated a note using voice input. Clean it up: fix grammar, remove filler words, repetitions, and gibberish. Format it as a clear, professional teacher\'s note. Keep the original language — if Hindi, keep Hindi; if English, keep English; if Hinglish (mixed), keep it natural. Be concise. Return ONLY the cleaned note text, nothing else.' },
           { role: 'user', content: rawText },
@@ -977,8 +977,8 @@ Deno.serve(async (req) => {
     }
 
     // ── Sakha chatbot flow ──
-    const apiKey = Deno.env.get('XAI_API_KEY')
-    if (!apiKey) return json({ error: 'XAI_API_KEY is not configured. Add it as a secret in the Edge Function settings.' }, 500)
+    const apiKey = Deno.env.get('GROQ_API_KEY')
+    if (!apiKey) return json({ error: 'GROQ_API_KEY is not configured. Add it as a secret in the Edge Function settings.' }, 500)
 
     const authHeader = req.headers.get('Authorization') ?? ''
     const token = authHeader.replace('Bearer ', '')
@@ -1012,7 +1012,7 @@ Deno.serve(async (req) => {
         ...history.filter((m) => m.role !== 'system'),
         { role: 'user', content: `[The user approved the action. Result: ${JSON.stringify(result)}. Tell them what happened in one or two sentences.]` },
       ]
-      const r = await callLLM(apiKey, { model: GROK_MODEL, messages, temperature: 0.2 })
+      const r = await callLLM(apiKey, { model: GROQ_MODEL, messages, temperature: 0.2 })
       if (!r.ok) return json({ reply: 'Done.', executed: result })
       const d = await r.json()
       const text = d?.choices?.[0]?.message?.content?.trim() || 'Done.'
@@ -1029,7 +1029,7 @@ Deno.serve(async (req) => {
     ]
 
     for (let hop = 0; hop < 5; hop++) {
-      const llmPayload: any = { model: GROK_MODEL, messages, temperature: 0.2 }
+      const llmPayload: any = { model: GROQ_MODEL, messages, temperature: 0.2 }
       if (wrappedTools.length) { llmPayload.tools = wrappedTools; llmPayload.tool_choice = 'auto' }
       const r = await callLLM(apiKey, llmPayload)
       if (!r.ok) {
