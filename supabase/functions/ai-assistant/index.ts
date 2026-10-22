@@ -40,7 +40,7 @@ interface SectionAccess {
 }
 
 interface Caller {
-  kind: 'admin' | 'teacher'
+  kind: 'admin' | 'teacher' | 'guest'
   id: string
   name: string
   sessionId: string | null
@@ -110,6 +110,7 @@ async function identify(db: any, authUserId: string): Promise<Caller | null> {
 
 // ── Tool declarations ──────────────────────────────────────────────────────
 function toolsFor(caller: Caller) {
+  if (caller.kind === 'guest') return []
   const t: any[] = [
     {
       name: 'get_class_roster',
@@ -889,7 +890,9 @@ function systemPrompt(caller: Caller) {
   const today = new Date().toISOString().slice(0, 10)
 
   let scope: string
-  if (caller.kind === 'admin') {
+  if (caller.kind === 'guest') {
+    scope = 'You are speaking with a school portal user. Their account is not yet linked to a staff profile, so you have no data tools. Answer general questions helpfully and suggest they contact the administrator to link their account for full access.'
+  } else if (caller.kind === 'admin') {
     scope = 'You are speaking with a school ADMIN. They can see school-wide data and run raw SQL queries.'
   } else {
     const ctSections = caller.sections.filter((s) => s.role === 'class_teacher')
@@ -993,7 +996,7 @@ Deno.serve(async (req) => {
     const db = createClient(url, serviceKey, { auth: { persistSession: false } })
 
     const caller = await identify(db, userData.user.id)
-    if (!caller) return json({ error: 'Your account is not linked to a staff profile.' }, 403)
+      ?? { kind: 'guest' as const, id: userData.user.id, name: userData.user.email ?? 'User', sessionId: null, sections: [] }
 
     const history: any[] = Array.isArray(body.history) ? body.history.slice(-16) : []
     const confirmed = body.confirmedAction as { name: string; args: any } | undefined
@@ -1026,13 +1029,9 @@ Deno.serve(async (req) => {
     ]
 
     for (let hop = 0; hop < 5; hop++) {
-      const r = await callLLM(apiKey, {
-        model: GROK_MODEL,
-        messages,
-        tools: wrappedTools,
-        tool_choice: 'auto',
-        temperature: 0.2,
-      })
+      const llmPayload: any = { model: GROK_MODEL, messages, temperature: 0.2 }
+      if (wrappedTools.length) { llmPayload.tools = wrappedTools; llmPayload.tool_choice = 'auto' }
+      const r = await callLLM(apiKey, llmPayload)
       if (!r.ok) {
         let detail = ''
         try { detail = (await r.json())?.error?.message ?? '' } catch (_) { /* ignore */ }
