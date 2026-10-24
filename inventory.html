@@ -1285,14 +1285,9 @@ async function deleteTransaction(itemId){
 let _camScanner=null,_camMode=null
 function _torchOn(wrapperId){
   setTimeout(()=>{try{
-    const vid=document.querySelector('#'+wrapperId+' video')
-    console.log('[TORCH] video element:', vid, 'srcObject:', vid?.srcObject)
-    const track=vid?.srcObject?.getVideoTracks()?.[0]
-    console.log('[TORCH] track:', track, 'capabilities:', track?.getCapabilities?.())
-    if(track?.getCapabilities?.()?.torch){
-      track.applyConstraints({advanced:[{torch:true}]}).then(()=>console.log('[TORCH] ON')).catch(e=>console.warn('[TORCH] fail:',e))
-    }else{console.warn('[TORCH] torch not supported on this track')}
-  }catch(e){console.error('[TORCH] error:',e)}},1000)
+    const track=document.querySelector('#'+wrapperId+' video')?.srcObject?.getVideoTracks()?.[0]
+    if(track)track.applyConstraints({advanced:[{torch:true}]}).catch(()=>{})
+  }catch(_){}},800)
 }
 function stopCamScanner(mode){
   if(_camScanner){try{_camScanner.stop().then(()=>{_camScanner.clear()}).catch(()=>{})}catch(e){}}
