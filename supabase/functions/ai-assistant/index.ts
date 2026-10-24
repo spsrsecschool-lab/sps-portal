@@ -129,8 +129,8 @@ function toolsFor(caller: Caller) {
       parameters: {
         type: 'object',
         properties: {
-          class_name: { type: 'string' },
-          section_name: { type: 'string' },
+          class_name: { type: 'string', description: 'e.g. "LKG", "5th", "9th", "11th"' },
+          section_name: { type: 'string', description: 'e.g. "A". Optional — defaults to first section.' },
           date: { type: 'string', description: 'YYYY-MM-DD for a single day' },
           from: { type: 'string', description: 'YYYY-MM-DD range start' },
           to: { type: 'string', description: 'YYYY-MM-DD range end' },
@@ -324,10 +324,41 @@ function toolsFor(caller: Caller) {
 const WRITE_TOOLS = new Set(['mark_attendance', 'send_message'])
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+// ── Fuzzy helpers ─────────────────────────────────────────────────────────
+function norm(s: string): string {
+  return s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+function normClass(raw: string): string {
+  let s = raw.trim().toLowerCase().replace(/^class\s*/i, '').replace(/\s+/g, '')
+  s = s.replace(/(st|nd|rd|th)$/, '')
+  return s
+}
+function normDay(raw: string): string {
+  const d = raw.trim().toLowerCase().replace(/[^a-z]/g, '')
+  const map: Record<string, string> = {
+    mon: 'Mon', monday: 'Mon', tue: 'Tue', tues: 'Tue', tuesday: 'Tue',
+    wed: 'Wed', wednesday: 'Wed', thu: 'Thu', thur: 'Thu', thurs: 'Thu', thursday: 'Thu',
+    fri: 'Fri', friday: 'Fri', sat: 'Sat', saturday: 'Sat', sun: 'Sun', sunday: 'Sun',
+  }
+  return map[d] ?? raw.trim()
+}
+function fuzzyMatch<T>(items: T[], getText: (item: T) => string, query: string): T | undefined {
+  const q = norm(query)
+  return items.find(i => norm(getText(i)) === q)
+    ?? items.find(i => norm(getText(i)).includes(q))
+    ?? items.find(i => q.includes(norm(getText(i))))
+}
+
 async function resolveSection(db: any, caller: Caller, className: string, sectionName?: string) {
   const { data: cls } = await db.from('classes').select('class_id, name')
-  const cl = (cls ?? []).find((c: any) => (c.name ?? '').toLowerCase() === String(className).toLowerCase())
-  if (!cl) return { error: `No class named "${className}".` }
+  const allClasses = cls ?? []
+  const needle = normClass(className)
+  const cl = allClasses.find((c: any) => normClass(c.name ?? '') === needle)
+    ?? fuzzyMatch(allClasses, (c: any) => c.name ?? '', className)
+  if (!cl) {
+    const available = allClasses.map((c: any) => c.name).join(', ')
+    return { error: `No class named "${className}". Available classes: ${available}` }
+  }
 
   const { data: secs } = await db
     .from('class_sections')
@@ -336,14 +367,23 @@ async function resolveSection(db: any, caller: Caller, className: string, sectio
     .eq('session_id', caller.sessionId ?? '')
     .eq('is_active', true)
 
-  let sec = sectionName
-    ? (secs ?? []).find((s: any) => (s.name ?? '').toLowerCase() === String(sectionName).toLowerCase())
-    : (secs ?? [])[0]
-  if (!sec) return { error: `No section "${sectionName ?? ''}" in ${className}.` }
+  const allSecs = secs ?? []
+  let sec: any
+  if (sectionName) {
+    sec = allSecs.find((s: any) => norm(s.name ?? '') === norm(sectionName))
+      ?? fuzzyMatch(allSecs, (s: any) => s.name ?? '', sectionName)
+    if (!sec) {
+      const available = allSecs.map((s: any) => s.name).join(', ')
+      return { error: `No section "${sectionName}" in ${cl.name}. Available sections: ${available}` }
+    }
+  } else {
+    sec = allSecs[0]
+  }
+  if (!sec) return { error: `No sections found for ${cl.name}.` }
 
   if (caller.kind === 'teacher') {
     const ok = caller.sections.some((s) => s.section_id === sec.section_id)
-    if (!ok) return { error: `You don't have access to ${className}-${sec.name}. You can only see classes you teach or are class teacher of.` }
+    if (!ok) return { error: `You don't have access to ${cl.name}-${sec.name}. You can only see classes you teach or are class teacher of.` }
   }
   return { class_id: cl.class_id, section_id: sec.section_id, class_name: cl.name, section_name: sec.name }
 }
@@ -652,7 +692,7 @@ async function runTool(db: any, caller: Caller, name: string, args: any): Promis
         .eq('roster_id', rid)
         .eq('teacher_id', caller.id)
 
-      const day = String(args.day ?? '').trim()
+      const day = normDay(args.day ?? '')
       const dayEntries = (entries ?? []).filter((e: any) => (e.days ?? []).includes(day))
       const slotMap: Record<string, any> = {}
       ;(slots ?? []).forEach((s: any) => { slotMap[s.slot_id] = s })
@@ -687,7 +727,7 @@ async function runTool(db: any, caller: Caller, name: string, args: any): Promis
         .eq('class_id', s.class_id)
         .eq('section_id', s.section_id)
 
-      const day = String(args.day ?? '').trim()
+      const day = normDay(args.day ?? '')
       const dayEntries = (entries ?? []).filter((e: any) => (e.days ?? []).includes(day))
       const slotMap: Record<string, any> = {}
       ;(slots ?? []).forEach((sl: any) => { slotMap[sl.slot_id] = sl })
@@ -712,7 +752,8 @@ async function runTool(db: any, caller: Caller, name: string, args: any): Promis
         .order('commencement_date', { nullsFirst: false })
       if (args.class_name) {
         const { data: cls } = await db.from('classes').select('class_id, name')
-        const cl = (cls ?? []).find((c: any) => (c.name ?? '').toLowerCase() === String(args.class_name).toLowerCase())
+        const cl = (cls ?? []).find((c: any) => normClass(c.name ?? '') === normClass(args.class_name))
+          ?? fuzzyMatch(cls ?? [], (c: any) => c.name ?? '', args.class_name)
         if (cl) q = q.eq('class_id', cl.class_id)
       }
       const { data } = await q.limit(30)
@@ -865,7 +906,7 @@ async function runTool(db: any, caller: Caller, name: string, args: any): Promis
 
     case 'send_message': {
       let recipientType = 'admin', recipientId = ''
-      if (String(args.to).toLowerCase() === 'admin') {
+      if (['admin', 'administrator', 'principal', 'school'].includes(norm(args.to))) {
         const { data: a } = await db.from('admins').select('admin_id').limit(1)
         recipientId = a?.[0]?.admin_id ?? ''
         if (!recipientId) return { error: 'No admin account found.' }
@@ -1036,7 +1077,7 @@ Deno.serve(async (req) => {
       { role: 'user', content: question },
     ]
 
-    for (let hop = 0; hop < 5; hop++) {
+    for (let hop = 0; hop < 8; hop++) {
       const llmPayload: any = { model: GROQ_MODEL, messages, temperature: 0.2 }
       if (wrappedTools.length) { llmPayload.tools = wrappedTools; llmPayload.tool_choice = 'auto' }
       const r = await callLLM(apiKey, llmPayload)
