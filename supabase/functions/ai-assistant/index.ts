@@ -129,8 +129,8 @@ function toolsFor(caller: Caller) {
       parameters: {
         type: 'object',
         properties: {
-          class_name: { type: 'string' },
-          section_name: { type: 'string' },
+          class_name: { type: 'string', description: 'e.g. "LKG", "5th", "9th", "11th"' },
+          section_name: { type: 'string', description: 'e.g. "A". Optional — defaults to first section.' },
           date: { type: 'string', description: 'YYYY-MM-DD for a single day' },
           from: { type: 'string', description: 'YYYY-MM-DD range start' },
           to: { type: 'string', description: 'YYYY-MM-DD range end' },
@@ -324,10 +324,25 @@ function toolsFor(caller: Caller) {
 const WRITE_TOOLS = new Set(['mark_attendance', 'send_message'])
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+function normalizeClassName(raw: string): string {
+  let s = raw.trim().toLowerCase().replace(/^class\s*/i, '').replace(/\s+/g, '')
+  s = s.replace(/(st|nd|rd|th)$/, '')
+  return s
+}
+
 async function resolveSection(db: any, caller: Caller, className: string, sectionName?: string) {
   const { data: cls } = await db.from('classes').select('class_id, name')
-  const cl = (cls ?? []).find((c: any) => (c.name ?? '').toLowerCase() === String(className).toLowerCase())
-  if (!cl) return { error: `No class named "${className}".` }
+  const needle = normalizeClassName(className)
+  const cl = (cls ?? []).find((c: any) => {
+    const n = (c.name ?? '').toLowerCase()
+    if (n === String(className).toLowerCase()) return true
+    if (normalizeClassName(n) === needle) return true
+    return false
+  })
+  if (!cl) {
+    const available = (cls ?? []).map((c: any) => c.name).join(', ')
+    return { error: `No class named "${className}". Available classes: ${available}` }
+  }
 
   const { data: secs } = await db
     .from('class_sections')
@@ -1036,7 +1051,7 @@ Deno.serve(async (req) => {
       { role: 'user', content: question },
     ]
 
-    for (let hop = 0; hop < 5; hop++) {
+    for (let hop = 0; hop < 8; hop++) {
       const llmPayload: any = { model: GROQ_MODEL, messages, temperature: 0.2 }
       if (wrappedTools.length) { llmPayload.tools = wrappedTools; llmPayload.tool_choice = 'auto' }
       const r = await callLLM(apiKey, llmPayload)
