@@ -1369,19 +1369,15 @@ tbody tr:hover td{background:var(--lav-50)}
 
       <!-- Database Tab -->
       <div id="ict-database" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <select id="idcDbClass" onchange="idcDbOnClassChange()"><option value="all">All Classes</option></select>
-            <select id="idcDbSection" onchange="idcDbApplyFilters()"><option value="all">All Sections</option></select>
-            <input id="idcDbSearch" placeholder="Search name / father..." oninput="idcDbApplyFilters()" style="min-width:180px">
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <select id="idcDbFilterAddress" onchange="idcDbApplyFilters()"><option value="all">Address: All</option><option value="yes">Has Address</option><option value="no">No Address</option></select>
-            <select id="idcDbFilterPhone" onchange="idcDbApplyFilters()"><option value="all">Phone: All</option><option value="yes">Has Phone</option><option value="no">No Phone</option></select>
-            <select id="idcDbFilterDob" onchange="idcDbApplyFilters()"><option value="all">DOB: All</option><option value="yes">Has DOB</option><option value="no">No DOB</option></select>
-            <select id="idcDbFilterBlood" onchange="idcDbApplyFilters()"><option value="all">Blood Grp: All</option><option value="yes">Has Blood Grp</option><option value="no">No Blood Grp</option></select>
-            <select id="idcDbFilterAadhar" onchange="idcDbApplyFilters()"><option value="all">Aadhar: All</option><option value="yes">Has Aadhar</option><option value="no">No Aadhar</option></select>
-          </div>
+        <div class="form-row" style="margin-bottom:10px">
+          <div class="fg" style="max-width:160px"><label>Class</label><select id="idcDbClass" onchange="idcDbOnClassChange()"><option value="all">All Classes</option></select></div>
+          <div class="fg" style="max-width:140px"><label>Section</label><select id="idcDbSection" onchange="idcDbApplyFilters()"><option value="all">All Sections</option></select></div>
+          <div class="fg" style="max-width:220px"><label>Search</label><input id="idcDbSearch" placeholder="Name / father..." oninput="idcDbApplyFilters()"></div>
+          <div class="fg" style="max-width:140px"><label>Address</label><select id="idcDbFilterAddress" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has Address</option><option value="no">Missing</option></select></div>
+          <div class="fg" style="max-width:130px"><label>Phone</label><select id="idcDbFilterPhone" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has Phone</option><option value="no">Missing</option></select></div>
+          <div class="fg" style="max-width:120px"><label>DOB</label><select id="idcDbFilterDob" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has DOB</option><option value="no">Missing</option></select></div>
+          <div class="fg" style="max-width:130px"><label>Blood Grp</label><select id="idcDbFilterBlood" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has</option><option value="no">Missing</option></select></div>
+          <div class="fg" style="max-width:130px"><label>Aadhar</label><select id="idcDbFilterAadhar" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has</option><option value="no">Missing</option></select></div>
         </div>
         <div id="idcDbStats" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px"></div>
         <div id="idcDbTableWrap">
@@ -14380,7 +14376,7 @@ const IDC_FIELD_DEFS = [
 // ═══════════ ID CARD DATABASE TAB ═══════════
 let _idcDbAll=[],_idcDbFiltered=[]
 let _idcDbLoaded=false
-let _idcDbSort={col:'sno',dir:'asc'}
+let _idcDbSort={col:'class',dir:'asc'}
 async function idcDbLoad(){
   if(_idcDbLoaded)return
   _idcDbLoaded=true
@@ -14447,7 +14443,7 @@ function idcDbSortAndRender(){
     let va,vb
     if(col==='name'){va=a.students.full_name.toLowerCase();vb=b.students.full_name.toLowerCase()}
     else if(col==='father'){va=(a.students.father_name||'').toLowerCase();vb=(b.students.father_name||'').toLowerCase()}
-    else if(col==='class'){va=(a.classes?.name||'')+(a.class_sections?.name||'');vb=(b.classes?.name||'')+(b.class_sections?.name||'')}
+    else if(col==='class'){const co={};ALL_CLASSES.forEach((c,i)=>{co[c.class_id]=c.sort_order??i});va=(co[a.class_id]??999)*1000+(a.class_sections?.name||'').charCodeAt(0);vb=(co[b.class_id]??999)*1000+(b.class_sections?.name||'').charCodeAt(0)}
     else if(col==='sno'){va=a.s_no||9999;vb=b.s_no||9999}
     else if(col==='dob'){va=a.students.dob||'';vb=b.students.dob||''}
     else{va='';vb=''}
