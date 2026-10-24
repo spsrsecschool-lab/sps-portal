@@ -491,7 +491,7 @@ function populateArticleDropdowns(){
 async function renderDashboard(){
   const[{data:articles},{data:items}]=await Promise.all([
     sb.from('inv_articles').select('*'),
-    sb.from('inv_items').select('article_id,status')
+    sb.from('inv_items').select('article_id,status').limit(10000)
   ])
   const arts=articles||[]
   const allItems=items||[]
@@ -655,6 +655,7 @@ async function saveArticle(editId){
   if(err){toast(err.message,'error');return}
   toast(editId?'Article updated':'Article created','success')
   closeModal()
+  _tabLoaded.delete('dashboard')
   loadArticles()
 }
 
@@ -663,6 +664,7 @@ async function deleteArticle(id){
   const{error}=await sb.from('inv_articles').delete().eq('id',id)
   if(error){toast(error.message,'error');return}
   toast('Article deleted','success')
+  _tabLoaded.delete('dashboard')
   loadArticles()
 }
 
@@ -761,6 +763,7 @@ async function saveBatch(){
   if(iErr){toast('Batch created but items failed: '+iErr.message,'error');return}
   toast(totalQty+' items added with QR codes','success')
   closeModal()
+  _tabLoaded.delete('dashboard')
   loadBatches()
 }
 
@@ -771,6 +774,7 @@ async function deleteBatch(batchId,qty){
   const{error}=await sb.from('inv_batches').delete().eq('id',batchId)
   if(error){toast('Failed to delete batch: '+error.message,'error');return}
   toast('Batch and '+qty+' items deleted','success')
+  _tabLoaded.delete('dashboard')
   loadBatches()
 }
 
@@ -841,6 +845,7 @@ async function markRelabeled(){
   const{error}=await sb.from('inv_items').update({status:'in_stock'}).in('id',ids)
   if(error){toast(error.message,'error');return}
   toast(ids.length+' item(s) moved to In Stock','success')
+  _tabLoaded.delete('dashboard')
   loadQrItems()
 }
 
@@ -1009,6 +1014,7 @@ async function processSell(){
   if(failed){closeModal();toast(failed+' item(s) failed to save','error');_resetSellUI();return}
   $('modalBody').innerHTML='<div style="display:flex;flex-direction:column;align-items:center;padding:30px 0"><svg class="sell-tick" viewBox="0 0 80 80" style="width:100px;height:100px"><circle cx="40" cy="40" r="36" fill="none" stroke="#22c55e" stroke-width="4" stroke-dasharray="226" stroke-dashoffset="226" style="animation:sell-tick-circle .5s ease forwards"/><path d="M24 42 L35 53 L56 28" fill="none" stroke="#22c55e" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="50" stroke-dashoffset="50" style="animation:sell-tick-check .35s .4s ease forwards"/></svg><div style="margin-top:18px;font-size:18px;font-weight:700;color:#22c55e">Sale Confirmed!</div><div style="margin-top:6px;font-size:13px;color:var(--ink-soft)">'+count+' item'+(count>1?'s':'')+' sold successfully</div></div>'
   $('modalFoot').innerHTML=''
+  _tabLoaded.delete('dashboard')
   setTimeout(()=>{closeModal();_resetSellUI()},2000)
 }
 
@@ -1189,6 +1195,7 @@ async function confirmExchange(){
   if(e3)console.error('Exchange log failed:',e3.message)
 
   toast('Exchange completed','success')
+  _tabLoaded.delete('dashboard')
   _exchOldItem=null;_exchNewItem=null;_exchEid=null;_exchScannedCode=null
   $('exchReturnInfo').style.display='none'
   $('exchNewItemInfo').style.display='none'
@@ -1258,6 +1265,7 @@ async function deleteTransaction(itemId){
   const{error}=await sb.from('inv_items').update({status:'in_stock',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null}).eq('id',itemId)
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Transaction deleted, item returned to stock','success')
+  _tabLoaded.delete('dashboard')
   _tabLoaded.delete('history')
   _loadHistory()
 }
