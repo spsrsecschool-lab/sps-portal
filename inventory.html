@@ -827,12 +827,12 @@ function printQrCodes(){
   if(!grid.children.length||grid.querySelector('.spinner')){toast('No QR codes to print','error');return}
   const w=window.open('','_blank')
   let h='<!DOCTYPE html><html><head><title>QR Labels</title><style>'
-  h+='body{font-family:sans-serif;margin:10mm}'
-  h+='.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8mm}'
-  h+='.item{text-align:center;page-break-inside:avoid;border:1px solid #ddd;padding:4mm;border-radius:4px}'
+  h+='body{font-family:sans-serif;margin:5mm}'
+  h+='.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:2mm}'
+  h+='.item{text-align:center;page-break-inside:avoid;border:1px solid #ddd;padding:1.5mm;border-radius:2px}'
   h+='.item img{max-width:100%}'
-  h+='.item .lbl{font-size:8px;font-family:monospace;word-break:break-all;margin-top:2mm}'
-  h+='@page{size:A4 portrait;margin:8mm}'
+  h+='.item .lbl{font-size:7px;font-family:monospace;word-break:break-all;margin-top:1mm}'
+  h+='@page{size:A4 portrait;margin:5mm}'
   h+='</style></head><body><div class="grid">'
   const cards=grid.querySelectorAll('.qr-card')
   cards.forEach(card=>{
