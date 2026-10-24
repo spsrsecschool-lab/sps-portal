@@ -1373,7 +1373,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <div class="fg" style="max-width:160px"><label>Class</label><select id="idcDbClass" onchange="idcDbOnClassChange()"><option value="all">All Classes</option></select></div>
           <div class="fg" style="max-width:140px"><label>Section</label><select id="idcDbSection" onchange="idcDbApplyFilters()"><option value="all">All Sections</option></select></div>
           <div class="fg" style="max-width:220px"><label>Search</label><input id="idcDbSearch" placeholder="Name / father..." oninput="idcDbApplyFilters()"></div>
-          <div class="fg" style="max-width:140px"><label>Address</label><select id="idcDbFilterAddress" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has Address</option><option value="no">Missing</option></select></div>
+          <div class="fg" style="max-width:140px"><label>Address</label><select id="idcDbFilterAddress" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has Address</option><option value="no">Missing</option><option value="bad">Bad Format</option></select></div>
           <div class="fg" style="max-width:130px"><label>Phone</label><select id="idcDbFilterPhone" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has Phone</option><option value="no">Missing</option></select></div>
           <div class="fg" style="max-width:120px"><label>DOB</label><select id="idcDbFilterDob" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has DOB</option><option value="no">Missing</option></select></div>
           <div class="fg" style="max-width:130px"><label>Blood Grp</label><select id="idcDbFilterBlood" onchange="idcDbApplyFilters()"><option value="all">All</option><option value="yes">Has</option><option value="no">Missing</option></select></div>
@@ -14374,6 +14374,11 @@ const IDC_FIELD_DEFS = [
 ]
 
 // ═══════════ ID CARD DATABASE TAB ═══════════
+function _addrOk(addr){
+  if(!addr||!addr.trim())return false
+  const a=addr.trim()
+  return /h\.?\s*no/i.test(a)&&/nit\s*faridabad/i.test(a)&&(a.match(/,/g)||[]).length>=2
+}
 let _idcDbAll=[],_idcDbFiltered=[]
 let _idcDbLoaded=false
 let _idcDbSort={col:'class',dir:'asc'}
@@ -14418,6 +14423,7 @@ function idcDbApplyFilters(){
     if(secId!=='all'&&e.section_id!==secId)return false
     if(fAddr==='yes'&&!s.address?.trim())return false
     if(fAddr==='no'&&s.address?.trim())return false
+    if(fAddr==='bad'&&(!s.address?.trim()||_addrOk(s.address)))return false
     if(fPhone==='yes'&&!s.phone?.trim())return false
     if(fPhone==='no'&&s.phone?.trim())return false
     if(fDob==='yes'&&!s.dob)return false
@@ -14454,12 +14460,14 @@ function idcDbSortAndRender(){
 function idcDbRender(){
   const total=_idcDbAll.length,shown=_idcDbFiltered.length
   const noAddr=_idcDbAll.filter(e=>!e.students.address?.trim()).length
+  const badAddr=_idcDbAll.filter(e=>e.students.address?.trim()&&!_addrOk(e.students.address)).length
   const noPhone=_idcDbAll.filter(e=>!e.students.phone?.trim()).length
   const noDob=_idcDbAll.filter(e=>!e.students.dob).length
   const noBlood=_idcDbAll.filter(e=>!e.students.blood_group?.trim()).length
   const noAadhar=_idcDbAll.filter(e=>!e.students.aadhar_no?.trim()).length
   $('idcDbStats').innerHTML='<b>'+shown+'</b> of '+total+' students'
     +(noAddr?' · <span style="color:var(--red)">'+noAddr+' no address</span>':'')
+    +(badAddr?' · <span style="color:var(--orange,#e67e22)">'+badAddr+' bad address format</span>':'')
     +(noPhone?' · <span style="color:var(--red)">'+noPhone+' no phone</span>':'')
     +(noDob?' · <span style="color:var(--red)">'+noDob+' no DOB</span>':'')
     +(noBlood?' · <span style="color:var(--red)">'+noBlood+' no blood grp</span>':'')
@@ -14477,7 +14485,7 @@ function idcDbRender(){
       +'<td>'+miss(s.father_name)+'</td>'
       +'<td style="white-space:nowrap">'+esc(e.classes?.name||'')+'-'+esc(e.class_sections?.name||'')+'</td>'
       +'<td>'+miss(s.phone)+'</td>'
-      +'<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(s.address||'')+'">'+miss(s.address?.trim())+'</td>'
+      +'<td style="min-width:180px;max-width:280px;word-wrap:break-word;white-space:normal;font-size:12px'+(s.address?.trim()&&!_addrOk(s.address)?';color:var(--orange,#e67e22)':'')+'">'+miss(s.address?.trim())+'</td>'
       +'<td style="white-space:nowrap">'+(s.dob?fmtD(s.dob):'<span style="color:var(--red)">—</span>')+'</td>'
       +'<td>'+miss(s.blood_group?.trim())+'</td>'
       +'<td style="font-size:12px">'+miss(s.aadhar_no)+'</td>'
