@@ -928,6 +928,7 @@ function startSellScan(){
   _camMode='sell'
   _camScanner=new Html5Qrcode(readerId)
   _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:280,height:280}},onSellQrScanned,()=>{}).then(()=>{
+    _torchOn('sellCamReader')
     setTimeout(()=>{$('sellCamWrap').scrollIntoView({behavior:'smooth',block:'center'})},300)
   }).catch(err=>{
     toast('Camera error: '+err,'error')
@@ -1002,6 +1003,7 @@ function resumeSellScan(){
   _camMode='sell'
   _camScanner=new Html5Qrcode(readerId)
   _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:280,height:280}},onSellQrScanned,()=>{}).then(()=>{
+    _torchOn('sellCamReader')
     setTimeout(()=>{$('sellCamWrap').scrollIntoView({behavior:'smooth',block:'center'})},300)
   }).catch(()=>{})
 }
@@ -1111,7 +1113,9 @@ function startReturnQrScan(){
   $('exchReturnScanBtn').style.display='none'
   $('exchReturnCamWrap').style.display='block'
   _exchReturnScanner=new Html5Qrcode('exchReturnCamReader')
-  _exchReturnScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},onReturnQrScanned,()=>{}).catch(err=>{
+  _exchReturnScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},onReturnQrScanned,()=>{}).then(()=>{
+    _torchOn('exchReturnCamReader')
+  }).catch(err=>{
     toast('Camera error: '+err,'error')
     cancelReturnQrScan()
   })
@@ -1152,7 +1156,9 @@ function startExchScan(){
   $('exchCamWrap').style.display='block'
   _camMode='exch'
   _camScanner=new Html5Qrcode('exchCamReader')
-  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},onExchQrScanned,()=>{}).catch(err=>{
+  _camScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:250},aspectRatio:1},onExchQrScanned,()=>{}).then(()=>{
+    _torchOn('exchCamReader')
+  }).catch(err=>{
     toast('Camera error: '+err,'error')
     cancelExchScan()
   })
@@ -1277,6 +1283,12 @@ async function deleteTransaction(itemId){
 
 // ═══════════ CAMERA QR SCANNER ═══════════
 let _camScanner=null,_camMode=null
+function _torchOn(wrapperId){
+  setTimeout(()=>{try{
+    const track=document.querySelector('#'+wrapperId+' video')?.srcObject?.getVideoTracks()?.[0]
+    if(track?.getCapabilities()?.torch)track.applyConstraints({advanced:[{torch:true}]}).catch(()=>{})
+  }catch(_){}},500)
+}
 function stopCamScanner(mode){
   if(_camScanner){try{_camScanner.stop().then(()=>{_camScanner.clear()}).catch(()=>{})}catch(e){}}
   _camScanner=null;_camMode=null
