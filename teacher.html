@@ -4355,11 +4355,13 @@ async function rcCleanupNote(){
   }catch(e){toast(e.message==='Failed to fetch'?'AI function not deployed yet — deploy the edge function first':'AI error: '+e.message,'error')}
   finally{if(btn){btn.disabled=false;btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup'}}
 }
-function rcStartVoiceForNote(){
+async function rcStartVoiceForNote(){
   const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition
   if(!SpeechRecognition){toast('Voice input not supported on this browser','error');return}
   const btn=$('rc_voice_btn')
   if(_rcRecognition){_rcRecognition.stop();return}
+  // Explicitly request mic permission — forces the OS prompt on phones that won't ask otherwise
+  try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop())}catch(e){toast('Microphone permission denied — please allow mic access in your browser settings and try again','error');return}
   _rcRecognition=new SpeechRecognition()
   _rcRecognition.lang=_rcVoiceLang
   _rcRecognition.continuous=false
@@ -4380,7 +4382,7 @@ function rcStartVoiceForNote(){
   }
   _rcRecognition.onerror=function(e){if(e.error!=='no-speech')toast('Voice error: '+e.error,'error');rcStopVoice()}
   _rcRecognition.onend=function(){rcStopVoice()}
-  _rcRecognition.start()
+  try{_rcRecognition.start()}catch(e){toast('Could not start voice — '+e.message,'error');_rcRecognition=null}
 }
 
 function rcStopVoice(){
