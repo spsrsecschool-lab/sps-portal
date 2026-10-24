@@ -495,6 +495,14 @@ async function renderDashboard(){
   ])
   const arts=articles||[]
   const allItems=items||[]
+  console.log('[DASHBOARD] articles fetched:', arts.length, 'items fetched:', allItems.length)
+  if(allItems.length>0){
+    const statuses={};allItems.forEach(i=>{statuses[i.status]=(statuses[i.status]||0)+1})
+    console.log('[DASHBOARD] item statuses:', JSON.stringify(statuses))
+    console.log('[DASHBOARD] sample items (first 5):', JSON.stringify(allItems.slice(0,5)))
+  }else{
+    console.warn('[DASHBOARD] inv_items query returned 0 rows!')
+  }
   const artMap={};arts.forEach(a=>{artMap[a.id]=a})
 
   let uniStock=0,uniSold=0,bookStock=0,bookSold=0,totalStock=0,totalSold=0,totalReturned=0
@@ -504,6 +512,7 @@ async function renderDashboard(){
     if(i.status==='sold'){totalSold++;if(cat==='book_set')bookSold++;else uniSold++}
     if(i.status==='returned')totalReturned++
   })
+  console.log('[DASHBOARD] counts — inStock:',totalStock,'sold:',totalSold,'returned:',totalReturned)
   $('dUniStock').textContent=uniStock;$('dUniSold').textContent=uniSold
   $('dBookStock').textContent=bookStock;$('dBookSold').textContent=bookSold
   $('dArticles').textContent=arts.length
@@ -515,10 +524,12 @@ async function renderDashboard(){
   const lowItems=[]
   const stockByArt={}
   allItems.forEach(i=>{if(i.status==='in_stock')stockByArt[i.article_id]=(stockByArt[i.article_id]||0)+1})
+  console.log('[DASHBOARD] stockByArt:', JSON.stringify(stockByArt))
   arts.forEach(art=>{
     const stk=stockByArt[art.id]||0
     if(stk<=(art.low_stock_threshold||5)){lowCount++;lowItems.push({name:art.name,stock:stk,threshold:art.low_stock_threshold||5})}
   })
+  console.log('[DASHBOARD] lowStock count:', lowCount, 'items:', JSON.stringify(lowItems))
   $('dLowStock').textContent=lowCount
 
   const lsl=$('lowStockList')
