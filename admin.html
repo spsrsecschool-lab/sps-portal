@@ -1265,6 +1265,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="tab-row" style="margin-bottom:16px">
         <button class="tab-btn active" onclick="switchTab('ict','template',this)">Template Editor</button>
         <button class="tab-btn" onclick="switchTab('ict','generate',this)">Generate Cards</button>
+        <button class="tab-btn" onclick="switchTab('ict','database',this);idcDbLoad()">Database</button>
       </div>
 
       <!-- Template Editor Tab -->
@@ -1363,6 +1364,60 @@ tbody tr:hover td{background:var(--lav-50)}
             </div>
             <div id="idcPreviewCard" style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#f5f5f5"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- Database Tab -->
+      <div id="ict-database" style="display:none">
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+            <h3 style="margin:0;font-size:15px">Student ID Card Data</h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="idcDbClass" onchange="idcDbOnClassChange()" style="min-width:120px">
+                <option value="all">All Classes</option>
+              </select>
+              <select id="idcDbSection" onchange="idcDbApplyFilters()" style="min-width:100px">
+                <option value="all">All Sections</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+            <select id="idcDbFilterPhoto" onchange="idcDbApplyFilters()" style="min-width:100px;font-size:12px">
+              <option value="all">Photo: All</option>
+              <option value="yes">Has Photo</option>
+              <option value="no">No Photo</option>
+            </select>
+            <select id="idcDbFilterAddress" onchange="idcDbApplyFilters()" style="min-width:110px;font-size:12px">
+              <option value="all">Address: All</option>
+              <option value="yes">Has Address</option>
+              <option value="no">No Address</option>
+            </select>
+            <select id="idcDbFilterPhone" onchange="idcDbApplyFilters()" style="min-width:100px;font-size:12px">
+              <option value="all">Phone: All</option>
+              <option value="yes">Has Phone</option>
+              <option value="no">No Phone</option>
+            </select>
+            <select id="idcDbFilterDob" onchange="idcDbApplyFilters()" style="min-width:100px;font-size:12px">
+              <option value="all">DOB: All</option>
+              <option value="yes">Has DOB</option>
+              <option value="no">No DOB</option>
+            </select>
+            <select id="idcDbFilterBlood" onchange="idcDbApplyFilters()" style="min-width:120px;font-size:12px">
+              <option value="all">Blood Group: All</option>
+              <option value="yes">Has Blood Group</option>
+              <option value="no">No Blood Group</option>
+            </select>
+            <select id="idcDbFilterAdmNo" onchange="idcDbApplyFilters()" style="min-width:130px;font-size:12px">
+              <option value="all">Admission No: All</option>
+              <option value="yes">Has Adm. No</option>
+              <option value="no">No Adm. No</option>
+            </select>
+            <input id="idcDbSearch" placeholder="Search name / father..." oninput="idcDbApplyFilters()" style="min-width:160px;font-size:12px">
+          </div>
+          <div id="idcDbStats" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px"></div>
+        </div>
+        <div id="idcDbTableWrap" class="card" style="overflow:visible">
+          <div style="color:var(--ink-faint);font-size:13px;padding:20px;text-align:center">Select a class or "All Classes" and data will load here.</div>
         </div>
       </div>
     </div>
@@ -14353,6 +14408,105 @@ const IDC_FIELD_DEFS = [
   {key:'admission_no', label:'Admission No', sample:'1234', isRect:false, default:{x:55,y:89,w:35,h:4,fontSize:40,color:'#000000',fontWeight:'normal',align:'left'}},
   {key:'qr_code', label:'QR Code', sample:'QR', isRect:true, default:{x:70,y:87,w:15,h:9.5}}
 ]
+
+// ═══════════ ID CARD DATABASE TAB ═══════════
+let _idcDbAll=[],_idcDbFiltered=[]
+let _idcDbLoaded=false
+async function idcDbLoad(){
+  if(_idcDbLoaded)return
+  _idcDbLoaded=true
+  const co=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  $('idcDbClass').innerHTML='<option value="all">All Classes</option>'+co
+  await idcDbFetch()
+}
+async function idcDbFetch(){
+  const wrap=$('idcDbTableWrap')
+  wrap.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const classId=$('idcDbClass').value
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,students!inner(student_id,full_name,father_name,mother_name,phone,address,dob,blood_group,photo_url,aadhar_no,admission_number),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no')
+  if(classId!=='all')q=q.eq('class_id',classId)
+  const{data,error}=await q.limit(2000)
+  if(error){wrap.innerHTML='<div style="color:var(--red);padding:16px">'+esc(error.message)+'</div>';return}
+  _idcDbAll=(data||[]).filter(e=>e.students)
+  idcDbApplyFilters()
+}
+async function idcDbOnClassChange(){
+  const classId=$('idcDbClass').value
+  $('idcDbSection').innerHTML='<option value="all">All Sections</option>'
+  if(classId!=='all'){
+    const{data:secs}=await sb.from('class_sections').select('section_id,name').eq('class_id',classId).eq('session_id',SESS?.session_id||'').eq('is_active',true).order('name')
+    if(secs?.length)$('idcDbSection').innerHTML='<option value="all">All Sections</option>'+secs.map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+  }
+  _idcDbLoaded=false
+  await idcDbFetch()
+}
+function idcDbApplyFilters(){
+  const secId=$('idcDbSection').value
+  const fPhoto=$('idcDbFilterPhoto').value
+  const fAddr=$('idcDbFilterAddress').value
+  const fPhone=$('idcDbFilterPhone').value
+  const fDob=$('idcDbFilterDob').value
+  const fBlood=$('idcDbFilterBlood').value
+  const fAdmNo=$('idcDbFilterAdmNo').value
+  const search=($('idcDbSearch').value||'').trim().toLowerCase()
+  _idcDbFiltered=_idcDbAll.filter(e=>{
+    const s=e.students
+    if(secId!=='all'&&e.section_id!==secId)return false
+    if(fPhoto==='yes'&&!s.photo_url)return false
+    if(fPhoto==='no'&&s.photo_url)return false
+    if(fAddr==='yes'&&!s.address?.trim())return false
+    if(fAddr==='no'&&s.address?.trim())return false
+    if(fPhone==='yes'&&!s.phone?.trim())return false
+    if(fPhone==='no'&&s.phone?.trim())return false
+    if(fDob==='yes'&&!s.dob)return false
+    if(fDob==='no'&&s.dob)return false
+    if(fBlood==='yes'&&!s.blood_group?.trim())return false
+    if(fBlood==='no'&&s.blood_group?.trim())return false
+    if(fAdmNo==='yes'&&!s.admission_number?.trim())return false
+    if(fAdmNo==='no'&&s.admission_number?.trim())return false
+    if(search&&!s.full_name.toLowerCase().includes(search)&&!(s.father_name||'').toLowerCase().includes(search)&&!(s.mother_name||'').toLowerCase().includes(search))return false
+    return true
+  })
+  idcDbRender()
+}
+function idcDbRender(){
+  const total=_idcDbAll.length,shown=_idcDbFiltered.length
+  const noPhoto=_idcDbAll.filter(e=>!e.students.photo_url).length
+  const noAddr=_idcDbAll.filter(e=>!e.students.address?.trim()).length
+  const noPhone=_idcDbAll.filter(e=>!e.students.phone?.trim()).length
+  const noDob=_idcDbAll.filter(e=>!e.students.dob).length
+  const noBlood=_idcDbAll.filter(e=>!e.students.blood_group?.trim()).length
+  const noAdmNo=_idcDbAll.filter(e=>!e.students.admission_number?.trim()).length
+  $('idcDbStats').innerHTML='<b>'+shown+'</b> of '+total+' students'
+    +(noPhoto?' · <span style="color:var(--red)">'+noPhoto+' missing photo</span>':'')
+    +(noAddr?' · <span style="color:var(--red)">'+noAddr+' missing address</span>':'')
+    +(noPhone?' · <span style="color:var(--red)">'+noPhone+' missing phone</span>':'')
+    +(noDob?' · <span style="color:var(--red)">'+noDob+' missing DOB</span>':'')
+    +(noBlood?' · <span style="color:var(--red)">'+noBlood+' missing blood group</span>':'')
+    +(noAdmNo?' · <span style="color:var(--red)">'+noAdmNo+' missing adm. no</span>':'')
+  if(!_idcDbFiltered.length){$('idcDbTableWrap').innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px;text-align:center">No students match the current filters.</div>';return}
+  let h='<div class="table-wrap"><table><thead><tr><th>#</th><th></th><th>Name</th><th>Father</th><th>Class</th><th>Phone</th><th>Address</th><th>DOB</th><th>Blood</th><th>Adm No</th><th>Aadhar</th></tr></thead><tbody>'
+  _idcDbFiltered.forEach((e,i)=>{
+    const s=e.students
+    const photo=s.photo_url?'<img src="'+R2.url(s.photo_url)+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover">':'<div style="width:32px;height:32px;border-radius:50%;background:var(--lav-100);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--indigo)">'+ini(s.full_name)+'</div>'
+    const miss=v=>v?esc(v):'<span style="color:var(--red);font-size:11px">—</span>'
+    h+='<tr>'
+      +'<td style="color:var(--ink-faint);font-size:11px">'+(i+1)+'</td>'
+      +'<td style="padding:4px">'+photo+'</td>'
+      +'<td><a href="#" onclick="event.preventDefault();openProfile(\''+e.enrollment_id+'\')" style="color:var(--indigo);font-weight:600;text-decoration:none">'+esc(s.full_name)+'</a></td>'
+      +'<td>'+miss(s.father_name)+'</td>'
+      +'<td style="white-space:nowrap">'+esc(e.classes?.name||'')+'-'+esc(e.class_sections?.name||'')+'</td>'
+      +'<td>'+miss(s.phone)+'</td>'
+      +'<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(s.address||'')+'">'+miss(s.address?.trim())+'</td>'
+      +'<td style="white-space:nowrap">'+(s.dob?fmtD(s.dob):'<span style="color:var(--red);font-size:11px">—</span>')+'</td>'
+      +'<td>'+miss(s.blood_group?.trim())+'</td>'
+      +'<td>'+miss(s.admission_number?.trim())+'</td>'
+      +'<td style="font-size:11px">'+miss(s.aadhar_no)+'</td>'
+      +'</tr>'
+  })
+  h+='</tbody></table></div>'
+  $('idcDbTableWrap').innerHTML=h
+}
 
 async function loadIdCards(){
   const sel=$('idc_gen_class')
