@@ -110,7 +110,6 @@ async function identify(db: any, authUserId: string): Promise<Caller | null> {
 
 // ── Tool declarations ──────────────────────────────────────────────────────
 function toolsFor(caller: Caller) {
-  if (caller.kind === 'guest') return []
   const t: any[] = [
     {
       name: 'get_class_roster',
@@ -196,26 +195,6 @@ function toolsFor(caller: Caller) {
       },
     },
     {
-      name: 'get_my_staff_attendance',
-      description: "The caller's own staff attendance (in/out times, present/late/absent) over a date range.",
-      parameters: {
-        type: 'object',
-        properties: { from: { type: 'string' }, to: { type: 'string' } },
-        required: ['from', 'to'],
-      },
-    },
-    {
-      name: 'get_my_timetable',
-      description: "Get the caller's timetable schedule for a specific day of the week (Mon/Tue/etc). Shows period, time, class, section, subject.",
-      parameters: {
-        type: 'object',
-        properties: {
-          day: { type: 'string', description: 'Day of week: Mon, Tue, Wed, Thu, Fri, Sat' },
-        },
-        required: ['day'],
-      },
-    },
-    {
       name: 'get_class_timetable',
       description: 'Get the timetable for a class section on a specific day. Shows each period with subject and teacher.',
       parameters: {
@@ -238,20 +217,43 @@ function toolsFor(caller: Caller) {
         },
       },
     },
-    {
-      name: 'send_message',
-      description: 'Send an internal portal message. ALWAYS confirm the exact wording with the user before calling this.',
-      parameters: {
-        type: 'object',
-        properties: {
-          to: { type: 'string', description: '"admin" or a teacher\'s full name' },
-          subject: { type: 'string' },
-          body: { type: 'string' },
-        },
-        required: ['to', 'subject', 'body'],
-      },
-    },
   ]
+
+  if (caller.kind === 'guest') return t
+
+  t.push({
+    name: 'get_my_staff_attendance',
+    description: "The caller's own staff attendance (in/out times, present/late/absent) over a date range.",
+    parameters: {
+      type: 'object',
+      properties: { from: { type: 'string' }, to: { type: 'string' } },
+      required: ['from', 'to'],
+    },
+  })
+  t.push({
+    name: 'get_my_timetable',
+    description: "Get the caller's timetable schedule for a specific day of the week (Mon/Tue/etc). Shows period, time, class, section, subject.",
+    parameters: {
+      type: 'object',
+      properties: {
+        day: { type: 'string', description: 'Day of week: Mon, Tue, Wed, Thu, Fri, Sat' },
+      },
+      required: ['day'],
+    },
+  })
+  t.push({
+    name: 'send_message',
+    description: 'Send an internal portal message. ALWAYS confirm the exact wording with the user before calling this.',
+    parameters: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: '"admin" or a teacher\'s full name' },
+        subject: { type: 'string' },
+        body: { type: 'string' },
+      },
+      required: ['to', 'subject', 'body'],
+    },
+  })
 
   if (caller.kind === 'teacher') {
     t.push({
@@ -891,7 +893,7 @@ function systemPrompt(caller: Caller) {
 
   let scope: string
   if (caller.kind === 'guest') {
-    scope = 'You are speaking with a school portal user. Their account is not yet linked to a staff profile, so you have no data tools. Answer general questions helpfully and suggest they contact the administrator to link their account for full access.'
+    scope = 'You are speaking with a school portal user. They have access to school data tools — use them to answer questions about students, classes, attendance, fees, marks, timetables, and assessments. They cannot mark attendance, send messages, or run raw SQL.'
   } else if (caller.kind === 'admin') {
     scope = 'You are speaking with a school ADMIN. They can see school-wide data and run raw SQL queries.'
   } else {
@@ -995,19 +997,14 @@ Deno.serve(async (req) => {
 
     const db = createClient(url, serviceKey, { auth: { persistSession: false } })
 
-    // Debug mode — temporarily returns auth info to diagnose identify() failure
-    if (body.mode === 'debug_auth') {
-      const { data: adminRow } = await db.from('admins').select('admin_id, auth_user_id').maybeSingle()
-      return json({
-        auth_user_id: userData.user.id,
-        email: userData.user.email,
-        admin_row: adminRow,
-        match: adminRow?.auth_user_id === userData.user.id,
-      })
+    const identified = await identify(db, userData.user.id)
+    let caller: Caller
+    if (identified) {
+      caller = identified
+    } else {
+      const { data: sess } = await db.from('sessions').select('session_id').eq('is_current', true).maybeSingle()
+      caller = { kind: 'guest', id: userData.user.id, name: userData.user.email ?? 'User', sessionId: sess?.session_id ?? null, sections: [] }
     }
-
-    const caller = await identify(db, userData.user.id)
-      ?? { kind: 'guest' as const, id: userData.user.id, name: userData.user.email ?? 'User', sessionId: null, sections: [] }
 
     const history: any[] = Array.isArray(body.history) ? body.history.slice(-16) : []
     const confirmed = body.confirmedAction as { name: string; args: any } | undefined
