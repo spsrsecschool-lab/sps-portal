@@ -218,6 +218,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item" onclick="goTo('articles',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Articles</div>
     <div class="sb-item" onclick="goTo('stock',this)"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Stock &amp; Batches</div>
     <div class="sb-item" onclick="goTo('qrcodes',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="14.01"/><line x1="21" y1="21" x2="21" y2="21.01"/></svg>QR Codes</div>
+    <div class="sb-item" onclick="goTo('sets',this)"><svg viewBox="0 0 24 24"><path d="M16 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="12" height="12" rx="2"/></svg>Set Discounts</div>
 
     <div class="sb-label">Transactions</div>
     <div class="sb-item" onclick="goTo('sell',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Sell / Distribute</div>
@@ -323,6 +324,17 @@ tbody tr:hover td{background:var(--lav-50)}
       <button class="btn btn-success btn-sm" id="qrRelabelBtn" style="display:none" onclick="markRelabeled()">Mark All as Relabeled</button>
     </div>
     <div id="qrGrid" class="qr-grid"></div>
+  </div>
+
+  <!-- ════════ SET DISCOUNTS ════════ -->
+  <div class="page" id="page-sets">
+    <div class="page-head"><div><h2>Set Discounts</h2><p>Define article combos sold at a discounted set price</p></div><button class="btn btn-primary" onclick="openSetModal()">+ New Set</button></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Set Name</th><th>Articles in Set</th><th>Individual Total</th><th>Set Price</th><th>Discount</th><th>Actions</th></tr></thead>
+        <tbody id="setsBody"><tr><td colspan="6"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- ════════ SELL / DISTRIBUTE ════════ -->
@@ -431,7 +443,7 @@ function fmtINR(n){return '₹'+Number(n||0).toLocaleString('en-IN')}
 function today(){return new Date().toISOString().slice(0,10)}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',articles:'Articles',stock:'Stock & Batches',qrcodes:'QR Codes',sell:'Sell / Distribute',exchange:'Exchange',history:'Purchase History'}
+const TITLES={dashboard:'Dashboard',articles:'Articles',stock:'Stock & Batches',qrcodes:'QR Codes',sets:'Set Discounts',sell:'Sell / Distribute',exchange:'Exchange',history:'Purchase History'}
 function getItemPrice(item){
   const art=item.inv_articles
   if(!art)return 0
@@ -458,18 +470,20 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ GLOBAL DATA ═══════════
-let ALL_ARTICLES=[], ALL_CLASSES=[], SESS=null, _sellEid=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
+let ALL_ARTICLES=[], ALL_CLASSES=[], ALL_SETS=[], SESS=null, _sellEid=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
 let _sellStudentsCache=[], _exchStudentsCache=[]
 
 async function loadGlobals(){
-  const[{data:arts},{data:cls},{data:sess}]=await Promise.all([
+  const[{data:arts},{data:cls},{data:sess},{data:sets}]=await Promise.all([
     sb.from('inv_articles').select('*').order('name'),
     sb.from('classes').select('*').order('sort_order'),
-    sb.from('sessions').select('*').eq('is_current',true).maybeSingle()
+    sb.from('sessions').select('*').eq('is_current',true).maybeSingle(),
+    sb.from('inv_sets').select('*,inv_set_articles(article_id)')
   ])
   ALL_ARTICLES=arts||[]
   ALL_CLASSES=(cls||[]).filter(c=>c.is_active)
   SESS=sess
+  ALL_SETS=(sets||[]).map(s=>({...s,article_ids:(s.inv_set_articles||[]).map(sa=>sa.article_id)}))
   populateArticleDropdowns()
   populateClassDropdowns()
 }
@@ -900,6 +914,83 @@ async function markRelabeled(){
   loadQrItems()
 }
 
+// ═══════════ SET DISCOUNTS ═══════════
+async function loadSets(){
+  const{data}=await sb.from('inv_sets').select('*,inv_set_articles(article_id)')
+  ALL_SETS=(data||[]).map(s=>({...s,article_ids:(s.inv_set_articles||[]).map(sa=>sa.article_id)}))
+  const body=$('setsBody')
+  if(!ALL_SETS.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink-faint)">No sets defined yet.</td></tr>';return}
+  body.innerHTML=ALL_SETS.map(s=>{
+    const artNames=s.article_ids.map(aid=>{const a=ALL_ARTICLES.find(x=>x.id===aid);return a?esc(a.name):'?'}).join(' + ')
+    const indivTotal=s.article_ids.reduce((sum,aid)=>{const a=ALL_ARTICLES.find(x=>x.id===aid);return sum+(a?.selling_price||0)},0)
+    const disc=indivTotal>0?Math.round((1-s.set_price/indivTotal)*100):0
+    return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+artNames+'</td><td class="mono">'+fmtINR(indivTotal)+'</td><td class="mono" style="color:var(--success)">'+fmtINR(s.set_price)+'</td><td>'+(disc>0?'<span class="pill pill-success">'+disc+'% off</span>':'—')+'</td><td><button class="btn btn-ghost btn-xs" onclick="openSetModal(\''+s.id+'\')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteSet(\''+s.id+'\')">Delete</button></td></tr>'
+  }).join('')
+}
+
+function openSetModal(editId){
+  const s=editId?ALL_SETS.find(x=>x.id===editId):null
+  let body='<div class="fg" style="margin-bottom:12px"><label>Set Name</label><input id="setName" placeholder="e.g. Track Suit Set" value="'+esc(s?.name||'')+'"></div>'
+  body+='<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">ARTICLES IN SET</div><div id="setArtChecks">'
+  body+=ALL_ARTICLES.map(a=>'<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;cursor:pointer"><input type="checkbox" class="setArtCb" value="'+a.id+'"'+(s?.article_ids.includes(a.id)?' checked':'')+'>'+esc(a.name)+'</label>').join('')
+  body+='</div></div>'
+  body+='<div class="fg" style="max-width:200px"><label>Set Price (₹)</label><input type="number" id="setPrice" min="0" value="'+(s?.set_price||'')+'" placeholder="Discounted total"></div>'
+  const foot='<button class="btn btn-primary" onclick="saveSet('+(editId?"'"+editId+"'":"null")+')">Save Set</button>'
+  openModal(editId?'Edit Set':'New Set',body,foot)
+}
+
+async function saveSet(editId){
+  const name=$('setName').value.trim()
+  const price=parseFloat($('setPrice').value)||0
+  const artIds=Array.from(document.querySelectorAll('.setArtCb:checked')).map(cb=>cb.value)
+  if(!name){toast('Enter a set name','error');return}
+  if(artIds.length<2){toast('Select at least 2 articles','error');return}
+  if(price<=0){toast('Enter a valid set price','error');return}
+  if(editId){
+    const{error}=await sb.from('inv_sets').update({name,set_price:price}).eq('id',editId)
+    if(error){toast(error.message,'error');return}
+    await sb.from('inv_set_articles').delete().eq('set_id',editId)
+    const{error:e2}=await sb.from('inv_set_articles').insert(artIds.map(aid=>({set_id:editId,article_id:aid})))
+    if(e2){toast(e2.message,'error');return}
+  }else{
+    const{data:newSet,error}=await sb.from('inv_sets').insert({name,set_price:price}).select().single()
+    if(error){toast(error.message,'error');return}
+    const{error:e2}=await sb.from('inv_set_articles').insert(artIds.map(aid=>({set_id:newSet.id,article_id:aid})))
+    if(e2){toast(e2.message,'error');return}
+  }
+  closeModal()
+  toast('Set saved','success')
+  loadSets()
+}
+
+async function deleteSet(id){
+  if(!confirm('Delete this set?'))return
+  const{error}=await sb.from('inv_sets').delete().eq('id',id)
+  if(error){toast(error.message,'error');return}
+  toast('Set deleted','success')
+  loadSets()
+}
+
+function detectSetsInItems(items){
+  const artCount={}
+  items.forEach(item=>{const aid=item.article_id;artCount[aid]=(artCount[aid]||0)+1})
+  const matched=[],usedIdx=new Set()
+  ALL_SETS.forEach(s=>{
+    const canMatch=s.article_ids.every(aid=>(artCount[aid]||0)>0)
+    if(!canMatch)return
+    const setItemIdxs=[]
+    s.article_ids.forEach(aid=>{
+      const idx=items.findIndex((it,i)=>!usedIdx.has(i)&&it.article_id===aid)
+      if(idx!==-1){setItemIdxs.push(idx);usedIdx.add(idx)}
+    })
+    if(setItemIdxs.length===s.article_ids.length){
+      matched.push({set:s,itemIdxs:setItemIdxs})
+      s.article_ids.forEach(aid=>{artCount[aid]--})
+    }
+  })
+  return matched
+}
+
 // ═══════════ SELL / DISTRIBUTE ═══════════
 let _sellItems=[], _sellScannedCodes=new Set(), _beepCtx=null, _sellStudentInfo=null
 function _beep(){
@@ -1008,18 +1099,46 @@ function renderSellScannedItems(){
   const box=$('sellScannedItems')
   if(!_sellItems.length){wrap.style.display='none';return}
   wrap.style.display='block'
-  let total=0
-  box.innerHTML=_sellItems.map((item,i)=>{
+  const matched=detectSetsInItems(_sellItems)
+  const inSet=new Set()
+  matched.forEach(m=>m.itemIdxs.forEach(i=>inSet.add(i)))
+  let total=0,discount=0
+  let html=''
+  matched.forEach(m=>{
+    const setIndiv=m.itemIdxs.reduce((s,i)=>s+getItemPrice(_sellItems[i]),0)
+    const saving=setIndiv-m.set.set_price
+    discount+=saving
+    html+='<div style="background:var(--lav-50,#f5f0ff);border-radius:6px;padding:6px 8px;margin:4px 0;border-left:3px solid var(--primary)">'
+    html+='<div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:2px">'+esc(m.set.name)+' — Set Price: '+fmtINR(m.set.set_price)+' <span style="color:var(--success)">(Save '+fmtINR(saving)+')</span></div>'
+    m.itemIdxs.forEach(i=>{
+      const item=_sellItems[i]
+      const price=getItemPrice(item)
+      total+=price
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">'
+        +'<span><b>'+esc(item.inv_articles?.name||'—')+'</b>'+(item.size?' · '+esc(item.size):'')
+        +' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(item.qr_code)+'</span></span>'
+        +'<span style="display:flex;align-items:center;gap:8px"><span class="mono" style="text-decoration:line-through;color:var(--ink-faint)">'+fmtINR(price)+'</span>'
+        +'<button class="btn btn-danger btn-xs" onclick="removeSellItem('+i+')" style="padding:2px 6px;font-size:11px">✕</button></span>'
+        +'</div>'
+    })
+    html+='</div>'
+  })
+  _sellItems.forEach((item,i)=>{
+    if(inSet.has(i))return
     const price=getItemPrice(item)
     total+=price
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">'
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">'
       +'<span><b>'+esc(item.inv_articles?.name||'—')+'</b>'+(item.size?' · '+esc(item.size):'')
       +' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(item.qr_code)+'</span></span>'
       +'<span style="display:flex;align-items:center;gap:8px"><span class="mono">'+fmtINR(price)+'</span>'
       +'<button class="btn btn-danger btn-xs" onclick="removeSellItem('+i+')" style="padding:2px 6px;font-size:11px">✕</button></span>'
       +'</div>'
-  }).join('')
-  $('sellTotal').textContent='Total: '+fmtINR(total)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')'
+  })
+  box.innerHTML=html
+  const finalTotal=total-discount
+  let totalText='Total: '+fmtINR(finalTotal)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')'
+  if(discount>0)totalText+=' · <span style="color:var(--success)">Set discount: -'+fmtINR(discount)+'</span>'
+  $('sellTotal').innerHTML=totalText
 }
 
 function confirmSell(){
@@ -1027,16 +1146,31 @@ function confirmSell(){
   stopCamScanner('sell')
   const s=_sellStudentInfo||{}
   const mode=$('sellPayMode').value
-  let total=0
-  let rows=_sellItems.map((item,i)=>{
-    const price=getItemPrice(item)
-    total+=price
-    return '<tr><td style="padding:6px 8px">'+(i+1)+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono">'+fmtINR(price)+'</td></tr>'
-  }).join('')
+  const matched=detectSetsInItems(_sellItems)
+  const inSet=new Set()
+  matched.forEach(m=>m.itemIdxs.forEach(i=>inSet.add(i)))
+  let total=0,discount=0,rows='',n=0
+  matched.forEach(m=>{
+    const setIndiv=m.itemIdxs.reduce((s,i)=>s+getItemPrice(_sellItems[i]),0)
+    const saving=setIndiv-m.set.set_price
+    discount+=saving
+    rows+='<tr style="background:var(--lav-50,#f5f0ff)"><td colspan="4" style="padding:6px 8px;font-weight:700;font-size:12px;color:var(--primary)">'+esc(m.set.name)+' — Set Price: '+fmtINR(m.set.set_price)+' <span style="color:var(--success)">(Save '+fmtINR(saving)+')</span></td></tr>'
+    m.itemIdxs.forEach(i=>{
+      n++;const item=_sellItems[i];const price=getItemPrice(item);total+=price
+      rows+='<tr style="background:var(--lav-50,#f5f0ff)"><td style="padding:6px 8px">'+n+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono" style="text-decoration:line-through;color:var(--ink-faint)">'+fmtINR(price)+'</td></tr>'
+    })
+  })
+  _sellItems.forEach((item,i)=>{
+    if(inSet.has(i))return
+    n++;const price=getItemPrice(item);total+=price
+    rows+='<tr><td style="padding:6px 8px">'+n+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono">'+fmtINR(price)+'</td></tr>'
+  })
+  const finalTotal=total-discount
   let body='<div style="margin-bottom:12px;font-size:13px"><b>'+esc(s.name||'—')+'</b> — '+esc(s.cls||'')+'-'+esc(s.sec||'')+' (s/o '+esc(s.father||'—')+')</div>'
   body+='<div style="margin-bottom:8px;font-size:12px">Payment: <b>'+esc(mode==='cash'?'Cash':'Online')+'</b></div>'
   body+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--lav-100)"><th style="padding:6px 8px;text-align:left">#</th><th style="padding:6px 8px;text-align:left">Article</th><th style="padding:6px 8px;text-align:left">Size</th><th style="padding:6px 8px;text-align:right">Price</th></tr></thead><tbody>'+rows+'</tbody></table>'
-  body+='<div style="text-align:right;font-weight:700;font-size:15px;padding:10px 8px 0;border-top:2px solid var(--ink)">Total: '+fmtINR(total)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')</div>'
+  if(discount>0)body+='<div style="text-align:right;font-size:13px;padding:6px 8px 0;color:var(--success)">Set Discount: -'+fmtINR(discount)+'</div>'
+  body+='<div style="text-align:right;font-weight:700;font-size:15px;padding:6px 8px 0;border-top:2px solid var(--ink)">Total: '+fmtINR(finalTotal)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')</div>'
   const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="resumeSellScan()" style="padding:12px 20px">Back to Scanning</button>'
   openModal('Sale Bill',body,foot)
 }
@@ -1331,7 +1465,7 @@ function stopCamScanner(mode){
 }
 
 // ═══════════ LAZY LOAD ═══════════
-const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sell:()=>{},exchange:()=>{},history:_loadHistory}
+const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sets:loadSets,sell:()=>{},exchange:()=>{},history:_loadHistory}
 const _tabLoaded=new Set()
 
 // ═══════════ AUTH & INIT ═══════════
