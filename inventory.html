@@ -1005,22 +1005,26 @@ function getSetPrice(setDef,matchedItems){
 }
 
 function detectSetsInItems(items){
-  const artCount={}
-  items.forEach(item=>{const aid=item.article_id;artCount[aid]=(artCount[aid]||0)+1})
   const matched=[],usedIdx=new Set()
   ALL_SETS.forEach(s=>{
-    const canMatch=s.article_ids.every(aid=>(artCount[aid]||0)>0)
-    if(!canMatch)return
-    const setItemIdxs=[]
-    s.article_ids.forEach(aid=>{
-      const idx=items.findIndex((it,i)=>!usedIdx.has(i)&&it.article_id===aid)
-      if(idx!==-1){setItemIdxs.push(idx);usedIdx.add(idx)}
-    })
-    if(setItemIdxs.length===s.article_ids.length){
-      const mItems=setItemIdxs.map(i=>items[i])
+    const avail=items.map((it,i)=>usedIdx.has(i)?null:it).map((it,i)=>it&&s.article_ids.includes(it.article_id)?i:null).filter(i=>i!==null)
+    const sizedAvail=avail.filter(i=>items[i].size)
+    const sizes=[...new Set(sizedAvail.map(i=>items[i].size))]
+    const trySize=sizes.length?sizes:[null]
+    for(const sz of trySize){
+      const pick=[]
+      const taken=new Set()
+      let ok=true
+      for(const aid of s.article_ids){
+        const idx=avail.find(i=>!taken.has(i)&&items[i].article_id===aid&&(!items[i].size||items[i].size===sz))
+        if(idx==null){ok=false;break}
+        pick.push(idx);taken.add(idx)
+      }
+      if(!ok||pick.length!==s.article_ids.length)continue
+      const mItems=pick.map(i=>items[i])
       const price=getSetPrice(s,mItems)
-      matched.push({set:s,itemIdxs:setItemIdxs,setPrice:price})
-      s.article_ids.forEach(aid=>{artCount[aid]--})
+      matched.push({set:s,itemIdxs:pick,setPrice:price})
+      pick.forEach(i=>usedIdx.add(i))
     }
   })
   return matched
