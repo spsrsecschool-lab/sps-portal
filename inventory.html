@@ -331,8 +331,8 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page-head"><div><h2>Set Discounts</h2><p>Define article combos sold at a discounted set price</p></div><button class="btn btn-primary" onclick="openSetModal()">+ New Set</button></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Set Name</th><th>Articles in Set</th><th>Individual Total</th><th>Set Price</th><th>Discount</th><th>Actions</th></tr></thead>
-        <tbody id="setsBody"><tr><td colspan="6"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+        <thead><tr><th>Set Name</th><th>Articles in Set</th><th>Set Price</th><th>Actions</th></tr></thead>
+        <tbody id="setsBody"><tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -919,12 +919,10 @@ async function loadSets(){
   const{data}=await sb.from('inv_sets').select('*,inv_set_articles(article_id)')
   ALL_SETS=(data||[]).map(s=>({...s,article_ids:(s.inv_set_articles||[]).map(sa=>sa.article_id)}))
   const body=$('setsBody')
-  if(!ALL_SETS.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink-faint)">No sets defined yet.</td></tr>';return}
+  if(!ALL_SETS.length){body.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--ink-faint)">No sets defined yet.</td></tr>';return}
   body.innerHTML=ALL_SETS.map(s=>{
     const artNames=s.article_ids.map(aid=>{const a=ALL_ARTICLES.find(x=>x.id===aid);return a?esc(a.name):'?'}).join(' + ')
-    const indivTotal=s.article_ids.reduce((sum,aid)=>{const a=ALL_ARTICLES.find(x=>x.id===aid);return sum+(a?.selling_price||0)},0)
-    const disc=indivTotal>0?Math.round((1-s.set_price/indivTotal)*100):0
-    return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+artNames+'</td><td class="mono">'+fmtINR(indivTotal)+'</td><td class="mono" style="color:var(--success)">'+fmtINR(s.set_price)+'</td><td>'+(disc>0?'<span class="pill pill-success">'+disc+'% off</span>':'—')+'</td><td><button class="btn btn-ghost btn-xs" onclick="openSetModal(\''+s.id+'\')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteSet(\''+s.id+'\')">Delete</button></td></tr>'
+    return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+artNames+'</td><td class="mono">'+fmtINR(s.set_price)+'</td><td><button class="btn btn-ghost btn-xs" onclick="openSetModal(\''+s.id+'\')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteSet(\''+s.id+'\')">Delete</button></td></tr>'
   }).join('')
 }
 
