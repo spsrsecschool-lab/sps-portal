@@ -316,7 +316,7 @@ tbody tr:hover td{background:var(--lav-50)}
   <div class="page" id="page-qrcodes">
     <div class="page-head"><div><h2>QR Codes</h2><p>Generate and print QR labels for stock items</p></div></div>
     <div class="search-bar">
-      <div class="fg" style="max-width:220px"><label>Article</label><select id="qrFilterArticle" onchange="loadQrItems()"><option value="">Select article</option></select></div>
+      <div style="position:relative;min-width:200px;max-width:280px"><div class="fg"><label>Articles</label><div id="qrArtToggle" onclick="toggleQrArtPanel()" style="cursor:pointer;padding:7px 10px;background:var(--bg-lavender,#f0ebf8);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px;min-height:18px;user-select:none">Select articles ▾</div></div><div id="qrArtPanel" style="display:none;position:absolute;top:100%;left:0;min-width:260px;z-index:50;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:300px;overflow-y:auto;padding:6px"><label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-weight:600;border-bottom:1px solid var(--line);margin-bottom:4px;cursor:pointer;font-size:13px"><input type="checkbox" id="qrArtAll" onchange="qrToggleAll(this.checked)">Select All</label><div id="qrArtList"></div></div></div>
       <div class="fg" style="max-width:160px"><label>Size</label><select id="qrFilterSize" onchange="loadQrItems()"><option value="">All</option></select></div>
       <div class="fg" style="max-width:160px"><label>Status</label><select id="qrFilterStatus" onchange="loadQrItems()"><option value="in_stock">In Stock</option><option value="returned">Returned (Needs Relabeling)</option><option value="">All</option><option value="sold">Sold</option></select></div>
       <button class="btn btn-primary btn-sm" onclick="printQrCodes()">Print QR Labels</button>
@@ -480,7 +480,7 @@ function populateClassDropdowns(){
 }
 
 function populateArticleDropdowns(){
-  const drops=['stockFilterArticle','qrFilterArticle','histArticle']
+  const drops=['stockFilterArticle','histArticle']
   drops.forEach(id=>{
     const sel=$(id);if(!sel)return
     const val=sel.value
@@ -488,6 +488,39 @@ function populateArticleDropdowns(){
     ALL_ARTICLES.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.name+(a.category==='book_set'?' (Book Set)':'');sel.appendChild(o)})
     if(val)sel.value=val
   })
+  populateQrArticleCheckboxes()
+}
+
+function populateQrArticleCheckboxes(){
+  const list=$('qrArtList');if(!list)return
+  list.innerHTML=ALL_ARTICLES.map(a=>'<label style="display:flex;align-items:center;gap:6px;padding:3px 6px;cursor:pointer;font-size:13px;border-radius:4px" onmouseover="this.style.background=\'var(--bg-lavender,#f0ebf8)\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="qrArtCb" value="'+a.id+'" onchange="qrOnArticleCheck()">'+esc(a.name)+(a.category==='book_set'?' (Book Set)':'')+'</label>').join('')
+}
+
+function toggleQrArtPanel(){
+  const p=$('qrArtPanel');p.style.display=p.style.display==='none'?'block':'none'
+}
+document.addEventListener('click',e=>{const p=$('qrArtPanel');const t=$('qrArtToggle');if(p&&t&&!p.contains(e.target)&&!t.contains(e.target))p.style.display='none'})
+
+function qrToggleAll(checked){
+  document.querySelectorAll('.qrArtCb').forEach(cb=>{cb.checked=checked})
+  qrUpdateArtLabel()
+  loadQrItems()
+}
+
+function qrOnArticleCheck(){
+  const all=document.querySelectorAll('.qrArtCb')
+  const checked=document.querySelectorAll('.qrArtCb:checked')
+  $('qrArtAll').checked=all.length===checked.length
+  qrUpdateArtLabel()
+  loadQrItems()
+}
+
+function qrUpdateArtLabel(){
+  const checked=document.querySelectorAll('.qrArtCb:checked')
+  const toggle=$('qrArtToggle')
+  if(!checked.length)toggle.textContent='Select articles ▾'
+  else if(checked.length===document.querySelectorAll('.qrArtCb').length)toggle.textContent='All articles ('+checked.length+') ▾'
+  else toggle.textContent=checked.length+' article'+(checked.length>1?'s':'')+' selected ▾'
 }
 
 // ═══════════ DASHBOARD ═══════════
@@ -790,35 +823,54 @@ async function deleteBatch(batchId,qty){
 let _qrLoadedItems=[]
 async function loadQrItems(){
   const grid=$('qrGrid')
-  const artId=$('qrFilterArticle').value
-  if(!artId){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">Select an article to view QR codes.</div>';return}
+  const checkedBoxes=document.querySelectorAll('.qrArtCb:checked')
+  const artIds=Array.from(checkedBoxes).map(cb=>cb.value)
+  if(!artIds.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">Select articles to view QR codes.</div>';_qrLoadedItems=[];$('qrRelabelBtn').style.display='none';return}
   grid.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
 
-  let q=sb.from('inv_items').select('*,inv_articles(name)').eq('article_id',artId)
-  const size=$('qrFilterSize').value
-  if(size)q=q.eq('size',size)
-  const status=$('qrFilterStatus').value
-  if(status)q=q.eq('status',status)
-  q=q.order('created_at',{ascending:false}).limit(200)
+  const allSizes=new Set()
+  artIds.forEach(id=>{const a=ALL_ARTICLES.find(x=>x.id===id);if(a?.has_sizes&&a.sizes?.length)a.sizes.forEach(s=>allSizes.add(s))})
+  const sel=$('qrFilterSize');const cur=sel.value
+  if(allSizes.size){sel.innerHTML='<option value="">All</option>';[...allSizes].sort().forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'});sel.value=cur}else{sel.innerHTML='<option value="">All</option>'}
 
-  const{data,error}=await q
-  if(error){grid.innerHTML='<div style="color:var(--danger)">'+esc(error.message)+'</div>';return}
-  if(!data?.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">No items found.</div>';_qrLoadedItems=[];$('qrRelabelBtn').style.display='none';return}
-  _qrLoadedItems=data
-  $('qrRelabelBtn').style.display=status==='returned'?'':'none'
-
-  const art=ALL_ARTICLES.find(a=>a.id===artId)
-  if(art?.has_sizes&&art.sizes?.length){
-    const sel=$('qrFilterSize');const cur=sel.value
-    sel.innerHTML='<option value="">All</option>'
-    art.sizes.forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'})
-    sel.value=cur
+  let allData=[]
+  for(let i=0;i<artIds.length;i+=20){
+    const batch=artIds.slice(i,i+20)
+    let q=sb.from('inv_items').select('*,inv_articles(name)').in('article_id',batch)
+    const size=$('qrFilterSize').value
+    if(size)q=q.eq('size',size)
+    const status=$('qrFilterStatus').value
+    if(status)q=q.eq('status',status)
+    q=q.order('created_at',{ascending:false}).limit(500)
+    const{data,error}=await q
+    if(error){grid.innerHTML='<div style="color:var(--danger)">'+esc(error.message)+'</div>';return}
+    if(data?.length)allData=allData.concat(data)
   }
 
-  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':item.status==='returned'?'danger':'neutral')+'">'+esc(item.status)+'</span></div></div>').join('')
+  if(!allData.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">No items found.</div>';_qrLoadedItems=[];$('qrRelabelBtn').style.display='none';return}
+  _qrLoadedItems=allData
+  const status=$('qrFilterStatus').value
+  $('qrRelabelBtn').style.display=status==='returned'?'':'none'
 
-  data.forEach((item,idx)=>{
-    new QRCode(document.getElementById('qrcanvas_'+idx),{text:item.qr_code,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})
+  const grouped={}
+  allData.forEach(item=>{const name=item.inv_articles?.name||'Unknown';if(!grouped[name])grouped[name]=[];grouped[name].push(item)})
+
+  let html='',idx=0
+  Object.keys(grouped).sort().forEach(artName=>{
+    html+='<div style="grid-column:1/-1;font-weight:600;font-size:14px;margin-top:10px;padding:4px 0;border-bottom:2px solid var(--primary)">'+esc(artName)+' ('+grouped[artName].length+')</div>'
+    grouped[artName].forEach(item=>{
+      html+='<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':item.status==='returned'?'danger':'neutral')+'">'+esc(item.status)+'</span></div></div>'
+      idx++
+    })
+  })
+  grid.innerHTML=html
+
+  idx=0
+  Object.keys(grouped).sort().forEach(artName=>{
+    grouped[artName].forEach(item=>{
+      new QRCode(document.getElementById('qrcanvas_'+idx),{text:item.qr_code,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})
+      idx++
+    })
   })
 }
 
