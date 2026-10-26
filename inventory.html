@@ -856,35 +856,12 @@ async function loadQrItems(){
   _qrLoadedItems=allData
   $('qrRelabelBtn').style.display=status==='returned'?'':'none'
 
-  const grouped={}
-  allData.forEach(item=>{const name=item.inv_articles?.name||'Unknown';if(!grouped[name])grouped[name]=[];grouped[name].push(item)})
+  allData.sort((a,b)=>{const an=(a.inv_articles?.name||'').localeCompare(b.inv_articles?.name||'');if(an)return an;return(a.size||'').localeCompare(b.size||'')})
 
-  let html='',idx=0
-  Object.keys(grouped).sort().forEach(artName=>{
-    const artItems=grouped[artName]
-    const sizeGroups={}
-    artItems.forEach(item=>{const s=item.size||'—';if(!sizeGroups[s])sizeGroups[s]=[];sizeGroups[s].push(item)})
-    html+='<div style="grid-column:1/-1;font-weight:700;font-size:16px;margin-top:14px;padding:6px 0;border-bottom:2px solid var(--primary);color:var(--primary)">'+esc(artName)+' ('+artItems.length+')</div>'
-    Object.keys(sizeGroups).sort().forEach(sz=>{
-      if(sz!=='—')html+='<div style="grid-column:1/-1;font-weight:600;font-size:13px;margin-top:6px;padding:2px 0;color:var(--ink-faint)">Size: '+esc(sz)+' ('+sizeGroups[sz].length+')</div>'
-      sizeGroups[sz].forEach(item=>{
-        html+='<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':item.status==='returned'?'danger':'neutral')+'">'+esc(item.status)+'</span></div></div>'
-        idx++
-      })
-    })
-  })
-  grid.innerHTML=html
+  grid.innerHTML=allData.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':item.status==='returned'?'danger':'neutral')+'">'+esc(item.status)+'</span></div></div>').join('')
 
-  idx=0
-  Object.keys(grouped).sort().forEach(artName=>{
-    const sizeGroups={}
-    grouped[artName].forEach(item=>{const s=item.size||'—';if(!sizeGroups[s])sizeGroups[s]=[];sizeGroups[s].push(item)})
-    Object.keys(sizeGroups).sort().forEach(sz=>{
-      sizeGroups[sz].forEach(item=>{
-        new QRCode(document.getElementById('qrcanvas_'+idx),{text:item.qr_code,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})
-        idx++
-      })
-    })
+  allData.forEach((item,idx)=>{
+    new QRCode(document.getElementById('qrcanvas_'+idx),{text:item.qr_code,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})
   })
 }
 
@@ -898,24 +875,15 @@ function printQrCodes(){
   h+='.item{text-align:center;page-break-inside:avoid;border:1px solid #ddd;padding:1.5mm;border-radius:2px}'
   h+='.item img{max-width:100%}'
   h+='.item .lbl{font-size:7px;font-family:monospace;word-break:break-all;margin-top:1mm}'
-  h+='.art-hdr{grid-column:1/-1;font-weight:700;font-size:14px;margin-top:4mm;padding:2mm 0;border-bottom:2px solid #6c3cbf}'
-  h+='.size-hdr{grid-column:1/-1;font-weight:600;font-size:11px;margin-top:2mm;color:#666}'
   h+='@page{size:A4 portrait;margin:5mm}'
   h+='</style></head><body><div class="grid">'
-  const children=grid.children
-  for(let i=0;i<children.length;i++){
-    const el=children[i]
-    if(el.classList.contains('qr-card')){
-      const img=el.querySelector('img')||el.querySelector('canvas')
-      const label=el.querySelector('.qr-label')
-      const src=img.tagName==='IMG'?img.src:img.toDataURL()
-      h+='<div class="item"><img src="'+src+'" width="100"><div class="lbl">'+label.textContent+'</div></div>'
-    }else if(el.style.fontWeight==='700'){
-      h+='<div class="art-hdr">'+el.textContent+'</div>'
-    }else if(el.style.fontWeight==='600'){
-      h+='<div class="size-hdr">'+el.textContent+'</div>'
-    }
-  }
+  const cards=grid.querySelectorAll('.qr-card')
+  cards.forEach(card=>{
+    const img=card.querySelector('img')||card.querySelector('canvas')
+    const label=card.querySelector('.qr-label')
+    const src=img.tagName==='IMG'?img.src:img.toDataURL()
+    h+='<div class="item"><img src="'+src+'" width="100"><div class="lbl">'+label.textContent+'</div></div>'
+  })
   h+='</div></body></html>'
   w.document.write(h);w.document.close()
   setTimeout(()=>w.print(),400)
