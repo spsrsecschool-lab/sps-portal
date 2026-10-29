@@ -2339,6 +2339,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <button class="btn btn-ghost btn-sm" onclick="openUploadPhotoModal()">Change Photo</button>
       <button class="btn btn-ghost btn-sm" id="pm_remove_photo_btn" style="display:none;border-color:var(--warn);color:var(--warn-dark)" onclick="removeStudentPhoto()">Remove Photo</button>
       <button class="btn btn-ghost btn-sm" onclick="openUploadDocModal()">Upload Document</button>
+      <button class="btn btn-ghost btn-sm" id="pm_flag_btn" style="border-color:#EF4444;color:#DC2626" onclick="openFlagModal()">Flag Profile</button>
     </div>
   </div>
 </div>
@@ -4063,15 +4064,21 @@ async function openProfile(enrollId){
   if(misClass&&misClass!==origClass) mismatchHtml+='<span style="display:inline-flex;align-items:center;gap:5px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:#92400E">MIS Class: '+esc(misClass)+'</span>'
   if(udiseClass&&udiseClass!==origClass) mismatchHtml+='<span style="display:inline-flex;align-items:center;gap:5px;background:#DBEAFE;border:1px solid #3B82F6;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:#1E40AF">UDISE Class: '+esc(udiseClass)+'</span>'
   $('pm_class_mismatch').innerHTML=mismatchHtml?'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">'+mismatchHtml+'</div>':''
+  // Flag banner
+  const flagHtml=s?.flagged
+    ?'<div style="background:#FEE2E2;border:1px solid #EF4444;border-radius:8px;padding:10px 14px;font-size:13px;color:#991B1B;margin-bottom:12px;line-height:1.5;display:flex;align-items:flex-start;gap:8px"><span style="font-size:16px">⚠️</span><div style="flex:1"><strong>Flagged for update</strong>'+(s.flag_notes?' — '+esc(s.flag_notes):'')+'</div><button type="button" onclick="toggleStudentFlag(\''+esc(s.student_id||'')+'\',false)" style="background:#fff;border:1px solid #EF4444;color:#EF4444;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap">Resolve Flag</button></div>'
+    :''
   // Notes
-  $('pm_notes').innerHTML=s?.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:12px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':''
-  $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">PEN</span><span class="fv">'+esc(s?.pen||'—')+'</span></div><div class="field-row"><span class="fk">APAAR ID</span><span class="fv">'+esc(s?.apaar_id||'—')+'</span></div><div class="field-row"><span class="fk">Gender</span><span class="fv">'+esc(s?.gender||'—')+'</span></div><div class="field-row"><span class="fk">Blood Group</span><span class="fv">'+esc(s?.blood_group||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
+  $('pm_notes').innerHTML=flagHtml+(s?.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:12px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':'')
+  $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">PEN</span><span class="fv">'+esc(s?.pen||'—')+'</span></div><div class="field-row"><span class="fk">APAAR ID</span><span class="fv">'+esc(s?.apaar_id||'—')+'</span></div><div class="field-row"><span class="fk">Admission No</span><span class="fv">'+esc(s?.admission_number||'—')+'</span></div><div class="field-row"><span class="fk">Gender</span><span class="fv">'+esc(s?.gender||'—')+'</span></div><div class="field-row"><span class="fk">Blood Group</span><span class="fv">'+esc(s?.blood_group||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Admission Date</span><span class="fv">'+fmtD(s?.admission_date)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Alt Phone</span><span class="fv">'+esc(s?.alt_phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
   if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a class="map-tag" href="'+esc(R2.url(d.file_url))+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_url||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button></span>').join('')+'</div>'
   else $('pm_docs').innerHTML=''
   // Siblings — other students sharing this family code with the same father.
   if($('pm_siblings'))$('pm_siblings').innerHTML=''
   await renderSiblings('pm_siblings', s, e.enrollment_id)
+  const fb=$('pm_flag_btn')
+  if(fb){if(s?.flagged){fb.textContent='Resolve Flag';fb.onclick=()=>toggleStudentFlag(s.student_id,false)}else{fb.textContent='Flag Profile';fb.onclick=()=>openFlagModal()}}
 }
 // Show siblings of a student (same family_code + same father) as clickable chips.
 async function renderSiblings(containerId, s, selfEnrollmentId){
@@ -4102,6 +4109,28 @@ async function deleteStudentDoc(sid,fileUrl,fileType,btn){
   const chip=btn&&btn.closest('span');if(chip)chip.remove()
 }
 function closeProfile(){$('profileModal').classList.remove('show');_profileEnrollId=null}
+function openFlagModal(){
+  if(!_profileEnrollId)return
+  openModal('Flag Student Profile',
+    '<div style="margin-bottom:14px;font-size:13px;color:var(--ink-soft)">Flag this student\'s profile so that the class teacher and mother teacher see a warning to update it.</div>'
+    +'<div class="form-row"><div class="fg"><label>Flag Notes (optional)</label><textarea id="flag_notes_input" style="min-height:70px;resize:vertical" placeholder="e.g. Missing Aadhaar, wrong DOB, need updated photo…"></textarea></div></div>',
+    '<button class="btn btn-primary" style="background:#EF4444;border-color:#EF4444" onclick="submitFlag()">Flag Profile</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function submitFlag(){
+  const{data:e}=await sb.from('student_enrollments').select('student_id').eq('enrollment_id',_profileEnrollId).maybeSingle()
+  if(!e)return
+  const notes=($('flag_notes_input')?.value||'').trim()
+  const{error}=await sb.from('students').update({flagged:true,flag_notes:notes||null}).eq('student_id',e.student_id)
+  if(error){toast('Flag failed: '+error.message,'error');return}
+  toast('Profile flagged','success');closeModal();openProfile(_profileEnrollId)
+}
+async function toggleStudentFlag(studentId,flag){
+  if(flag===false&&!confirm('Resolve this flag? The teacher warning will be removed.'))return
+  const upd=flag?{flagged:true}:{flagged:false,flag_notes:null}
+  const{error}=await sb.from('students').update(upd).eq('student_id',studentId)
+  if(error){toast('Update failed: '+error.message,'error');return}
+  toast(flag?'Profile flagged':'Flag resolved','success');openProfile(_profileEnrollId)
+}
 function openUploadPhotoModal(){
   _photoPicked=null
   openModal('Change Profile Photo',
