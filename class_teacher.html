@@ -832,7 +832,7 @@ async function loadClass(ct){
 
   // Students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -1011,7 +1011,7 @@ async function onRosterChanged(){
   clearTimeout(_rosterDebounce)
   _rosterDebounce=setTimeout(async()=>{
     const{data:students}=await sb.from('student_enrollments')
-      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
       .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
     const before=CLASS_STUDENTS.length
@@ -1285,9 +1285,10 @@ function renderAttTable(date, alreadySubmitted){
     const excluded=_attExcluded.has(s.enrollment_id)
     const cur=_attState[s.enrollment_id]||''
     const joinLbl=studentJoinLabel(s)
-    html+='<tr data-eid="'+s.enrollment_id+'"'+(excluded?' style="opacity:0.5"':'')+'>'
+    const fl=s.students?.flagged
+    html+='<tr data-eid="'+s.enrollment_id+'"'+(excluded?' style="opacity:0.5"':(fl?' style="background:#FEF2F2"':''))+'>'
       +'<td style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-      +'<td><span style="font-weight:600">'+esc(s.students?.full_name||'?')+'</span>'
+      +'<td>'+(fl?'<span title="'+(s.students?.flag_notes?esc(s.students.flag_notes):'Profile needs update')+'" style="color:#DC2626;margin-right:3px">⚠️</span>':'')+'<span style="font-weight:600">'+esc(s.students?.full_name||'?')+'</span>'
       +(joinLbl?'<div style="font-size:10px;color:var(--indigo-dark);font-weight:500">'+esc(joinLbl)+'</div>':'')
       +'</td>'
       +'<td style="color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
@@ -1765,7 +1766,7 @@ async function loadMyClass(){
   if(!CLASS_STUDENTS.length){
     ldg(el)
     const{data:students}=await sb.from('student_enrollments')
-      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
       .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
     CLASS_STUDENTS=students||[]
@@ -1790,15 +1791,15 @@ function renderClassList(list){
   if(!list.length){emp(el,'No students match the filter.');return}
   el.innerHTML='<div class="card"><div style="overflow-x:auto"><table><thead><tr>'
     +'<th>Roll</th><th>Student Name</th><th>S.No.</th><th>Father\'s Name</th><th>Phone</th><th>Alt. Phone</th><th></th></tr></thead><tbody>'
-    +list.map(s=>'<tr>'
+    +list.map(s=>{const fl=s.students?.flagged;return '<tr'+(fl?' style="background:#FEF2F2"':'')+'>'
       +'<td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td>'
-      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+(s.is_new_admission?' <span style="display:inline-block;background:var(--indigo-100);color:var(--indigo-dark);font-size:8.5px;font-weight:800;letter-spacing:.03em;padding:1px 6px;border-radius:999px;vertical-align:middle">NEW</span>':'')+'</td>'
+      +'<td style="font-weight:600">'+(fl?'<span title="'+(s.students?.flag_notes?esc(s.students.flag_notes):'Profile needs update')+'" style="color:#DC2626;margin-right:4px">⚠️</span>':'')+esc(s.students?.full_name||'?')+(s.is_new_admission?' <span style="display:inline-block;background:var(--indigo-100);color:var(--indigo-dark);font-size:8.5px;font-weight:800;letter-spacing:.03em;padding:1px 6px;border-radius:999px;vertical-align:middle">NEW</span>':'')+'</td>'
       +'<td style="font-family:var(--mono)">'+(s.s_no?'<span class="pill pill-grn">'+esc(String(s.s_no))+'</span>':'<span class="pill pill-neutral">—</span>')+'</td>'
       +'<td>'+esc(s.students?.father_name||'—')+'</td>'
       +'<td style="font-family:var(--mono)">'+esc(s.students?.phone||'—')+'</td>'
       +'<td style="font-family:var(--mono)">'+esc(s.students?.alt_phone||'—')+'</td>'
       +'<td><button class="btn btn-soft btn-xs" data-eid="'+s.enrollment_id+'" onclick="viewStudentProfile(this.dataset.eid)">View Profile</button></td>'
-      +'</tr>').join('')
+      +'</tr>'}).join('')
     +'</tbody></table></div></div>'
 }
 
@@ -1831,9 +1832,6 @@ async function viewStudentProfile(eid){
     {k:'phone',label:'Phone',val:s.phone},
     {k:'alt_phone',label:'Alt Phone',val:s.alt_phone},
     {k:'aadhar_no',label:'Aadhaar No',val:s.aadhar_no},
-    {k:'srn',label:'SRN',val:s.srn,locked:true},
-    {k:'pen',label:'PEN',val:s.pen,locked:true},
-    {k:'apaar_id',label:'APAAR ID',val:s.apaar_id,locked:true},
     {k:'admission_number',label:'Admission No',val:s.admission_number,locked:true},
     {k:'gender',label:'Gender',val:s.gender,type:'select',options:['','Male','Female']},
     {k:'blood_group',label:'Blood Group',val:s.blood_group,type:'select',options:['','A+','A-','B+','B-','AB+','AB-','O+','O-']},
@@ -1861,6 +1859,7 @@ async function viewStudentProfile(eid){
     +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px">Roll: '+esc(String(enr.roll_no||'—'))+' &middot; S.No: '+(enr.s_no?esc(String(enr.s_no)):'—')+'</div>'
     +(canEdit?'<button type="button" onclick="ctChangePhoto(_profileStudentId)" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;border:none">Change Photo</button>':'')
     +'</div></div>'
+    +(s.flagged?'<div style="background:#FEE2E2;border:1px solid #EF4444;border-radius:8px;padding:10px 14px;font-size:13px;color:#991B1B;margin-bottom:14px;line-height:1.5;display:flex;align-items:flex-start;gap:8px"><span style="font-size:16px">⚠️</span><div style="flex:1"><strong>Flagged for update</strong>'+(s.flag_notes?' — '+esc(s.flag_notes):'')+'</div><button type="button" onclick="resolveStudentFlag(\''+esc(s.student_id||'')+'\')" style="background:#fff;border:1px solid #EF4444;color:#EF4444;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap">Resolve</button></div>':'')
     +(s.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:14px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':'')
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
     +function(){
@@ -1902,6 +1901,14 @@ async function viewStudentProfile(eid){
   openModal('Student Profile',body,foot)
   if(canEdit) populateSectionPicker(enr)
   renderSiblings('sp_siblings', s, enr.enrollment_id)
+}
+async function resolveStudentFlag(studentId){
+  if(!confirm('Resolve this flag? The warning will be removed.'))return
+  const{error}=await sb.from('students').update({flagged:false,flag_notes:null}).eq('student_id',studentId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const enr=CLASS_STUDENTS.find(x=>x.students?.student_id===studentId)
+  if(enr)enr.students.flagged=false
+  toast('Flag resolved','success');closeModal()
 }
 // Siblings (same family_code + same father) shown as chips (display-only, since a
 // sibling may be in another class this teacher doesn't manage).
@@ -2053,7 +2060,7 @@ async function saveStudentProfile(){
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -2218,7 +2225,7 @@ async function saveStudentProfile(studentId){
   if(!updated||!updated.length){toast('Save did not persist — the database blocked this update (permissions).','error');console.warn('[profile] UPDATE affected 0 rows — likely RLS on students table',{sid});return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -2474,7 +2481,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,srn,pen,apaar_id,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
