@@ -7125,9 +7125,9 @@ async function moLoadSections(){
   if(!cid||!SESS){console.log('[MO] EARLY EXIT: cid=',cid,'SESS=',!!SESS);return}
   const{data:secs}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
-  const{data:sessAsmts,error:sessErr}=await sb.from('assessments').select('assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only,created_by_teacher_id').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  const{data:sessAsmts,error:sessErr}=await sb.from('assessments').select('assessment_id,name,commencement_date,end_date,max_marks,pass_marks,created_by_teacher_id').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
   console.log('[MO] assessments query: count=',(sessAsmts||[]).length,'error=',sessErr,'data=',sessAsmts)
-  const official=(sessAsmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
+  const official=(sessAsmts||[]).filter(a=>!a.created_by_teacher_id)
   console.log('[MO] official (non-teacher, non-fee-only):',official.length,'items=',official.map(a=>a.name+' ('+a.assessment_id+')'))
   let asmtList=official
   if(official.length){
@@ -12469,10 +12469,10 @@ async function loadQPList(){
   const grid=$('qpGrid');ldg(grid)
   const[{data:papers},{data:assess},{data:tscmRows}]=await Promise.all([
     sb.from('question_papers').select('*,classes(name,sort_order),subjects(name),assessments(name)').eq('session_id',SESS?.session_id||'').order('updated_at',{ascending:false}),
-    sb.from('assessments').select('assessment_id,name,created_by_teacher_id,commencement_date,is_fee_only').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false}),
+    sb.from('assessments').select('assessment_id,name,created_by_teacher_id,commencement_date').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false}),
     sb.from('teacher_subject_class_map').select('class_id,subject_id,subjects(name)').eq('session_id',SESS?.session_id||'')
   ])
-  _qpList=papers||[];_qpAssessments=(assess||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
+  _qpList=papers||[];_qpAssessments=(assess||[]).filter(a=>!a.created_by_teacher_id)
   console.log('[QP] loadQPList: papers=',(papers||[]).length,'assess=',(assess||[]).length,'_qpAssessments=',_qpAssessments.length,_qpAssessments.map(a=>a.name+' ('+a.assessment_id+')'))
   const officialIds=_qpAssessments.map(a=>a.assessment_id)
   console.log('[QP] officialIds=',officialIds)
