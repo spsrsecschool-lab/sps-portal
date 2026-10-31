@@ -8462,6 +8462,20 @@ async function loadClassAttendance(){
   const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(classId)).map(h=>h.date))
   const caEPSet=_caEPH[classId]
 
+  const _prevPMap={}
+  {
+    const prevEnd=new Date(year,month-1,0)
+    const prevToStr=prevEnd.getFullYear()+'-'+String(prevEnd.getMonth()+1).padStart(2,'0')+'-'+String(prevEnd.getDate()).padStart(2,'0')
+    const sessStart=SESS?.start_date||''
+    if(sessStart&&prevToStr>=sessStart){
+      let prevAtt=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',prevToStr).range(_r,_r+999);if(_c&&_c.length)prevAtt.push(..._c);if(!_c||_c.length<1000)break}
+      const{data:prevMonthly}=await sb.from('attendance_monthly').select('enrollment_id,from_date,to_date,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',prevToStr)
+      const mPer={};(prevMonthly||[]).forEach(m=>{if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
+      eids.forEach(eid=>{let t=0;(mPer[eid]||[]).forEach(p=>t+=p.p);_prevPMap[eid]=t})
+      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
+    }
+  }
+
   const days=[]
   for(let d=1;d<=daysInMonth;d++){
     const dateStr=year+'-'+monthStr+'-'+String(d).padStart(2,'0')
@@ -8478,7 +8492,7 @@ async function loadClassAttendance(){
     const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
     let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
       +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was entered as monthly totals via Previous Attendance, so only Present/Absent counts are shown (day-by-day records for this month are superseded).</div>'
-      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">Present</th><th style="text-align:center">Absent</th></tr></thead><tbody>'
+      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">P</th><th style="text-align:center">Prev</th><th style="text-align:center">Total</th></tr></thead><tbody>'
     studs.forEach(s=>{
       const m=mMap[s.enrollment_id]
       const admD=((s.is_new_admission||s.att_from_admission)&&s.students?.admission_date)?s.students.admission_date:null
@@ -8498,13 +8512,14 @@ async function loadClassAttendance(){
         +'<td style="color:var(--ink-soft);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
         +'<td style="text-align:center;font-weight:700">'+(wk??'—')+'</td>'
         +'<td style="text-align:center;font-weight:700;color:var(--success)">'+(pres??'—')+'</td>'
-        +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+(abs??'—')+'</td></tr>'
+        +'<td style="text-align:center;font-weight:700">'+(_prevPMap[s.enrollment_id]||0)+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+((pres||0)+(_prevPMap[s.enrollment_id]||0))+'</td></tr>'
     })
     h+='</tbody></table></div>'
     el.innerHTML=h; return
   }
 
-  const ncols=3+days.length+3
+  const ncols=3+days.length+4
   let html='<div class="card"><div class="att-scroll"><table style="min-width:800px">'
     +'<thead>'
     +'<tr class="mrow"><th class="rollcol" colspan="'+ncols+'">'+monthName+' — Working Days: '+workingDays+(classStart&&classStart>from?'  ·  class starts '+fmtD(classStart):'')+'</th></tr>'
@@ -8513,7 +8528,7 @@ async function loadClassAttendance(){
     +'<th style="min-width:130px">Student Name</th>'
     +'<th style="min-width:130px">Father\'s Name</th>'
   days.forEach(d=>{const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'})
-  html+='<th style="text-align:center">P</th><th style="text-align:center">A</th><th style="text-align:center">L</th></tr></thead><tbody>'
+  html+='<th style="text-align:center">P</th><th style="text-align:center">L</th><th style="text-align:center">Prev</th><th style="text-align:center">Total</th></tr></thead><tbody>'
 
   studs.forEach(s=>{
     const admD=((s.is_new_admission||s.att_from_admission)&&s.students?.admission_date)?s.students.admission_date:null
@@ -8536,9 +8551,11 @@ async function loadClassAttendance(){
       else if(st==='L'){lCount++;pCount++;html+='<td class="cell-l">L</td>'}
       else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
     })
+    const prevP=_prevPMap[s.enrollment_id]||0
     html+='<td style="text-align:center;font-weight:700;color:var(--success)">'+pCount+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+aCount+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--warn)">'+lCount+'</td></tr>'
+      +'<td style="text-align:center;font-weight:700;color:var(--warn)">'+lCount+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+prevP+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+(prevP+pCount)+'</td></tr>'
   })
   html+='</tbody></table></div></div>'
   el.innerHTML=html
@@ -8563,7 +8580,7 @@ function printClassAttendance(){
   }else{
     const allTh=[...hrow.querySelectorAll('th')]
     const totalCols=allTh.length
-    const fixS=3,fixE=3
+    const fixS=3,fixE=4
     const dayCount=totalCols-fixS-fixE
     const mrow=tbl.querySelector('.mrow')
     const bodyRows=[...tbl.querySelectorAll('tbody tr')]

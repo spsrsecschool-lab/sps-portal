@@ -1904,6 +1904,21 @@ async function loadAttReport(){
   const hdSet=new Set(); (hdRecs||[]).forEach(r=>hdSet.add(r.enrollment_id+'|'+r.date))
   const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
 
+  // Fetch previous months' cumulative present for each student
+  const _prevPMap={}
+  {
+    const prevEnd=new Date(year,month-1,0)
+    const prevToStr=prevEnd.getFullYear()+'-'+String(prevEnd.getMonth()+1).padStart(2,'0')+'-'+String(prevEnd.getDate()).padStart(2,'0')
+    const sessStart=SESS?.start_date||''
+    if(sessStart&&prevToStr>=sessStart){
+      let prevAtt=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',prevToStr).range(_r,_r+999);if(_c&&_c.length)prevAtt.push(..._c);if(!_c||_c.length<1000)break}
+      const{data:prevMonthly}=await sb.from('attendance_monthly').select('enrollment_id,from_date,to_date,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',prevToStr)
+      const mPer={};(prevMonthly||[]).forEach(m=>{if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
+      eids.forEach(eid=>{let t=0;(mPer[eid]||[]).forEach(p=>t+=p.p);_prevPMap[eid]=t})
+      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
+    }
+  }
+
   // Build day list (exclude Sundays)
   const days=[]
   for(let d=1;d<=daysInMonth;d++){
@@ -1923,20 +1938,21 @@ async function loadAttReport(){
     const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
     let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
       +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was back-filled with monthly totals, so only Present/Absent counts are available (no day-by-day record).</div>'
-      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">Present</th><th style="text-align:center">Absent</th></tr></thead><tbody>'
+      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">P</th><th style="text-align:center">Prev</th><th style="text-align:center">Total</th></tr></thead><tbody>'
     CLASS_STUDENTS.forEach(s=>{const m=mMap[s.enrollment_id];h+='<tr>'
       +'<td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="color:var(--ink-soft);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
       +'<td style="text-align:center;font-weight:700">'+(m?m.working_days:'—')+'</td>'
       +'<td style="text-align:center;font-weight:700;color:var(--success)">'+(m?m.present_count:'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+(m?m.absent_count:'—')+'</td></tr>'})
+      +'<td style="text-align:center;font-weight:700">'+(_prevPMap[s.enrollment_id]||0)+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+((m?m.present_count:0)+(_prevPMap[s.enrollment_id]||0))+'</td></tr>'})
     h+='</tbody></table></div>'
     el.innerHTML=h; return
   }
 
   // Table — pinned month bar + column headers; only Roll frozen horizontally.
-  const ncols=3+days.length+2
+  const ncols=3+days.length+3
   let html='<div class="card"><div class="att-scroll"><table style="min-width:800px">'
     +'<thead>'
     +'<tr class="mrow"><th class="rollcol" colspan="'+ncols+'">'+monthName+' — Working Days: '+workingDays+'</th></tr>'
@@ -1948,7 +1964,7 @@ async function loadAttReport(){
     const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';
     html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'
   })
-  html+='<th style="text-align:center">P</th><th style="text-align:center">A</th></tr></thead><tbody>'
+  html+='<th style="text-align:center">P</th><th style="text-align:center">Prev</th><th style="text-align:center">Total</th></tr></thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
     let pCount=0,aCount=0
@@ -1967,8 +1983,10 @@ async function loadAttReport(){
       else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
       else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
     })
+    const prevP=_prevPMap[s.enrollment_id]||0
     html+='<td style="text-align:center;font-weight:700;color:var(--success)">'+pCount+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+aCount+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+prevP+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+(prevP+pCount)+'</td>'
     html+='</tr>'
   })
 
@@ -1982,7 +2000,7 @@ async function loadAttReport(){
     const cnt=CLASS_STUDENTS.filter(s=>attMap[s.enrollment_id]?.[d.dateStr]==='P').length
     html+='<td style="text-align:center;font-size:11px">'+cnt+'</td>'
   })
-  html+='<td></td><td></td></tr>'
+  html+='<td></td><td></td><td></td></tr>'
   html+='</tbody></table></div></div>'
 
   // Summary below
