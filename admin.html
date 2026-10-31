@@ -6242,8 +6242,8 @@ function efRenderRow(id,p,amount,unlocked,assessId,isNew){
 async function loadExamFeesPage(){
   const el=$('efAssessGrid');ldg(el)
   if(!SESS){emp(el,'No active session');return}
-  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,is_fee_only,exam_fees(*)').eq('session_id',SESS.session_id).is('created_by_teacher_id',null).order('commencement_date',{nullsFirst:false})
-  const all=(asmts||[]).filter(a=>!a.is_fee_only)
+  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,is_fee_only,created_by_teacher_id,exam_fees(*)').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  const all=(asmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   if(!all.length){el.innerHTML='<div class="empty-state"><p>No assessments found. Create an assessment first.</p></div>';return}
   el.innerHTML='<div class="assess-grid">'+all.map(a=>{
     const fees=a.exam_fees||[]
