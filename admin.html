@@ -3053,6 +3053,8 @@ async function loadGlobals(){
     sb.from('teachers').select('teacher_id,employee_code,full_name,designation,phone,username,is_active').order('full_name')
   ])
   SESS=sr.data; ALL_CLASSES=cr.data||[]; ALL_SUBJECTS=subr.data||[]; ALL_TEACHERS=tr.data||[]
+  console.log('[INIT] SESS=',SESS?.session_id,'typeof=',typeof SESS?.session_id)
+  console.log('[INIT] ALL_CLASSES=',ALL_CLASSES.map(c=>c.name+' ('+c.class_id+') active='+c.is_active))
   $('sessionBadge').textContent=SESS?'Session '+SESS.session_id:'No active session'
   const co=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   ;['adm_class','mo_class','pr_class','ca_class','cas_class','newStreamClass'].forEach(id=>{const s=$(id);if(s)s.innerHTML='<option value="">Select class</option>'+co})
@@ -5812,8 +5814,12 @@ async function loadAssessments(){
     _assessTeacher.forEach(a=>{a._teacherName=tMap[a.created_by_teacher_id]||'Unknown'})
   }
   const officialIds=[..._assessOfficial,..._assessFeeOnly].map(a=>a.assessment_id)
-  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name)').in('assessment_id',officialIds):{data:[]}
+  console.log('[ASSESS] loadAssessments: officialIds=',officialIds.length,officialIds)
+  const{data:acRows,error:acErr}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name)').in('assessment_id',officialIds):{data:[]}
+  console.log('[ASSESS] assessment_classes query: count=',(acRows||[]).length,'error=',acErr,'rows=',acRows)
   _assessClsByA={};window._assessClsIds={};(acRows||[]).forEach(r=>{if(!_assessClsByA[r.assessment_id])_assessClsByA[r.assessment_id]=[];if(r.classes?.name)_assessClsByA[r.assessment_id].push(r.classes.name);if(!window._assessClsIds[r.assessment_id])window._assessClsIds[r.assessment_id]=[];window._assessClsIds[r.assessment_id].push(r.class_id)})
+  console.log('[ASSESS] _assessClsIds cache built=',JSON.stringify(window._assessClsIds))
+  console.log('[ASSESS] _assessClsByA names=',JSON.stringify(_assessClsByA))
   window._assessMap={};(asmts||[]).forEach(a=>{window._assessMap[a.assessment_id]=a})
   // Populate teacher test filter dropdowns
   const fltCls=$('assessFltClass'),fltSub=$('assessFltSubject'),fltTch=$('assessFltTeacher')
@@ -7113,28 +7119,39 @@ function loadMarksOverviewShell(){
 }
 async function moLoadSections(){
   const cid=$('mo_class')?.value
+  console.log('[MO] moLoadSections called, cid=',cid,'SESS=',SESS?.session_id)
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'
   if($('mo_assess'))$('mo_assess').innerHTML='<option value="">Select class first</option>'
-  if(!cid||!SESS)return
+  if(!cid||!SESS){console.log('[MO] EARLY EXIT: cid=',cid,'SESS=',!!SESS);return}
   const{data:secs}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
-  const{data:sessAsmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only,created_by_teacher_id').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  const{data:sessAsmts,error:sessErr}=await sb.from('assessments').select('assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only,created_by_teacher_id').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  console.log('[MO] assessments query: count=',(sessAsmts||[]).length,'error=',sessErr,'data=',sessAsmts)
   const official=(sessAsmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
+  console.log('[MO] official (non-teacher, non-fee-only):',official.length,'items=',official.map(a=>a.name+' ('+a.assessment_id+')'))
   let asmtList=official
   if(official.length){
     const cidsMap=window._assessClsIds||{}
-    const linkedFromCache=new Set(official.map(a=>a.assessment_id).filter(aid=>(cidsMap[aid]||[]).includes(cid)))
+    console.log('[MO] _assessClsIds cache=',JSON.stringify(cidsMap))
+    const linkedFromCache=new Set(official.map(a=>a.assessment_id).filter(aid=>{const ids=cidsMap[aid]||[];const match=ids.includes(cid);console.log('[MO] cache check: assess=',aid,'classIds=',ids,'cid=',cid,'match=',match);return match}))
+    console.log('[MO] linkedFromCache size=',linkedFromCache.size)
     if(linkedFromCache.size){
       asmtList=official.filter(a=>linkedFromCache.has(a.assessment_id))
+      console.log('[MO] Using CACHE result, asmtList=',asmtList.length)
     }else{
       const offIds=official.map(a=>a.assessment_id)
+      console.log('[MO] Cache miss, querying assessment_classes with offIds=',offIds)
       const{data:acRows,error:acErr}=await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',offIds)
+      console.log('[MO] assessment_classes query: count=',(acRows||[]).length,'error=',acErr,'rows=',acRows)
       if(!acErr&&acRows&&acRows.length){
+        acRows.forEach(r=>console.log('[MO] row: assessment_id=',r.assessment_id,'class_id=',r.class_id,'typeof class_id=',typeof r.class_id,'cid=',cid,'typeof cid=',typeof cid,'match=',r.class_id===cid))
         const linkedIds=new Set(acRows.filter(r=>r.class_id===cid).map(r=>r.assessment_id))
+        console.log('[MO] linkedIds after filter=',linkedIds.size,[...linkedIds])
         if(linkedIds.size)asmtList=official.filter(a=>linkedIds.has(a.assessment_id))
       }
     }
   }
+  console.log('[MO] FINAL asmtList=',asmtList.length,'names=',asmtList.map(a=>a.name))
   if($('mo_assess'))$('mo_assess').innerHTML= asmtList.length
     ? '<option value="">Select assessment</option>'+asmtList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
     : '<option value="">No assessments for this class</option>'
@@ -12456,9 +12473,13 @@ async function loadQPList(){
     sb.from('teacher_subject_class_map').select('class_id,subject_id,subjects(name)').eq('session_id',SESS?.session_id||'')
   ])
   _qpList=papers||[];_qpAssessments=(assess||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
+  console.log('[QP] loadQPList: papers=',(papers||[]).length,'assess=',(assess||[]).length,'_qpAssessments=',_qpAssessments.length,_qpAssessments.map(a=>a.name+' ('+a.assessment_id+')'))
   const officialIds=_qpAssessments.map(a=>a.assessment_id)
-  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name,sort_order,class_id)').in('assessment_id',officialIds):{data:[]}
+  console.log('[QP] officialIds=',officialIds)
+  const{data:acRows,error:acErr}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name,sort_order,class_id)').in('assessment_id',officialIds):{data:[]}
+  console.log('[QP] assessment_classes query: count=',(acRows||[]).length,'error=',acErr,'rows=',acRows)
   const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];if(r.classes)acMap[r.assessment_id].push(r.classes)})
+  console.log('[QP] acMap=',JSON.stringify(acMap))
   const cSubjMap={};(tscmRows||[]).forEach(r=>{const k=r.class_id;if(!cSubjMap[k])cSubjMap[k]=new Map();if(r.subject_id&&r.subjects?.name)cSubjMap[k].set(r.subject_id,r.subjects.name)})
   window._qpAcMap=acMap;window._qpCSubjMap=cSubjMap
   if(_qpNav.assess){_qpNav.assess=_qpAssessments.find(a=>a.assessment_id===_qpNav.assess.assessment_id)||null;if(!_qpNav.assess)_qpNav.classId=null}
