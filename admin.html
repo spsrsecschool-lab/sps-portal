@@ -11830,8 +11830,8 @@ function dlOpen(key){
 
 async function dlLoadAssessments(){
   const sel=$('dl_f_assess');if(!sel)return
-  const{data}=await sb.from('assessments').select('assessment_id,name,is_fee_only').eq('session_id',SESS?.session_id||'').order('commencement_date')
-  sel.innerHTML='<option value="">Select assessment</option>'+(data||[]).filter(a=>!a.is_fee_only).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
+  const{data}=await sb.from('assessments').select('assessment_id,name').eq('session_id',SESS?.session_id||'').order('commencement_date')
+  sel.innerHTML='<option value="">Select assessment</option>'+(data||[]).map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
 }
 
 async function dlExport(key){
@@ -12687,8 +12687,8 @@ async function openQPBuilder(paperId,prefillAssess,prefillClass,prefillSubject){
     }
   })
   if(!_qpAssessments.length){
-    const{data}=await sb.from('assessments').select('assessment_id,name,created_by_teacher_id,is_fee_only').eq('session_id',SESS?.session_id||'').order('name')
-    _qpAssessments=(data||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
+    const{data}=await sb.from('assessments').select('assessment_id,name,created_by_teacher_id').eq('session_id',SESS?.session_id||'').order('name')
+    _qpAssessments=(data||[]).filter(a=>!a.created_by_teacher_id)
   }
   _qpDirty=false;_qpSavedSnap=JSON.stringify(_qpCurrent.content)
   renderQPBuilder()
@@ -13968,8 +13968,8 @@ function _qpRenderOnePaper(c){
 let _ecRooms=[],_ecAllotData={}
 async function loadExamConduct(){
   await ecLoadRooms()
-  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,created_by_teacher_id,is_fee_only').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
-  const official=(asmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
+  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,created_by_teacher_id').eq('session_id',SESS?.session_id||'').order('commencement_date',{nullsFirst:false})
+  const official=(asmts||[]).filter(a=>!a.created_by_teacher_id)
   const opts=official.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+'</option>').join('')
   $('ecAssess').innerHTML='<option value="">— Select Assessment —</option>'+opts
   ecPopulateAdmitClasses()
@@ -15668,7 +15668,7 @@ async function sylLoadAssessTab(){
   _sylAssessLoaded=true
   if(!SESS){$('sylAssessBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">No active session.</div>';return}
   $('sylAssessBody').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,is_fee_only').eq('session_id',SESS.session_id).eq('is_fee_only',false).order('commencement_date',{nullsFirst:false})
+  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
   if(!asmts?.length){$('sylAssessBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">No assessments found. Create assessments first.</div>';return}
   const{data:plans}=await sb.from('syllabus_plans').select('id,class_id,subject_id').eq('session_id',SESS.session_id)
   if(!plans?.length){$('sylAssessBody').innerHTML='<div class="empty-hint" style="text-align:center;padding:40px;color:var(--ink-faint)">No syllabus plans created yet. Go to Syllabus Plans tab first.</div>';return}
