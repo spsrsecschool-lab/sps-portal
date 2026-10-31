@@ -7113,7 +7113,7 @@ async function moLoadSections(){
   if(!cid||!SESS)return
   const[{data:secs},{data:acRows}]=await Promise.all([
     sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name'),
-    sb.from('assessment_classes').select('assessment_id,assessments(assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only)').eq('class_id',cid)
+    sb.from('assessment_classes').select('assessment_id,assessments!inner(assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only,session_id)').eq('class_id',cid).eq('assessments.session_id',SESS.session_id)
   ])
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
   const asmtList=(acRows||[]).map(r=>r.assessments).filter(a=>a&&!a.is_fee_only).sort((a,b)=>String(a.commencement_date||'').localeCompare(String(b.commencement_date||'')))
