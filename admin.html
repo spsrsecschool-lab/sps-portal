@@ -2064,7 +2064,19 @@ tbody tr:hover td{background:var(--lav-50)}
       <div id="ttTab-roster">
         <div class="grid-2">
           <div class="card">
-            <h3>Rosters</h3>
+            <h3>Periods</h3>
+            <div id="periodList"><div class="loading-row"><div class="spinner"></div></div></div>
+            <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+              <div class="form-row" style="margin-bottom:8px">
+                <div class="fg" style="max-width:160px"><label>Period Name</label><input type="text" id="newPeriodName" placeholder="e.g. Period 1"></div>
+                <div class="fg" style="max-width:90px"><label>Order</label><input type="number" inputmode="numeric" id="newPeriodOrder" value="1" min="1"></div>
+                <div class="fg"><label>Break?</label><input type="checkbox" id="newPeriodBreak" style="accent-color:var(--indigo);margin-top:8px"></div>
+              </div>
+              <button class="btn btn-dark btn-sm" onclick="createPeriod()">Add Period</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Rosters &amp; Timings</h3>
             <div id="rosterList"><div class="loading-row"><div class="spinner"></div></div></div>
             <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
               <div class="form-row" style="margin-bottom:8px">
@@ -2072,10 +2084,7 @@ tbody tr:hover td{background:var(--lav-50)}
               </div>
               <button class="btn btn-dark btn-sm" onclick="createRoster()">Create Roster</button>
             </div>
-          </div>
-          <div class="card">
-            <h3>Time Slots <span id="slotRosterLabel" style="font-weight:400;color:var(--ink-faint)">(select a roster)</span></h3>
-            <div id="slotList"><p style="font-size:12.5px;color:var(--ink-faint)">Click a roster on the left to manage its time slots.</p></div>
+            <div id="rosterTimings" style="margin-top:14px"></div>
           </div>
         </div>
       </div>
@@ -10140,9 +10149,46 @@ function switchSettingsTab(key,btn){
   btn.classList.add('active')
 }
 
-// ═══════════ TIMETABLE ROSTER/SLOT HELPERS ═══════════
+// ═══════════ TIMETABLE PERIOD HELPERS (session-level) ═══════════
+async function loadPeriods(){
+  const el=$('periodList');if(!el)return;ldg(el)
+  if(!SESS){emp(el,'No active session');return}
+  const{data,error}=await sb.from('time_slots').select('*').eq('session_id',SESS.session_id).order('sort_order')
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!data?.length){emp(el,'No periods yet. Add one below.');if($('newPeriodOrder'))$('newPeriodOrder').value='1';return}
+  el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Name</th><th>Order</th><th>Break</th><th></th></tr></thead><tbody>'+
+    data.map(s=>'<tr><td style="font-weight:600">'+esc(s.name)+'</td><td class="mono">'+s.sort_order+'</td><td>'+(s.is_break?'<span class="pill pill-neutral">Break</span>':'')+'</td><td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="editPeriod(\''+s.slot_id+'\',\''+esc(s.name)+'\','+s.sort_order+','+(s.is_break||false)+')">Edit</button><button class="btn btn-danger btn-xs" onclick="deletePeriod(\''+s.slot_id+'\',\''+esc(s.name)+'\')">Delete</button></td></tr>').join('')+
+    '</tbody></table></div>'
+  if($('newPeriodOrder'))$('newPeriodOrder').value=String((data.length||0)+1)
+}
+async function createPeriod(){
+  const name=$('newPeriodName')?.value?.trim(),order=parseInt($('newPeriodOrder')?.value||99),isBreak=$('newPeriodBreak')?.checked||false
+  if(!name||!SESS){toast('Enter period name','error');return}
+  const{error}=await sb.from('time_slots').insert({name,sort_order:order,is_break:isBreak,session_id:SESS.session_id})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Period added','success');if($('newPeriodName'))$('newPeriodName').value='';if($('newPeriodBreak'))$('newPeriodBreak').checked=false;loadPeriods()
+}
+function editPeriod(id,name,order,isBreak){
+  openModal('Edit Period — '+name,
+    '<div class="form-row"><div class="fg"><label>Name</label><input id="ep_name" value="'+esc(name)+'"></div><div class="fg" style="max-width:90px"><label>Order</label><input type="number" inputmode="numeric" id="ep_order" value="'+order+'" min="1"></div><div class="fg"><label>Break?</label><input type="checkbox" id="ep_break"'+(isBreak?' checked':'')+' style="accent-color:var(--indigo);margin-top:8px"></div></div>',
+    '<button class="btn btn-dark" onclick="savePeriod(\''+id+'\')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function savePeriod(id){
+  const{error}=await sb.from('time_slots').update({name:$('ep_name')?.value?.trim(),sort_order:parseInt($('ep_order')?.value||99),is_break:$('ep_break')?.checked||false}).eq('slot_id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Period updated','success');closeModal();loadPeriods()
+}
+async function deletePeriod(id,name){
+  const{count}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('slot_id',id)
+  if(count>0){toast('Cannot delete "'+name+'" — '+count+' entries use this period','error');return}
+  confirmAct('Delete period "'+name+'"?','Its timings will also be removed from all rosters.',async()=>{
+    await sb.from('roster_timings').delete().eq('slot_id',id)
+    await sb.from('time_slots').delete().eq('slot_id',id);toast('Deleted','success');loadPeriods()
+  })
+}
+// ═══════════ TIMETABLE ROSTER HELPERS ═══════════
 async function activateRoster(id,name){
-  confirmAct('Switch to roster "'+name+'"?','Current entries are preserved.',async()=>{
+  confirmAct('Switch to roster "'+name+'"?','Timetable entries are shared — only timings change.',async()=>{
     await sb.from('rosters').update({is_active:false}).eq('session_id',SESS.session_id)
     const{error}=await sb.from('rosters').update({is_active:true}).eq('roster_id',id)
     if(error){toast('Failed: '+error.message,'error');return}
@@ -10150,59 +10196,56 @@ async function activateRoster(id,name){
   })
 }
 async function deleteRoster(id,name){
-  const{count:ec}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('roster_id',id)
-  if(ec>0){toast('Cannot delete — '+ec+' entries exist','error');return}
-  confirmAct('Delete roster "'+name+'"?','All slots will also be deleted.',async()=>{
-    await sb.from('time_slots').delete().eq('roster_id',id)
+  confirmAct('Delete roster "'+name+'"?','Its timings will be removed. Periods and timetable entries are not affected.',async()=>{
+    await sb.from('roster_timings').delete().eq('roster_id',id)
     const{error}=await sb.from('rosters').delete().eq('roster_id',id)
     if(error){toast('Failed: '+error.message,'error');return}
     toast('Roster deleted','success');loadRosters()
-    const sl=$('slotList');if(sl)sl.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Select a roster.</p>';_selectedRosterId=null
+    const rt=$('rosterTimings');if(rt)rt.innerHTML='';_selectedRosterId=null
   })
 }
-async function selectRoster(id,name){
+async function selectRosterTimings(id,name){
   _selectedRosterId=id;_selectedRosterName=name
-  const lbl=$('slotRosterLabel');if(lbl)lbl.textContent='for '+name
-  const el=$('slotList');if(!el)return;ldg(el)
-  const{data}=await sb.from('time_slots').select('*').eq('roster_id',id).order('sort_order')
-  el.innerHTML=((data||[]).length?
-    '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Start</th><th>End</th><th>Order</th><th></th></tr></thead><tbody>'+
-    data.map(s=>'<tr><td style="font-weight:600">'+esc(s.name)+'</td><td class="mono">'+(s.start_time?.slice(0,5)||'—')+'</td><td class="mono">'+(s.end_time?.slice(0,5)||'—')+'</td><td class="mono">'+s.sort_order+'</td><td style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="editSlot(\''+s.slot_id+'\',\''+esc(s.name)+'\',\''+(s.start_time?.slice(0,5)||'')+'\',\''+(s.end_time?.slice(0,5)||'')+'\','+s.sort_order+')">Edit</button><button class="btn btn-danger btn-xs" onclick="deleteSlot(\''+s.slot_id+'\',\''+esc(s.name)+'\')">Delete</button></td></tr>').join('')+
-    '</tbody></table></div>':'<p style="font-size:12.5px;color:var(--ink-faint);margin-bottom:12px">No slots yet.</p>')+
-    '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">'+
-    '<div class="form-row" style="margin-bottom:8px"><div class="fg" style="max-width:130px"><label>Slot Name</label><input id="newSlotName" placeholder="e.g. Period 1"></div><div class="fg" style="max-width:110px"><label>Start</label><input type="time" id="newSlotStart"></div><div class="fg" style="max-width:110px"><label>End</label><input type="time" id="newSlotEnd"></div><div class="fg" style="max-width:90px"><label>Order</label><input type="number" inputmode="numeric" id="newSlotOrder" value="'+((data?.length||0)+1)+'" min="1"></div></div>'+
-    '<button class="btn btn-dark btn-sm" onclick="createSlot()">Add Time Slot</button></div>'
+  const el=$('rosterTimings');if(!el)return;ldg(el)
+  const[{data:periods},{data:timings}]=await Promise.all([
+    sb.from('time_slots').select('*').eq('session_id',SESS.session_id).order('sort_order'),
+    sb.from('roster_timings').select('*').eq('roster_id',id)
+  ])
+  if(!periods?.length){el.innerHTML='<p style="font-size:12.5px;color:var(--ink-faint)">Add periods first (left panel).</p>';return}
+  const tMap={};(timings||[]).forEach(t=>{tMap[t.slot_id]=t})
+  el.innerHTML='<h4 style="margin-top:0;font-size:13px;color:var(--ink-soft)">Timings for '+esc(name)+'</h4>'+
+    '<div class="table-wrap"><table><thead><tr><th>Period</th><th>Start</th><th>End</th></tr></thead><tbody>'+
+    periods.map(p=>{
+      const t=tMap[p.slot_id]||{}
+      return '<tr><td style="font-weight:600">'+esc(p.name)+(p.is_break?' <span class="pill pill-neutral" style="font-size:9px">Break</span>':'')+'</td>'+
+        '<td><input type="time" class="rt_start" data-slot="'+p.slot_id+'" value="'+(t.start_time?.slice(0,5)||'')+'" style="font-family:var(--font);font-size:12px;padding:4px 8px;border:1.5px solid var(--line);border-radius:var(--radius-sm)"></td>'+
+        '<td><input type="time" class="rt_end" data-slot="'+p.slot_id+'" value="'+(t.end_time?.slice(0,5)||'')+'" style="font-family:var(--font);font-size:12px;padding:4px 8px;border:1.5px solid var(--line);border-radius:var(--radius-sm)"></td></tr>'
+    }).join('')+
+    '</tbody></table></div>'+
+    '<button class="btn btn-dark btn-sm" style="margin-top:10px" onclick="saveRosterTimings()">Save Timings</button>'
 }
-async function createSlot(){
-  const name=$('newSlotName')?.value?.trim(),start=$('newSlotStart')?.value,end=$('newSlotEnd')?.value,order=parseInt($('newSlotOrder')?.value||99)
-  if(!name||!start||!end||!_selectedRosterId){toast('Fill all slot fields','error');return}
-  const{error}=await sb.from('time_slots').insert({name,start_time:start,end_time:end,sort_order:order,roster_id:_selectedRosterId})
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast('Slot added','success');selectRoster(_selectedRosterId,_selectedRosterName)
-}
-function editSlot(id,name,start,end,order){
-  openModal('Edit Slot — '+name,
-    '<div class="form-row"><div class="fg"><label>Name</label><input id="es_name" value="'+esc(name)+'"></div><div class="fg"><label>Start</label><input type="time" id="es_start" value="'+start+'"></div><div class="fg"><label>End</label><input type="time" id="es_end" value="'+end+'"></div><div class="fg"><label>Order</label><input type="number" inputmode="numeric" id="es_order" value="'+order+'" min="1"></div></div>',
-    '<button class="btn btn-dark" onclick="saveSlot(\''+id+'\')">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
-}
-async function saveSlot(id){
-  const{error}=await sb.from('time_slots').update({name:$('es_name')?.value?.trim(),start_time:$('es_start')?.value,end_time:$('es_end')?.value,sort_order:parseInt($('es_order')?.value||99)}).eq('slot_id',id)
-  if(error){toast('Failed: '+error.message,'error');return}
-  toast('Slot updated','success');closeModal();selectRoster(_selectedRosterId,_selectedRosterName)
-}
-async function deleteSlot(id,name){
-  const{count}=await sb.from('timetable_entries').select('*',{count:'exact',head:true}).eq('slot_id',id)
-  if(count>0){toast('Cannot delete "'+name+'" — '+count+' entries use this slot','error');return}
-  confirmAct('Delete slot "'+name+'"?','',async()=>{
-    await sb.from('time_slots').delete().eq('slot_id',id);toast('Deleted','success');selectRoster(_selectedRosterId,_selectedRosterName)
+async function saveRosterTimings(){
+  if(!_selectedRosterId){toast('No roster selected','error');return}
+  const rows=[]
+  document.querySelectorAll('.rt_start').forEach(inp=>{
+    const slotId=inp.dataset.slot,start=inp.value
+    const endInp=document.querySelector('.rt_end[data-slot="'+slotId+'"]')
+    const end=endInp?.value||''
+    if(start||end)rows.push({roster_id:_selectedRosterId,slot_id:slotId,start_time:start||null,end_time:end||null})
   })
+  await sb.from('roster_timings').delete().eq('roster_id',_selectedRosterId)
+  if(rows.length){
+    const{error}=await sb.from('roster_timings').upsert(rows,{onConflict:'roster_id,slot_id'})
+    if(error){toast('Failed: '+error.message,'error');return}
+  }
+  toast('Timings saved','success')
 }
-function renderTTGrid(el,entries,mode){
+function renderTTGrid(el,entries,mode,timingMap){
   const days=['Mon','Tue','Wed','Thu','Fri','Sat']
   const slotMap=new Map()
   entries.forEach(e=>{if(e.time_slots&&!slotMap.has(e.slot_id))slotMap.set(e.slot_id,e.time_slots)})
   const slots=[...slotMap.entries()].map(([id,s])=>({slot_id:id,...s})).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))
-  if(!slots.length){emp(el,'No timetable entries for the active roster.');return}
+  if(!slots.length){emp(el,'No timetable entries found.');return}
 
   // Build lookup: slot_id+day → array of entries (multiple = stream split)
   const lookup={}
@@ -10227,8 +10270,11 @@ function renderTTGrid(el,entries,mode){
 
   let html='<div class="card"><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th>'+days.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>'
   slots.forEach(slot=>{
+    const tm=timingMap?.[slot.slot_id]
+    const st=(tm?.start_time||slot.start_time||'').slice(0,5)
+    const et=(tm?.end_time||slot.end_time||'').slice(0,5)
     html+='<tr><td style="font-weight:700;white-space:nowrap">'+esc(slot.name||'')+'</td>'
-      +'<td class="mono" style="font-size:11px;white-space:nowrap">'+(slot.start_time||'').slice(0,5)+'–'+(slot.end_time||'').slice(0,5)+'</td>'
+      +'<td class="mono" style="font-size:11px;white-space:nowrap">'+st+'–'+et+'</td>'
     days.forEach(day=>{html+=cellHTML(lookup[slot.slot_id+'_'+day],mode)})
     html+='</tr>'
   })
@@ -10242,6 +10288,13 @@ async function getActiveRoster(){
   const{data}=await sb.from('rosters').select('*').eq('session_id',SESS.session_id).eq('is_active',true).maybeSingle()
   return data
 }
+async function getActiveTimingMap(){
+  const roster=await getActiveRoster()
+  if(!roster)return{roster:null,timingMap:{}}
+  const{data}=await sb.from('roster_timings').select('*').eq('roster_id',roster.roster_id)
+  const timingMap={};(data||[]).forEach(t=>{timingMap[t.slot_id]={start_time:t.start_time,end_time:t.end_time}})
+  return{roster,timingMap}
+}
 
 async function loadRosters(){
   const el=$('rosterList');if(!el)return;ldg(el)
@@ -10250,7 +10303,7 @@ async function loadRosters(){
   if(error){emp(el,'Error: '+error.message);return}
   if(!data?.length){emp(el,'No rosters yet. Create one below.');return}
   el.innerHTML='<div class="table-wrap"><table><thead><tr><th>Roster Name</th><th>Status</th><th></th></tr></thead><tbody>'+
-    data.map(r=>'<tr style="cursor:pointer" onclick="selectRoster(\''+r.roster_id+'\',\''+esc(r.name)+'\')">'
+    data.map(r=>'<tr style="cursor:pointer" onclick="selectRosterTimings(\''+r.roster_id+'\',\''+esc(r.name)+'\')">'
       +'<td style="font-weight:600">'+esc(r.name)+'</td>'
       +'<td>'+(r.is_active?'<span class="pill pill-success">Active</span>':'<span class="pill pill-neutral">Inactive</span>')+'</td>'
       +'<td style="display:flex;gap:5px">'
@@ -10298,11 +10351,11 @@ async function loadStudentTimetable(){
   const streamId=$('tt_stream')?.value,el=$('studentTTGrid')
   if(!el)return;ldg(el)
   if(!classId){emp(el,'Select a class');return}
-  const roster=await getActiveRoster()
+  const{roster,timingMap}=await getActiveTimingMap()
   if(!roster){emp(el,'No active roster. Create one in Roster Settings and set it active.');return}
   let q=sb.from('timetable_entries')
     .select('entry_id,days,slot_id,section_id,stream_id,time_slots(name,start_time,end_time,sort_order),subjects(name),teachers(full_name),class_sections(name),streams(name)')
-    .eq('roster_id',roster.roster_id).eq('class_id',classId)
+    .eq('session_id',SESS.session_id).eq('class_id',classId)
   const{data,error}=await q
   if(error){emp(el,'Error: '+error.message);return}
   let entries=data||[]
@@ -10333,18 +10386,18 @@ async function loadStudentTimetable(){
       }) })
     }
   }catch(e){console.warn('[studentTT] adjustments merge failed',e)}
-  renderTTGrid(el,entries,'student')
+  renderTTGrid(el,entries,'student',timingMap)
 }
 
 async function loadTeacherTimetable(){
   const teacherId=$('tt_teacher')?.value,el=$('teacherTTGrid')
   if(!el)return;ldg(el)
   if(!teacherId){emp(el,'Select a teacher');return}
-  const roster=await getActiveRoster()
+  const{roster,timingMap}=await getActiveTimingMap()
   if(!roster){emp(el,'No active roster.');return}
   const{data,error}=await sb.from('timetable_entries')
     .select('entry_id,days,slot_id,time_slots(name,start_time,end_time,sort_order),subjects(name),classes(name),class_sections(name)')
-    .eq('roster_id',roster.roster_id).eq('teacher_id',teacherId)
+    .eq('session_id',SESS.session_id).eq('teacher_id',teacherId)
   if(error){emp(el,'Error: '+error.message);return}
   const entries=data||[]
   // Merge standing adjustments (this teacher sent to cover a class they don't teach).
@@ -10371,7 +10424,7 @@ async function loadTeacherTimetable(){
       }) })
     }
   }catch(e){ console.warn('[tt] adjustments merge failed',e) }
-  renderTTGrid(el,entries,'teacher')
+  renderTTGrid(el,entries,'teacher',timingMap)
 }
 
 // Teachers marked unavailable for a given date (persisted per-date in this
