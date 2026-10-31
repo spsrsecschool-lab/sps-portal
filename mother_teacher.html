@@ -529,22 +529,51 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
     <!-- ATTENDANCE REPORT -->
     <div class="page" id="page-attreport">
-      <div class="page-head"><div><h2>Attendance Report</h2><p>Monthly attendance matrix for your class</p></div></div>
-      <div class="card" style="margin-bottom:18px">
-        <div class="form-row" style="margin-bottom:0">
-          <div class="fg" style="max-width:200px"><label>Month</label>
-            <select id="att_month">
-              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
-              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
-            </select>
+      <div id="ar-menu">
+        <div class="page-head"><div><h2>Attendance Report</h2><p>Choose a report type</p></div></div>
+        <div class="menu-board" style="grid-template-columns:repeat(2,1fr)">
+          <div class="menu-card" onclick="openArSub('ar-monthly')">
+            <div class="ic" style="background:linear-gradient(135deg,#3AB6E0,#2D8FC4)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+            <h4>Monthly Report</h4><p>Monthly attendance matrix for the entire class with day-wise breakdown</p>
           </div>
-          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="att_year" min="2024" max="2030"></div>
-          <button class="btn btn-soft" onclick="loadAttReport()">Generate Report</button>
+          <div class="menu-card" onclick="openArSub('ar-student')">
+            <div class="ic" style="background:linear-gradient(135deg,#2BB673,#1F9960)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <h4>Student Report</h4><p>View individual student attendance report with day-wise breakdown and missing days</p>
+          </div>
         </div>
       </div>
-      <div id="attReportWrap"></div>
+      <div id="ar-monthly" style="display:none">
+        <button class="back-btn" onclick="openArSub('ar-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Monthly Report</h2><p>Monthly attendance matrix for your class</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg" style="max-width:200px"><label>Month</label>
+              <select id="att_month">
+                <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              </select>
+            </div>
+            <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="att_year" min="2024" max="2030"></div>
+            <button class="btn btn-soft" onclick="loadAttReport()">Generate Report</button>
+          </div>
+        </div>
+        <div id="attReportWrap"></div>
+      </div>
+      <div id="ar-student" style="display:none">
+        <button class="back-btn" onclick="openArSub('ar-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Student Report</h2><p>Individual student attendance report</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg" style="min-width:200px"><label>Student</label>
+              <select id="arStudentSelect"><option value="">Select student</option></select>
+            </div>
+            <button class="btn btn-soft" onclick="loadStudentAttReport()">Load Report</button>
+          </div>
+        </div>
+        <div id="arStudentWrap"></div>
+      </div>
     </div>
 
     <!-- PREVIOUS (BACKLOG) ATTENDANCE -->
@@ -1166,7 +1195,7 @@ function goTo(id,el,_fromPop){
   if(!_fromPop){if(id==='dashboard'){history.replaceState({pg:'dashboard'},'')}else{history.pushState({pg:id},'')}}
   if(window.innerWidth<=760)closeMobileSidebar()
   if(id==='daily'&&!$('att_date').value){$('att_date').value=today()}
-  if(id==='attreport'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
+  if(id==='attreport'){openArSub('ar-menu')}
   if(id==='prevatt'){const now=new Date();if($('pa_month'))$('pa_month').value=(SESS?.start_date?new Date(SESS.start_date+'T12:00:00').getMonth()+1:now.getMonth()+1);if($('pa_year'))$('pa_year').value=(SESS?.start_date?new Date(SESS.start_date+'T12:00:00').getFullYear():now.getFullYear());paComputeWorking()}
   if(id==='myclass'&&!_classRaw.length)loadMyClass()
   if(id==='readmit')loadReadmit()
@@ -1844,6 +1873,15 @@ async function savePrevAttOne(eid){
   toast(name+': '+present+' present · '+absent+' absent saved ✓','success')
 }
 
+function openArSub(id){
+  ['ar-menu','ar-monthly','ar-student'].forEach(s=>{const e=$(s);if(e)e.style.display=s===id?'':'none'})
+  if(id==='ar-monthly'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
+  if(id==='ar-student')populateArStudents()
+}
+function populateArStudents(){
+  const sel=$('arStudentSelect');if(!sel)return
+  sel.innerHTML='<option value="">Select student</option>'+CLASS_STUDENTS.map(s=>'<option value="'+s.enrollment_id+'">'+esc((s.roll_no?s.roll_no+' — ':'')+( s.students?.full_name||'?'))+'</option>').join('')
+}
 async function loadAttReport(){
   const month=parseInt($('att_month')?.value),year=parseInt($('att_year')?.value),el=$('attReportWrap')
   if(!month||!year){toast('Select month and year','error');return}
@@ -1866,6 +1904,21 @@ async function loadAttReport(){
   const hdSet=new Set(); (hdRecs||[]).forEach(r=>hdSet.add(r.enrollment_id+'|'+r.date))
   const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
 
+  // Fetch previous months' cumulative present for each student
+  const _prevPMap={}
+  {
+    const prevEnd=new Date(year,month-1,0)
+    const prevToStr=prevEnd.getFullYear()+'-'+String(prevEnd.getMonth()+1).padStart(2,'0')+'-'+String(prevEnd.getDate()).padStart(2,'0')
+    const sessStart=SESS?.start_date||''
+    if(sessStart&&prevToStr>=sessStart){
+      let prevAtt=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',prevToStr).range(_r,_r+999);if(_c&&_c.length)prevAtt.push(..._c);if(!_c||_c.length<1000)break}
+      const{data:prevMonthly}=await sb.from('attendance_monthly').select('enrollment_id,from_date,to_date,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',prevToStr)
+      const mPer={};(prevMonthly||[]).forEach(m=>{if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
+      eids.forEach(eid=>{let t=0;(mPer[eid]||[]).forEach(p=>t+=p.p);_prevPMap[eid]=t})
+      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
+    }
+  }
+
   // Build day list (exclude Sundays)
   const days=[]
   for(let d=1;d<=daysInMonth;d++){
@@ -1885,20 +1938,21 @@ async function loadAttReport(){
     const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
     let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
       +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was back-filled with monthly totals, so only Present/Absent counts are available (no day-by-day record).</div>'
-      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">Present</th><th style="text-align:center">Absent</th></tr></thead><tbody>'
+      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">P</th><th style="text-align:center">Prev</th><th style="text-align:center">Total</th></tr></thead><tbody>'
     CLASS_STUDENTS.forEach(s=>{const m=mMap[s.enrollment_id];h+='<tr>'
       +'<td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="color:var(--ink-soft);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
       +'<td style="text-align:center;font-weight:700">'+(m?m.working_days:'—')+'</td>'
       +'<td style="text-align:center;font-weight:700;color:var(--success)">'+(m?m.present_count:'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+(m?m.absent_count:'—')+'</td></tr>'})
+      +'<td style="text-align:center;font-weight:700">'+(_prevPMap[s.enrollment_id]||0)+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+((m?m.present_count:0)+(_prevPMap[s.enrollment_id]||0))+'</td></tr>'})
     h+='</tbody></table></div>'
     el.innerHTML=h; return
   }
 
   // Table — pinned month bar + column headers; only Roll frozen horizontally.
-  const ncols=3+days.length+2
+  const ncols=3+days.length+3
   let html='<div class="card"><div class="att-scroll"><table style="min-width:800px">'
     +'<thead>'
     +'<tr class="mrow"><th class="rollcol" colspan="'+ncols+'">'+monthName+' — Working Days: '+workingDays+'</th></tr>'
@@ -1910,7 +1964,7 @@ async function loadAttReport(){
     const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';
     html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'
   })
-  html+='<th style="text-align:center">P</th><th style="text-align:center">A</th></tr></thead><tbody>'
+  html+='<th style="text-align:center">P</th><th style="text-align:center">Prev</th><th style="text-align:center">Total</th></tr></thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
     let pCount=0,aCount=0
@@ -1929,8 +1983,10 @@ async function loadAttReport(){
       else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
       else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
     })
+    const prevP=_prevPMap[s.enrollment_id]||0
     html+='<td style="text-align:center;font-weight:700;color:var(--success)">'+pCount+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+aCount+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+prevP+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+(prevP+pCount)+'</td>'
     html+='</tr>'
   })
 
@@ -1944,7 +2000,7 @@ async function loadAttReport(){
     const cnt=CLASS_STUDENTS.filter(s=>attMap[s.enrollment_id]?.[d.dateStr]==='P').length
     html+='<td style="text-align:center;font-size:11px">'+cnt+'</td>'
   })
-  html+='<td></td><td></td></tr>'
+  html+='<td></td><td></td><td></td></tr>'
   html+='</tbody></table></div></div>'
 
   // Summary below
@@ -1974,6 +2030,142 @@ async function loadAttReport(){
     +'</div></div>'
 
   el.innerHTML=html
+}
+async function loadStudentAttReport(){
+  const eid=$('arStudentSelect')?.value,el=$('arStudentWrap')
+  if(!eid){toast('Select a student','error');return}
+  if(!el)return
+  ldg(el,'Loading attendance…')
+  const _ds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+  const sid=SESS?.session_id||''
+  const sessStart=SESS?.start_date||''
+  const todayStr=_ds(new Date())
+
+  const[{data:enr},{data:hols},{data:cssD},{data:att},{data:monthly},{data:hdRecs}]=await Promise.all([
+    sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,is_new_admission,att_from_admission,students(full_name,father_name,admission_date),classes(name),class_sections(name)').eq('enrollment_id',eid).single(),
+    sb.from('holidays').select('date,label,applies_to,class_ids').eq('session_id',sid),
+    sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
+    sb.from('student_attendance').select('date,status').eq('enrollment_id',eid),
+    sb.from('attendance_monthly').select('from_date,to_date,working_days,present_count,absent_count').eq('enrollment_id',eid),
+    sb.from('student_half_days').select('date').eq('enrollment_id',eid).eq('session_id',sid)
+  ])
+  if(!enr){emp(el,'Student not found.');return}
+  const holMap={}; (hols||[]).filter(h=>(h.applies_to||'both')!=='staff_only'&&(!h.class_ids||h.class_ids.includes(enr.class_id))).forEach(h=>{holMap[h.date]=h.label})
+  const classStart=(cssD||[]).find(c=>c.class_id===enr.class_id)?.start_date||sessStart
+  const admDate=((enr.is_new_admission||enr.att_from_admission)&&enr.students?.admission_date)?enr.students.admission_date:null
+  const effStart=[sessStart,classStart,admDate].filter(Boolean).sort().pop()
+
+  const attMap={}; (att||[]).forEach(a=>{attMap[a.date]=a.status})
+  const hdDateSet=new Set(); (hdRecs||[]).forEach(r=>hdDateSet.add(r.date))
+  const monthlyMap={}; (monthly||[]).forEach(m=>{monthlyMap[m.from_date+'|'+m.to_date]=m})
+
+  const{data:secMates}=await sb.from('student_enrollments').select('enrollment_id').eq('session_id',sid).eq('class_id',enr.class_id).eq('section_id',enr.section_id).eq('status','active').eq('relieved',false).neq('enrollment_id',eid)
+  const secEids=(secMates||[]).map(s=>s.enrollment_id)
+  const classMonthlySet=new Set()
+  for(let i=0;i<secEids.length;i+=500){
+    const batch=secEids.slice(i,i+500)
+    const{data:cm}=await sb.from('attendance_monthly').select('from_date,to_date').in('enrollment_id',batch)
+    if(cm)cm.forEach(r=>classMonthlySet.add(r.from_date+'|'+r.to_date))
+  }
+
+  const epSet=MY_EXAM_PREP_HOLS||null
+  const sessionEnd=SESS?.end_date||todayStr
+  const MNAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+  let sY=parseInt(sessStart.slice(0,4)),sM=parseInt(sessStart.slice(5,7))
+  const eY=parseInt(sessionEnd.slice(0,4)),eM=parseInt(sessionEnd.slice(5,7))
+  const monthBlocks=[]
+  while(sY<eY||(sY===eY&&sM<=eM)){
+    const dim=new Date(sY,sM,0).getDate()
+    const from=sY+'-'+String(sM).padStart(2,'0')+'-01'
+    const to=sY+'-'+String(sM).padStart(2,'0')+'-'+String(dim).padStart(2,'0')
+    monthBlocks.push({year:sY,month:sM,from,to,dim,label:MNAMES[sM-1]+' '+sY})
+    sM++;if(sM>12){sM=1;sY++}
+  }
+
+  let totalWork=0,totalP=0,totalA=0,totalL=0,totalMissing=0
+  const allMissingLabels=[]
+
+  let body='<h3 style="margin-bottom:4px">'+esc(enr.students?.full_name||'?')+'</h3>'
+    +'<p style="font-size:12px;color:var(--ink-soft);margin-bottom:16px">Roll: '+esc(enr.roll_no||'—')+' · '+esc(enr.classes?.name||'')+'-'+esc(enr.class_sections?.name||'')+' · Father: '+esc(enr.students?.father_name||'—')+'</p>'
+
+  monthBlocks.forEach(mb=>{
+    if(mb.from>todayStr)return
+    const capTo=mb.to>todayStr?todayStr:mb.to
+    const mKey=mb.from+'|'+mb.to
+    const mon=monthlyMap[mKey]
+
+    if(mon){
+      body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· monthly totals</span></div>'
+        +'<div style="display:flex;gap:18px;font-size:12.5px"><span>Working: <b>'+mon.working_days+'</b></span><span style="color:var(--grn)">Present: <b>'+mon.present_count+'</b></span><span style="color:var(--danger)">Absent: <b>'+mon.absent_count+'</b></span></div></div>'
+      totalWork+=mon.working_days;totalP+=mon.present_count;totalA+=mon.absent_count
+      return
+    }
+
+    if(classMonthlySet.has(mKey)){
+      const wdDays=[];for(let d=1;d<=mb.dim;d++){const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0');if(ds>capTo)break;const dow=new Date(ds+'T12:00:00').getDay();if(dow===0||holMap[ds]||(epSet&&epSet.has(ds))||ds<effStart)continue;wdDays.push(ds)}
+      const wk=wdDays.length, dr=Object.keys(attMap).filter(d=>d>=mb.from&&d<=capTo)
+      const pres=dr.filter(d=>attMap[d]==='P'||attMap[d]==='L').length
+      const abs=Math.max(0,wk-pres)
+      body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· monthly totals</span></div>'
+        +'<div style="display:flex;gap:18px;font-size:12.5px"><span>Working: <b>'+wk+'</b></span><span style="color:var(--grn)">Present: <b>'+pres+'</b></span><span style="color:var(--danger)">Absent: <b>'+abs+'</b></span></div></div>'
+      totalWork+=wk;totalP+=pres;totalA+=abs
+      return
+    }
+
+    const days=[]
+    for(let d=1;d<=mb.dim;d++){
+      const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0')
+      if(ds>capTo)break
+      const dow=new Date(ds+'T12:00:00').getDay()
+      const isEP=!!(epSet&&epSet.has(ds))
+      const isSun=dow===0, isHol=!!holMap[ds]||isEP, beforeStart=ds<effStart
+      const skip=isSun||isHol||beforeStart
+      const status=attMap[ds]||null
+      days.push({ds,d,dow,isSun,isHol,holLabel:holMap[ds]||(isEP?'Exam period':''),beforeStart,skip,status})
+    }
+    const workDays=days.filter(x=>!x.skip)
+    const recorded=workDays.filter(x=>x.status)
+    const missing=workDays.filter(x=>!x.status)
+    const pCount=recorded.filter(x=>x.status==='P').length
+    const aCount=recorded.filter(x=>x.status==='A').length
+    const lCount=recorded.filter(x=>x.status==='L'||x.status==='HD').length
+    totalWork+=workDays.length;totalP+=pCount;totalA+=aCount;totalL+=lCount;totalMissing+=missing.length
+    if(missing.length)missing.forEach(x=>allMissingLabels.push(x.d+' '+MNAMES[mb.month-1]))
+
+    body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label
+      +' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· Working: '+workDays.length+' · P: '+pCount+' · A: '+aCount+(lCount?' · L: '+lCount:'')+'</span>'
+      +(missing.length?'<span style="font-size:11px;font-weight:700;color:#C0392B;margin-left:8px">'+missing.length+' pending</span>':'')
+      +'</div>'
+    body+='<div style="display:flex;flex-wrap:wrap;gap:4px">'
+    days.forEach(x=>{
+      let bg='var(--lav-50)',clr='var(--ink-faint)',lbl=String(x.d)
+      if(x.isSun){bg='#f0f0f0';clr='#bbb'}
+      else if(x.isHol){bg='#FFF3E0';clr='#E65100'}
+      else if(x.beforeStart){bg='#f5f5f5';clr='#ccc'}
+      else if(x.status==='P'&&hdDateSet.has(x.ds)){bg='#E3F2FD';clr='#1565C0';lbl='½'}
+      else if(x.status==='P'){bg='#E8F5E9';clr='#2E7D32'}
+      else if(x.status==='A'){bg='#FFEBEE';clr='#C62828'}
+      else if(x.status==='L'||x.status==='HD'){bg='#FFF8E1';clr='#F57F17'}
+      else{bg='#FFCDD2';clr='#B71C1C'}
+      const title=x.isSun?'Sunday':x.isHol?x.holLabel:x.beforeStart?'Before start':hdDateSet.has(x.ds)?'Half Day':x.status?x.status:'Missing'
+      body+='<div title="'+esc(x.ds+' — '+title)+'" style="width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:'+bg+';color:'+clr+'">'+lbl+'</div>'
+    })
+    body+='</div></div>'
+  })
+
+  const pct=totalWork>0?Math.round(totalP/totalWork*100):0
+  let summary='<div class="card" style="margin-bottom:18px"><div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px">'
+    +'<div style="text-align:center;padding:12px 20px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800">'+totalWork+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Working Days</div></div>'
+    +'<div style="text-align:center;padding:12px 20px;background:#E8F5E9;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#2E7D32">'+totalP+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Present</div></div>'
+    +'<div style="text-align:center;padding:12px 20px;background:#FFEBEE;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#C62828">'+totalA+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Absent</div></div>'
+    +(totalL?'<div style="text-align:center;padding:12px 20px;background:#FFF8E1;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#F57F17">'+totalL+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Late/HD</div></div>':'')
+    +'<div style="text-align:center;padding:12px 20px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:var(--indigo)">'+pct+'%</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Attendance</div></div>'
+    +'</div>'
+    +(totalMissing?'<div style="padding:10px 14px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:var(--radius-sm);margin-bottom:16px;font-size:12.5px"><span style="font-weight:700;color:#E65100">'+totalMissing+' day'+(totalMissing>1?'s':'')+' pending:</span> <span style="color:#BF360C">'+esc(allMissingLabels.join(', '))+'</span></div>':'')
+    +body+'</div>'
+
+  el.innerHTML=summary
 }
 
 // ═══════════ MANAGE MY CLASS ═══════════
