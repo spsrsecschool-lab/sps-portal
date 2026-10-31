@@ -2058,12 +2058,16 @@ tbody tr:hover td{background:var(--lav-50)}
         </div>
         <div id="efAssessGrid"><div class="loading-row"><div class="spinner"></div></div></div>
       </div>
-      <div class="sub-page" id="sub-ef-settings">
+      <div class="sub-page" id="sub-ef-edit">
         <button class="back-btn" onclick="openSub('examfees','sub-ef-list')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Assessments</button>
+        <div id="efEditContent"></div>
+      </div>
+      <div class="sub-page" id="sub-ef-settings">
+        <button class="back-btn" onclick="openSub('examfees','sub-ef-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="efSettingsContent"></div>
       </div>
       <div class="sub-page" id="sub-ef-collection">
-        <button class="back-btn" onclick="openSub('examfees','sub-ef-settings')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+        <button class="back-btn" onclick="openSub('examfees','sub-ef-edit')"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
         <div id="efCollectionContent"></div>
       </div>
     </div>
@@ -6246,58 +6250,56 @@ async function loadExamFeesPage(){
   if(error){emp(el,'Failed to load: '+error.message);return}
   const all=(asmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   if(!all.length){el.innerHTML='<div class="empty-state"><p>No assessments found. Create an assessment first.</p></div>';return}
+  window._efAssessMap={};all.forEach(a=>{window._efAssessMap[a.assessment_id]=a})
   el.innerHTML='<div class="assess-grid">'+all.map(a=>{
     const fees=a.exam_fees||[]
     return '<div class="assess-card" onclick="openEFAssess(\''+a.assessment_id+'\')" style="cursor:pointer"><div class="top"><h4>'+esc(a.name)+'</h4></div><div class="meta">'+(fmtD(a.commencement_date)||'Date TBD')+'</div><div class="arow"><span>Fee rows</span><span>'+(fees.length||0)+'</span></div></div>'
   }).join('')+'</div>'
 }
+let _efCtx=null
 async function openEFAssess(assessId){
-  const{data:a}=await sb.from('assessments').select('*,exam_fees(*)').eq('assessment_id',assessId).maybeSingle()
+  const a=window._efAssessMap?.[assessId]
   if(!a){toast('Assessment not found','error');return}
-  _currentAssess=a
+  _currentAssess=a;_efCtx=a
+  openSub('examfees','sub-ef-edit')
+  const fees=a.exam_fees||[]
+  $('efEditContent').innerHTML='<div class="page-head"><div><h2>'+esc(a.name)+'</h2><p>'+(fmtD(a.commencement_date)||'Date TBD')+(a.end_date?' → '+fmtD(a.end_date):'')+'</p></div></div>'
+    +'<div class="grid-3" style="margin-top:4px">'
+    +'<div class="assess-card" onclick="openEFSettings()" style="cursor:pointer"><div class="top"><h4>Fee Settings</h4></div><div class="meta">Amount, class groups & collection unlock</div><div class="arow"><span>Fee rows</span><span>'+(fees.length||0)+'</span></div></div>'
+    +(fees.length?'<div class="assess-card" onclick="openEFFeeCollection()" style="cursor:pointer"><div class="top"><h4>Fee Collection</h4></div><div class="meta">Real-time collection status across all classes</div><div class="arow"><span>View</span><span>→</span></div></div>':'')
+    +'</div>'
+}
+function openEFSettings(){
+  if(!_currentAssess)return;const a=_currentAssess,ef=a.exam_fees||[]
   openSub('examfees','sub-ef-settings')
-  const ef=a.exam_fees||[]
   $('efSettingsContent').innerHTML='<div class="page-head"><div><h2>Exam Fees — '+esc(a.name)+'</h2><p>Set different amounts for different class ranges. Teachers only see fees for their class.</p></div></div>'
     +'<div class="card" style="max-width:740px"><div id="efRows">'
     +ef.map(f=>{const p=parseEFGroup(f.class_group);return efRenderRow(f.exam_fee_id,p,f.amount,f.is_collection_unlocked,a.assessment_id,false)}).join('')
     +'</div><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="addEFRow(\''+a.assessment_id+'\')">+ Add Fee Row</button></div>'
-    +(ef.length?'<div style="margin-top:14px"><button class="btn btn-dark" onclick="openEFCollection()">View Fee Collection</button></div>':'')
 }
-async function openEFCollection(){
+async function openEFFeeCollection(){
   if(!_currentAssess)return;const a=_currentAssess
+  _fcTargetEl='efCollectionContent'
   openSub('examfees','sub-ef-collection')
   const el=$('efCollectionContent')
   el.innerHTML='<div class="page-head"><div><h2>Fee Collection — '+esc(a.name)+'</h2><p>Real-time exam fee collection across all classes</p></div></div><div class="loading-row"><div class="spinner"></div></div>'
   const fees=a.exam_fees||[]
-  if(!fees.length){el.innerHTML+='<div class="empty-state"><p>No exam fees configured.</p></div>';return}
+  if(!fees.length){el.innerHTML='<div class="empty-state"><p>No exam fees configured.</p></div>';return}
   const feeIds=fees.map(f=>f.exam_fee_id)
-  const{data:p}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',feeIds)
-  _fcData={fees,payments:p||[],assessName:a.name,assessId:a.assessment_id}
-  _fcTab='summary'
-  renderEFCollection()
+  const{data:acRows}=await sb.from('assessment_classes').select('class_id').eq('assessment_id',a.assessment_id)
+  const classIds=(acRows||[]).map(r=>r.class_id)
+  if(!classIds.length){el.innerHTML='<div class="empty-state"><p>No classes linked.</p></div>';return}
+  const{data:enrollments}=await sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,students(full_name,father_name),classes(name),class_sections(name)').eq('session_id',SESS.session_id).in('class_id',classIds).eq('status','active').eq('relieved',false).order('roll_no')
+  const{data:payments}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',feeIds)
+  _fcData={fees,enrollments:enrollments||[],payments:payments||[],assessName:a.name,feeIds,assessId:a.assessment_id}
+  _fcOwedMap=a.fee_owed_map||{}
+  renderFeeCollection()
+  if(window._fcSub)window._fcSub.unsubscribe()
+  window._fcSub=sb.channel('efc-'+a.assessment_id).on('postgres_changes',{event:'*',schema:'public',table:'exam_fee_payments',filter:'exam_fee_id=in.('+feeIds.join(',')+')'},async()=>{
+    const{data:p}=await sb.from('exam_fee_payments').select('*').in('exam_fee_id',feeIds)
+    _fcData.payments=p||[];renderFeeCollection()
+  }).subscribe()
 }
-function renderEFCollection(){
-  const{fees,payments,assessName}=_fcData
-  const el=$('efCollectionContent')
-  if(!el)return
-  let h='<div class="page-head"><div><h2>Fee Collection — '+esc(assessName)+'</h2><p>Real-time exam fee collection across all classes</p></div></div>'
-  h+='<div class="tab-row" style="margin-bottom:14px"><button class="tab-btn'+(_fcTab==='summary'?' active':'')+'" onclick="efcSwitchTab(\'summary\')">Summary</button><button class="tab-btn'+(_fcTab==='detail'?' active':'')+'" onclick="efcSwitchTab(\'detail\')">Detail</button></div>'
-  if(_fcTab==='summary'){
-    fees.forEach(f=>{
-      const p2=parseEFGroup(f.class_group)
-      const paid=payments.filter(p=>p.exam_fee_id===f.exam_fee_id&&p.status==='paid').length
-      h+='<div class="card" style="margin-bottom:10px;padding:12px"><div style="font-weight:700;font-size:13px">'+esc(p2.label||'Group')+'</div><div style="font-size:12px;color:var(--ink-soft)">₹'+f.amount+' · '+paid+' paid</div></div>'
-    })
-  } else {
-    h+='<div class="table-wrap"><table><thead><tr><th>Student</th><th>Fee Group</th><th>Amount</th><th>Status</th></tr></thead><tbody>'
-    payments.forEach(p=>{
-      h+='<tr><td>'+esc(p.student_name||p.enrollment_id||'—')+'</td><td>'+esc(p.class_group||'—')+'</td><td>₹'+(p.amount||'—')+'</td><td>'+(p.status==='paid'?'<span class="pill pill-success">Paid</span>':'<span class="pill pill-warn">Pending</span>')+'</td></tr>'
-    })
-    h+='</tbody></table></div>'
-  }
-  el.innerHTML=h
-}
-function efcSwitchTab(tab){_fcTab=tab;renderEFCollection()}
 function openExamFees(){
   if(!_currentAssess)return;const a=_currentAssess,ef=a.exam_fees||[]
   openSub('assessments','sub-assess-examfees')
@@ -6496,6 +6498,7 @@ async function openSubmissionStatus(){
 window._fcSub=null
 async function openFeeCollection(){
   if(!_currentAssess)return;const a=_currentAssess
+  _fcTargetEl='assessFeeCollectionContent'
   openSub('assessments','sub-assess-feecollection')
   const el=$('assessFeeCollectionContent')
   el.innerHTML='<div class="page-head"><div><h2>Fee Collection — '+esc(a.name)+'</h2><p>Real-time exam fee collection across all classes</p></div></div><div class="loading-row"><div class="spinner"></div></div>'
@@ -6516,7 +6519,7 @@ async function openFeeCollection(){
     _fcData.payments=p||[];renderFeeCollection()
   }).subscribe()
 }
-let _fcData=null,_fcTab='overview',_fcClass='',_fcSec='',_fcOwedMap={}
+let _fcData=null,_fcTab='overview',_fcClass='',_fcSec='',_fcOwedMap={},_fcTargetEl='assessFeeCollectionContent'
 function fcFeeForStudent(eid){
   const{fees,enrollments}=_fcData
   for(const f of fees){
@@ -6554,7 +6557,7 @@ function fcComputeStats(){
 function renderFeeCollection(){
   if(!_fcData)return
   const{assessName}=_fcData
-  const el=$('assessFeeCollectionContent')
+  const el=$(_fcTargetEl)
   const{totalDue,totalCollected,totalPending,totalNA}=fcComputeStats()
   let h='<div class="page-head"><div><h2>Fee Collection — '+esc(assessName)+'</h2><p>Real-time exam fee collection across all classes</p></div></div>'
   h+='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(4,1fr)">'
@@ -6833,6 +6836,7 @@ async function refreshExamFees(assessId){
   const{data:fees}=await sb.from('exam_fees').select('*').eq('assessment_id',assessId)
   if(_currentAssess) _currentAssess.exam_fees=fees||[]
   if(window._assessMap?.[assessId]) window._assessMap[assessId].exam_fees=fees||[]
+  if(window._efAssessMap?.[assessId]) window._efAssessMap[assessId].exam_fees=fees||[]
   const el=$('efRows'); if(!el) return
   el.innerHTML=(fees||[]).map(f=>{const p=parseEFGroup(f.class_group);return efRenderRow(f.exam_fee_id,p,f.amount,f.is_collection_unlocked,assessId,false)}).join('')
 }
