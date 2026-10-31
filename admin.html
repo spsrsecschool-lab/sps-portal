@@ -6242,7 +6242,8 @@ function efRenderRow(id,p,amount,unlocked,assessId,isNew){
 async function loadExamFeesPage(){
   const el=$('efAssessGrid');ldg(el)
   if(!SESS){emp(el,'No active session');return}
-  const{data:asmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,is_fee_only,created_by_teacher_id,exam_fees(*)').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  const{data:asmts,error}=await sb.from('assessments').select('*,exam_fees(*)').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  if(error){emp(el,'Failed to load: '+error.message);return}
   const all=(asmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   if(!all.length){el.innerHTML='<div class="empty-state"><p>No assessments found. Create an assessment first.</p></div>';return}
   el.innerHTML='<div class="assess-grid">'+all.map(a=>{
@@ -7111,12 +7112,14 @@ async function moLoadSections(){
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'
   if($('mo_assess'))$('mo_assess').innerHTML='<option value="">Select class first</option>'
   if(!cid||!SESS)return
-  const[{data:secs},{data:acRows}]=await Promise.all([
+  const[{data:secs},{data:acRows},{data:sessAsmts}]=await Promise.all([
     sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name'),
-    sb.from('assessment_classes').select('assessment_id,assessments!inner(assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only,session_id)').eq('class_id',cid).eq('assessments.session_id',SESS.session_id)
+    sb.from('assessment_classes').select('assessment_id').eq('class_id',cid),
+    sb.from('assessments').select('assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
   ])
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
-  const asmtList=(acRows||[]).map(r=>r.assessments).filter(a=>a&&!a.is_fee_only).sort((a,b)=>String(a.commencement_date||'').localeCompare(String(b.commencement_date||'')))
+  const linkedIds=new Set((acRows||[]).map(r=>r.assessment_id))
+  const asmtList=(sessAsmts||[]).filter(a=>linkedIds.has(a.assessment_id)&&!a.is_fee_only)
   if($('mo_assess'))$('mo_assess').innerHTML= asmtList.length
     ? '<option value="">Select assessment</option>'+asmtList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
     : '<option value="">No assessments for this class</option>'
