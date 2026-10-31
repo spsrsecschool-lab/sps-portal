@@ -5812,8 +5812,8 @@ async function loadAssessments(){
     _assessTeacher.forEach(a=>{a._teacherName=tMap[a.created_by_teacher_id]||'Unknown'})
   }
   const officialIds=[..._assessOfficial,..._assessFeeOnly].map(a=>a.assessment_id)
-  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',officialIds):{data:[]}
-  _assessClsByA={};(acRows||[]).forEach(r=>{if(!_assessClsByA[r.assessment_id])_assessClsByA[r.assessment_id]=[];const cn=(ALL_CLASSES.find(c=>c.class_id===r.class_id)||{}).name;if(cn)_assessClsByA[r.assessment_id].push(cn)})
+  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name)').in('assessment_id',officialIds):{data:[]}
+  _assessClsByA={};window._assessClsIds={};(acRows||[]).forEach(r=>{if(!_assessClsByA[r.assessment_id])_assessClsByA[r.assessment_id]=[];if(r.classes?.name)_assessClsByA[r.assessment_id].push(r.classes.name);if(!window._assessClsIds[r.assessment_id])window._assessClsIds[r.assessment_id]=[];window._assessClsIds[r.assessment_id].push(r.class_id)})
   window._assessMap={};(asmts||[]).forEach(a=>{window._assessMap[a.assessment_id]=a})
   // Populate teacher test filter dropdowns
   const fltCls=$('assessFltClass'),fltSub=$('assessFltSubject'),fltTch=$('assessFltTeacher')
@@ -7120,10 +7120,21 @@ async function moLoadSections(){
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
   const{data:sessAsmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only,created_by_teacher_id').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
   const official=(sessAsmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
-  const offIds=official.map(a=>a.assessment_id)
-  const{data:acRows}=offIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',offIds):{data:[]}
-  const linkedIds=new Set((acRows||[]).filter(r=>r.class_id===cid).map(r=>r.assessment_id))
-  const asmtList=official.filter(a=>linkedIds.has(a.assessment_id))
+  let asmtList=official
+  if(official.length){
+    const cidsMap=window._assessClsIds||{}
+    const linkedFromCache=new Set(official.map(a=>a.assessment_id).filter(aid=>(cidsMap[aid]||[]).includes(cid)))
+    if(linkedFromCache.size){
+      asmtList=official.filter(a=>linkedFromCache.has(a.assessment_id))
+    }else{
+      const offIds=official.map(a=>a.assessment_id)
+      const{data:acRows,error:acErr}=await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',offIds)
+      if(!acErr&&acRows&&acRows.length){
+        const linkedIds=new Set(acRows.filter(r=>r.class_id===cid).map(r=>r.assessment_id))
+        if(linkedIds.size)asmtList=official.filter(a=>linkedIds.has(a.assessment_id))
+      }
+    }
+  }
   if($('mo_assess'))$('mo_assess').innerHTML= asmtList.length
     ? '<option value="">Select assessment</option>'+asmtList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
     : '<option value="">No assessments for this class</option>'
@@ -12446,8 +12457,8 @@ async function loadQPList(){
   ])
   _qpList=papers||[];_qpAssessments=(assess||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   const officialIds=_qpAssessments.map(a=>a.assessment_id)
-  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',officialIds):{data:[]}
-  const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];const cls=ALL_CLASSES.find(c=>c.class_id===r.class_id);if(cls)acMap[r.assessment_id].push(cls)})
+  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name,sort_order,class_id)').in('assessment_id',officialIds):{data:[]}
+  const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];if(r.classes)acMap[r.assessment_id].push(r.classes)})
   const cSubjMap={};(tscmRows||[]).forEach(r=>{const k=r.class_id;if(!cSubjMap[k])cSubjMap[k]=new Map();if(r.subject_id&&r.subjects?.name)cSubjMap[k].set(r.subject_id,r.subjects.name)})
   window._qpAcMap=acMap;window._qpCSubjMap=cSubjMap
   if(_qpNav.assess){_qpNav.assess=_qpAssessments.find(a=>a.assessment_id===_qpNav.assess.assessment_id)||null;if(!_qpNav.assess)_qpNav.classId=null}
