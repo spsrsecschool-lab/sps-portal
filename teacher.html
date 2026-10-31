@@ -2176,13 +2176,16 @@ async function renderLiveSchedule(){
   const roster=await getActiveRoster()
   if(!roster){el.innerHTML='';return}
 
-  const[{data:slots},{data:entries},{data:adjs},{data:subs}]=await Promise.all([
-    sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order'),
-    sb.from('timetable_entries').select('slot_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name)').eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id),
+  const[{data:slots},{data:entries},{data:adjs},{data:subs},{data:rTimings}]=await Promise.all([
+    sb.from('time_slots').select('*').eq('session_id',SESS.session_id).order('sort_order'),
+    sb.from('timetable_entries').select('slot_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name)').eq('session_id',SESS.session_id).eq('teacher_id',TEACHER.teacher_id),
     sb.from('adjustments').select('slot_id,class_id,section_id,days,classes(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id).then(r=>r,()=>({data:[]})),
-    sb.from('substitutions').select('entry_id,substitute_teacher_id,slot_id,timetable_entries!inner(teacher_id,classes(name),class_sections(name),subjects(name)),time_slots:slot_id(name,start_time,end_time,sort_order)').eq('date',iso).then(r=>r,()=>({data:[]}))
+    sb.from('substitutions').select('entry_id,substitute_teacher_id,slot_id,timetable_entries!inner(teacher_id,classes(name),class_sections(name),subjects(name)),time_slots:slot_id(name,start_time,end_time,sort_order)').eq('date',iso).then(r=>r,()=>({data:[]})),
+    sb.from('roster_timings').select('slot_id,start_time,end_time').eq('roster_id',roster.roster_id)
   ])
   if(!slots?.length){el.innerHTML='';return}
+  const _rtMap={};(rTimings||[]).forEach(t=>{_rtMap[t.slot_id]=t})
+  ;(slots||[]).forEach(s=>{const t=_rtMap[s.slot_id];if(t){s.start_time=t.start_time;s.end_time=t.end_time}})
 
   // Build per-slot schedule
   const slotMap={}
@@ -2302,8 +2305,11 @@ async function loadMyTimetable(){
   console.log('[TT] Querying entries for roster:',roster.roster_id,'teacher:',TEACHER.teacher_id)
   const{data:entries,error}=await sb.from('timetable_entries')
     .select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)')
-    .eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id)
+    .eq('session_id',SESS.session_id).eq('teacher_id',TEACHER.teacher_id)
   console.log('[TT] Entries:',entries?.length,'error:',error)
+  const{data:rTimings}=await sb.from('roster_timings').select('slot_id,start_time,end_time').eq('roster_id',roster.roster_id)
+  const _rtMap={};(rTimings||[]).forEach(t=>{_rtMap[t.slot_id]=t})
+  ;(entries||[]).forEach(e=>{if(e.time_slots){const t=_rtMap[e.slot_id];if(t){e.time_slots.start_time=t.start_time;e.time_slots.end_time=t.end_time}}})
 
   // Standing adjustments (classes this teacher covers, not their own teaching).
   let adjustments=[]
@@ -2321,6 +2327,7 @@ async function loadMyTimetable(){
       ])
       const slM={},clM={},seM={}
       ;(slR.data||[]).forEach(s=>slM[s.slot_id]=s)
+      Object.values(slM).forEach(s=>{const t=_rtMap[s.slot_id];if(t){s.start_time=t.start_time;s.end_time=t.end_time}})
       ;(clR.data||[]).forEach(c=>clM[c.class_id]=c.name)
       ;(seR.data||[]).forEach(s=>seM[s.section_id]=s.name)
       adjustments=rows.filter(a=>slM[a.slot_id]).map(a=>({
