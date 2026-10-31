@@ -744,7 +744,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="sb-item" onclick="goTo('assessments',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Assessments</div>
       <div class="sb-item" onclick="goTo('examconduct',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="22"/></svg>Examination</div>
       <div class="sb-item" onclick="goTo('marksoverview',this)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7 9 9.7 4.7 14"/></svg>Marks Overview</div>
-      <div class="sb-item" onclick="goTo('reportcards',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Report Card Templates</div>
+      <div class="sb-item" onclick="goTo('reportcards',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Report Cards & Fee Slip</div>
       <div class="sb-item" onclick="goTo('questionpapers',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Question Papers</div>
     </div>
     <div class="sb-item" onclick="goTo('timetable',this)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="16" x2="21" y2="16"/></svg>School Timetable</div>
@@ -1418,7 +1418,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="page" id="page-reportcards">
       <div class="sub-page active" id="sub-rc-list">
         <div class="page-head">
-          <div><h2>Report Card Templates</h2><p>Configure templates per class group and assessment type</p></div>
+          <div><h2>Report Cards & Fee Slip</h2><p>Configure templates per class group and assessment type</p></div>
           <button class="btn btn-dark" onclick="openAddTemplateModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Template</button>
         </div>
         <div class="grid-3" style="margin-bottom:18px">
@@ -2668,7 +2668,7 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',bulkdocs:'Bulk Uploads',idcards:'ID Card Generator',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments',miscfees:'Misc Fees',examfees:'Examination Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Card Templates',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log',syllabus:'Syllabus'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',staff:'Staff & Teachers',students:'Students',admission:'New Admission',bulkimport:'Bulk Import',bulkdocs:'Bulk Uploads',idcards:'ID Card Generator',mapping:'Class & Subject Mapping',subjcombos:'Subject Combinations',assessments:'Assessments',miscfees:'Misc Fees',examfees:'Examination Fees',marksoverview:'Marks Overview',timetable:'School Timetable',questionpapers:'Question Papers',examconduct:'Examination',promotion:'Promotion',relieving:'Student Relieving',readmission:'Re-admission',reportcards:'Report Cards & Fee Slip',calendar:'Holiday Calendar',classatt:'Class Attendance',staffatt:'Staff Attendance',declaration:'Teacher Declaration',maintenance:'Maintenance Mode',settings:'Settings',requests:'Access Requests',activitylog:'Activity Log',syllabus:'Syllabus'}
 // ═══════════ TEACHER DECLARATION (admin) — section → rules ═══════════
 let _decSecs=[], _decRules={}, _decMeta=null
 async function loadDeclarationAdmin(){ decSwitch('edit') }
@@ -5812,8 +5812,8 @@ async function loadAssessments(){
     _assessTeacher.forEach(a=>{a._teacherName=tMap[a.created_by_teacher_id]||'Unknown'})
   }
   const officialIds=[..._assessOfficial,..._assessFeeOnly].map(a=>a.assessment_id)
-  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,classes(name)').in('assessment_id',officialIds):{data:[]}
-  _assessClsByA={};(acRows||[]).forEach(r=>{if(!_assessClsByA[r.assessment_id])_assessClsByA[r.assessment_id]=[];if(r.classes?.name)_assessClsByA[r.assessment_id].push(r.classes.name)})
+  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',officialIds):{data:[]}
+  _assessClsByA={};(acRows||[]).forEach(r=>{if(!_assessClsByA[r.assessment_id])_assessClsByA[r.assessment_id]=[];const cn=(ALL_CLASSES.find(c=>c.class_id===r.class_id)||{}).name;if(cn)_assessClsByA[r.assessment_id].push(cn)})
   window._assessMap={};(asmts||[]).forEach(a=>{window._assessMap[a.assessment_id]=a})
   // Populate teacher test filter dropdowns
   const fltCls=$('assessFltClass'),fltSub=$('assessFltSubject'),fltTch=$('assessFltTeacher')
@@ -7116,14 +7116,14 @@ async function moLoadSections(){
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'
   if($('mo_assess'))$('mo_assess').innerHTML='<option value="">Select class first</option>'
   if(!cid||!SESS)return
-  const[{data:secs},{data:acRows},{data:sessAsmts}]=await Promise.all([
-    sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name'),
-    sb.from('assessment_classes').select('assessment_id').eq('class_id',cid),
-    sb.from('assessments').select('assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
-  ])
+  const{data:secs}=await sb.from('class_sections').select('*').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
   if($('mo_section'))$('mo_section').innerHTML='<option value="">All sections</option>'+(secs||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
-  const linkedIds=new Set((acRows||[]).map(r=>r.assessment_id))
-  const asmtList=(sessAsmts||[]).filter(a=>linkedIds.has(a.assessment_id)&&!a.is_fee_only)
+  const{data:sessAsmts}=await sb.from('assessments').select('assessment_id,name,commencement_date,end_date,max_marks,pass_marks,is_fee_only,created_by_teacher_id').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  const official=(sessAsmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
+  const offIds=official.map(a=>a.assessment_id)
+  const{data:acRows}=offIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',offIds):{data:[]}
+  const linkedIds=new Set((acRows||[]).filter(r=>r.class_id===cid).map(r=>r.assessment_id))
+  const asmtList=official.filter(a=>linkedIds.has(a.assessment_id))
   if($('mo_assess'))$('mo_assess').innerHTML= asmtList.length
     ? '<option value="">Select assessment</option>'+asmtList.map(a=>'<option value="'+a.assessment_id+'">'+esc(a.name)+(a.commencement_date?' — '+fmtD(a.commencement_date):'')+'</option>').join('')
     : '<option value="">No assessments for this class</option>'
@@ -12446,8 +12446,8 @@ async function loadQPList(){
   ])
   _qpList=papers||[];_qpAssessments=(assess||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   const officialIds=_qpAssessments.map(a=>a.assessment_id)
-  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id,classes(name,sort_order,class_id)').in('assessment_id',officialIds):{data:[]}
-  const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];if(r.classes)acMap[r.assessment_id].push(r.classes)})
+  const{data:acRows}=officialIds.length?await sb.from('assessment_classes').select('assessment_id,class_id').in('assessment_id',officialIds):{data:[]}
+  const acMap={};(acRows||[]).forEach(r=>{if(!acMap[r.assessment_id])acMap[r.assessment_id]=[];const cls=ALL_CLASSES.find(c=>c.class_id===r.class_id);if(cls)acMap[r.assessment_id].push(cls)})
   const cSubjMap={};(tscmRows||[]).forEach(r=>{const k=r.class_id;if(!cSubjMap[k])cSubjMap[k]=new Map();if(r.subject_id&&r.subjects?.name)cSubjMap[k].set(r.subject_id,r.subjects.name)})
   window._qpAcMap=acMap;window._qpCSubjMap=cSubjMap
   if(_qpNav.assess){_qpNav.assess=_qpAssessments.find(a=>a.assessment_id===_qpNav.assess.assessment_id)||null;if(!_qpNav.assess)_qpNav.classId=null}
