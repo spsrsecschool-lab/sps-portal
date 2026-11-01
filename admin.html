@@ -5794,7 +5794,7 @@ async function addTimetablePeriod(){
   if(!days.length){toast('Select at least one day','error');return}
   const r=_mappingRaw.find(m=>m.map_id===mapId)
   const{error}=await sb.from('timetable_entries').insert({
-    slot_id:slotId,session_id:SESS.session_id,
+    roster_id:rosterId,slot_id:slotId,session_id:SESS.session_id,
     class_id:r?.class_id,section_id:secId,subject_id:subId,teacher_id:tchId,days
   })
   if(error){toast('Failed: '+error.message,'error');return}
