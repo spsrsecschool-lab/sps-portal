@@ -884,30 +884,52 @@ function stuSylSelectSubject(subjectId){
 // ═══════════ NOTICES ═══════════
 const _ntcTypeLabels={general:'General',administrative:'Administrative',academic:'Academic',disciplinary:'Disciplinary',event:'Event',holiday:'Holiday',exam:'Examination',fee:'Fee Related'}
 const _ntcTypeColors={general:'#6366F1',administrative:'#6B7280',academic:'#2563EB',disciplinary:'#DC2626',event:'#7C3AED',holiday:'#059669',exam:'#D97706',fee:'#0D9488'}
+let _stuNoticesData=[]
 async function loadStudentNotices(){
   const el=$('pgNotices')
   el.innerHTML='<div class="det-hdr"><div class="back-btn" onclick="navTo(\'home\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></div><div class="det-title">Notices & Circulars</div></div><div class="det-body" id="stuNoticesBody"><div style="text-align:center;padding:30px;color:#a8a3c2">Loading…</div></div>'
   el.classList.add('active')
   const{data,error}=await sb.from('notices').select('*').eq('is_active',true).contains('target',['students']).order('created_at',{ascending:false})
+  _stuNoticesData=data||[]
   const body=$('stuNoticesBody')
   if(error){body.innerHTML='<div style="text-align:center;padding:30px;color:#E11D48">Failed to load notices.</div>';return}
-  if(!data?.length){body.innerHTML='<div style="text-align:center;padding:30px;color:#a8a3c2">No notices at the moment.</div>';return}
+  if(!_stuNoticesData.length){body.innerHTML='<div style="text-align:center;padding:30px;color:#a8a3c2">No notices at the moment.</div>';return}
   let h=''
-  data.forEach(n=>{
+  _stuNoticesData.forEach(n=>{
     const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
     const isImp=n.priority==='important'
     const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
     const typeClr=_ntcTypeColors[n.notice_type]||'#6366F1'
-    h+='<div style="background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-left:4px solid '+(isImp?'#F59E0B':'#E0DFF5')+'">'
-    h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
-    h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
-    if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:#FEF3C7;color:#B45309;text-transform:uppercase;letter-spacing:.04em">Important</span>'
-    h+='<span style="font-size:11px;color:#a8a3c2">'+esc(dt)+'</span></div>'
-    h+='<div style="font-size:15px;font-weight:700;color:#355C7D;margin-bottom:6px">'+esc(n.title)+'</div>'
-    h+='<div style="font-size:13px;color:#6B6685;word-break:break-word;line-height:1.6">'+(n.body||'')+'</div>'
+    h+='<div onclick="viewStuNotice(\''+n.id+'\')" style="cursor:pointer;background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-left:4px solid '+(isImp?'#F59E0B':'#E0DFF5')+';display:flex;align-items:center;justify-content:space-between;gap:10px">'
+    h+='<div style="flex:1;min-width:0">'
+    h+='<div style="font-size:14px;font-weight:600;color:#355C7D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(n.title)+'</div>'
     h+='</div>'
+    h+='<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
+    h+='<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
+    if(isImp)h+='<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:#FEF3C7;color:#B45309;text-transform:uppercase">IMP</span>'
+    h+='<span style="font-size:10px;color:#a8a3c2;white-space:nowrap">'+esc(dt)+'</span>'
+    h+='<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:#a8a3c2;fill:none;stroke-width:2.5;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>'
+    h+='</div></div>'
   })
   body.innerHTML=h
+}
+function viewStuNotice(id){
+  const n=_stuNoticesData.find(x=>x.id===id);if(!n)return
+  const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+' '+new Date(n.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):''
+  const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
+  const typeClr=_ntcTypeColors[n.notice_type]||'#6366F1'
+  const isImp=n.priority==='important'
+  const el=$('pgNotices')
+  let h='<div class="det-hdr"><div class="back-btn" onclick="loadStudentNotices()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></div><div class="det-title">Notice</div></div>'
+  h+='<div class="det-body" style="padding:16px">'
+  h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+  h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
+  if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:#FEF3C7;color:#B45309;text-transform:uppercase">Important</span>'
+  h+='<span style="font-size:11px;color:#a8a3c2">'+esc(dt)+'</span></div>'
+  h+='<div style="font-size:18px;font-weight:700;color:#355C7D;margin-bottom:16px">'+esc(n.title)+'</div>'
+  h+='<div style="font-size:14px;color:#6B6685;line-height:1.8;word-break:break-word">'+(n.body||'<span style="color:#a8a3c2">No content.</span>')+'</div>'
+  h+='</div>'
+  el.innerHTML=h
 }
 
 history.replaceState({pg:'home'},'')
