@@ -435,6 +435,7 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       My Attendance
     </div>
     <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Code of Conduct</div>
+    <div class="sb-item" onclick="goTo('notices',this)"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notices</div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>
       My Profile
@@ -850,6 +851,11 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
 
     <!-- PROFILE (ported from teacher.html) -->
+    <div class="page" id="page-notices">
+      <div class="page-head"><div><h2>Notices &amp; Circulars</h2><p>Notices from administration</p></div></div>
+      <div id="noticesContent"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
     <div class="page" id="page-profile">
       <div class="page-head"><div><h2>My Profile</h2><p>Your details on record with the school</p></div></div>
       <div id="profileContent"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
@@ -918,7 +924,7 @@ let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _isClassTeacher=true, _myClassTeacher=null, MY_MAPPINGS=[]
 
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Dashboard',messages:'Messages',marks:'Marks & Assessments',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',dues:'Student Dues',examfees:'Exam Fee Collection',myattendance:'My Attendance',handbook:'Code of Conduct',profile:'My Profile'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',marks:'Marks & Assessments',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',dues:'Student Dues',examfees:'Exam Fee Collection',myattendance:'My Attendance',handbook:'Code of Conduct',notices:'Notices & Circulars',profile:'My Profile'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -1206,6 +1212,7 @@ function goTo(id,el,_fromPop){
   if(id==='marks')loadMarksSection()
   if(id==='myattendance'){const now=new Date();const first=new Date(now.getFullYear(),now.getMonth(),1);const _fiso=first.getFullYear()+'-'+String(first.getMonth()+1).padStart(2,'0')+'-'+String(first.getDate()).padStart(2,'0');if($('att_from')&&!$('att_from').value)$('att_from').value=_fiso;if($('att_to')&&!$('att_to').value)$('att_to').value=today();loadMyAttendance();loadDeductionHistory()}
   if(id==='halfday')loadHalfDayRecords()
+  if(id==='notices')loadMTNotices()
   if(id==='profile')loadProfile()
 }
 history.replaceState({pg:'dashboard'},'')
@@ -4646,6 +4653,27 @@ function prependActivity(text,type){
   const row='<div class="log-row"><div class="log-dot" style="background:'+(type==='access'?'var(--grn)':'var(--warn)')+'"></div><div><div class="txt">'+esc(text)+'</div><div class="ts">just now</div></div></div>'
   if(actEl.querySelector('.log-row'))actEl.insertAdjacentHTML('afterbegin',row)
   else actEl.innerHTML=row
+}
+
+// ═══════════ NOTICES ═══════════
+async function loadMTNotices(){
+  const el=$('noticesContent');el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data,error}=await sb.from('notices').select('*').eq('is_active',true).contains('target',['mother_teachers']).order('created_at',{ascending:false})
+  if(error){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--danger)">Failed to load notices.</div>';return}
+  if(!data?.length){el.innerHTML='<div style="padding:40px;text-align:center;color:var(--ink-faint)">No notices at the moment.</div>';return}
+  let h=''
+  data.forEach(n=>{
+    const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+    const isImp=n.priority==='important'
+    h+='<div style="background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:18px 20px;margin-bottom:12px'+(isImp?';border-left:4px solid var(--warn)':'')+'">'
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+    if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase;letter-spacing:.04em">Important</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span></div>'
+    h+='<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">'+esc(n.title)+'</div>'
+    h+='<div style="font-size:13px;color:var(--ink-soft);white-space:pre-wrap;word-break:break-word">'+esc(n.body||'')+'</div>'
+    h+='</div>'
+  })
+  el.innerHTML=h
 }
 </script>
 </body>

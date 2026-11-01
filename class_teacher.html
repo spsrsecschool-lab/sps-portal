@@ -315,6 +315,8 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
       Misc Fee Collection
     </div>
+    <div class="sb-label">Other</div>
+    <div class="sb-item" onclick="goTo('notices',this)"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notices</div>
   </div>
   <div class="sb-foot">
     <button class="sb-switch-btn" onclick="window.location.replace('teacher.html')">
@@ -573,6 +575,11 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <div id="miscFeesWrap"></div>
     </div>
 
+    <div class="page" id="page-notices">
+      <div class="page-head"><div><h2>Notices &amp; Circulars</h2><p>Notices from administration</p></div></div>
+      <div id="noticesContent"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
   </div>
 </div>
 <!-- UPLOAD OVERLAY -->
@@ -638,7 +645,7 @@ let _duesDebounce=null  // debounce for live dues repaint
 let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _currentTab='dashboard'   // which tab is open, so class-switch can refresh it
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection',miscfees:'Misc Fee Collection'}
+const TITLES={dashboard:'Class Dashboard',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',assessmarks:'Assessment Marks',dues:'Student Dues',examfees:'Exam Fee Collection',miscfees:'Misc Fee Collection',notices:'Notices & Circulars'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -737,6 +744,7 @@ function goTo(id,el,_fromPop){
   if(id==='examfees')loadExamFeeDropdown()
   if(id==='miscfees')loadMiscFeeDropdown()
   if(id==='halfday')loadHalfDayRecords()
+  if(id==='notices')loadCTNotices()
 }
 history.replaceState({pg:'dashboard'},'')
 window.addEventListener('popstate',function(e){
@@ -3233,6 +3241,27 @@ async function toggleMiscFeePayment(enrollmentId,feeId,markPaid){
 async function logout(){
   await sb.auth.signOut()
   window.location.href='login.html'
+}
+
+// ═══════════ NOTICES ═══════════
+async function loadCTNotices(){
+  const el=$('noticesContent');el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data,error}=await sb.from('notices').select('*').eq('is_active',true).contains('target',['class_teachers']).order('created_at',{ascending:false})
+  if(error){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--danger)">Failed to load notices.</div>';return}
+  if(!data?.length){el.innerHTML='<div style="padding:40px;text-align:center;color:var(--ink-faint)">No notices at the moment.</div>';return}
+  let h=''
+  data.forEach(n=>{
+    const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+    const isImp=n.priority==='important'
+    h+='<div style="background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:18px 20px;margin-bottom:12px'+(isImp?';border-left:4px solid var(--warn)':'')+'">'
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+    if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase;letter-spacing:.04em">Important</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span></div>'
+    h+='<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">'+esc(n.title)+'</div>'
+    h+='<div style="font-size:13px;color:var(--ink-soft);white-space:pre-wrap;word-break:break-word">'+esc(n.body||'')+'</div>'
+    h+='</div>'
+  })
+  el.innerHTML=h
 }
 
 </script>
