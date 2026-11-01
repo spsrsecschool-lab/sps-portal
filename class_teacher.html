@@ -3263,7 +3263,7 @@ async function loadCTNotices(){
     const typeClr=_ntcTypeColors[n.notice_type]||'var(--indigo)'
     h+='<div onclick="viewCTNotice(\''+n.id+'\')" style="cursor:pointer;background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:14px 20px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:background .15s'+(isImp?';border-left:4px solid var(--warn)':'')+'" onmouseover="this.style.background=\'var(--lav-50)\'" onmouseout="this.style.background=\'#fff\'">'
     h+='<div style="flex:1;min-width:0">'
-    h+='<div style="font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(n.title)+'</div>'
+    h+='<div style="font-size:14px;font-weight:600;color:var(--ink)">'+esc(n.title)+'</div>'
     h+='</div>'
     h+='<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
     h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'

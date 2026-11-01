@@ -902,7 +902,7 @@ async function loadStudentNotices(){
     const typeClr=_ntcTypeColors[n.notice_type]||'#6366F1'
     h+='<div onclick="viewStuNotice(\''+n.id+'\')" style="cursor:pointer;background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-left:4px solid '+(isImp?'#F59E0B':'#E0DFF5')+';display:flex;align-items:center;justify-content:space-between;gap:10px">'
     h+='<div style="flex:1;min-width:0">'
-    h+='<div style="font-size:14px;font-weight:600;color:#355C7D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(n.title)+'</div>'
+    h+='<div style="font-size:14px;font-weight:600;color:#355C7D">'+esc(n.title)+'</div>'
     h+='</div>'
     h+='<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
     h+='<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
