@@ -3244,6 +3244,8 @@ async function logout(){
 }
 
 // ═══════════ NOTICES ═══════════
+const _ntcTypeLabels={general:'General',administrative:'Administrative',academic:'Academic',disciplinary:'Disciplinary',event:'Event',holiday:'Holiday',exam:'Examination',fee:'Fee Related'}
+const _ntcTypeColors={general:'var(--indigo)',administrative:'#6B7280',academic:'#2563EB',disciplinary:'#DC2626',event:'#7C3AED',holiday:'#059669',exam:'#D97706',fee:'#0D9488'}
 async function loadCTNotices(){
   const el=$('noticesContent');el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   const{data,error}=await sb.from('notices').select('*').eq('is_active',true).contains('target',['class_teachers']).order('created_at',{ascending:false})
@@ -3253,12 +3255,15 @@ async function loadCTNotices(){
   data.forEach(n=>{
     const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
     const isImp=n.priority==='important'
+    const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
+    const typeClr=_ntcTypeColors[n.notice_type]||'var(--indigo)'
     h+='<div style="background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:18px 20px;margin-bottom:12px'+(isImp?';border-left:4px solid var(--warn)':'')+'">'
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+    h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
+    h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
     if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase;letter-spacing:.04em">Important</span>'
     h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span></div>'
     h+='<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">'+esc(n.title)+'</div>'
-    h+='<div style="font-size:13px;color:var(--ink-soft);white-space:pre-wrap;word-break:break-word">'+esc(n.body||'')+'</div>'
+    h+='<div style="font-size:13px;color:var(--ink-soft);word-break:break-word;line-height:1.6">'+(n.body||'')+'</div>'
     h+='</div>'
   })
   el.innerHTML=h

@@ -882,6 +882,8 @@ function stuSylSelectSubject(subjectId){
 }
 
 // ═══════════ NOTICES ═══════════
+const _ntcTypeLabels={general:'General',administrative:'Administrative',academic:'Academic',disciplinary:'Disciplinary',event:'Event',holiday:'Holiday',exam:'Examination',fee:'Fee Related'}
+const _ntcTypeColors={general:'#6366F1',administrative:'#6B7280',academic:'#2563EB',disciplinary:'#DC2626',event:'#7C3AED',holiday:'#059669',exam:'#D97706',fee:'#0D9488'}
 async function loadStudentNotices(){
   const el=$('pgNotices')
   el.innerHTML='<div class="det-hdr"><div class="back-btn" onclick="navTo(\'home\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></div><div class="det-title">Notices & Circulars</div></div><div class="det-body" id="stuNoticesBody"><div style="text-align:center;padding:30px;color:#a8a3c2">Loading…</div></div>'
@@ -894,12 +896,15 @@ async function loadStudentNotices(){
   data.forEach(n=>{
     const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
     const isImp=n.priority==='important'
+    const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
+    const typeClr=_ntcTypeColors[n.notice_type]||'#6366F1'
     h+='<div style="background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-left:4px solid '+(isImp?'#F59E0B':'#E0DFF5')+'">'
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+    h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
+    h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
     if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:#FEF3C7;color:#B45309;text-transform:uppercase;letter-spacing:.04em">Important</span>'
     h+='<span style="font-size:11px;color:#a8a3c2">'+esc(dt)+'</span></div>'
     h+='<div style="font-size:15px;font-weight:700;color:#355C7D;margin-bottom:6px">'+esc(n.title)+'</div>'
-    h+='<div style="font-size:13px;color:#6B6685;white-space:pre-wrap;word-break:break-word">'+esc(n.body||'')+'</div>'
+    h+='<div style="font-size:13px;color:#6B6685;word-break:break-word;line-height:1.6">'+(n.body||'')+'</div>'
     h+='</div>'
   })
   body.innerHTML=h
