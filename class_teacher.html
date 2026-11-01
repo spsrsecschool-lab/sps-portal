@@ -3261,16 +3261,14 @@ async function loadCTNotices(){
     const isImp=n.priority==='important'
     const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
     const typeClr=_ntcTypeColors[n.notice_type]||'var(--indigo)'
-    h+='<div onclick="viewCTNotice(\''+n.id+'\')" style="cursor:pointer;background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:14px 20px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:background .15s'+(isImp?';border-left:4px solid var(--warn)':'')+'" onmouseover="this.style.background=\'var(--lav-50)\'" onmouseout="this.style.background=\'#fff\'">'
-    h+='<div style="flex:1;min-width:0">'
-    h+='<div style="font-size:14px;font-weight:600;color:var(--ink)">'+esc(n.title)+'</div>'
-    h+='</div>'
-    h+='<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
+    h+='<div onclick="viewCTNotice(\''+n.id+'\')" style="cursor:pointer;background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:18px 20px;margin-bottom:12px;transition:box-shadow .15s'+(isImp?';border-left:4px solid var(--warn)':'')+'" onmouseover="this.style.boxShadow=\'0 2px 8px rgba(0,0,0,.08)\'" onmouseout="this.style.boxShadow=\'none\'">'
+    h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
     h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
-    if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase">IMP</span>'
-    h+='<span style="font-size:11px;color:var(--ink-faint);white-space:nowrap">'+esc(dt)+'</span>'
-    h+='<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--ink-faint);fill:none;stroke-width:2;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>'
-    h+='</div></div>'
+    if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase;letter-spacing:.04em">Important</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span>'
+    h+='</div>'
+    h+='<div style="font-size:15px;font-weight:700;color:var(--ink)">'+esc(n.title)+'</div>'
+    h+='</div>'
   })
   el.innerHTML=h
 }
