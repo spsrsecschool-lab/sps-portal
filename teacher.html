@@ -864,6 +864,7 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
     <div class="sb-item" onclick="goTo('qpapers',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Question Papers</div>
     <div class="sb-item" onclick="goTo('syllabus',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Syllabus</div>
     <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Code of Conduct</div>
+    <div class="sb-item" onclick="goTo('notices',this)"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notices</div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Profile
@@ -1210,6 +1211,11 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <div id="hbHost"></div>
     </div>
 
+    <div class="page" id="page-notices">
+      <div class="page-head"><div><h2>Notices &amp; Circulars</h2><p>Notices from administration</p></div></div>
+      <div id="noticesContent"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
     <div class="page" id="page-profile">
       <div class="page-head"><div><h2>My Profile</h2><p>Your details on record with the school</p></div></div>
       <div id="profileContent"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
@@ -1252,7 +1258,7 @@ let _isClassView=false
 
 const TITLES={
   dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks & Assessment',
-  critical:'Critical Students',myattendance:'My Attendance',qpapers:'Question Papers',syllabus:'Syllabus',handbook:'Code of Conduct',messages:'Messages',profile:'My Profile'
+  critical:'Critical Students',myattendance:'My Attendance',qpapers:'Question Papers',syllabus:'Syllabus',handbook:'Code of Conduct',notices:'Notices & Circulars',messages:'Messages',profile:'My Profile'
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1621,6 +1627,7 @@ function goTo(id,el){
   if(id==='syllabus')tSylInit()
   if(id==='critical')loadCriticalStudents()
   if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t;loadDeductionHistory()}
+  if(id==='notices')loadTeacherNotices()
 }
 
 
@@ -4400,6 +4407,26 @@ function rcStopVoice(){
   if(ta){ta.value=ta.value.replace(/\s*\[.*?\]$/,'').trim();if(ta.value.trim())setTimeout(()=>rcCleanupNote(),300)}
 }
 
+// ═══════════ NOTICES ═══════════
+async function loadTeacherNotices(){
+  const el=$('noticesContent');el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data,error}=await sb.from('notices').select('*').eq('is_active',true).contains('target',['teachers']).order('created_at',{ascending:false})
+  if(error){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--danger)">Failed to load notices.</div>';return}
+  if(!data?.length){el.innerHTML='<div style="padding:40px;text-align:center;color:var(--ink-faint)">No notices at the moment.</div>';return}
+  let h=''
+  data.forEach(n=>{
+    const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+    const isImp=n.priority==='important'
+    h+='<div style="background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:18px 20px;margin-bottom:12px'+(isImp?';border-left:4px solid var(--warn)':'')+'">'
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+    if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase;letter-spacing:.04em">Important</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span></div>'
+    h+='<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">'+esc(n.title)+'</div>'
+    h+='<div style="font-size:13px;color:var(--ink-soft);white-space:pre-wrap;word-break:break-word">'+esc(n.body||'')+'</div>'
+    h+='</div>'
+  })
+  el.innerHTML=h
+}
 
 </script>
 </body>
