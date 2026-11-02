@@ -5634,6 +5634,9 @@ async function saveMapping(){
   if(pendingSlot&&pendingDays.length&&!periods.some(p=>p.slotId===pendingSlot)){
     periods.push({slotId:pendingSlot,days:pendingDays})
   }
+  // Check for duplicate
+  const{data:dup}=await sb.from('teacher_subject_class_map').select('map_id').eq('teacher_id',tchId).eq('session_id',SESS.session_id).eq('section_id',secId).eq('subject_id',subId).limit(1)
+  if(dup&&dup.length){toast('This teacher is already mapped to the same subject & section','error');return}
   // Create the mapping
   const{error}=await sb.from('teacher_subject_class_map').insert({teacher_id:tchId,session_id:SESS.session_id,class_id:classId,section_id:secId,subject_id:subId,stream_id:streamId})
   if(error){toast('Failed: '+error.message,'error');return}
@@ -5838,6 +5841,8 @@ async function updateMapping(){
   // subject/teacher, and a later delete-by-subject can't find those rows.
   const{data:oldRows}=await sb.from('teacher_subject_class_map').select('teacher_id,class_id,section_id,subject_id,session_id').eq('map_id',mapId).limit(1)
   const old=oldRows&&oldRows[0]
+  const{data:dup}=await sb.from('teacher_subject_class_map').select('map_id').eq('teacher_id',tchId).eq('session_id',SESS.session_id).eq('section_id',secId).eq('subject_id',subId).neq('map_id',mapId).limit(1)
+  if(dup&&dup.length){toast('This teacher is already mapped to the same subject & section','error');return}
   const{error}=await sb.from('teacher_subject_class_map').update({
     class_id:classId,section_id:secId,subject_id:subId,teacher_id:tchId,stream_id:streamId
   }).eq('map_id',mapId)
