@@ -2277,7 +2277,17 @@ async function viewStudentProfile(eid){
     +(canEdit?'<button type="button" onclick="mtChangePhoto(_profileStudentId)" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;border:none">Change Photo</button>':'')
     +'</div></div>'
     +(s.flagged?'<div style="background:#FEE2E2;border:1px solid #EF4444;border-radius:8px;padding:10px 14px;font-size:13px;color:#991B1B;margin-bottom:14px;line-height:1.5;display:flex;align-items:flex-start;gap:8px"><span style="font-size:16px">⚠️</span><div style="flex:1"><strong>Flagged for update</strong>'+(s.flag_notes?' — '+esc(s.flag_notes):'')+'</div><button type="button" onclick="resolveStudentFlag(\''+esc(s.student_id||'')+'\')" style="background:#fff;border:1px solid #EF4444;color:#EF4444;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap">Resolve</button></div>':'')
-    +(s.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:14px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':'')
+    +'<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:8px">Notes</div>'
+    +'<textarea id="sp_notes" rows="3" '+(canEdit?'':'disabled')+' style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical;font-family:var(--font);box-sizing:border-box" placeholder="Add notes about this student...">'+esc(s.notes||'')+'</textarea>'
+    +(canEdit?'<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      +'<button type="button" class="btn btn-soft btn-sm" onclick="spStartVoice()" id="sp_voice_btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice</button>'
+      +'<span style="display:inline-flex;border:1.5px solid var(--line);border-radius:999px;overflow:hidden;font-size:11px;font-weight:700">'
+        +'<button id="sp_lang_en" type="button" onclick="spSetLang(\'en-IN\')" style="padding:4px 10px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;background:#E85C82;color:#fff">EN</button>'
+        +'<button id="sp_lang_hi" type="button" onclick="spSetLang(\'hi-IN\')" style="padding:4px 10px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;background:transparent;color:var(--ink-soft)">HI</button>'
+      +'</span>'
+      +'<button type="button" class="btn btn-soft btn-sm" onclick="spCleanupNote()" id="sp_ai_btn" style="margin-left:auto"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup</button>'
+    +'</div>':'')
+    +'</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
     +function(){
       var _addrParts={hno:'',area:''}
@@ -2470,6 +2480,7 @@ async function saveStudentProfile(){
     blood_group:document.getElementById('sp_blood_group')?.value||null,
     dob:document.getElementById('sp_dob')?.value||null,
     admission_date:document.getElementById('sp_admission_date')?.value||null,
+    notes:document.getElementById('sp_notes')?.value?.trim()||null,
   }
   const _hno=document.getElementById('sp_addr_hno')?.value?.trim()
   const _area=document.getElementById('sp_addr_area')?.value?.trim()
@@ -2631,6 +2642,7 @@ async function saveStudentProfile(studentId){
     blood_group:document.getElementById('sp_blood_group')?.value||null,
     dob:document.getElementById('sp_dob')?.value||null,
     admission_date:document.getElementById('sp_admission_date')?.value||null,
+    notes:document.getElementById('sp_notes')?.value?.trim()||null,
   }
   const _hno2=document.getElementById('sp_addr_hno')?.value?.trim()
   const _area2=document.getElementById('sp_addr_area')?.value?.trim()
@@ -4654,6 +4666,77 @@ function prependActivity(text,type){
   const row='<div class="log-row"><div class="log-dot" style="background:'+(type==='access'?'var(--grn)':'var(--warn)')+'"></div><div><div class="txt">'+esc(text)+'</div><div class="ts">just now</div></div></div>'
   if(actEl.querySelector('.log-row'))actEl.insertAdjacentHTML('afterbegin',row)
   else actEl.innerHTML=row
+}
+
+// ═══════════ PROFILE NOTES (Voice + AI) ═══════════
+let _spRecognition=null
+let _spVoiceLang='en-IN'
+function spSetLang(lang){
+  _spVoiceLang=lang
+  const enBtn=$('sp_lang_en'),hiBtn=$('sp_lang_hi')
+  if(enBtn&&hiBtn){
+    enBtn.style.background=lang==='en-IN'?'#E85C82':'transparent'
+    enBtn.style.color=lang==='en-IN'?'#fff':'var(--ink-soft)'
+    hiBtn.style.background=lang==='hi-IN'?'#E85C82':'transparent'
+    hiBtn.style.color=lang==='hi-IN'?'#fff':'var(--ink-soft)'
+  }
+  if(_spRecognition){_spRecognition.stop();setTimeout(()=>spStartVoice(),300)}
+}
+async function spCleanupNote(){
+  const ta=$('sp_notes')
+  if(!ta||!ta.value.trim()){toast('Nothing to clean up','warn');return}
+  const btn=$('sp_ai_btn')
+  if(btn){btn.disabled=true;btn.textContent='Cleaning up...'}
+  try{
+    const sess=await sb.auth.getSession()
+    const token=sess?.data?.session?.access_token
+    if(!token){toast('Not signed in','error');return}
+    const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/super-action',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({mode:'cleanup_note',text:ta.value.trim()})
+    })
+    const data=await res.json()
+    if(!res.ok){toast(data.error||'Cleanup failed','error');return}
+    if(data.cleaned)ta.value=data.cleaned
+    toast('Note cleaned up','success')
+  }catch(e){toast(e.message==='Failed to fetch'?'AI function not deployed yet':'AI error: '+e.message,'error')}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup'}}
+}
+async function spStartVoice(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition
+  if(!SpeechRecognition){toast('Voice input not supported on this browser','error');return}
+  const btn=$('sp_voice_btn')
+  if(_spRecognition){_spRecognition.stop();return}
+  try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop())}catch(e){toast('Microphone permission denied','error');return}
+  _spRecognition=new SpeechRecognition()
+  _spRecognition.lang=_spVoiceLang
+  _spRecognition.continuous=false
+  _spRecognition.interimResults=true
+  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#E5556B" stroke-width="2" style="margin-right:4px;vertical-align:middle"><circle cx="12" cy="12" r="8"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Listening...'
+  btn.style.borderColor='var(--danger)';btn.style.color='var(--danger)'
+  _spRecognition.onresult=function(e){
+    const result=e.results[0]
+    const text=result[0].transcript
+    const ta=$('sp_notes')
+    if(!ta)return
+    const prev=ta.value.replace(/\s*\[.*?\]$/,'').trim()
+    if(result.isFinal){
+      ta.value=(prev?(prev+' '):'')+text.trim()
+    }else{
+      ta.value=prev+(prev?' ':'')+' ['+text+']'
+    }
+  }
+  _spRecognition.onerror=function(e){if(e.error!=='no-speech')toast('Voice error: '+e.error,'error');spStopVoice()}
+  _spRecognition.onend=function(){spStopVoice()}
+  try{_spRecognition.start()}catch(e){toast('Could not start voice — '+e.message,'error');_spRecognition=null}
+}
+function spStopVoice(){
+  if(_spRecognition){try{_spRecognition.stop()}catch(_){}_spRecognition=null}
+  const btn=$('sp_voice_btn')
+  if(btn){btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice';btn.style.borderColor='';btn.style.color=''}
+  const ta=$('sp_notes')
+  if(ta){ta.value=ta.value.replace(/\s*\[.*?\]$/,'').trim();if(ta.value.trim())setTimeout(()=>spCleanupNote(),300)}
 }
 
 // ═══════════ NOTICES ═══════════
