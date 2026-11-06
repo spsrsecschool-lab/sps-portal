@@ -2083,10 +2083,19 @@ tbody tr:hover td{background:var(--lav-50)}
             <div><h2>View Fees</h2><p>Create one-off fees (Practical, Trip, etc.) and unlock for class teacher collection</p></div>
             <button class="btn btn-dark" onclick="openAddMiscFeeModal()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Fee</button>
           </div>
-          <div class="card"><div class="table-wrap"><table>
-            <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>Amount</th><th>Breakdown</th><th>Status</th><th>Collection</th><th>Created</th><th></th></tr></thead>
-            <tbody id="miscFeeBody"><tr><td colspan="9"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
-          </table></div></div>
+          <div class="tab-row">
+            <button class="tab-btn active" onclick="switchTab('mfTab','dashboard',this)">Dashboard</button>
+            <button class="tab-btn" onclick="switchTab('mfTab','table',this)">All Fees</button>
+          </div>
+          <div id="mfTab-dashboard">
+            <div id="mfDashboard"><div class="loading-row"><div class="spinner"></div></div></div>
+          </div>
+          <div id="mfTab-table" style="display:none">
+            <div class="card"><div class="table-wrap"><table>
+              <thead><tr><th>Name</th><th>Class</th><th>Section</th><th>Amount</th><th>Breakdown</th><th>Status</th><th>Collection</th><th>Created</th><th></th></tr></thead>
+              <tbody id="miscFeeBody"><tr><td colspan="9"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+            </table></div></div>
+          </div>
         </div>
         <div id="miscFeeDetailView" style="display:none"></div>
       </div>
@@ -6930,10 +6939,10 @@ async function deleteEF(fid){confirmAct('Remove this fee?','',async()=>{
 async function loadMiscFees(){
   const el=$('miscFeeBody');ldg(el)
   $('miscFeeListView').style.display='';$('miscFeeDetailView').style.display='none'
-  if(!SESS){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No active session.</p></div></td></tr>';return}
+  if(!SESS){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No active session.</p></div></td></tr>';$('mfDashboard').innerHTML='<div class="empty-state"><p>No active session.</p></div>';return}
   const{data,error}=await sb.from('misc_fees').select('*,classes(name),class_sections(name)').eq('session_id',SESS.session_id).order('created_at',{ascending:false})
   if(error){el.innerHTML='<tr><td colspan="9"><p style="padding:16px;color:var(--danger)">'+esc(error.message)+'</p></td></tr>';return}
-  if(!data?.length){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No misc fees yet.</p></div></td></tr>';return}
+  if(!data?.length){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No misc fees yet.</p></div></td></tr>';$('mfDashboard').innerHTML='<div class="empty-state"><p>No misc fees created yet. Click <b>Create Fee</b> to get started.</p></div>';return}
   el.innerHTML=data.map(f=>{
     const bd=f.fee_breakdown
     const hasBD=Array.isArray(bd)&&bd.length>0
@@ -6941,6 +6950,68 @@ async function loadMiscFees(){
     return '<tr><td style="font-weight:700">'+esc(f.name)+'</td><td>'+esc(f.classes?.name||'—')+'</td><td>'+esc(f.class_sections?.name||'All sections')+'</td><td class="mono">₹'+f.amount+'</td><td>'+bdCell+'</td><td><a href="#" style="font-size:12px;color:var(--indigo);text-decoration:underline;font-weight:600" onclick="event.preventDefault();openMiscFeeStatus(\''+f.misc_fee_id+'\')">View Status</a></td><td><div class="switch '+(f.is_collection_unlocked?'on':'')+'" onclick="toggleMiscFee(\''+f.misc_fee_id+'\','+f.is_collection_unlocked+')"></div></td><td class="mono" style="font-size:11px">'+fmtD(f.created_at?.slice(0,10))+'</td><td><button class="btn btn-danger btn-xs" onclick="deleteMiscFee(\''+f.misc_fee_id+'\',\''+esc(f.name)+'\')">Delete</button></td></tr>'
   }).join('')
   window._miscFeesCache=data
+  loadMiscFeeDashboard(data)
+}
+async function loadMiscFeeDashboard(fees){
+  const el=$('mfDashboard');if(!el)return
+  el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const feeIds=fees.map(f=>f.misc_fee_id)
+  const{data:allPayments}=await sb.from('misc_fee_payments').select('misc_fee_id,enrollment_id,is_paid,collected_by_type,paid_at').in('misc_fee_id',feeIds)
+  const payMap={};(allPayments||[]).forEach(p=>{if(!payMap[p.misc_fee_id])payMap[p.misc_fee_id]=[];payMap[p.misc_fee_id].push(p)})
+  const{data:enrollCounts}=await sb.from('student_enrollments').select('class_id').eq('session_id',SESS.session_id).eq('status','active').eq('relieved',false)
+  const classCounts={};(enrollCounts||[]).forEach(e=>{classCounts[e.class_id]=(classCounts[e.class_id]||0)+1})
+  let totalExpected=0,totalCollected=0,totalPaidCount=0,totalStudentCount=0
+  const feeGroups={}
+  fees.forEach(f=>{
+    const key=f.name
+    if(!feeGroups[key])feeGroups[key]={name:f.name,fees:[],totalStudents:0,totalPaid:0,totalAmount:0,totalCollected:0}
+    const g=feeGroups[key]
+    const stuCount=classCounts[f.class_id]||0
+    const payments=(payMap[f.misc_fee_id]||[]).filter(p=>p.is_paid)
+    const paidCount=payments.length
+    g.fees.push({...f,stuCount,paidCount,payments})
+    g.totalStudents+=stuCount
+    g.totalPaid+=paidCount
+    g.totalAmount+=f.amount*stuCount
+    g.totalCollected+=f.amount*paidCount
+    totalExpected+=f.amount*stuCount
+    totalCollected+=f.amount*paidCount
+    totalPaidCount+=paidCount
+    totalStudentCount+=stuCount
+  })
+  const overallPct=totalStudentCount?Math.round(totalPaidCount/totalStudentCount*100):0
+  let h='<div class="grid-3" style="margin-bottom:20px;grid-template-columns:repeat(4,1fr)">'
+  h+='<div class="stat-card"><span class="lbl">Total Fees Created</span><span class="val">'+fees.length+'</span><span class="sub">across '+Object.keys(feeGroups).length+' fee type(s)</span></div>'
+  h+='<div class="stat-card"><span class="lbl">Expected Collection</span><span class="val" style="font-size:20px">₹'+totalExpected.toLocaleString('en-IN')+'</span><span class="sub">'+totalStudentCount+' students total</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--success)">Collected</span><span class="val" style="color:var(--success);font-size:20px">₹'+totalCollected.toLocaleString('en-IN')+'</span><span class="sub">'+totalPaidCount+' paid</span></div>'
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger);font-size:20px">₹'+(totalExpected-totalCollected).toLocaleString('en-IN')+'</span><span class="sub">'+(totalStudentCount-totalPaidCount)+' unpaid</span></div>'
+  h+='</div>'
+  h+='<div style="background:var(--line);border-radius:6px;height:10px;overflow:hidden;margin-bottom:24px"><div style="background:var(--success);height:100%;width:'+overallPct+'%;border-radius:6px;transition:width .3s"></div></div>'
+  const groupKeys=Object.keys(feeGroups)
+  groupKeys.forEach(key=>{
+    const g=feeGroups[key]
+    const gPct=g.totalStudents?Math.round(g.totalPaid/g.totalStudents*100):0
+    h+='<div class="card" style="margin-bottom:16px;padding:20px">'
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px">'
+    h+='<div><div style="font-size:16px;font-weight:800;color:var(--ink)">'+esc(g.name)+'</div>'
+    h+='<div style="font-size:12px;color:var(--ink-faint);margin-top:2px">'+g.fees.length+' class(es) &middot; ₹'+g.fees[0].amount+' per student</div></div>'
+    h+='<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:'+(gPct===100?'var(--success)':'var(--ink)')+'">'+gPct+'%</div><div style="font-size:11px;color:var(--ink-faint)">collected</div></div>'
+    h+='</div>'
+    h+='<div style="background:var(--lav-100);border-radius:6px;height:8px;overflow:hidden;margin-bottom:14px"><div style="background:'+(gPct===100?'var(--success)':'var(--indigo)')+';height:100%;width:'+gPct+'%;border-radius:6px;transition:width .3s"></div></div>'
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">'
+    g.fees.forEach(f=>{
+      const fPct=f.stuCount?Math.round(f.paidCount/f.stuCount*100):0
+      const clr=fPct===100?'var(--success)':fPct>=50?'var(--indigo)':'var(--danger)'
+      h+='<div onclick="openMiscFeeStatus(\''+f.misc_fee_id+'\')" style="cursor:pointer;background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;transition:box-shadow .15s" onmouseover="this.style.boxShadow=\'0 2px 8px rgba(0,0,0,.08)\'" onmouseout="this.style.boxShadow=\'none\'">'
+      h+='<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px">'+esc(f.classes?.name||'—')+'</div>'
+      h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:11px;color:var(--ink-faint)">'+f.paidCount+'/'+f.stuCount+' paid</span><span style="font-size:14px;font-weight:800;color:'+clr+'">'+fPct+'%</span></div>'
+      h+='<div style="background:var(--line);border-radius:4px;height:6px;overflow:hidden"><div style="background:'+clr+';height:100%;width:'+fPct+'%;border-radius:4px"></div></div>'
+      h+='<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--ink-faint)"><span>₹'+(f.paidCount*f.amount).toLocaleString('en-IN')+' in</span><span>₹'+((f.stuCount-f.paidCount)*f.amount).toLocaleString('en-IN')+' due</span></div>'
+      h+='</div>'
+    })
+    h+='</div></div>'
+  })
+  el.innerHTML=h
 }
 function openAddMiscFeeModal(){
   const clsChecks=ALL_CLASSES.filter(c=>c.is_active).map(c=>'<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;padding:3px 0;cursor:pointer"><input type="checkbox" value="'+c.class_id+'" class="mf_cls_chk" style="accent-color:var(--indigo);width:14px;height:14px"><span>'+esc(c.name)+'</span></label>').join('')
