@@ -4447,7 +4447,7 @@ async function loadStudentNotes(){
   const sectionId=$('notesSectionFilter')?.value||''
   const $body=$('notesBody'),$count=$('notesCount')
   if($body)$body.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  let q=sb.from('student_enrollments').select('student_id,roll_no,classes(name),class_sections(name),students(full_name,father_name,notes,admin_notes)').eq('session_id',SESS?.session_id||'').eq('status','active')
+  let q=sb.from('student_enrollments').select('student_id,roll_no,classes(name),class_sections(name),students(*)').eq('session_id',SESS?.session_id||'').eq('status','active')
   if(classId)q=q.eq('class_id',classId)
   if(sectionId)q=q.eq('section_id',sectionId)
   const{data:enr}=await q
