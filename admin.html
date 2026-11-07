@@ -7089,7 +7089,7 @@ async function loadMiscFeeDashboard(fees){
   const el=$('mfDashboard');if(!el)return
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   const feeIds=fees.map(f=>f.misc_fee_id)
-  const{data:allPayments}=await sb.from('misc_fee_payments').select('misc_fee_id,enrollment_id,is_paid,collected_by_type,paid_at').in('misc_fee_id',feeIds)
+  const{data:allPayments}=await sb.from('misc_fee_payments').select('misc_fee_id,enrollment_id,is_paid,is_na,collected_by_type,paid_at').in('misc_fee_id',feeIds)
   const payMap={};(allPayments||[]).forEach(p=>{if(!payMap[p.misc_fee_id])payMap[p.misc_fee_id]=[];payMap[p.misc_fee_id].push(p)})
   const{data:enrollCounts}=await sb.from('student_enrollments').select('class_id').eq('session_id',SESS.session_id).eq('status','active').eq('relieved',false)
   const classCounts={};(enrollCounts||[]).forEach(e=>{classCounts[e.class_id]=(classCounts[e.class_id]||0)+1})
@@ -7097,20 +7097,24 @@ async function loadMiscFeeDashboard(fees){
   const feeGroups={}
   fees.forEach(f=>{
     const key=f.name
-    if(!feeGroups[key])feeGroups[key]={name:f.name,fees:[],totalStudents:0,totalPaid:0,totalAmount:0,totalCollected:0}
+    if(!feeGroups[key])feeGroups[key]={name:f.name,fees:[],totalStudents:0,totalPaid:0,totalNA:0,totalAmount:0,totalCollected:0}
     const g=feeGroups[key]
     const stuCount=classCounts[f.class_id]||0
-    const payments=(payMap[f.misc_fee_id]||[]).filter(p=>p.is_paid)
+    const allP=payMap[f.misc_fee_id]||[]
+    const payments=allP.filter(p=>p.is_paid)
+    const naCount=allP.filter(p=>p.is_na).length
     const paidCount=payments.length
-    g.fees.push({...f,stuCount,paidCount,payments})
+    const applicable=stuCount-naCount
+    g.fees.push({...f,stuCount,paidCount,naCount,applicable,payments})
     g.totalStudents+=stuCount
     g.totalPaid+=paidCount
-    g.totalAmount+=f.amount*stuCount
+    g.totalNA+=naCount
+    g.totalAmount+=f.amount*applicable
     g.totalCollected+=f.amount*paidCount
-    totalExpected+=f.amount*stuCount
+    totalExpected+=f.amount*applicable
     totalCollected+=f.amount*paidCount
     totalPaidCount+=paidCount
-    totalStudentCount+=stuCount
+    totalStudentCount+=applicable
   })
   const overallPct=totalStudentCount?Math.round(totalPaidCount/totalStudentCount*100):0
   let h='<div class="grid-3" style="margin-bottom:20px;grid-template-columns:repeat(4,1fr)">'
@@ -7123,7 +7127,8 @@ async function loadMiscFeeDashboard(fees){
   const groupKeys=Object.keys(feeGroups)
   groupKeys.forEach(key=>{
     const g=feeGroups[key]
-    const gPct=g.totalStudents?Math.round(g.totalPaid/g.totalStudents*100):0
+    const gApplicable=g.totalStudents-g.totalNA
+    const gPct=gApplicable?Math.round(g.totalPaid/gApplicable*100):0
     h+='<div class="card" style="margin-bottom:16px;padding:20px">'
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px">'
     h+='<div><div style="font-size:16px;font-weight:800;color:var(--ink)">'+esc(g.name)+'</div>'
@@ -7133,13 +7138,13 @@ async function loadMiscFeeDashboard(fees){
     h+='<div style="background:var(--lav-100);border-radius:6px;height:8px;overflow:hidden;margin-bottom:14px"><div style="background:'+(gPct===100?'var(--success)':'var(--indigo)')+';height:100%;width:'+gPct+'%;border-radius:6px;transition:width .3s"></div></div>'
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">'
     g.fees.forEach(f=>{
-      const fPct=f.stuCount?Math.round(f.paidCount/f.stuCount*100):0
+      const fPct=f.applicable?Math.round(f.paidCount/f.applicable*100):0
       const clr=fPct===100?'var(--success)':fPct>=50?'var(--indigo)':'var(--danger)'
       h+='<div onclick="openMiscFeeStatus(\''+f.misc_fee_id+'\')" style="cursor:pointer;background:var(--lav-50);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px;transition:box-shadow .15s" onmouseover="this.style.boxShadow=\'0 2px 8px rgba(0,0,0,.08)\'" onmouseout="this.style.boxShadow=\'none\'">'
-      h+='<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px">'+esc(f.classes?.name||'—')+'</div>'
-      h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:11px;color:var(--ink-faint)">'+f.paidCount+'/'+f.stuCount+' paid</span><span style="font-size:14px;font-weight:800;color:'+clr+'">'+fPct+'%</span></div>'
+      h+='<div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px">'+esc(f.classes?.name||'—')+(f.naCount?' <span style="font-size:10px;color:#6B7280;font-weight:400">('+f.naCount+' NA)</span>':'')+'</div>'
+      h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:11px;color:var(--ink-faint)">'+f.paidCount+'/'+f.applicable+' paid</span><span style="font-size:14px;font-weight:800;color:'+clr+'">'+fPct+'%</span></div>'
       h+='<div style="background:var(--line);border-radius:4px;height:6px;overflow:hidden"><div style="background:'+clr+';height:100%;width:'+fPct+'%;border-radius:4px"></div></div>'
-      h+='<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--ink-faint)"><span>₹'+(f.paidCount*f.amount).toLocaleString('en-IN')+' in</span><span>₹'+((f.stuCount-f.paidCount)*f.amount).toLocaleString('en-IN')+' due</span></div>'
+      h+='<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--ink-faint)"><span>₹'+(f.paidCount*f.amount).toLocaleString('en-IN')+' in</span><span>₹'+((f.applicable-f.paidCount)*f.amount).toLocaleString('en-IN')+' due</span></div>'
       h+='</div>'
     })
     h+='</div></div>'
@@ -7221,9 +7226,11 @@ function renderMiscFeeStatus(){
   if(!_mfStatusData)return
   const{fee,enrollments,payments}=_mfStatusData
   const el=$('miscFeeDetailView')
-  const paidMap={};(payments||[]).forEach(p=>{if(p.is_paid)paidMap[p.enrollment_id]=p})
+  const paidMap={};const naMap={};(payments||[]).forEach(p=>{if(p.is_paid)paidMap[p.enrollment_id]=p;if(p.is_na)naMap[p.enrollment_id]=true})
   const totalPaid=Object.keys(paidMap).length
+  const totalNA=Object.keys(naMap).length
   const totalStudents=enrollments.length
+  const applicable=totalStudents-totalNA
   const amount=fee.amount||0
   const hasBD=Array.isArray(fee.fee_breakdown)&&fee.fee_breakdown.length>0
   let h='<div class="page-head"><div><h2>'+esc(fee.name)+' — '+esc(fee.classes?.name||'')+'</h2><p>Collection status · ₹'+amount+' per student</p></div><button class="btn btn-ghost" onclick="$(\'miscFeeListView\').style.display=\'\';$(\'miscFeeDetailView\').style.display=\'none\'">← Back to List</button></div>'
@@ -7232,15 +7239,17 @@ function renderMiscFeeStatus(){
     fee.fee_breakdown.forEach(b=>{h+='<tr><td style="padding:5px 0;font-size:13px">'+esc(b.name)+'</td><td style="padding:5px 0;text-align:right;font-weight:700;font-size:13px;font-family:var(--mono)">₹'+b.amount+'</td></tr>'})
     h+='<tr style="border-top:2px solid var(--line)"><td style="padding:7px 0;font-weight:800;font-size:13px">Total</td><td style="padding:7px 0;text-align:right;font-weight:800;font-size:14px;font-family:var(--mono);color:var(--indigo)">₹'+amount+'</td></tr></tbody></table></div>'
   }
-  h+='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(4,1fr)">'
-  h+='<div class="stat-card"><span class="lbl">Total Students</span><span class="val">'+totalStudents+'</span></div>'
+  h+='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(5,1fr)">'
+  h+='<div class="stat-card"><span class="lbl">Total Students</span><span class="val">'+totalStudents+'</span>'+(totalNA?'<span class="sub">'+totalNA+' NA</span>':'')+'</div>'
+  h+='<div class="stat-card"><span class="lbl">Applicable</span><span class="val">'+applicable+'</span><span class="sub">₹'+(applicable*amount).toLocaleString('en-IN')+' expected</span></div>'
   h+='<div class="stat-card"><span class="lbl" style="color:var(--success)">Paid</span><span class="val" style="color:var(--success)">'+totalPaid+'</span><span class="sub">₹'+(totalPaid*amount).toLocaleString('en-IN')+' collected</span></div>'
-  h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+(totalStudents-totalPaid)+'</span><span class="sub">₹'+((totalStudents-totalPaid)*amount).toLocaleString('en-IN')+' remaining</span></div>'
-  const pct=totalStudents?Math.round(totalPaid/totalStudents*100):0
+  h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+(applicable-totalPaid)+'</span><span class="sub">₹'+((applicable-totalPaid)*amount).toLocaleString('en-IN')+' remaining</span></div>'
+  const pct=applicable?Math.round(totalPaid/applicable*100):0
   h+='<div class="stat-card"><span class="lbl">Progress</span><span class="val">'+pct+'%</span><div style="background:var(--line);border-radius:4px;height:8px;width:100%;overflow:hidden;margin-top:6px"><div style="background:var(--success);height:100%;width:'+pct+'%"></div></div></div></div>'
   h+='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Section</th><th>Status</th><th>Collected By</th><th>Action</th></tr></thead><tbody>'
   enrollments.forEach(e=>{
     const p=paidMap[e.enrollment_id]
+    const isNA=!!naMap[e.enrollment_id]
     const paid=!!p
     const byType=p?.collected_by_type||''
     const mode=p?.collection_mode;
@@ -7248,11 +7257,12 @@ function renderMiscFeeStatus(){
     const modeTag=mode?' <span style="font-size:10px;color:var(--ink-faint)">('+mode+')</span>':'';
     const timeTag=paidTime?'<div style="font-size:10px;color:var(--ink-faint)">'+paidTime+'</div>':'';
     let statusPill,collectedBy,action
-    if(paid&&byType==='admin'){statusPill='<span class="pill pill-neutral">Paid (Admin)'+modeTag+'</span>'+timeTag;collectedBy='<span style="font-size:11.5px">Admin</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
+    if(isNA){statusPill='<span class="pill pill-neutral" style="background:#F3F4F6;color:#6B7280">N/A</span>';collectedBy='—';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscNA(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Remove NA</button>'}
+    else if(paid&&byType==='admin'){statusPill='<span class="pill pill-neutral">Paid (Admin)'+modeTag+'</span>'+timeTag;collectedBy='<span style="font-size:11.5px">Admin</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
     else if(paid&&byType==='teacher'){statusPill='<span class="pill pill-success">Paid (Teacher)'+modeTag+'</span>'+timeTag;collectedBy='<span style="font-size:11.5px">Teacher</span>';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
     else if(paid){statusPill='<span class="pill pill-success">Paid'+modeTag+'</span>'+timeTag;collectedBy='—';action='<button class="btn btn-ghost btn-xs" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',false)">Undo</button>'}
-    else{statusPill='<span class="pill pill-danger">Pending</span>';collectedBy='—';action='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',true)">Mark Paid</button>'}
-    h+='<tr><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td>'+statusPill+'</td><td>'+collectedBy+'</td><td>'+action+'</td></tr>'
+    else{statusPill='<span class="pill pill-danger">Pending</span>';collectedBy='—';action='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="adminToggleMiscFee(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',true)">Mark Paid</button> <button class="btn btn-ghost btn-xs" style="font-size:10px;color:#6B7280" onclick="adminToggleMiscNA(\''+e.enrollment_id+'\',\''+fee.misc_fee_id+'\',true)">NA</button>'}
+    h+='<tr'+(isNA?' style="opacity:.5"':'')+'><td class="mono" style="font-weight:700">'+esc(e.roll_no||'—')+'</td><td style="font-weight:600">'+esc(e.students?.full_name||'?')+'</td><td>'+esc(e.students?.father_name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td>'+statusPill+'</td><td>'+collectedBy+'</td><td>'+action+'</td></tr>'
   })
   h+='</tbody></table></div></div>'
   el.innerHTML=h
@@ -7268,6 +7278,16 @@ async function adminToggleMiscFee(enrollmentId,feeId,markPaid){
   },{onConflict:'misc_fee_id,enrollment_id'})
   if(error){toast('Failed: '+error.message,'error');return}
   toast(markPaid?'Marked as paid ('+collectionMode+')':'Payment reversed','success')
+  const{data:p}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId)
+  _mfStatusData.payments=p||[];renderMiscFeeStatus()
+}
+async function adminToggleMiscNA(enrollmentId,feeId,mark){
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:false,is_na:mark,
+    collected_by_type:'admin',collected_by_id:null,paid_at:null,collection_mode:null
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(mark?'Marked as N/A':'NA removed','success')
   const{data:p}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId)
   _mfStatusData.payments=p||[];renderMiscFeeStatus()
 }
@@ -7348,15 +7368,23 @@ async function mfcLoadStudentFees(eid,studentName){
   const{data:fees}=await sb.from('misc_fees').select('*').eq('session_id',SESS.session_id).eq('class_id',classId).order('created_at',{ascending:false})
   if(!fees?.length){el.innerHTML='<div class="card"><div style="padding:16px;color:var(--ink-faint);font-size:13px">No misc fees found for this class.</div></div>';return}
   const{data:payments}=await sb.from('misc_fee_payments').select('*').eq('enrollment_id',eid)
-  const paidMap={};(payments||[]).forEach(p=>{if(p.is_paid)paidMap[p.misc_fee_id]=p})
+  const paidMap={};const naFeeMap={};(payments||[]).forEach(p=>{if(p.is_paid)paidMap[p.misc_fee_id]=p;if(p.is_na)naFeeMap[p.misc_fee_id]=true})
   let h='<div class="card"><h3 style="margin:0 0 14px;font-size:15px">Misc Fees for '+esc(studentName)+'</h3><div class="table-wrap"><table><thead><tr><th>Fee Name</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'
   fees.forEach(f=>{
     const paid=!!paidMap[f.misc_fee_id]
-    const pill=paid?'<span class="pill pill-grn" style="font-size:11px">Paid</span>':'<span class="pill pill-red" style="font-size:11px">Pending</span>'
-    const btn=paid
-      ?'<button class="btn btn-danger btn-xs" onclick="mfcTogglePay(\''+eid+'\',\''+f.misc_fee_id+'\',false,\''+esc(studentName).replace(/'/g,"\\'")+'\')">Reverse</button>'
-      :'<button class="btn btn-success btn-xs" onclick="mfcTogglePay(\''+eid+'\',\''+f.misc_fee_id+'\',true,\''+esc(studentName).replace(/'/g,"\\'")+'\')">Collect</button>'
-    h+='<tr><td style="font-weight:600">'+esc(f.name)+'</td><td class="mono">₹'+f.amount+'</td><td>'+pill+'</td><td>'+btn+'</td></tr>'
+    const isNA=!!naFeeMap[f.misc_fee_id]
+    let pill,btn
+    if(isNA){
+      pill='<span class="pill pill-neutral" style="background:#F3F4F6;color:#6B7280;font-size:11px">N/A</span>'
+      btn='<button class="btn btn-ghost btn-xs" onclick="mfcToggleNA(\''+eid+'\',\''+f.misc_fee_id+'\',false,\''+esc(studentName).replace(/'/g,"\\'")+'\')">Remove NA</button>'
+    }else if(paid){
+      pill='<span class="pill pill-grn" style="font-size:11px">Paid</span>'
+      btn='<button class="btn btn-danger btn-xs" onclick="mfcTogglePay(\''+eid+'\',\''+f.misc_fee_id+'\',false,\''+esc(studentName).replace(/'/g,"\\'")+'\')">Reverse</button>'
+    }else{
+      pill='<span class="pill pill-red" style="font-size:11px">Pending</span>'
+      btn='<button class="btn btn-success btn-xs" onclick="mfcTogglePay(\''+eid+'\',\''+f.misc_fee_id+'\',true,\''+esc(studentName).replace(/'/g,"\\'")+'\')">Collect</button> <button class="btn btn-ghost btn-xs" style="font-size:10px;color:#6B7280" onclick="mfcToggleNA(\''+eid+'\',\''+f.misc_fee_id+'\',true,\''+esc(studentName).replace(/'/g,"\\'")+'\')">NA</button>'
+    }
+    h+='<tr'+(isNA?' style="opacity:.5"':'')+'><td style="font-weight:600">'+esc(f.name)+'</td><td class="mono">₹'+f.amount+'</td><td>'+pill+'</td><td>'+btn+'</td></tr>'
   })
   h+='</tbody></table></div></div>'
   el.innerHTML=h
@@ -7372,6 +7400,15 @@ async function mfcTogglePay(eid,feeId,markPaid,studentName){
   },{onConflict:'misc_fee_id,enrollment_id'})
   if(error){toast('Failed: '+error.message,'error');return}
   toast(markPaid?'Fee collected ('+collectionMode+')':'Payment reversed','success')
+  mfcLoadStudentFees(eid,studentName)
+}
+async function mfcToggleNA(eid,feeId,mark,studentName){
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:eid,is_paid:false,is_na:mark,
+    collected_by_type:'admin',collected_by_id:SPS.admin?.admin_id||null,paid_at:null,collection_mode:null
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(mark?'Marked as N/A':'NA removed','success')
   mfcLoadStudentFees(eid,studentName)
 }
 
