@@ -904,6 +904,7 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
       <div id="stuTab-bifurcation" style="display:none">
         <div class="card" style="max-width:600px"><div id="bifurcationTable"><div class="loading-row"><div class="spinner"></div></div></div></div>
+        <div id="bifurcationDetail" style="display:none;margin-top:16px"></div>
       </div>
       <div id="stuTab-flags" style="display:none">
         <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
@@ -4145,26 +4146,56 @@ function filterStudents(){
 }
 function renderBifurcation(){
   const el=$('bifurcationTable');if(!el)return
+  const det=$('bifurcationDetail');if(det)det.style.display='none'
   const active=(_studentsRaw||[]).filter(e=>!e.relieved&&e.status==='active')
   const classOrder=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order??999)-(b.sort_order??999))
   const rows=classOrder.map(c=>{
     const inClass=active.filter(e=>e.classes?.class_id===c.class_id)
     const newC=inClass.filter(e=>e.is_new_admission).length
     const oldC=inClass.length-newC
-    return{name:c.name,total:inClass.length,newC,oldC}
+    return{name:c.name,classId:c.class_id,total:inClass.length,newC,oldC}
   }).filter(r=>r.total>0)
   const tTotal=rows.reduce((s,r)=>s+r.total,0)
   const tNew=rows.reduce((s,r)=>s+r.newC,0)
   const tOld=rows.reduce((s,r)=>s+r.oldC,0)
   const th='padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);text-align:left'
   const td='padding:8px 14px;font-size:13px;border-top:1px solid var(--line)'
+  const link='cursor:pointer;text-decoration:underline;text-underline-offset:2px'
   let h='<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--lav-50)"><th style="'+th+'">Class</th><th style="'+th+';text-align:center">Total</th><th style="'+th+';text-align:center">New</th><th style="'+th+';text-align:center">Old</th></tr></thead><tbody>'
   rows.forEach(r=>{
-    h+='<tr><td style="'+td+';font-weight:600">'+esc(r.name)+'</td><td style="'+td+';text-align:center;font-weight:600">'+r.total+'</td><td style="'+td+';text-align:center;color:var(--grn-dark)">'+r.newC+'</td><td style="'+td+';text-align:center">'+r.oldC+'</td></tr>'
+    h+='<tr><td style="'+td+';font-weight:600">'+esc(r.name)+'</td>'
+    h+='<td style="'+td+';text-align:center;font-weight:600;'+link+'" onclick="showBifurcationStudents(\''+r.classId+'\',\'all\',\''+esc(r.name)+'\')">'+r.total+'</td>'
+    h+='<td style="'+td+';text-align:center;color:var(--grn-dark);'+(r.newC?link:'')+'" '+(r.newC?'onclick="showBifurcationStudents(\''+r.classId+'\',\'new\',\''+esc(r.name)+'\')"':'')+'>'+r.newC+'</td>'
+    h+='<td style="'+td+';text-align:center;'+(r.oldC?link:'')+'" '+(r.oldC?'onclick="showBifurcationStudents(\''+r.classId+'\',\'old\',\''+esc(r.name)+'\')"':'')+'>'+r.oldC+'</td></tr>'
   })
-  h+='<tr style="background:var(--lav-50);font-weight:700"><td style="'+td+';font-weight:700">Total</td><td style="'+td+';text-align:center;font-weight:700">'+tTotal+'</td><td style="'+td+';text-align:center;font-weight:700;color:var(--grn-dark)">'+tNew+'</td><td style="'+td+';text-align:center;font-weight:700">'+tOld+'</td></tr>'
+  h+='<tr style="background:var(--lav-50);font-weight:700"><td style="'+td+';font-weight:700">Total</td>'
+  h+='<td style="'+td+';text-align:center;font-weight:700;'+link+'" onclick="showBifurcationStudents(\'all\',\'all\',\'All Classes\')">'+tTotal+'</td>'
+  h+='<td style="'+td+';text-align:center;font-weight:700;color:var(--grn-dark);'+link+'" onclick="showBifurcationStudents(\'all\',\'new\',\'All Classes\')">'+tNew+'</td>'
+  h+='<td style="'+td+';text-align:center;font-weight:700;'+link+'" onclick="showBifurcationStudents(\'all\',\'old\',\'All Classes\')">'+tOld+'</td></tr>'
   h+='</tbody></table>'
   el.innerHTML=h
+}
+function showBifurcationStudents(classId,type,className){
+  const det=$('bifurcationDetail');if(!det)return
+  let list=(_studentsRaw||[]).filter(e=>!e.relieved&&e.status==='active')
+  if(classId!=='all') list=list.filter(e=>e.classes?.class_id===classId)
+  if(type==='new') list=list.filter(e=>e.is_new_admission)
+  else if(type==='old') list=list.filter(e=>!e.is_new_admission)
+  list.sort((a,b)=>(a.roll_no||9999)-(b.roll_no||9999))
+  const label=type==='new'?'New Admissions':type==='old'?'Old Students':'All Students'
+  const th='padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);text-align:left'
+  const td='padding:8px 12px;font-size:13px;border-top:1px solid var(--line)'
+  let h='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px 0"><div><span style="font-weight:700;font-size:14px">'+esc(className)+'</span><span style="margin-left:8px;font-size:12px;color:var(--ink-soft)">'+label+' ('+list.length+')</span></div><button class="btn btn-ghost btn-xs" onclick="$(\'bifurcationDetail\').style.display=\'none\'">✕ Close</button></div>'
+  h+='<div class="table-wrap"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--lav-50)"><th style="'+th+'">#</th><th style="'+th+'">Roll</th><th style="'+th+'">Student Name</th><th style="'+th+'">Father\'s Name</th><th style="'+th+'">Section</th><th style="'+th+'">Phone</th><th style="'+th+'">Admission</th><th style="'+th+'">Profile</th></tr></thead><tbody>'
+  if(!list.length) h+='<tr><td colspan="8" style="'+td+';text-align:center;color:var(--ink-faint)">No students</td></tr>'
+  list.forEach((e,i)=>{
+    const s=e.students||{}
+    const admType=e.is_new_admission?'<span style="color:var(--grn-dark);font-weight:600">New</span>':'<span style="color:var(--ink-soft)">Old</span>'
+    h+='<tr><td style="'+td+'">'+(i+1)+'</td><td style="'+td+'">'+(e.roll_no||'—')+'</td><td style="'+td+';font-weight:600">'+esc(s.full_name||'—')+'</td><td style="'+td+'">'+esc(s.father_name||'—')+'</td><td style="'+td+'">'+esc(e.class_sections?.name||'—')+'</td><td style="'+td+'">'+esc(s.phone||'—')+'</td><td style="'+td+'">'+admType+'</td><td style="'+td+'"><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'
+  })
+  h+='</tbody></table></div></div>'
+  det.innerHTML=h;det.style.display='block'
+  det.scrollIntoView({behavior:'smooth',block:'start'})
 }
 
 async function openProfile(enrollId){
