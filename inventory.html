@@ -1199,42 +1199,83 @@ function renderSellScannedItems(){
 function confirmSell(){
   if(!_sellEid||!_sellItems.length){toast('No items scanned','error');return}
   stopCamScanner('sell')
-  const s=_sellStudentInfo||{}
-  const mode=$('sellPayMode').value
   const matched=detectSetsInItems(_sellItems)
   const inSet=new Set()
   matched.forEach(m=>m.itemIdxs.forEach(i=>inSet.add(i)))
-  let total=0,discount=0,rows='',n=0
+  let total=0,discount=0
   matched.forEach(m=>{
     const setIndiv=m.itemIdxs.reduce((s,i)=>s+getItemPrice(_sellItems[i]),0)
+    discount+=setIndiv-m.setPrice
+    m.itemIdxs.forEach(i=>{total+=getItemPrice(_sellItems[i])})
+  })
+  _sellItems.forEach((item,i)=>{if(!inSet.has(i))total+=getItemPrice(item)})
+  const finalTotal=total-discount
+  window._sellFinalTotal=finalTotal
+  window._sellMatched=matched
+  window._sellInSet=inSet
+  window._sellDiscount=discount
+  const s=_sellStudentInfo||{}
+  let body='<div style="text-align:center;padding:10px 0 6px"><div style="font-size:13px;color:var(--ink-soft)">'+esc(s.name||'—')+' — '+esc(s.cls||'')+'-'+esc(s.sec||'')+'</div>'
+    +'<div style="font-size:28px;font-weight:800;margin:10px 0">'+fmtINR(finalTotal)+'</div>'
+    +'<div style="font-size:12px;color:var(--ink-faint)">'+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+(discount>0?' &middot; Set discount: -'+fmtINR(discount):'')+'</div></div>'
+  body+='<div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">'
+    +'<button class="btn btn-success" onclick="showSaleBill(false)" style="padding:16px;font-size:15px;width:100%">Full Payment — '+fmtINR(finalTotal)+'</button>'
+    +'<button class="btn" onclick="showPartialStep()" style="padding:14px;font-size:14px;width:100%;background:var(--warn);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer">Partial Payment</button>'
+    +'</div>'
+  openModal('Payment',body,'<button class="btn btn-ghost" onclick="resumeSellScan()" style="padding:10px 20px">Back to Scanning</button>')
+}
+function showPartialStep(){
+  const finalTotal=window._sellFinalTotal||0
+  let body='<div style="text-align:center;margin-bottom:16px"><div style="font-size:13px;color:var(--ink-soft)">Total Bill</div><div style="font-size:24px;font-weight:800">'+fmtINR(finalTotal)+'</div></div>'
+    +'<div class="form-row" style="justify-content:center"><div class="fg" style="max-width:180px"><label>Amount Received</label><input type="number" inputmode="decimal" id="sellPartialAmt" placeholder="0" oninput="updatePartialDue()" style="font-family:var(--mono);font-size:18px;text-align:center;padding:12px" autofocus></div></div>'
+    +'<div style="text-align:center;margin-top:10px"><div style="font-size:12px;color:var(--ink-faint)">Remaining Due</div><div id="sellPartialDue" style="font-family:var(--mono);font-weight:800;color:var(--danger);font-size:22px;margin-top:4px">'+fmtINR(finalTotal)+'</div></div>'
+    +'<div style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:10px">Remaining amount will be tracked as a pending partial payment.</div>'
+  const foot='<button class="btn btn-success" onclick="showSaleBill(true)" style="padding:12px 28px;font-size:14px">Proceed to Bill</button>'
+    +'<button class="btn btn-ghost" onclick="confirmSell()">Back</button>'
+  openModal('Partial Payment',body,foot)
+}
+function showSaleBill(isPartial){
+  const s=_sellStudentInfo||{}
+  const mode=$('sellPayMode').value
+  const finalTotal=window._sellFinalTotal||0
+  const matched=window._sellMatched||[]
+  const inSet=window._sellInSet||new Set()
+  const discount=window._sellDiscount||0
+  window._sellIsPartial=isPartial
+  if(isPartial){
+    const paidAmt=parseFloat($('sellPartialAmt')?.value)||0
+    if(paidAmt<=0){toast('Enter amount received','error');return}
+    if(paidAmt>=finalTotal){toast('Amount equals or exceeds total — use Full Payment','error');return}
+    window._sellPartialPaid=paidAmt
+  }
+  let rows='',n=0
+  matched.forEach(m=>{
+    const setIndiv=m.itemIdxs.reduce((sm,i)=>sm+getItemPrice(_sellItems[i]),0)
     const saving=setIndiv-m.setPrice
-    discount+=saving
     rows+='<tr style="background:var(--lav-50,#f5f0ff)"><td colspan="4" style="padding:6px 8px;font-weight:700;font-size:12px;color:var(--primary)">'+esc(m.set.name)+' — Set Price: '+fmtINR(m.setPrice)+' <span style="color:var(--success)">(Save '+fmtINR(saving)+')</span></td></tr>'
     m.itemIdxs.forEach(i=>{
-      n++;const item=_sellItems[i];const price=getItemPrice(item);total+=price
-      rows+='<tr style="background:var(--lav-50,#f5f0ff)"><td style="padding:6px 8px">'+n+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono" style="text-decoration:line-through;color:var(--ink-faint)">'+fmtINR(price)+'</td></tr>'
+      n++;const item=_sellItems[i];const price=getItemPrice(item)
+      rows+='<tr style="background:var(--lav-50,#f5f0ff)"><td style="padding:6px 8px">'+n+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono">'+fmtINR(price)+'</td></tr>'
     })
   })
   _sellItems.forEach((item,i)=>{
     if(inSet.has(i))return
-    n++;const price=getItemPrice(item);total+=price
+    n++;const price=getItemPrice(item)
     rows+='<tr><td style="padding:6px 8px">'+n+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono">'+fmtINR(price)+'</td></tr>'
   })
-  const finalTotal=total-discount
   let body='<div style="margin-bottom:12px;font-size:13px"><b>'+esc(s.name||'—')+'</b> — '+esc(s.cls||'')+'-'+esc(s.sec||'')+' (s/o '+esc(s.father||'—')+')</div>'
-  body+='<div style="margin-bottom:8px;font-size:12px">Payment: <b>'+esc(mode==='cash'?'Cash':'Online')+'</b></div>'
+  body+='<div style="margin-bottom:8px;font-size:12px">Payment: <b>'+esc(isPartial?'Partial ('+mode+')':mode==='cash'?'Cash':'Online')+'</b></div>'
   body+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--lav-100)"><th style="padding:6px 8px;text-align:left">#</th><th style="padding:6px 8px;text-align:left">Article</th><th style="padding:6px 8px;text-align:left">Size</th><th style="padding:6px 8px;text-align:right">Price</th></tr></thead><tbody>'+rows+'</tbody></table>'
   if(discount>0)body+='<div style="text-align:right;font-size:13px;padding:6px 8px 0;color:var(--success)">Set Discount: -'+fmtINR(discount)+'</div>'
   body+='<div style="text-align:right;font-weight:700;font-size:15px;padding:6px 8px 0;border-top:2px solid var(--ink)">Total: '+fmtINR(finalTotal)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')</div>'
-  window._sellFinalTotal=finalTotal
-  body+='<div style="margin-top:14px;padding:12px;background:var(--lav-100);border-radius:var(--radius-sm);border:1px solid var(--line)">'
-    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600"><input type="checkbox" id="sellPartialCb" onchange="toggleSellPartial()" style="width:16px;height:16px;accent-color:var(--pur)"> Partial Payment (parent paying less)</label>'
-    +'<div id="sellPartialWrap" style="display:none;margin-top:10px">'
-    +'<div class="form-row" style="margin:0"><div class="fg" style="max-width:160px"><label>Amount Received</label><input type="number" inputmode="decimal" id="sellPartialAmt" placeholder="0" oninput="updatePartialDue()" style="font-family:var(--mono)"></div>'
-    +'<div class="fg" style="max-width:160px"><label>Remaining</label><div id="sellPartialDue" style="font-family:var(--mono);font-weight:700;color:var(--danger);font-size:15px;padding-top:6px">'+fmtINR(finalTotal)+'</div></div></div>'
-    +'<div style="font-size:11px;color:var(--ink-faint);margin-top:4px">Remaining amount will be tracked as a partial payment due.</div>'
-    +'</div></div>'
-  const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="resumeSellScan()" style="padding:12px 20px">Back to Scanning</button>'
+  if(isPartial){
+    const paidAmt=window._sellPartialPaid||0
+    const due=finalTotal-paidAmt
+    body+='<div style="margin-top:10px;padding:10px 12px;background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);font-size:13px">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Received</span><b style="color:var(--success)">'+fmtINR(paidAmt)+'</b></div>'
+      +'<div style="display:flex;justify-content:space-between"><span>Balance Due</span><b style="color:var(--danger)">'+fmtINR(due)+'</b></div></div>'
+  }
+  const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="confirmSell()">Back</button>'
   openModal('Sale Bill',body,foot)
 }
 
@@ -1254,11 +1295,9 @@ async function processSell(){
   const now=new Date().toISOString()
   const by=SPS.admin?.admin_id||(_invOperator?.id||'admin')
   const count=_sellItems.length
-  const isPartial=$('sellPartialCb')?.checked
+  const isPartial=!!window._sellIsPartial
   const totalAmt=window._sellFinalTotal||0
-  const paidAmt=isPartial?(parseFloat($('sellPartialAmt')?.value)||0):totalAmt
-  if(isPartial&&paidAmt<=0){toast('Enter amount received','error');return}
-  if(isPartial&&paidAmt>=totalAmt){toast('Amount received equals or exceeds total — uncheck partial payment','error');return}
+  const paidAmt=isPartial?(window._sellPartialPaid||0):totalAmt
   let failed=0
   for(const item of _sellItems){
     const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:now,sold_by:by,payment_mode:isPartial?'partial':mode}).eq('id',item.id)
@@ -1285,11 +1324,6 @@ async function processSell(){
   setTimeout(()=>{closeModal();_resetSellUI()},2500)
 }
 
-function toggleSellPartial(){
-  const on=$('sellPartialCb')?.checked
-  $('sellPartialWrap').style.display=on?'':'none'
-  if(!on)$('sellPartialAmt').value=''
-}
 function updatePartialDue(){
   const total=window._sellFinalTotal||0
   const paid=parseFloat($('sellPartialAmt')?.value)||0
@@ -1305,7 +1339,7 @@ function cancelSell(){
 }
 
 function _resetSellUI(){
-  _sellItems=[];_sellEid=null;_sellStudentInfo=null;_sellScannedCodes.clear()
+  _sellItems=[];_sellEid=null;_sellStudentInfo=null;_sellScannedCodes.clear();window._sellIsPartial=false;window._sellPartialPaid=0;window._sellFinalTotal=0
   $('sellScannedList').style.display='none'
   $('sellScannedItems').innerHTML=''
   $('sellSelectedStudent').style.display='none'
