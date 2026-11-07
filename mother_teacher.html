@@ -2225,6 +2225,8 @@ async function viewStudentProfile(eid){
   if(!enr)return
   const s=enr.students||{}
   window._profileStudentId=s.student_id
+  window._profileSnapshot={full_name:s.full_name||'',father_name:s.father_name||'',mother_name:s.mother_name||'',phone:s.phone||'',alt_phone:s.alt_phone||'',aadhar_no:s.aadhar_no||'',gender:s.gender||'',blood_group:s.blood_group||'',dob:s.dob||'',address:s.address||'',admission_date:s.admission_date||'',notes:s.notes||''}
+  window._profileDiff=null
 
   // Read edit-rights from the ACTIVE class row (MY_CLASS), which the realtime
   // watcher keeps current. A per-open .maybeSingle() query on class_teacher_map
@@ -2334,6 +2336,8 @@ async function resolveStudentFlag(studentId){
   if(!confirm('Resolve this flag? The warning will be removed.'))return
   const{error}=await sb.from('students').update({flagged:false,flag_notes:null}).eq('student_id',studentId)
   if(error){toast('Failed: '+error.message,'error');return}
+  const{data:pending}=await sb.from('profile_flag_log').select('id').eq('student_id',studentId).eq('status','pending').order('flagged_at',{ascending:false}).limit(1)
+  if(pending?.[0])await sb.from('profile_flag_log').update({resolved_by:TEACHER.teacher_id,resolved_by_type:'mother_teacher',resolved_at:new Date().toISOString(),status:'resolved',changes_made:window._profileDiff||null}).eq('id',pending[0].id)
   const enr=CLASS_STUDENTS.find(x=>x.students?.student_id===studentId)
   if(enr)enr.students.flagged=false
   toast('Flag resolved','success');closeModal()
@@ -2487,6 +2491,9 @@ async function saveStudentProfile(){
   const _area=document.getElementById('sp_addr_area')?.value?.trim()
   if(_hno||_area) updates.address='H.No. '+(_hno||'—')+', '+(_area||'—')+', NIT Faridabad'
   if(!updates.full_name){toast('Name cannot be empty','error');return}
+  const snap=window._profileSnapshot||{}
+  const diff=[];Object.keys(updates).forEach(k=>{const o=snap[k]||'';const n=updates[k]||'';if(String(o)!==String(n))diff.push({field:k,from:o,to:n})})
+  window._profileDiff=diff.length?diff:null
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
@@ -2649,6 +2656,9 @@ async function saveStudentProfile(studentId){
   const _area2=document.getElementById('sp_addr_area')?.value?.trim()
   if(_hno2||_area2) updates.address='H.No. '+(_hno2||'—')+', '+(_area2||'—')+', NIT Faridabad'
   if(!updates.full_name){toast("Student name can't be empty",'error');return}
+  const snap=window._profileSnapshot||{}
+  const diff=[];Object.keys(updates).forEach(k=>{const o=snap[k]||'';const n=updates[k]||'';if(String(o)!==String(n))diff.push({field:k,from:o,to:n})})
+  window._profileDiff=diff.length?diff:null
   const{data:updated,error}=await sb.from('students').update(updates).eq('student_id',sid).select()
   console.log('[profile] update result →',{sid,rows:updated?.length,error})
   if(error){toast('Failed to save: '+error.message,'error');return}
