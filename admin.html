@@ -4236,7 +4236,7 @@ async function openProfile(enrollId){
   // Notes
   const{data:flagCount}=await sb.from('profile_flag_log').select('id',{count:'exact',head:true}).eq('student_id',s?.student_id||'')
   const flagHistLink=(flagCount?.length||0)>0||s?.flagged?'<div style="margin-bottom:10px"><button type="button" onclick="showStudentFlagHistory(\''+esc(s?.student_id||'')+'\')" style="background:none;border:none;color:var(--indigo);font-size:12px;cursor:pointer;padding:0;text-decoration:underline">View Flag History</button></div>':''
-  $('pm_notes').innerHTML=flagHtml+flagHistLink+(s?.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:12px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':'')
+  $('pm_notes').innerHTML=flagHtml+flagHistLink+(s?.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:12px;line-height:1.5"><strong>Teacher Notes:</strong> '+esc(s.notes)+'</div>':'')+(s?.admin_notes?'<div style="background:#DBEAFE;border:1px solid #60A5FA;border-radius:8px;padding:10px 14px;font-size:13px;color:#1E3A5F;margin-bottom:12px;line-height:1.5"><strong>Admin Notes:</strong> '+esc(s.admin_notes)+'</div>':'')
   $('pm_fields').innerHTML='<div class="field-row"><span class="fk">SRN</span><span class="fv">'+esc(s?.srn||'—')+'</span></div><div class="field-row"><span class="fk">PEN</span><span class="fv">'+esc(s?.pen||'—')+'</span></div><div class="field-row"><span class="fk">APAAR ID</span><span class="fv">'+esc(s?.apaar_id||'—')+'</span></div><div class="field-row"><span class="fk">Admission No</span><span class="fv">'+esc(s?.admission_number||'—')+'</span></div><div class="field-row"><span class="fk">Gender</span><span class="fv">'+esc(s?.gender||'—')+'</span></div><div class="field-row"><span class="fk">Blood Group</span><span class="fv">'+esc(s?.blood_group||'—')+'</span></div><div class="field-row"><span class="fk">Father\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.father_name||'—')+'</span></div><div class="field-row"><span class="fk">Mother\'s Name (as per AADHAR)</span><span class="fv">'+esc(s?.mother_name||'—')+'</span></div><div class="field-row"><span class="fk">Date of Birth</span><span class="fv">'+fmtD(s?.dob)+'</span></div><div class="field-row"><span class="fk">Admission Date</span><span class="fv">'+fmtD(s?.admission_date)+'</span></div><div class="field-row"><span class="fk">Phone</span><span class="fv">'+esc(s?.phone||'—')+'</span></div><div class="field-row"><span class="fk">Alt Phone</span><span class="fv">'+esc(s?.alt_phone||'—')+'</span></div><div class="field-row"><span class="fk">Aadhar No.</span><span class="fv">'+esc(s?.aadhar_no||'—')+'</span></div><div class="field-row"><span class="fk">Address</span><span class="fv">'+esc(s?.address||'—')+'</span></div><div class="field-row"><span class="fk">Family Code</span><span class="fv">'+esc(s?.family_code||'—')+'</span></div>'
   const{data:docs}=await sb.from('student_documents').select('*').eq('student_id',s?.student_id||'')
   if(docs?.length)$('pm_docs').innerHTML='<h3 style="font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:10px">Documents</h3><div class="map-tags">'+docs.map(d=>'<span style="display:inline-flex;align-items:center;gap:8px;margin:0 8px 8px 0"><a class="map-tag" href="'+esc(R2.url(d.file_url))+'" target="_blank" style="color:inherit;text-decoration:none">'+esc(d.file_type||'Doc')+'</a><button type="button" title="Delete document" onclick="deleteStudentDoc(\''+esc(s?.student_id||'')+'\',\''+esc(d.file_url||'')+'\',\''+esc(d.file_type||'')+'\',this)" style="border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-faint);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button></span>').join('')+'</div>'
@@ -4447,11 +4447,11 @@ async function loadStudentNotes(){
   const sectionId=$('notesSectionFilter')?.value||''
   const $body=$('notesBody'),$count=$('notesCount')
   if($body)$body.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
-  let q=sb.from('student_enrollments').select('student_id,roll_no,classes(name),class_sections(name),students(full_name,father_name,notes)').eq('session_id',SESS?.session_id||'').eq('status','active')
+  let q=sb.from('student_enrollments').select('student_id,roll_no,classes(name),class_sections(name),students(full_name,father_name,notes,admin_notes)').eq('session_id',SESS?.session_id||'').eq('status','active')
   if(classId)q=q.eq('class_id',classId)
   if(sectionId)q=q.eq('section_id',sectionId)
   const{data:enr}=await q
-  const rows=(enr||[]).filter(e=>e.students?.notes&&e.students.notes.trim())
+  const rows=(enr||[]).filter(e=>(e.students?.notes&&e.students.notes.trim())||(e.students?.admin_notes&&e.students.admin_notes.trim()))
   rows.sort((a,b)=>{
     const ca=(a.classes?.name||'').localeCompare(b.classes?.name||'')
     if(ca!==0)return ca
@@ -4469,7 +4469,9 @@ async function loadStudentNotes(){
       +'<span style="color:var(--ink-soft);font-size:12px">s/o '+esc(s.father_name||'—')+'</span>'
       +(classSec?'<span style="color:var(--ink-faint);font-size:11px;margin-left:auto">'+esc(classSec)+'</span>':'')
       +'</div>'
-      +'<div style="font-size:12.5px;color:var(--ink);background:var(--surface);padding:8px 12px;border-radius:var(--radius-sm);white-space:pre-wrap;line-height:1.5">'+esc(s.notes)+'</div></div>'
+      +(s.notes?'<div style="font-size:12.5px;color:#713F12;background:#FEF9C3;border:1px solid #FACC15;padding:8px 12px;border-radius:var(--radius-sm);white-space:pre-wrap;line-height:1.5;margin-bottom:'+(s.admin_notes?'6px':'0')+'"><strong style="font-size:11px;text-transform:uppercase;letter-spacing:.04em">Teacher Notes</strong><br>'+esc(s.notes)+'</div>':'')
+      +(s.admin_notes?'<div style="font-size:12.5px;color:#1E3A5F;background:#DBEAFE;border:1px solid #93C5FD;padding:8px 12px;border-radius:var(--radius-sm);white-space:pre-wrap;line-height:1.5"><strong style="font-size:11px;text-transform:uppercase;letter-spacing:.04em">Admin Notes</strong><br>'+esc(s.admin_notes)+'</div>':'')
+      +'</div>'
   })
   if($body)$body.innerHTML=html
 }
@@ -4559,7 +4561,8 @@ async function openEditDemoModal(){
     '<div class="form-row"><div class="fg"><label>PEN</label><input id="ed_pen" value="'+esc(s.pen||'')+'" placeholder="Permanent Education Number"></div><div class="fg"><label>APAAR ID</label><input id="ed_apaar" value="'+esc(s.apaar_id||'')+'" placeholder="APAAR ID"></div></div>'+
     '<div class="form-row"><div class="fg"><label>Admission No</label><input id="ed_admno" value="'+esc(s.admission_number||'')+'" placeholder="Admission number"></div><div class="fg"><label>Gender</label><select id="ed_gender"><option value="">— Select —</option><option value="Male"'+(s.gender==='Male'?' selected':'')+'>Male</option><option value="Female"'+(s.gender==='Female'?' selected':'')+'>Female</option></select></div></div>'+
     '<div class="form-row"><div class="fg"><label>Address</label><input id="ed_address" value="'+esc(s.address||'')+'"></div></div>'+
-    '<div class="form-row"><div class="fg"><label>Notes</label><textarea id="ed_notes" style="min-height:60px;resize:vertical" placeholder="Internal notes about this student">'+esc(s.notes||'')+'</textarea></div></div>'+
+    '<div class="form-row"><div class="fg"><label>Admin Notes</label><textarea id="ed_admin_notes" style="min-height:60px;resize:vertical" placeholder="Add admin notes about this student">'+esc(s.admin_notes||'')+'</textarea></div></div>'+
+    (s.notes?'<div class="form-row"><div class="fg"><label>Teacher Notes <span style="font-weight:400;font-size:10.5px;color:var(--ink-faint)">(read-only)</span></label><div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:var(--radius-sm);padding:8px 12px;font-size:12.5px;color:#713F12;white-space:pre-wrap;line-height:1.5">'+esc(s.notes)+'</div></div></div>':'')+
     '<div style="height:1px;background:var(--lav-200);margin:18px 0"></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:10px">MIS / UDISE Class</div>'+
     '<div class="form-row"><div class="fg"><label>MIS Class</label><select id="ed_mis_class"><option value="">— Same as current class —</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+esc(c.name)+'"'+(s.mis_class===c.name?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div><div class="fg"><label>UDISE Class</label><select id="ed_udise_class"><option value="">— Same as current class —</option>'+(ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>'<option value="'+esc(c.name)+'"'+(s.udise_class===c.name?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div></div>'+
@@ -4736,7 +4739,7 @@ async function saveEditDemo(){
     family_code:edFamily,
     srn:edSrn, pen:edPen, apaar_id:edApaar, gender:edGender,
     admission_number:$('ed_admno')?.value?.trim()||null,
-    notes:$('ed_notes')?.value?.trim()||null,
+    admin_notes:$('ed_admin_notes')?.value?.trim()||null,
     mis_class:$('ed_mis_class')?.value?.trim()||null,
     udise_class:$('ed_udise_class')?.value?.trim()||null
   }).eq('student_id',sid)

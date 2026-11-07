@@ -1576,11 +1576,32 @@ async function _loadHistory(){
 
 async function deleteTransaction(itemId){
   if(!confirm('Delete this transaction? The item will be returned to stock.'))return
+  const{data:item}=await sb.from('inv_items').select('qr_code,sold_to_enrollment_id,payment_mode').eq('id',itemId).single()
   const{error}=await sb.from('inv_items').update({status:'in_stock',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null}).eq('id',itemId)
   if(error){toast('Failed: '+error.message,'error');return}
+  if(item&&item.payment_mode==='partial'&&item.sold_to_enrollment_id&&item.qr_code){
+    const{data:pp}=await sb.from('inv_partial_payments').select('id,items,total_amount,paid_amount,remaining_amount').eq('enrollment_id',item.sold_to_enrollment_id).eq('status','pending')
+    if(pp&&pp.length){
+      const match=pp.find(r=>(r.items||[]).some(i=>i.qr===item.qr_code))
+      if(match){
+        const left=(match.items||[]).filter(i=>i.qr!==item.qr_code)
+        if(left.length===0){
+          await sb.from('inv_partial_payments').delete().eq('id',match.id)
+        }else{
+          const removedPrice=(match.items||[]).find(i=>i.qr===item.qr_code)?.price||0
+          const newTotal=Math.max(0,(match.total_amount||0)-removedPrice)
+          const newRemaining=Math.max(0,newTotal-(match.paid_amount||0))
+          const upd={items:left,total_amount:newTotal,remaining_amount:newRemaining}
+          if(newRemaining<=0)upd.status='cleared'
+          await sb.from('inv_partial_payments').update(upd).eq('id',match.id)
+        }
+      }
+    }
+  }
   toast('Transaction deleted, item returned to stock','success')
   _tabLoaded.delete('dashboard')
   _tabLoaded.delete('history')
+  _tabLoaded.delete('partial')
   _loadHistory()
 }
 
