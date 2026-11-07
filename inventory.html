@@ -224,6 +224,7 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item" onclick="goTo('sell',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Sell / Distribute</div>
     <div class="sb-item" onclick="goTo('exchange',this)"><svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Exchange</div>
     <div class="sb-item" onclick="goTo('history',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Purchase History</div>
+    <div class="sb-item" onclick="goTo('partial',this)"><svg viewBox="0 0 24 24"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="4" fill="none"/><path d="M12 8v4l2 2"/></svg>Partial Payments<span class="bc" id="partialBadge" style="display:none">0</span></div>
 
     <div class="sb-label">Links</div>
     <a class="sb-link" href="admin.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg>Admin Portal<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
@@ -419,6 +420,21 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
   </div>
 
+  <!-- ════════ PARTIAL PAYMENTS ════════ -->
+  <div class="page" id="page-partial">
+    <div class="page-head"><div><h2>Partial Payments</h2><p>Track pending balances from inventory purchases</p></div><button class="btn btn-primary" onclick="openNewPartialModal()">+ Log Partial Payment</button></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px" id="partialStats">
+      <div class="stat-card danger"><div class="lbl">Pending</div><div class="val" id="ppPending">—</div><div class="sub" id="ppPendingAmt"></div></div>
+      <div class="stat-card success"><div class="lbl">Cleared</div><div class="val" id="ppCleared">—</div></div>
+      <div class="stat-card"><div class="lbl">Moved to Fee Portal</div><div class="val" id="ppMoved">—</div></div>
+    </div>
+    <div class="search-bar" style="margin-bottom:14px">
+      <div class="fg" style="max-width:200px"><label>Search</label><input id="ppSearch" placeholder="Student name..." oninput="renderPartialList()"></div>
+      <div class="fg" style="max-width:140px"><label>Status</label><select id="ppStatusFilter" onchange="renderPartialList()"><option value="pending">Pending</option><option value="cleared">Cleared</option><option value="moved">Moved to Fees</option><option value="">All</option></select></div>
+    </div>
+    <div id="partialListBody"><div class="loading-row"><div class="spinner"></div></div></div>
+  </div>
+
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -443,7 +459,7 @@ function fmtINR(n){return '₹'+Number(n||0).toLocaleString('en-IN')}
 function today(){return new Date().toISOString().slice(0,10)}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',articles:'Articles',stock:'Stock & Batches',qrcodes:'QR Codes',sets:'Set Discounts',sell:'Sell / Distribute',exchange:'Exchange',history:'Purchase History'}
+const TITLES={dashboard:'Dashboard',articles:'Articles',stock:'Stock & Batches',qrcodes:'QR Codes',sets:'Set Discounts',sell:'Sell / Distribute',exchange:'Exchange',history:'Purchase History',partial:'Partial Payments'}
 function getItemPrice(item){
   const art=item.inv_articles
   if(!art)return 0
@@ -1210,6 +1226,14 @@ function confirmSell(){
   body+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--lav-100)"><th style="padding:6px 8px;text-align:left">#</th><th style="padding:6px 8px;text-align:left">Article</th><th style="padding:6px 8px;text-align:left">Size</th><th style="padding:6px 8px;text-align:right">Price</th></tr></thead><tbody>'+rows+'</tbody></table>'
   if(discount>0)body+='<div style="text-align:right;font-size:13px;padding:6px 8px 0;color:var(--success)">Set Discount: -'+fmtINR(discount)+'</div>'
   body+='<div style="text-align:right;font-weight:700;font-size:15px;padding:6px 8px 0;border-top:2px solid var(--ink)">Total: '+fmtINR(finalTotal)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')</div>'
+  window._sellFinalTotal=finalTotal
+  body+='<div style="margin-top:14px;padding:12px;background:var(--lav-100);border-radius:var(--radius-sm);border:1px solid var(--line)">'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600"><input type="checkbox" id="sellPartialCb" onchange="toggleSellPartial()" style="width:16px;height:16px;accent-color:var(--pur)"> Partial Payment (parent paying less)</label>'
+    +'<div id="sellPartialWrap" style="display:none;margin-top:10px">'
+    +'<div class="form-row" style="margin:0"><div class="fg" style="max-width:160px"><label>Amount Received</label><input type="number" inputmode="decimal" id="sellPartialAmt" placeholder="0" oninput="updatePartialDue()" style="font-family:var(--mono)"></div>'
+    +'<div class="fg" style="max-width:160px"><label>Remaining</label><div id="sellPartialDue" style="font-family:var(--mono);font-weight:700;color:var(--danger);font-size:15px;padding-top:6px">'+fmtINR(finalTotal)+'</div></div></div>'
+    +'<div style="font-size:11px;color:var(--ink-faint);margin-top:4px">Remaining amount will be tracked as a partial payment due.</div>'
+    +'</div></div>'
   const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="resumeSellScan()" style="padding:12px 20px">Back to Scanning</button>'
   openModal('Sale Bill',body,foot)
 }
@@ -1228,18 +1252,50 @@ function resumeSellScan(){
 async function processSell(){
   const mode=$('sellPayMode').value
   const now=new Date().toISOString()
-  const by=SPS.admin?.admin_id||'admin'
+  const by=SPS.admin?.admin_id||(_invOperator?.id||'admin')
   const count=_sellItems.length
+  const isPartial=$('sellPartialCb')?.checked
+  const totalAmt=window._sellFinalTotal||0
+  const paidAmt=isPartial?(parseFloat($('sellPartialAmt')?.value)||0):totalAmt
+  if(isPartial&&paidAmt<=0){toast('Enter amount received','error');return}
+  if(isPartial&&paidAmt>=totalAmt){toast('Amount received equals or exceeds total — uncheck partial payment','error');return}
   let failed=0
   for(const item of _sellItems){
-    const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:now,sold_by:by,payment_mode:mode}).eq('id',item.id)
+    const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:now,sold_by:by,payment_mode:isPartial?'partial':mode}).eq('id',item.id)
     if(error)failed++
   }
   if(failed){closeModal();toast(failed+' item(s) failed to save','error');_resetSellUI();return}
-  $('modalBody').innerHTML='<div style="display:flex;flex-direction:column;align-items:center;padding:30px 0"><svg class="sell-tick" viewBox="0 0 80 80" style="width:100px;height:100px"><circle cx="40" cy="40" r="36" fill="none" stroke="#22c55e" stroke-width="4" stroke-dasharray="226" stroke-dashoffset="226" style="animation:sell-tick-circle .5s ease forwards"/><path d="M24 42 L35 53 L56 28" fill="none" stroke="#22c55e" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="50" stroke-dashoffset="50" style="animation:sell-tick-check .35s .4s ease forwards"/></svg><div style="margin-top:18px;font-size:18px;font-weight:700;color:#22c55e">Sale Confirmed!</div><div style="margin-top:6px;font-size:13px;color:var(--ink-soft)">'+count+' item'+(count>1?'s':'')+' sold successfully</div></div>'
+  if(isPartial){
+    const remaining=totalAmt-paidAmt
+    const items=_sellItems.map(i=>({article:i.inv_articles?.name||'—',size:i.size||null,qr:i.qr_code,price:getItemPrice(i)}))
+    const{error:ppErr}=await sb.from('inv_partial_payments').insert({
+      enrollment_id:_sellEid,session_id:SESS?.session_id||null,
+      total_amount:totalAmt,paid_amount:paidAmt,remaining_amount:remaining,
+      payment_mode:mode,items,
+      created_by:by,status:'pending',
+      payments:[{amount:paidAmt,mode,date:now,by}]
+    })
+    if(ppErr)console.warn('Partial payment record failed:',ppErr.message)
+  }
+  let msg=count+' item'+(count>1?'s':'')+' sold successfully'
+  if(isPartial)msg+='<br><span style="color:var(--warn);font-size:12px">Partial payment of '+fmtINR(paidAmt)+' recorded. Balance '+fmtINR(totalAmt-paidAmt)+' pending.</span>'
+  $('modalBody').innerHTML='<div style="display:flex;flex-direction:column;align-items:center;padding:30px 0"><svg class="sell-tick" viewBox="0 0 80 80" style="width:100px;height:100px"><circle cx="40" cy="40" r="36" fill="none" stroke="#22c55e" stroke-width="4" stroke-dasharray="226" stroke-dashoffset="226" style="animation:sell-tick-circle .5s ease forwards"/><path d="M24 42 L35 53 L56 28" fill="none" stroke="#22c55e" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="50" stroke-dashoffset="50" style="animation:sell-tick-check .35s .4s ease forwards"/></svg><div style="margin-top:18px;font-size:18px;font-weight:700;color:#22c55e">Sale Confirmed!</div><div style="margin-top:6px;font-size:13px;color:var(--ink-soft)">'+msg+'</div></div>'
   $('modalFoot').innerHTML=''
-  _tabLoaded.delete('dashboard')
-  setTimeout(()=>{closeModal();_resetSellUI()},2000)
+  _tabLoaded.delete('dashboard');_tabLoaded.delete('partial')
+  setTimeout(()=>{closeModal();_resetSellUI()},2500)
+}
+
+function toggleSellPartial(){
+  const on=$('sellPartialCb')?.checked
+  $('sellPartialWrap').style.display=on?'':'none'
+  if(!on)$('sellPartialAmt').value=''
+}
+function updatePartialDue(){
+  const total=window._sellFinalTotal||0
+  const paid=parseFloat($('sellPartialAmt')?.value)||0
+  const due=Math.max(0,total-paid)
+  $('sellPartialDue').textContent=fmtINR(due)
+  $('sellPartialDue').style.color=due>0?'var(--danger)':'var(--success)'
 }
 
 function cancelSell(){
@@ -1494,6 +1550,204 @@ async function deleteTransaction(itemId){
   _loadHistory()
 }
 
+// ═══════════ PARTIAL PAYMENTS ═══════════
+let _ppData=[]
+async function loadPartialPayments(){
+  const{data}=await sb.from('inv_partial_payments').select('*').eq('session_id',SESS?.session_id||'').order('created_at',{ascending:false})
+  _ppData=data||[]
+  const eids=[...new Set(_ppData.map(r=>r.enrollment_id).filter(Boolean))]
+  window._ppStuMap={}
+  if(eids.length){
+    const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,students!inner(full_name,father_name),classes(name),class_sections(name)').in('enrollment_id',eids)
+    ;(enr||[]).forEach(e=>{window._ppStuMap[e.enrollment_id]=e})
+  }
+  const pending=_ppData.filter(r=>r.status==='pending')
+  const cleared=_ppData.filter(r=>r.status==='cleared')
+  const moved=_ppData.filter(r=>r.status==='moved')
+  $('ppPending').textContent=pending.length
+  $('ppPendingAmt').textContent='Total due: '+fmtINR(pending.reduce((s,r)=>s+(r.remaining_amount||0),0))
+  $('ppCleared').textContent=cleared.length
+  $('ppMoved').textContent=moved.length
+  const badge=$('partialBadge')
+  if(badge){badge.textContent=pending.length;badge.style.display=pending.length?'flex':'none'}
+  renderPartialList()
+}
+function renderPartialList(){
+  const search=($('ppSearch')?.value||'').toLowerCase()
+  const status=$('ppStatusFilter')?.value||''
+  let rows=_ppData
+  if(status)rows=rows.filter(r=>r.status===status)
+  if(search)rows=rows.filter(r=>{const s=window._ppStuMap[r.enrollment_id];return s?.students?.full_name?.toLowerCase().includes(search)})
+  const el=$('partialListBody')
+  if(!rows.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No partial payments found.</div>';return}
+  el.innerHTML=rows.map(r=>{
+    const s=window._ppStuMap[r.enrollment_id]||{}
+    const stu=s.students||{}
+    const cls=(s.classes?.name||'')+(s.class_sections?.name?' - '+s.class_sections.name:'')
+    const isPending=r.status==='pending'
+    const badge=isPending?'<span class="pill pill-danger">Pending '+fmtINR(r.remaining_amount)+'</span>'
+      :r.status==='cleared'?'<span class="pill pill-success">Cleared</span>'
+      :'<span class="pill pill-pur">Moved to Fees</span>'
+    const items=(r.items||[]).map(i=>esc(i.article)+(i.size?' ('+esc(i.size)+')':'')).join(', ')
+    const payments=(r.payments||[]).map(p=>{
+      const d=p.date?new Date(p.date).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''
+      return '<div style="font-size:11.5px;padding:3px 0;display:flex;justify-content:space-between"><span>'+d+' — <b>'+esc(p.mode||'cash')+'</b></span><span style="color:var(--success);font-weight:600">'+fmtINR(p.amount)+'</span></div>'
+    }).join('')
+    let actions=''
+    if(isPending){
+      actions='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+        +'<button class="btn btn-primary btn-xs" onclick="openAddPayment(\''+r.id+'\')">+ Add Payment</button>'
+        +'<button class="btn btn-success btn-xs" onclick="markPartialCleared(\''+r.id+'\')">Mark Cleared</button>'
+        +'<button class="btn btn-xs" style="background:var(--warn);color:#fff" onclick="moveToFeePortal(\''+r.id+'\')">Move to Fee Portal</button>'
+        +'</div>'
+    }
+    const created=r.created_at?new Date(r.created_at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''
+    return '<div class="card" style="padding:16px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">'
+      +'<div><span style="font-weight:700;font-size:14px">'+esc(stu.full_name||'Unknown')+'</span>'
+      +'<span style="font-size:12px;color:var(--ink-soft);margin-left:8px">s/o '+esc(stu.father_name||'—')+'</span>'
+      +(cls?'<span style="font-size:11px;color:var(--ink-faint);margin-left:8px">'+esc(cls)+'</span>':'')+'</div>'
+      +badge+'</div>'
+      +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px">'+created+'</div>'
+      +'<div style="font-size:12.5px;margin-bottom:6px"><b>Items:</b> '+items+'</div>'
+      +'<div style="display:flex;gap:20px;font-size:12.5px;margin-bottom:6px">'
+      +'<span>Total: <b>'+fmtINR(r.total_amount)+'</b></span>'
+      +'<span style="color:var(--success)">Paid: <b>'+fmtINR(r.paid_amount)+'</b></span>'
+      +(isPending?'<span style="color:var(--danger)">Due: <b>'+fmtINR(r.remaining_amount)+'</b></span>':'')
+      +'</div>'
+      +(payments?'<div style="background:var(--lav-50);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin-bottom:4px">Payment History</div>'+payments+'</div>':'')
+      +actions+'</div>'
+  }).join('')
+}
+function openAddPayment(ppId){
+  const rec=_ppData.find(r=>r.id===ppId)
+  if(!rec)return
+  openModal('Add Payment','<div style="margin-bottom:10px;font-size:13px">Remaining: <b style="color:var(--danger)">'+fmtINR(rec.remaining_amount)+'</b></div>'
+    +'<div class="form-row"><div class="fg" style="max-width:160px"><label>Amount Received</label><input type="number" inputmode="decimal" id="ppAddAmt" placeholder="0" max="'+rec.remaining_amount+'" style="font-family:var(--mono)"></div>'
+    +'<div class="fg" style="max-width:140px"><label>Mode</label><select id="ppAddMode"><option value="cash">Cash</option><option value="online">Online</option></select></div></div>',
+    '<button class="btn btn-success" onclick="saveAddPayment(\''+ppId+'\')">Save Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveAddPayment(ppId){
+  const amt=parseFloat($('ppAddAmt')?.value)||0
+  const mode=$('ppAddMode')?.value||'cash'
+  const rec=_ppData.find(r=>r.id===ppId)
+  if(!rec){toast('Record not found','error');return}
+  if(amt<=0){toast('Enter a valid amount','error');return}
+  if(amt>rec.remaining_amount){toast('Amount exceeds remaining balance','error');return}
+  const by=SPS.admin?.admin_id||(_invOperator?.id||'admin')
+  const newPayments=[...(rec.payments||[]),{amount:amt,mode,date:new Date().toISOString(),by}]
+  const newPaid=(rec.paid_amount||0)+amt
+  const newRemaining=rec.total_amount-newPaid
+  const newStatus=newRemaining<=0?'cleared':'pending'
+  const{error}=await sb.from('inv_partial_payments').update({
+    paid_amount:newPaid,remaining_amount:Math.max(0,newRemaining),
+    payments:newPayments,status:newStatus,
+    ...(newStatus==='cleared'?{cleared_at:new Date().toISOString()}:{})
+  }).eq('id',ppId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal()
+  toast(newStatus==='cleared'?'Payment complete — balance cleared!':'Payment of '+fmtINR(amt)+' recorded','success')
+  _tabLoaded.delete('partial');loadPartialPayments()
+}
+async function markPartialCleared(ppId){
+  if(!confirm('Mark this balance as fully cleared?'))return
+  const{error}=await sb.from('inv_partial_payments').update({status:'cleared',remaining_amount:0,cleared_at:new Date().toISOString()}).eq('id',ppId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Marked as cleared','success')
+  _tabLoaded.delete('partial');loadPartialPayments()
+}
+async function moveToFeePortal(ppId){
+  const rec=_ppData.find(r=>r.id===ppId)
+  if(!rec||!rec.enrollment_id){toast('Record not found','error');return}
+  const remaining=rec.remaining_amount||0
+  if(remaining<=0){toast('No remaining amount to move','error');return}
+  const stu=window._ppStuMap[rec.enrollment_id]
+  const stuName=stu?.students?.full_name||'Student'
+  const items=(rec.items||[]).map(i=>i.article).join(', ')
+  if(!confirm('Move '+fmtINR(remaining)+' to Family Prev Balance for '+stuName+'?\n\nThis will:\n1. Add '+fmtINR(remaining)+' to their previous balance in Fee Portal\n2. Log it as "Inventory partial payment — '+items+'"\n3. Mark this record as moved'))return
+  const{data:existing}=await sb.from('previous_balances').select('prev_balance_id,amount').eq('enrollment_id',rec.enrollment_id).limit(1)
+  const source='Inventory partial payment: '+items
+  if(existing?.length){
+    const newAmt=(existing[0].amount||0)+remaining
+    const{error:updErr}=await sb.from('previous_balances').update({amount:newAmt}).eq('prev_balance_id',existing[0].prev_balance_id)
+    if(updErr){toast('Failed to update prev balance: '+updErr.message,'error');return}
+  }else{
+    const{error:insErr}=await sb.from('previous_balances').insert({enrollment_id:rec.enrollment_id,amount:remaining})
+    if(insErr){toast('Failed to create prev balance: '+insErr.message,'error');return}
+  }
+  await sb.from('prev_balance_ledger').insert({
+    enrollment_id:rec.enrollment_id,entry_date:today(),source,amount:remaining
+  })
+  const{error:mvErr}=await sb.from('inv_partial_payments').update({
+    status:'moved',remaining_amount:0,moved_at:new Date().toISOString(),
+    moved_to_fee_portal:true
+  }).eq('id',ppId)
+  if(mvErr)console.warn('Move status update failed:',mvErr.message)
+  toast(fmtINR(remaining)+' moved to Fee Portal prev balance for '+stuName,'success')
+  _tabLoaded.delete('partial');loadPartialPayments()
+}
+function openNewPartialModal(){
+  const co=ALL_CLASSES.map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  openModal('Log Partial Payment',
+    '<div class="form-row"><div class="fg" style="max-width:180px"><label>Class</label><select id="ppClass" onchange="ppLoadStudents()"><option value="">Select class</option>'+co+'</select></div>'
+    +'<div class="fg" style="flex:2;position:relative"><label>Student</label><input id="ppStudent" placeholder="Type student name..." autocomplete="off" oninput="ppSearchStudent()" onfocus="ppSearchStudent()">'
+    +'<div id="ppStudentResults" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:200px;overflow-y:auto;display:none"></div></div></div>'
+    +'<div id="ppSelectedStudent" style="margin-bottom:10px;display:none"></div>'
+    +'<div class="form-row"><div class="fg" style="max-width:140px"><label>Total Bill</label><input type="number" inputmode="decimal" id="ppTotalBill" placeholder="0" style="font-family:var(--mono)"></div>'
+    +'<div class="fg" style="max-width:140px"><label>Amount Received</label><input type="number" inputmode="decimal" id="ppAmtReceived" placeholder="0" style="font-family:var(--mono)"></div>'
+    +'<div class="fg" style="max-width:120px"><label>Mode</label><select id="ppPayMode"><option value="cash">Cash</option><option value="online">Online</option></select></div></div>'
+    +'<div class="fg"><label>Description (items)</label><input id="ppDesc" placeholder="e.g. Uniform set, shoes"></div>',
+    '<button class="btn btn-success" onclick="saveNewPartial()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+let _ppStudentsCache=[],_ppSelectedEid=null
+async function ppLoadStudents(){
+  _ppStudentsCache=[];_ppSelectedEid=null
+  $('ppSelectedStudent').style.display='none'
+  const classId=$('ppClass')?.value
+  if(!classId)return
+  const{data}=await sb.from('student_enrollments').select('enrollment_id,students!inner(full_name,father_name),classes(name),class_sections(name)')
+    .eq('class_id',classId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  _ppStudentsCache=data||[]
+}
+function ppSearchStudent(){
+  const q=($('ppStudent')?.value||'').toLowerCase()
+  const box=$('ppStudentResults')
+  if(q.length<1){box.style.display='none';return}
+  const matches=_ppStudentsCache.filter(e=>e.students.full_name.toLowerCase().includes(q)).slice(0,8)
+  if(!matches.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px">No results.</div>';box.style.display='block';return}
+  box.innerHTML=matches.map(e=>'<div onmousedown="ppSelectStudent(\''+e.enrollment_id+'\',\''+esc(e.students.full_name).replace(/'/g,"\\'")+'\')" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)" onmouseover="this.style.background=\'var(--lav-100)\'" onmouseout="this.style.background=\'\'"><b>'+esc(e.students.full_name)+'</b> <span style="color:var(--ink-faint);font-size:11px">s/o '+esc(e.students.father_name||'')+'</span></div>').join('')
+  box.style.display='block'
+}
+function ppSelectStudent(eid,name){
+  _ppSelectedEid=eid
+  $('ppSelectedStudent').style.display='block'
+  $('ppSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:5px 12px">'+esc(name)+'</div>'
+  $('ppStudentResults').style.display='none'
+  $('ppStudent').value=''
+}
+async function saveNewPartial(){
+  if(!_ppSelectedEid){toast('Select a student','error');return}
+  const total=parseFloat($('ppTotalBill')?.value)||0
+  const paid=parseFloat($('ppAmtReceived')?.value)||0
+  const mode=$('ppPayMode')?.value||'cash'
+  const desc=$('ppDesc')?.value?.trim()||''
+  if(total<=0){toast('Enter total bill amount','error');return}
+  if(paid<=0){toast('Enter amount received','error');return}
+  if(paid>=total){toast('Amount received should be less than total','error');return}
+  const by=SPS.admin?.admin_id||(_invOperator?.id||'admin')
+  const items=desc?[{article:desc}]:[]
+  const{error}=await sb.from('inv_partial_payments').insert({
+    enrollment_id:_ppSelectedEid,session_id:SESS?.session_id||null,
+    total_amount:total,paid_amount:paid,remaining_amount:total-paid,
+    payment_mode:mode,items,
+    created_by:by,status:'pending',
+    payments:[{amount:paid,mode,date:new Date().toISOString(),by}]
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal();toast('Partial payment logged','success')
+  _tabLoaded.delete('partial');loadPartialPayments()
+}
+
 // ═══════════ CAMERA QR SCANNER ═══════════
 let _camScanner=null,_camMode=null
 function stopCamScanner(mode){
@@ -1504,7 +1758,7 @@ function stopCamScanner(mode){
 }
 
 // ═══════════ LAZY LOAD ═══════════
-const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sets:loadSets,sell:()=>{},exchange:()=>{},history:_loadHistory}
+const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sets:loadSets,sell:()=>{},exchange:()=>{},history:_loadHistory,partial:loadPartialPayments}
 const _tabLoaded=new Set()
 
 // ═══════════ AUTH & INIT ═══════════
@@ -1513,6 +1767,9 @@ let _invOperator=null
 async function invBoot(){
   await loadGlobals()
   renderDashboard()
+  sb.from('inv_partial_payments').select('id',{count:'exact',head:true}).eq('session_id',SESS?.session_id||'').eq('status','pending').then(({count})=>{
+    const b=$('partialBadge');if(b&&count>0){b.textContent=count;b.style.display='flex'}
+  })
   function tickClock(){const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()}
   tickClock();setInterval(tickClock,1000)
   const who=SPS.admin?(SPS.admin.full_name||SPS.admin.username||'AD'):(_invOperator?.name||'OP')
