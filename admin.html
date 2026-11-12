@@ -3390,12 +3390,13 @@ async function buildLiveClassSnapshot(iso,off){
     sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name)').then(r=>r,()=>({data:[]})),
     sb.from('substitutions').select('entry_id,substitute_teacher_id,absent_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]})),
     sb.from('teacher_schedules').select('teacher_id,shift_start,shift_end').then(r=>r,()=>({data:[]})),
-    sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]})),
+    sb.from('mother_teacher_map').select('teacher_id,class_id,section_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]})),
     sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
   ])
   if(slots?.length)(slots).forEach(s=>{const tm=_rtMap[s.slot_id];if(tm){s.start_time=tm.start_time;s.end_time=tm.end_time}})
   const motherIds=new Set((mtRows||[]).map(r=>r.teacher_id))
   ALL_TEACHERS.forEach(t=>{if(/mother/i.test(t.designation||''))motherIds.add(t.teacher_id)})
+  const motherSecKeys=new Set((mtRows||[]).filter(r=>r.class_id&&r.section_id).map(r=>r.class_id+'_'+r.section_id))
   if(!slots?.length||!entries?.length)return ''
 
   const subMap={};(subs||[]).forEach(s=>{subMap[s.entry_id]=s})
@@ -3421,7 +3422,7 @@ async function buildLiveClassSnapshot(iso,off){
   const rosterSlotIds=new Set((slots||[]).map(s=>s.slot_id))
   const filteredAdjs=(adjs||[]).filter(a=>rosterSlotIds.has(a.slot_id))
   const secNameMap={};(allSecs||[]).forEach(s=>{secNameMap[s.section_id]=s.name})
-  _liveSnap={slots:todaySlots,entries,adjs:filteredAdjs,subs,subMap,absentIds,schedMap,defShift,defShiftEnd,motherIds,dow,curIdx,defaultIdx,secNameMap,allSecs:allSecs||[]}
+  _liveSnap={slots:todaySlots,entries,adjs:filteredAdjs,subs,subMap,absentIds,schedMap,defShift,defShiftEnd,motherIds,motherSecKeys,dow,curIdx,defaultIdx,secNameMap,allSecs:allSecs||[]}
 
   let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px;overflow:hidden">'
     +'<div id="liveSnapInner" style="transition:opacity .25s ease,transform .25s ease"></div></div>'
@@ -3589,7 +3590,7 @@ function renderSlotView(idx,dir){
   // Show classes/sections with no teacher assigned for this slot
   const coveredKeys=new Set([...dayEntries.map(e=>e.class_id+'_'+e.section_id),...(d.adjs||[]).filter(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id).map(a=>a.class_id+'_'+a.section_id)])
   const activeClassIds=new Set((ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>c.class_id))
-  const emptySecs=(d.allSecs||[]).filter(s=>activeClassIds.has(s.class_id)&&!coveredKeys.has(s.class_id+'_'+s.section_id))
+  const emptySecs=(d.allSecs||[]).filter(s=>activeClassIds.has(s.class_id)&&!coveredKeys.has(s.class_id+'_'+s.section_id)&&!(d.motherSecKeys||new Set()).has(s.class_id+'_'+s.section_id))
   emptySecs.sort((a,b)=>{
     const an=(ALL_CLASSES.find(c=>c.class_id===a.class_id)||{}).name||''
     const bn=(ALL_CLASSES.find(c=>c.class_id===b.class_id)||{}).name||''
