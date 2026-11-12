@@ -7066,7 +7066,7 @@ function fcFeeForStudent(eid){
     if(p.class_ids.length&&!p.class_ids.includes(s.class_id))continue
     return f
   }
-  return fees[0]
+  return null
 }
 function fcComputeStats(){
   const{fees,enrollments,payments}=_fcData
