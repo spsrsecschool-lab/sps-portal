@@ -3391,7 +3391,7 @@ async function buildLiveClassSnapshot(iso,off){
     sb.from('substitutions').select('entry_id,substitute_teacher_id,absent_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]})),
     sb.from('teacher_schedules').select('teacher_id,shift_start,shift_end').then(r=>r,()=>({data:[]})),
     sb.from('mother_teacher_map').select('teacher_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]})),
-    sb.from('class_sections').select('section_id,name').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
+    sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
   ])
   if(slots?.length)(slots).forEach(s=>{const tm=_rtMap[s.slot_id];if(tm){s.start_time=tm.start_time;s.end_time=tm.end_time}})
   const motherIds=new Set((mtRows||[]).map(r=>r.teacher_id))
@@ -3421,7 +3421,7 @@ async function buildLiveClassSnapshot(iso,off){
   const rosterSlotIds=new Set((slots||[]).map(s=>s.slot_id))
   const filteredAdjs=(adjs||[]).filter(a=>rosterSlotIds.has(a.slot_id))
   const secNameMap={};(allSecs||[]).forEach(s=>{secNameMap[s.section_id]=s.name})
-  _liveSnap={slots:todaySlots,entries,adjs:filteredAdjs,subs,subMap,absentIds,schedMap,defShift,defShiftEnd,motherIds,dow,curIdx,defaultIdx,secNameMap}
+  _liveSnap={slots:todaySlots,entries,adjs:filteredAdjs,subs,subMap,absentIds,schedMap,defShift,defShiftEnd,motherIds,dow,curIdx,defaultIdx,secNameMap,allSecs:allSecs||[]}
 
   let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:14px;overflow:hidden">'
     +'<div id="liveSnapInner" style="transition:opacity .25s ease,transform .25s ease"></div></div>'
@@ -3584,6 +3584,21 @@ function renderSlotView(idx,dir){
     h+='<div style="border:1px solid var(--indigo-100,#6366F140);background:#6366F108;border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto">'
       +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc(cn+'-'+sn)+'<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span></div>'
       +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(a.teachers?.full_name||'—')+'</div>'
+      +'</div>'
+  })
+  // Show classes/sections with no teacher assigned for this slot
+  const coveredKeys=new Set([...dayEntries.map(e=>e.class_id+'_'+e.section_id),...(d.adjs||[]).filter(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id).map(a=>a.class_id+'_'+a.section_id)])
+  const activeClassIds=new Set((ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>c.class_id))
+  const emptySecs=(d.allSecs||[]).filter(s=>activeClassIds.has(s.class_id)&&!coveredKeys.has(s.class_id+'_'+s.section_id))
+  emptySecs.sort((a,b)=>{
+    const an=(ALL_CLASSES.find(c=>c.class_id===a.class_id)||{}).name||''
+    const bn=(ALL_CLASSES.find(c=>c.class_id===b.class_id)||{}).name||''
+    return an.localeCompare(bn,undefined,{numeric:true})||(a.name||'').localeCompare(b.name||'')
+  }).forEach(s=>{
+    const cn=(ALL_CLASSES.find(c=>c.class_id===s.class_id)||{}).name||'?'
+    h+='<div style="border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto;opacity:.5">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--ink-faint);line-height:1.1">'+esc(cn+'-'+s.name)+'</div>'
+      +'<div style="font-size:11px;color:var(--ink-faint);margin-top:2px">No Teacher</div>'
       +'</div>'
   })
   h+='</div>'
@@ -4318,7 +4333,7 @@ async function showStudentFlagHistory(studentId){
     const isPending=r.status==='pending'
     const badge=isPending?'<span style="background:#FEF2F2;color:#DC2626;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px">Pending</span>':'<span style="background:#F0FDF4;color:#16A34A;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px">Resolved</span>'
     const flaggedAt=r.flagged_at?new Date(r.flagged_at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''
-    html+='<div style="border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;color:var(--ink-soft)">Flagged by <b>'+(aMap[r.flagged_by]||'Admin')+'</b> on '+flaggedAt+'</span>'+badge+'</div>'
+    html+='<div style="border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;color:var(--ink-soft)">Flagged by <b>'+(aMap[r.flagged_by]||'Admin')+'</b> on '+flaggedAt+'</span><div style="display:flex;align-items:center;gap:6px">'+badge+'</div></div>'
     if(r.flag_notes) html+='<div style="font-size:12.5px;background:#FEF9C3;padding:6px 10px;border-radius:var(--radius-sm);color:#92400E;margin-bottom:6px">'+esc(r.flag_notes)+'</div>'
     if(!isPending){
       const resolvedBy=tMap[r.resolved_by]||aMap[r.resolved_by]||'Unknown'
@@ -4331,9 +4346,53 @@ async function showStudentFlagHistory(studentId){
         html+='</div>'
       }
     }
+    html+='<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">'
+      +'<button type="button" onclick="editFlagEntry(\''+esc(r.id)+'\',\''+esc(studentId)+'\')" style="background:none;border:1px solid var(--line);color:var(--indigo);font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">Edit</button>'
+      +'<button type="button" onclick="deleteFlagEntry(\''+esc(r.id)+'\',\''+esc(studentId)+'\')" style="background:none;border:1px solid #FCA5A5;color:#DC2626;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">Delete</button>'
+      +'</div>'
     html+='</div>'
   })
   openModal('Flag History ('+logs.length+' record'+(logs.length>1?'s':'')+')',html,'<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
+}
+async function editFlagEntry(flagId,studentId){
+  const{data:r}=await sb.from('profile_flag_log').select('*').eq('id',flagId).maybeSingle()
+  if(!r){toast('Flag not found','error');return}
+  openModal('Edit Flag Notes',
+    '<div class="form-row"><div class="fg"><label>Flag Notes</label><textarea id="edit_flag_notes" style="min-height:80px;resize:vertical" placeholder="Update flag notes…">'+esc(r.flag_notes||'')+'</textarea></div></div>'
+    +'<div class="form-row"><div class="fg"><label>Status</label><select id="edit_flag_status"><option value="pending"'+(r.status==='pending'?' selected':'')+'>Pending</option><option value="resolved"'+(r.status==='resolved'?' selected':'')+'>Resolved</option></select></div></div>',
+    '<button class="btn btn-dark" onclick="saveFlagEdit(\''+esc(flagId)+'\',\''+esc(studentId)+'\')">Save</button><button class="btn btn-ghost" onclick="showStudentFlagHistory(\''+esc(studentId)+'\')">Cancel</button>')
+}
+async function saveFlagEdit(flagId,studentId){
+  const notes=($('edit_flag_notes')?.value||'').trim()
+  const status=$('edit_flag_status')?.value||'pending'
+  const upd={flag_notes:notes||null,status}
+  if(status==='resolved'&&!upd.resolved_at){upd.resolved_at=new Date().toISOString();upd.resolved_by=SPS.admin?.admin_id||null;upd.resolved_by_type='admin'}
+  const{error}=await sb.from('profile_flag_log').update(upd).eq('id',flagId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  if(status==='resolved'){
+    const{data:anyPending}=await sb.from('profile_flag_log').select('id').eq('student_id',studentId).eq('status','pending').limit(1)
+    if(!anyPending?.length) await sb.from('students').update({flagged:false,flag_notes:null}).eq('student_id',studentId)
+  }
+  if(status==='pending'){
+    await sb.from('students').update({flagged:true,flag_notes:notes||null}).eq('student_id',studentId)
+  }
+  toast('Flag updated','success');closeModal();showStudentFlagHistory(studentId)
+}
+async function deleteFlagEntry(flagId,studentId){
+  if(!confirm('Delete this flag entry? This cannot be undone.'))return
+  const{error}=await sb.from('profile_flag_log').delete().eq('id',flagId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const{data:anyPending}=await sb.from('profile_flag_log').select('id').eq('student_id',studentId).eq('status','pending').limit(1)
+  if(!anyPending?.length) await sb.from('students').update({flagged:false,flag_notes:null}).eq('student_id',studentId)
+  toast('Flag entry deleted','success');closeModal();showStudentFlagHistory(studentId)
+}
+async function deleteFlagEntryFromList(flagId,studentId){
+  if(!confirm('Delete this flag entry? This cannot be undone.'))return
+  const{error}=await sb.from('profile_flag_log').delete().eq('id',flagId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const{data:anyPending}=await sb.from('profile_flag_log').select('id').eq('student_id',studentId).eq('status','pending').limit(1)
+  if(!anyPending?.length) await sb.from('students').update({flagged:false,flag_notes:null}).eq('student_id',studentId)
+  toast('Flag entry deleted','success');loadFlagLog()
 }
 function populateFlagClassFilter(){
   const sel=$('flagClassFilter');if(!sel||sel.options.length>1)return
@@ -4434,7 +4493,11 @@ async function loadFlagLog(){
     return '<div class="card" style="padding:16px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-weight:700;font-size:14px">'+rollBadge+esc(st.full_name||'Unknown Student')+'<span style="font-weight:400;color:var(--ink-soft);font-size:12px;margin-left:8px">s/o '+esc(st.father_name||'—')+'</span>'+classLabel+'</div>'+badge+'</div>'
       +'<div style="font-size:12px;color:var(--ink-soft)">Flagged by <b>'+esc(flaggedBy)+'</b> on '+flaggedAt+'</div>'
       +(r.flag_notes?'<div style="margin-top:6px;font-size:12.5px;background:#FEF9C3;padding:8px 12px;border-radius:var(--radius-sm);color:#92400E">'+esc(r.flag_notes)+'</div>':'')
-      +resolveHtml+'</div>'
+      +resolveHtml
+      +'<div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">'
+      +'<button type="button" onclick="editFlagEntry(\''+esc(r.id)+'\',\''+esc(r.student_id)+'\')" style="background:none;border:1px solid var(--line);color:var(--indigo);font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">Edit</button>'
+      +'<button type="button" onclick="deleteFlagEntryFromList(\''+esc(r.id)+'\',\''+esc(r.student_id)+'\')" style="background:none;border:1px solid #FCA5A5;color:#DC2626;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">Delete</button>'
+      +'</div></div>'
   }
   const $all=$('flagLogBody'),$pe=$('flagLogPending'),$re=$('flagLogResolved')
   $all.innerHTML=rows.length?rows.map(renderCard).join(''):'<div style="text-align:center;padding:40px;color:var(--ink-faint)">No profile flags recorded yet.</div>'
