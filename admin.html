@@ -7072,11 +7072,12 @@ function fcComputeStats(){
   const{fees,enrollments,payments}=_fcData
   const paidMap={},naMap={}
   payments.forEach(p=>{const k=p.exam_fee_id+'_'+p.enrollment_id;if(p.is_paid)paidMap[k]=p;if(p.not_appearing)naMap[k]=true})
-  let totalDue=0,totalCollected=0,totalPending=0,totalNA=0
+  let totalDue=0,totalCollected=0,totalPending=0,totalNA=0,totalWithFee=0
   const secStat={}
   enrollments.forEach(e=>{
     const f=fcFeeForStudent(e.enrollment_id)
     if(!f)return
+    totalWithFee++
     const amt=f.amount||0
     const k=f.exam_fee_id+'_'+e.enrollment_id
     const paid=!!paidMap[k]
@@ -7089,16 +7090,16 @@ function fcComputeStats(){
     if(na){totalNA++;secStat[key].na++}
     else{totalDue+=amt;if(paid){totalCollected+=amt;secStat[key].paid++}else{totalPending+=amt;secStat[key].pending++}}
   })
-  return{paidMap,naMap,totalDue,totalCollected,totalPending,totalNA,secStat}
+  return{paidMap,naMap,totalDue,totalCollected,totalPending,totalNA,totalWithFee,secStat}
 }
 function renderFeeCollection(){
   if(!_fcData)return
   const{assessName}=_fcData
   const el=$(_fcTargetEl)
-  const{totalDue,totalCollected,totalPending,totalNA}=fcComputeStats()
+  const{totalDue,totalCollected,totalPending,totalNA,totalWithFee}=fcComputeStats()
   let h='<div class="page-head"><div><h2>Fee Collection — '+esc(assessName)+'</h2><p>Real-time exam fee collection across all classes</p></div></div>'
   h+='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(4,1fr)">'
-  h+='<div class="stat-card"><span class="lbl">Total Due</span><span class="val">₹'+totalDue.toLocaleString('en-IN')+'</span><span class="sub">'+(_fcData.enrollments.length-totalNA)+' students</span></div>'
+  h+='<div class="stat-card"><span class="lbl">Total Due</span><span class="val">₹'+totalDue.toLocaleString('en-IN')+'</span><span class="sub">'+(totalWithFee-totalNA)+' students</span></div>'
   h+='<div class="stat-card"><span class="lbl" style="color:var(--success)">Collected</span><span class="val" style="color:var(--success)">₹'+totalCollected.toLocaleString('en-IN')+'</span></div>'
   h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">₹'+totalPending.toLocaleString('en-IN')+'</span></div>'
   h+='<div class="stat-card"><span class="lbl" style="color:var(--ink-soft)">Not Appearing</span><span class="val" style="color:var(--ink-soft)">'+totalNA+'</span></div></div>'
