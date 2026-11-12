@@ -3312,6 +3312,10 @@ async function renderTodayPanel(){
   const liveH=await buildLiveClassSnapshot(iso,isSunday||isHoliday)
   if(liveH) html+=liveH
 
+  // ── Today's Finances ──
+  const finH=await buildTodayFinances(iso)
+  if(finH) html+=finH
+
   // ── Attendance details: class-wise + not-marked in a 2-col grid ──
   html+='<style>@media(max-width:600px){.today-2col{grid-template-columns:1fr!important}}</style>'
   html+='<div class="today-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">'
@@ -3372,6 +3376,164 @@ function scheduleLiveRefresh(){
     if($('page-dashboard')?.classList.contains('active'))renderTodayPanel()
   },(s+1)*1000)
 }
+// ═══════════ TODAY'S FINANCES ═══════════
+async function buildTodayFinances(iso){
+  const sid=SESS?.session_id||''
+  const dayStart=iso+'T00:00:00',dayEnd=iso+'T23:59:59'
+  const[tuitionR,examFeeR,examFeesR,miscFeeR,miscFeesR,invR,ppR]=await Promise.all([
+    sb.from('payments').select('payment_id,amount,paid_at,family_code,remarks').eq('session_id',sid).gte('paid_at',dayStart).lte('paid_at',dayEnd),
+    sb.from('exam_fee_payments').select('exam_fee_id,enrollment_id,paid_at,collection_mode,is_paid').eq('is_paid',true).gte('paid_at',dayStart).lte('paid_at',dayEnd),
+    sb.from('exam_fees').select('exam_fee_id,amount,name,assessment_id').eq('session_id',sid).then(r=>r,()=>({data:[]})),
+    sb.from('misc_fee_payments').select('misc_fee_id,enrollment_id,paid_at,collection_mode,is_paid').eq('is_paid',true).gte('paid_at',dayStart).lte('paid_at',dayEnd),
+    sb.from('misc_fees').select('misc_fee_id,amount,name').eq('session_id',sid).then(r=>r,()=>({data:[]})),
+    sb.from('inv_items').select('id,size,sold_at,payment_mode,inv_articles(name,selling_price,size_prices,category)').eq('status','sold').gte('sold_at',dayStart).lte('sold_at',dayEnd),
+    sb.from('inv_partial_payments').select('id,total_amount,paid_amount,payments,created_at,status').eq('session_id',sid).then(r=>r,()=>({data:[]}))
+  ])
+
+  // Tuition
+  const tuitions=tuitionR.data||[]
+  const tuitionTotal=tuitions.reduce((s,r)=>s+(r.amount||0),0)
+
+  // Exam fees
+  const efMap={};(examFeesR.data||[]).forEach(f=>{efMap[f.exam_fee_id]=f})
+  const examPaid=(examFeeR.data||[]).filter(r=>efMap[r.exam_fee_id])
+  const examTotal=examPaid.reduce((s,r)=>s+(efMap[r.exam_fee_id]?.amount||0),0)
+
+  // Misc fees
+  const mfMap={};(miscFeesR.data||[]).forEach(f=>{mfMap[f.misc_fee_id]=f})
+  const miscPaid=(miscFeeR.data||[]).filter(r=>mfMap[r.misc_fee_id])
+  const miscByFee={}
+  miscPaid.forEach(r=>{const f=mfMap[r.misc_fee_id];if(!f)return;const k=f.name||'Misc';if(!miscByFee[k])miscByFee[k]={name:k,count:0,total:0,mode:{}};miscByFee[k].count++;miscByFee[k].total+=f.amount||0;const m=r.collection_mode||'unknown';miscByFee[k].mode[m]=(miscByFee[k].mode[m]||0)+(f.amount||0)})
+  const miscTotal=Object.values(miscByFee).reduce((s,r)=>s+r.total,0)
+
+  // Inventory sales (full payments only, not partial)
+  const invItems=(invR.data||[]).filter(i=>i.payment_mode!=='partial'&&i.payment_mode!=='exchange')
+  const getPrice=i=>{const a=i.inv_articles;if(!a)return 0;if(i.size&&a.size_prices&&a.size_prices[i.size]!=null)return a.size_prices[i.size];return a.selling_price||0}
+  const invTotal=invItems.reduce((s,i)=>s+getPrice(i),0)
+
+  // Partial payments received today
+  const ppAll=ppR.data||[]
+  let ppTotal=0
+  const ppToday=[]
+  ppAll.forEach(r=>{
+    const pays=r.payments||[]
+    pays.forEach(p=>{if(p.date&&p.date.slice(0,10)===iso){ppTotal+=p.amount||0;ppToday.push({ppId:r.id,amount:p.amount,mode:p.mode})}})
+  })
+
+  // Payment mode breakdown
+  const modes={}
+  const addMode=(m,amt)=>{if(!m||!amt)return;const k=m.toLowerCase();modes[k]=(modes[k]||0)+amt}
+  tuitions.forEach(r=>addMode('cash',r.amount))
+  examPaid.forEach(r=>{const f=efMap[r.exam_fee_id];addMode(r.collection_mode,f?.amount||0)})
+  miscPaid.forEach(r=>{const f=mfMap[r.misc_fee_id];addMode(r.collection_mode,f?.amount||0)})
+  invItems.forEach(i=>addMode(i.payment_mode,getPrice(i)))
+  ppToday.forEach(p=>addMode(p.mode,p.amount))
+
+  const grandTotal=tuitionTotal+examTotal+miscTotal+invTotal+ppTotal
+  window._todayFinData={iso,tuitions,examPaid,efMap,miscPaid,mfMap,miscByFee,invItems,getPrice,ppToday,ppAll,modes}
+
+  const fmtAmt=v=>'₹'+Number(v||0).toLocaleString('en-IN')
+  const row=(label,amt,count,onclick)=>{
+    const clk=onclick?'cursor:pointer" onclick="'+onclick:''
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);'+clk+'">'
+      +'<div style="font-size:13px;font-weight:600;color:var(--ink)">'+label+(count?' <span style="font-size:11px;font-weight:400;color:var(--ink-faint)">('+count+')</span>':'')+'</div>'
+      +'<div style="font-size:13px;font-weight:700;font-family:var(--mono);color:'+(amt>0?'var(--grn,#216F40)':'var(--ink-faint)')+'">'+fmtAmt(amt)+'</div>'
+      +'</div>'
+  }
+
+  let h='<div style="background:var(--white);border:1px solid var(--line);border-radius:10px;margin-top:14px;overflow:hidden">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)">'
+    +'<div style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--indigo);fill:none;stroke-width:2"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M22 10H2M7 2v4M17 2v4"/></svg>'
+    +'<span style="font-size:13px;font-weight:700;color:var(--ink)">Today\'s Finances</span></div>'
+    +'<span style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--indigo)">'+fmtAmt(grandTotal)+'</span></div>'
+
+  h+=row('Monthly Tuition Fees',tuitionTotal,tuitions.length,"showFinDetail('tuition')")
+  h+=row('Exam Fees',examTotal,examPaid.length,"showFinDetail('exam')")
+  const miscNames=Object.keys(miscByFee)
+  if(miscNames.length>1){
+    miscNames.forEach(n=>{h+=row('Misc: '+n,miscByFee[n].total,miscByFee[n].count,"showFinDetail('misc')")})
+  }else{
+    h+=row('Misc Fees',miscTotal,miscPaid.length,"showFinDetail('misc')")
+  }
+  h+=row('Inventory Sales',invTotal,invItems.length,"showFinDetail('inv')")
+  h+=row('Partial Payments Received',ppTotal,ppToday.length,"showFinDetail('partial')")
+
+  // Payment mode breakdown
+  const modeKeys=Object.keys(modes).sort()
+  if(modeKeys.length){
+    h+='<div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
+      +'<span style="font-size:11px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em">By Mode:</span>'
+    modeKeys.forEach(m=>{
+      const col=m==='cash'?'#216F40':m==='online'||m==='upi'?'var(--indigo)':'var(--ink-soft)'
+      h+='<span style="font-size:11px;font-weight:600;color:'+col+';background:var(--lav-50);border:1px solid var(--line);border-radius:6px;padding:3px 8px">'+esc(m.charAt(0).toUpperCase()+m.slice(1))+': '+fmtAmt(modes[m])+'</span>'
+    })
+    h+='</div>'
+  }
+  h+='</div>'
+  return h
+}
+
+function showFinDetail(type){
+  const d=window._todayFinData;if(!d)return
+  const fmtAmt=v=>'₹'+Number(v||0).toLocaleString('en-IN')
+  const fmtTime=iso=>iso?new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'—'
+  let title='',html=''
+  if(type==='tuition'){
+    title='Tuition Fees Collected Today'
+    if(!d.tuitions.length){html='<p style="color:var(--ink-faint);padding:12px">No tuition fees collected today.</p>'}
+    else{
+      html='<div style="max-height:400px;overflow-y:auto"><table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Family</th><th style="text-align:right;padding:6px">Amount</th><th style="text-align:center;padding:6px">Time</th><th style="text-align:left;padding:6px">Remarks</th></tr></thead><tbody>'
+      d.tuitions.sort((a,b)=>(a.paid_at||'').localeCompare(b.paid_at||'')).forEach(r=>{
+        html+='<tr><td style="padding:4px 6px;font-weight:600">'+esc(r.family_code||'—')+'</td><td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+fmtAmt(r.amount)+'</td><td style="padding:4px 6px;text-align:center;color:var(--ink-soft)">'+fmtTime(r.paid_at)+'</td><td style="padding:4px 6px;color:var(--ink-soft);font-size:11px">'+esc(r.remarks||'')+'</td></tr>'
+      })
+      html+='</tbody></table></div>'
+    }
+  }else if(type==='exam'){
+    title='Exam Fees Collected Today'
+    if(!d.examPaid.length){html='<p style="color:var(--ink-faint);padding:12px">No exam fees collected today.</p>'}
+    else{
+      html='<div style="max-height:400px;overflow-y:auto"><table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Exam Fee</th><th style="text-align:right;padding:6px">Amount</th><th style="text-align:center;padding:6px">Mode</th><th style="text-align:center;padding:6px">Time</th></tr></thead><tbody>'
+      d.examPaid.sort((a,b)=>(a.paid_at||'').localeCompare(b.paid_at||'')).forEach(r=>{
+        const f=d.efMap[r.exam_fee_id]
+        html+='<tr><td style="padding:4px 6px;font-weight:600">'+esc(f?.name||r.exam_fee_id)+'</td><td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+fmtAmt(f?.amount||0)+'</td><td style="padding:4px 6px;text-align:center"><span class="pill pill-'+(r.collection_mode==='cash'?'success':'pur')+'">'+esc(r.collection_mode||'—')+'</span></td><td style="padding:4px 6px;text-align:center;color:var(--ink-soft)">'+fmtTime(r.paid_at)+'</td></tr>'
+      })
+      html+='</tbody></table></div>'
+    }
+  }else if(type==='misc'){
+    title='Misc Fees Collected Today'
+    if(!d.miscPaid.length){html='<p style="color:var(--ink-faint);padding:12px">No misc fees collected today.</p>'}
+    else{
+      html='<div style="max-height:400px;overflow-y:auto"><table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Fee Name</th><th style="text-align:right;padding:6px">Amount</th><th style="text-align:center;padding:6px">Mode</th><th style="text-align:center;padding:6px">Time</th></tr></thead><tbody>'
+      d.miscPaid.sort((a,b)=>(a.paid_at||'').localeCompare(b.paid_at||'')).forEach(r=>{
+        const f=d.mfMap[r.misc_fee_id]
+        html+='<tr><td style="padding:4px 6px;font-weight:600">'+esc(f?.name||'Misc')+'</td><td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+fmtAmt(f?.amount||0)+'</td><td style="padding:4px 6px;text-align:center"><span class="pill pill-'+(r.collection_mode==='cash'?'success':'pur')+'">'+esc(r.collection_mode||'—')+'</span></td><td style="padding:4px 6px;text-align:center;color:var(--ink-soft)">'+fmtTime(r.paid_at)+'</td></tr>'
+      })
+      html+='</tbody></table></div>'
+    }
+  }else if(type==='inv'){
+    title='Inventory Sales Today'
+    if(!d.invItems.length){html='<p style="color:var(--ink-faint);padding:12px">No inventory sales today.</p>'}
+    else{
+      html='<div style="max-height:400px;overflow-y:auto"><table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">Item</th><th style="text-align:center;padding:6px">Size</th><th style="text-align:right;padding:6px">Price</th><th style="text-align:center;padding:6px">Mode</th><th style="text-align:center;padding:6px">Time</th></tr></thead><tbody>'
+      d.invItems.sort((a,b)=>(a.sold_at||'').localeCompare(b.sold_at||'')).forEach(i=>{
+        html+='<tr><td style="padding:4px 6px;font-weight:600">'+esc(i.inv_articles?.name||'—')+'</td><td style="padding:4px 6px;text-align:center">'+esc(i.size||'—')+'</td><td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+fmtAmt(d.getPrice(i))+'</td><td style="padding:4px 6px;text-align:center"><span class="pill pill-'+(i.payment_mode==='cash'?'success':'pur')+'">'+esc(i.payment_mode||'—')+'</span></td><td style="padding:4px 6px;text-align:center;color:var(--ink-soft)">'+fmtTime(i.sold_at)+'</td></tr>'
+      })
+      html+='</tbody></table></div>'
+    }
+  }else if(type==='partial'){
+    title='Partial Payments Received Today'
+    if(!d.ppToday.length){html='<p style="color:var(--ink-faint);padding:12px">No partial payments received today.</p>'}
+    else{
+      html='<div style="max-height:400px;overflow-y:auto"><table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left;padding:6px">#</th><th style="text-align:right;padding:6px">Amount</th><th style="text-align:center;padding:6px">Mode</th></tr></thead><tbody>'
+      d.ppToday.forEach((p,i)=>{
+        html+='<tr><td style="padding:4px 6px">'+(i+1)+'</td><td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+fmtAmt(p.amount)+'</td><td style="padding:4px 6px;text-align:center"><span class="pill pill-'+(p.mode==='cash'?'success':'pur')+'">'+esc(p.mode||'—')+'</span></td></tr>'
+      })
+      html+='</tbody></table></div>'
+    }
+  }
+  openModal(title,html,'<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
+}
+
 let _liveSnap=null,_examSnap=null
 async function buildLiveClassSnapshot(iso,off){
   if(off)return ''
