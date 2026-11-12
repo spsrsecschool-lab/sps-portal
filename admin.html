@@ -3544,63 +3544,53 @@ function renderSlotView(idx,dir){
     +'<span style="margin-left:auto;display:flex;align-items:center;gap:6px">'+(minsLeft||'')+nextBtn+'</span>'
     +'</div>'
 
-  // Class cards
+  // Build unified class cards list
   const dayEntries=(d.entries||[]).filter(e=>(e.days||[]).includes(d.dow)&&e.slot_id===slot.slot_id)
-  h+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
-  dayEntries.sort((a,b)=>{
-    const an=a.classes?.name||'',bn=b.classes?.name||''
-    return an.localeCompare(bn,undefined,{numeric:true})||(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'')
-  }).forEach(e=>{
-    const sub=d.subMap[e.entry_id]
-    const adjK=e.class_id+'_'+e.section_id
-    const adj=(d.adjs||[]).find(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id&&a.class_id+'_'+a.section_id===adjK)
-    let teacherName=e.teachers?.full_name||'—'
-    let badge='',borderCol='var(--line)',bgCol='var(--bg)'
-    if(sub&&sub.substitute_teacher_id){
-      teacherName=sub.teachers?.full_name||'Substitute'
-      badge='<span style="font-size:8px;font-weight:800;color:#fff;background:#C9344D;padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">SUB</span>'
-      borderCol='#C9344D40';bgCol='#C9344D08'
-    }else if(sub&&!sub.substitute_teacher_id){
-      badge='<span style="font-size:8px;font-weight:800;color:#fff;background:var(--warn,#E8A23D);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">!</span>'
-      borderCol='#E8A23D40';bgCol='#E8A23D08'
-    }else if(adj){
-      teacherName=adj.teachers?.full_name||teacherName
-      badge='<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span>'
-      borderCol='var(--indigo-100,#6366F140)';bgCol='#6366F108'
-    }
-    h+='<div style="border:1px solid '+borderCol+';background:'+bgCol+';border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto">'
-      +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc((e.classes?.name||'?')+'-'+(e.class_sections?.name||'?'))+badge+'</div>'
-      +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(teacherName)+'</div>'
-      +'<div style="font-size:10px;color:var(--ink-faint);margin-top:1px">'+esc(e.subjects?.name||'')+'</div>'
-      +'</div>'
-  })
-  const entryKeys=new Set(dayEntries.map(e=>e.class_id+'_'+e.section_id))
-  ;(d.adjs||[]).filter(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id&&!entryKeys.has(a.class_id+'_'+a.section_id)).sort((a,b)=>{
-    const an=(ALL_CLASSES.find(c=>c.class_id===a.class_id)||{}).name||''
-    const bn=(ALL_CLASSES.find(c=>c.class_id===b.class_id)||{}).name||''
-    return an.localeCompare(bn,undefined,{numeric:true})||((d.secNameMap||{})[a.section_id]||'').localeCompare((d.secNameMap||{})[b.section_id]||'')
-  }).forEach(a=>{
-    const cn=(ALL_CLASSES.find(c=>c.class_id===a.class_id)||{}).name||'?'
-    const sn=(d.secNameMap||{})[a.section_id]||'?'
-    h+='<div style="border:1px solid var(--indigo-100,#6366F140);background:#6366F108;border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto">'
-      +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc(cn+'-'+sn)+'<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span></div>'
-      +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(a.teachers?.full_name||'—')+'</div>'
-      +'</div>'
-  })
-  // Show classes/sections with no teacher assigned for this slot
-  const coveredKeys=new Set([...dayEntries.map(e=>e.class_id+'_'+e.section_id),...(d.adjs||[]).filter(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id).map(a=>a.class_id+'_'+a.section_id)])
+  const entryMap={};dayEntries.forEach(e=>{entryMap[e.class_id+'_'+e.section_id]=e})
+  const adjOnlyMap={};(d.adjs||[]).filter(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id&&!entryMap[a.class_id+'_'+a.section_id]).forEach(a=>{adjOnlyMap[a.class_id+'_'+a.section_id]=a})
   const activeClassIds=new Set((ALL_CLASSES||[]).filter(c=>c.is_active).map(c=>c.class_id))
-  const emptySecs=(d.allSecs||[]).filter(s=>activeClassIds.has(s.class_id)&&!coveredKeys.has(s.class_id+'_'+s.section_id)&&!(d.motherSecKeys||new Set()).has(s.class_id+'_'+s.section_id))
-  emptySecs.sort((a,b)=>{
-    const an=(ALL_CLASSES.find(c=>c.class_id===a.class_id)||{}).name||''
-    const bn=(ALL_CLASSES.find(c=>c.class_id===b.class_id)||{}).name||''
-    return an.localeCompare(bn,undefined,{numeric:true})||(a.name||'').localeCompare(b.name||'')
-  }).forEach(s=>{
-    const cn=(ALL_CLASSES.find(c=>c.class_id===s.class_id)||{}).name||'?'
-    h+='<div style="border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto;opacity:.5">'
-      +'<div style="font-size:12px;font-weight:700;color:var(--ink-faint);line-height:1.1">'+esc(cn+'-'+s.name)+'</div>'
-      +'<div style="font-size:11px;color:var(--ink-faint);margin-top:2px">No Teacher</div>'
-      +'</div>'
+  const allCards=[];const seen=new Set()
+  dayEntries.forEach(e=>{const k=e.class_id+'_'+e.section_id;if(!seen.has(k)){seen.add(k);allCards.push({type:'entry',key:k,entry:e,className:e.classes?.name||'?',secName:e.class_sections?.name||'?'})}})
+  Object.values(adjOnlyMap).forEach(a=>{const k=a.class_id+'_'+a.section_id;if(!seen.has(k)){seen.add(k);allCards.push({type:'adj',key:k,adj:a,className:(ALL_CLASSES.find(c=>c.class_id===a.class_id)||{}).name||'?',secName:(d.secNameMap||{})[a.section_id]||'?'})}})
+  ;(d.allSecs||[]).forEach(s=>{const k=s.class_id+'_'+s.section_id;if(!seen.has(k)&&activeClassIds.has(s.class_id)&&!(d.motherSecKeys||new Set()).has(k)){seen.add(k);allCards.push({type:'empty',key:k,sec:s,className:(ALL_CLASSES.find(c=>c.class_id===s.class_id)||{}).name||'?',secName:s.name||'?'})}})
+  allCards.sort((a,b)=>a.className.localeCompare(b.className,undefined,{numeric:true})||a.secName.localeCompare(b.secName))
+  h+='<div style="display:flex;flex-wrap:wrap;gap:6px">'
+  allCards.forEach(card=>{
+    if(card.type==='entry'){
+      const e=card.entry
+      const sub=d.subMap[e.entry_id]
+      const adj=(d.adjs||[]).find(a=>(a.days||[]).includes(d.dow)&&a.slot_id===slot.slot_id&&a.class_id+'_'+a.section_id===card.key)
+      let teacherName=e.teachers?.full_name||'—'
+      let badge='',borderCol='var(--line)',bgCol='var(--bg)'
+      if(sub&&sub.substitute_teacher_id){
+        teacherName=sub.teachers?.full_name||'Substitute'
+        badge='<span style="font-size:8px;font-weight:800;color:#fff;background:#C9344D;padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">SUB</span>'
+        borderCol='#C9344D40';bgCol='#C9344D08'
+      }else if(sub&&!sub.substitute_teacher_id){
+        badge='<span style="font-size:8px;font-weight:800;color:#fff;background:var(--warn,#E8A23D);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">!</span>'
+        borderCol='#E8A23D40';bgCol='#E8A23D08'
+      }else if(adj){
+        teacherName=adj.teachers?.full_name||teacherName
+        badge='<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span>'
+        borderCol='var(--indigo-100,#6366F140)';bgCol='#6366F108'
+      }
+      h+='<div style="border:1px solid '+borderCol+';background:'+bgCol+';border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc(card.className+'-'+card.secName)+badge+'</div>'
+        +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(teacherName)+'</div>'
+        +'<div style="font-size:10px;color:var(--ink-faint);margin-top:1px">'+esc(e.subjects?.name||'')+'</div>'
+        +'</div>'
+    }else if(card.type==='adj'){
+      const a=card.adj
+      h+='<div style="border:1px solid var(--indigo-100,#6366F140);background:#6366F108;border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--ink);line-height:1.1">'+esc(card.className+'-'+card.secName)+'<span style="font-size:8px;font-weight:800;color:#fff;background:var(--indigo);padding:1px 4px;border-radius:3px;margin-left:4px;vertical-align:middle">ADJ</span></div>'
+        +'<div style="font-size:11px;color:var(--ink-soft);margin-top:2px">'+esc(a.teachers?.full_name||'—')+'</div>'
+        +'</div>'
+    }else{
+      h+='<div style="border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 10px;min-width:120px;flex:0 0 auto;opacity:.5">'
+        +'<div style="font-size:12px;font-weight:700;color:var(--ink-faint);line-height:1.1">'+esc(card.className+'-'+card.secName)+'</div>'
+        +'<div style="font-size:11px;color:var(--ink-faint);margin-top:2px">No Teacher</div>'
+        +'</div>'
+    }
   })
   h+='</div>'
 
