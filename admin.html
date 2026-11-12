@@ -3391,7 +3391,7 @@ async function buildLiveClassSnapshot(iso,off){
     sb.from('substitutions').select('entry_id,substitute_teacher_id,absent_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]})),
     sb.from('teacher_schedules').select('teacher_id,shift_start,shift_end').then(r=>r,()=>({data:[]})),
     sb.from('mother_teacher_map').select('teacher_id,class_id,section_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]})),
-    sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]}))
+    sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS?.session_id||'').eq('is_active',true).then(r=>r,()=>({data:[]}))
   ])
   if(slots?.length)(slots).forEach(s=>{const tm=_rtMap[s.slot_id];if(tm){s.start_time=tm.start_time;s.end_time=tm.end_time}})
   const motherIds=new Set((mtRows||[]).map(r=>r.teacher_id))
