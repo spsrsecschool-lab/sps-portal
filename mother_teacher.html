@@ -429,6 +429,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Exam Fee Collection
     </div>
+    <div class="sb-item" onclick="goTo('miscfees',this)">
+      <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+      Misc Fee Collection
+    </div>
     <div class="sb-label">Personal</div>
     <div class="sb-item" onclick="goTo('myattendance',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -688,6 +692,17 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <div id="examFeesWrap"></div>
     </div>
 
+    <div class="page" id="page-miscfees">
+      <div class="page-head"><div><h2>Misc Fee Collection</h2><p>Collect misc fees unlocked by admin for your class</p></div></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="form-row" style="margin-bottom:0">
+          <div class="fg"><label>Fee</label><select id="mf_select"><option value="">Select fee</option></select></div>
+          <button class="btn btn-soft" onclick="loadMiscFeesList()">Load</button>
+        </div>
+      </div>
+      <div id="miscFeesWrap"></div>
+    </div>
+
     <!-- MESSAGES (ported from teacher.html) -->
     <div class="page" id="page-messages">
       <div class="page-head"><div><h2>Messages</h2><p>Internal school communication</p></div>
@@ -925,7 +940,7 @@ let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _isClassTeacher=true, _myClassTeacher=null, MY_MAPPINGS=[]
 
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Dashboard',messages:'Messages',marks:'Marks & Assessments',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',dues:'Student Dues',examfees:'Exam Fee Collection',myattendance:'My Attendance',handbook:'Code of Conduct',notices:'Notices & Circulars',profile:'My Profile'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',marks:'Marks & Assessments',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',dues:'Student Dues',examfees:'Exam Fee Collection',miscfees:'Misc Fee Collection',myattendance:'My Attendance',handbook:'Code of Conduct',notices:'Notices & Circulars',profile:'My Profile'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -1209,6 +1224,7 @@ function goTo(id,el,_fromPop){
   if(id==='rollnos')loadRollNos()
   if(id==='dues')loadDues()
   if(id==='examfees')loadExamFeeDropdown()
+  if(id==='miscfees')loadMiscFeeDropdown()
   if(id==='messages'){ showMsgView(window._forceInbox?'inbox':'compose'); window._forceInbox=false }
   if(id==='marks')loadMarksSection()
   if(id==='myattendance'){const now=new Date();const first=new Date(now.getFullYear(),now.getMonth(),1);const _fiso=first.getFullYear()+'-'+String(first.getMonth()+1).padStart(2,'0')+'-'+String(first.getDate()).padStart(2,'0');if($('att_from')&&!$('att_from').value)$('att_from').value=_fiso;if($('att_to')&&!$('att_to').value)$('att_to').value=today();loadMyAttendance();loadDeductionHistory()}
@@ -3314,6 +3330,80 @@ async function toggleNotAppearing(enrollmentId, feeId, mark){
   if(error){toast('Failed: '+error.message,'error');return}
   toast(mark?'Marked as not appearing':'Unmarked','success')
   loadExamFees()
+}
+
+async function loadMiscFeeDropdown(){
+  const sel=$('mf_select')
+  if(!sel)return
+  sel.innerHTML='<option value="">Loading…</option>'
+  const{data}=await sb.from('misc_fees').select('*').eq('class_id',MY_CLASS.class_id).eq('is_collection_unlocked',true)
+  const fees=data||[]
+  if(!fees.length){sel.innerHTML='<option value="">No misc fees unlocked for your class</option>';return}
+  sel.innerHTML='<option value="">Select fee</option>'+fees.map(f=>'<option value="'+f.misc_fee_id+'">'+esc(f.name)+'  (₹'+f.amount+')</option>').join('')
+}
+async function loadMiscFeesList(){
+  const feeId=$('mf_select')?.value,el=$('miscFeesWrap')
+  if(!feeId){el.innerHTML='';return}
+  ldg(el,'Loading…')
+  const{data:feeRow}=await sb.from('misc_fees').select('*').eq('misc_fee_id',feeId).maybeSingle()
+  if(!feeRow){emp(el,'Fee record not found.');return}
+  const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  const{data:payments}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId).in('enrollment_id',eids)
+  const paidMap={};const naMap={};(payments||[]).forEach(p=>{paidMap[p.enrollment_id]=p;if(p.is_na)naMap[p.enrollment_id]=true})
+  const totalCollected=(payments||[]).filter(p=>p.is_paid).length
+  const totalNA=Object.keys(naMap).length
+  const applicable=CLASS_STUDENTS.length-totalNA
+  const amount=feeRow.amount||0
+  let html='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(3,1fr)">'
+    +'<div class="stat-card"><span class="lbl">Fee Amount</span><span class="val">₹'+amount+'</span>'+(totalNA?'<span class="sub">'+totalNA+' NA</span>':'')+'</div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--success)">Paid</span><span class="val" style="color:var(--success)">'+totalCollected+'</span><span class="sub">₹'+(totalCollected*amount)+' collected</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+(applicable-totalCollected)+'</span></div>'
+    +'</div>'
+  html+='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Status</th><th>Action</th></tr></thead><tbody>'
+  CLASS_STUDENTS.forEach(s=>{
+    const p=paidMap[s.enrollment_id]
+    const isNA=!!naMap[s.enrollment_id]
+    const paidByAdmin=p?.is_paid&&p?.collected_by_type==='admin'
+    const paidByTeacher=p?.is_paid&&p?.collected_by_type==='teacher'
+    const mode=p?.collection_mode;
+    const paidTime=p?.paid_at?new Date(p.paid_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+    const modeTag=mode?' <span style="font-size:10px;color:var(--ink-faint)">('+mode+')</span>':'';
+    const timeTag=paidTime?'<div style="font-size:10px;color:var(--ink-faint)">'+paidTime+'</div>':'';
+    let statusCell,actionCell
+    if(isNA){statusCell='<span class="pill pill-neutral" style="background:#F3F4F6;color:#6B7280">N/A</span>';actionCell='<button class="btn btn-ghost btn-xs" onclick="toggleMiscFeeNA(\''+s.enrollment_id+'\',\''+feeId+'\',false)">Remove NA</button>'}
+    else if(paidByAdmin){statusCell='<span class="pill pill-neutral">Paid via Admin'+modeTag+'</span>'+timeTag;actionCell='<span style="font-size:11.5px;color:var(--ink-faint)">Admin collected</span>'}
+    else if(paidByTeacher){statusCell='<span class="pill pill-success">Collected ✓'+modeTag+'</span>'+timeTag;actionCell='<button class="btn btn-ghost btn-xs" onclick="toggleMiscFeePayment(\''+s.enrollment_id+'\',\''+feeId+'\',false)">Undo</button>'}
+    else{statusCell='<span class="pill pill-danger">Pending</span>';actionCell='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="toggleMiscFeePayment(\''+s.enrollment_id+'\',\''+feeId+'\',true)">Mark Paid</button> <button class="btn btn-ghost btn-xs" style="font-size:10px;color:#6B7280" onclick="toggleMiscFeeNA(\''+s.enrollment_id+'\',\''+feeId+'\',true)">NA</button>'}
+    html+='<tr'+(isNA?' style="opacity:.5"':'')+'><td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td><td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td><td>'+esc(s.students?.father_name||'—')+'</td><td>'+statusCell+'</td><td>'+actionCell+'</td></tr>'
+  })
+  html+='</tbody></table></div></div>'
+  el.innerHTML=html
+}
+async function toggleMiscFeePayment(enrollmentId,feeId,markPaid){
+  let collectionMode=null;
+  if(markPaid) collectionMode=await askCollectionMode();
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,
+    collected_by_type:'teacher',collected_by_id:TEACHER.teacher_id,
+    paid_at:markPaid?new Date().toISOString():null,
+    collection_mode:collectionMode
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(markPaid?'Marked as paid ('+collectionMode+') ✓':'Marked as unpaid','success')
+  if(markPaid){
+    const stu=(CLASS_STUDENTS||[]).find(s=>s.enrollment_id===enrollmentId)
+    logActivity('misc_fee_collected',TEACHER.full_name+' collected misc fee ('+collectionMode+') for '+(stu?.students?.full_name||'a student')+' ('+myClassLabel()+')')
+  }
+  loadMiscFeesList()
+}
+async function toggleMiscFeeNA(enrollmentId,feeId,mark){
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:false,is_na:mark,
+    collected_by_type:'teacher',collected_by_id:TEACHER.teacher_id,paid_at:null,collection_mode:null
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(mark?'Marked as N/A':'NA removed','success')
+  loadMiscFeesList()
 }
 
 async function logout(){
