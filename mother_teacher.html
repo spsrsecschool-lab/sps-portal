@@ -1935,20 +1935,15 @@ async function loadAttReport(){
     const prevToStr=prevEnd.getFullYear()+'-'+String(prevEnd.getMonth()+1).padStart(2,'0')+'-'+String(prevEnd.getDate()).padStart(2,'0')
     const sessStart=SESS?.start_date||''
     if(sessStart&&prevToStr>=sessStart){
-      let prevAtt=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',prevToStr).range(_r,_r+999);if(_c&&_c.length)prevAtt.push(..._c);if(!_c||_c.length<1000)break}
+      let _prevAttRaw=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',prevToStr).range(_r,_r+999);if(_c&&_c.length)_prevAttRaw.push(..._c);if(!_c||_c.length<1000)break}
+      const _dd={};_prevAttRaw.forEach(a=>{_dd[a.enrollment_id+'|'+a.date]=a});const prevAtt=Object.values(_dd)
       const{data:prevMonthly}=await sb.from('attendance_monthly').select('enrollment_id,from_date,to_date,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',prevToStr)
       const{data:prevHols}=await sb.from('holidays').select('date,class_ids').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',prevToStr)
       const prevHolSet=new Set((prevHols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
-      const _allRaw=(prevMonthly||[]);let _mSkipped=0;const mPer={};_allRaw.forEach(m=>{if(!m.from_date.endsWith('-01')){_mSkipped++;return}const[_y,_mo]=m.from_date.split('-');const _ld=new Date(parseInt(_y),parseInt(_mo),0).getDate();if(m.to_date!==_y+'-'+_mo+'-'+String(_ld).padStart(2,'0')){_mSkipped++;return}if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
+      const mPer={};(prevMonthly||[]).forEach(m=>{if(!m.from_date.endsWith('-01'))return;const[_y,_mo]=m.from_date.split('-');const _ld=new Date(parseInt(_y),parseInt(_mo),0).getDate();if(m.to_date!==_y+'-'+_mo+'-'+String(_ld).padStart(2,'0'))return;if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
       eids.forEach(eid=>{let t=0;(mPer[eid]||[]).forEach(p=>t+=p.p);_prevPMap[eid]=t})
-      const _pd={sun:0,hol:0,ep:0,cov:0,cnt:0};prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const dow=new Date(a.date+'T12:00:00').getDay();if(dow===0){_pd.sun++;return}if(prevHolSet.has(a.date)){_pd.hol++;return}if(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(a.date)){_pd.ep++;return}const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t)){_pd.cov++;return}if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++;_pd.cnt++})
-      const _e1=eids[0];const _e1raw=_allRaw.filter(m=>m.enrollment_id===_e1);const _e1kept=(mPer[_e1]||[])
-      const _e1daily=prevAtt.filter(a=>a.enrollment_id===_e1&&(a.status==='P'||a.status==='L')).map(a=>a.date).sort()
-      console.log('[PREV] month='+month+'/'+year,'range='+sessStart+'→'+prevToStr,'total='+_allRaw.length,'kept='+ (_allRaw.length-_mSkipped),'skipped='+_mSkipped,'sun='+_pd.sun,'hol='+_pd.hol,'ep='+_pd.ep,'cov='+_pd.cov,'cnt='+_pd.cnt,'mSums='+Object.values(_prevPMap).reduce((a,b)=>a+b,0))
-      console.log('[PREV] Roll1 raw monthly:',JSON.stringify(_e1raw.map(m=>m.from_date+'→'+m.to_date+' p='+m.present_count)))
-      console.log('[PREV] Roll1 kept monthly:',JSON.stringify(_e1kept.map(m=>m.f+'→'+m.t+' p='+m.p)))
-      console.log('[PREV] Roll1 dailyPL dates (last 30):',_e1daily.slice(-30).join(','))
-      console.log('[PREV] Roll1 final PREV='+(_prevPMap[_e1]||0))
+      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const dow=new Date(a.date+'T12:00:00').getDay();if(dow===0)return;if(prevHolSet.has(a.date))return;if(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(a.date))return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
+      console.log('[PREV] month='+month+'/'+year,'range='+sessStart+'→'+prevToStr,'raw='+_prevAttRaw.length,'deduped='+prevAtt.length,'dupes='+(_prevAttRaw.length-prevAtt.length))
     }
   }
 
