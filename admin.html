@@ -7168,7 +7168,7 @@ function fcRenderStudents(){
   const naCount=filtered.filter(e=>{const f=fcFeeForStudent(e.enrollment_id);return f&&naMap[f.exam_fee_id+'_'+e.enrollment_id]}).length
   const waivedCount=filtered.filter(e=>{const f=fcFeeForStudent(e.enrollment_id);return f&&waivedMap[f.exam_fee_id+'_'+e.enrollment_id]}).length
   const effectiveCount=filtered.length-naCount-waivedCount
-  h+='<div style="margin-bottom:10px;font-size:13px;color:var(--ink-soft)"><b>'+filtered.length+'</b> given · <span style="color:var(--success);font-weight:700">'+paidCount+' paid</span> · <span style="color:var(--danger);font-weight:700">'+(effectiveCount-paidCount)+' pending</span> · <span style="color:var(--ink-soft)">'+naCount+' NA</span> · <span style="color:#8B5CF6;font-weight:700">'+waivedCount+' waived</span></div>'
+  h+='<div style="margin-bottom:10px;font-size:13px;color:var(--ink-soft)"><b>'+filtered.length+'</b> enrolled · <span style="color:var(--success);font-weight:700">'+paidCount+' paid</span> · <span style="color:var(--danger);font-weight:700">'+(effectiveCount-paidCount)+' pending</span> · <span style="color:var(--ink-soft)">'+naCount+' NA</span> · <span style="color:#8B5CF6;font-weight:700">'+waivedCount+' waived</span></div>'
   h+='<div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'
   filtered.forEach(e=>{
     const f=fcFeeForStudent(e.enrollment_id)
@@ -7468,8 +7468,8 @@ async function loadMiscFeeDashboard(fees){
   const feeIds=fees.map(f=>f.misc_fee_id)
   const{data:allPayments}=await sb.from('misc_fee_payments').select('*').in('misc_fee_id',feeIds)
   const payMap={};(allPayments||[]).forEach(p=>{if(!payMap[p.misc_fee_id])payMap[p.misc_fee_id]=[];payMap[p.misc_fee_id].push(p)})
-  const{data:enrollCounts}=await sb.from('student_enrollments').select('class_id').eq('session_id',SESS.session_id).eq('status','active').eq('relieved',false)
-  const classCounts={};(enrollCounts||[]).forEach(e=>{classCounts[e.class_id]=(classCounts[e.class_id]||0)+1})
+  const{data:enrollCounts}=await sb.from('student_enrollments').select('enrollment_id,class_id').eq('session_id',SESS.session_id).eq('status','active').eq('relieved',false)
+  const classCounts={};const enrolledSet=new Set();(enrollCounts||[]).forEach(e=>{classCounts[e.class_id]=(classCounts[e.class_id]||0)+1;enrolledSet.add(e.enrollment_id)})
   let totalExpected=0,totalCollected=0,totalPaidCount=0,totalStudentCount=0,totalGiven=0,totalNAAll=0,totalWaivedAll=0
   const feeGroups={}
   fees.forEach(f=>{
@@ -7477,7 +7477,7 @@ async function loadMiscFeeDashboard(fees){
     if(!feeGroups[key])feeGroups[key]={name:f.name,fees:[],totalStudents:0,totalPaid:0,totalNA:0,totalWaived:0,totalAmount:0,totalCollected:0}
     const g=feeGroups[key]
     const stuCount=classCounts[f.class_id]||0
-    const allP=payMap[f.misc_fee_id]||[]
+    const allP=(payMap[f.misc_fee_id]||[]).filter(p=>enrolledSet.has(p.enrollment_id))
     let naCount=0,waivedCount=0,paidCount=0
     allP.forEach(p=>{if(p.is_na)naCount++;else if(p.is_waived)waivedCount++;else if(p.is_paid)paidCount++})
     const applicable=Math.max(0,stuCount-naCount-waivedCount)
@@ -7514,7 +7514,7 @@ async function loadMiscFeeDashboard(fees){
     h+='<div class="card" style="margin-bottom:16px;padding:20px">'
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px">'
     h+='<div><div style="font-size:16px;font-weight:800;color:var(--ink)">'+esc(g.name)+'</div>'
-    h+='<div style="font-size:12px;color:var(--ink-faint);margin-top:2px">'+g.fees.length+' class(es) &middot; ₹'+g.fees[0].amount+' per student &middot; '+g.totalStudents+' given'+(g.totalNA?' · '+g.totalNA+' NA':'')+(g.totalWaived?' · '+g.totalWaived+' waived':'')+'</div></div>'
+    h+='<div style="font-size:12px;color:var(--ink-faint);margin-top:2px">'+g.fees.length+' class(es) &middot; ₹'+g.fees[0].amount+' per student &middot; '+g.totalPaid+'/'+gApplicable+' paid'+(g.totalNA?' · '+g.totalNA+' NA':'')+(g.totalWaived?' · '+g.totalWaived+' waived':'')+'</div></div>'
     h+='<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:'+(gPct===100?'var(--success)':'var(--ink)')+'">'+gPct+'%</div><div style="font-size:11px;color:var(--ink-faint)">collected</div></div>'
     h+='</div>'
     h+='<div style="background:var(--lav-100);border-radius:6px;height:8px;overflow:hidden;margin-bottom:14px"><div style="background:'+(gPct===100?'var(--success)':'var(--indigo)')+';height:100%;width:'+gPct+'%;border-radius:6px;transition:width .3s"></div></div>'
@@ -7608,7 +7608,8 @@ function renderMiscFeeStatus(){
   if(!_mfStatusData)return
   const{fee,enrollments,payments}=_mfStatusData
   const el=$('miscFeeDetailView')
-  const paidMap={};const naMap={};const waivedMap={};(payments||[]).forEach(p=>{if(p.is_na)naMap[p.enrollment_id]=true;else if(p.is_waived)waivedMap[p.enrollment_id]=p;else if(p.is_paid)paidMap[p.enrollment_id]=p})
+  const enrolledIds=new Set(enrollments.map(e=>e.enrollment_id))
+  const paidMap={};const naMap={};const waivedMap={};(payments||[]).filter(p=>enrolledIds.has(p.enrollment_id)).forEach(p=>{if(p.is_na)naMap[p.enrollment_id]=true;else if(p.is_waived)waivedMap[p.enrollment_id]=p;else if(p.is_paid)paidMap[p.enrollment_id]=p})
   const totalPaid=Object.keys(paidMap).length
   const totalNA=Object.keys(naMap).length
   const totalWaived=Object.keys(waivedMap).length
@@ -7624,7 +7625,7 @@ function renderMiscFeeStatus(){
   }
   const pendCount=Math.max(0,applicable-totalPaid)
   h+='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(5,1fr)">'
-  h+='<div class="stat-card"><span class="lbl">Total Given</span><span class="val">'+totalStudents+'</span>'+(totalNA||totalWaived?'<span class="sub">'+totalNA+' NA · '+totalWaived+' waived</span>':'')+'</div>'
+  h+='<div class="stat-card"><span class="lbl">Enrolled</span><span class="val">'+totalStudents+'</span>'+(totalNA||totalWaived?'<span class="sub">'+totalNA+' NA · '+totalWaived+' waived</span>':'')+'</div>'
   h+='<div class="stat-card"><span class="lbl">Applicable</span><span class="val">'+applicable+'</span><span class="sub">₹'+(applicable*amount).toLocaleString('en-IN')+' expected</span></div>'
   h+='<div class="stat-card"><span class="lbl" style="color:var(--success)">Paid</span><span class="val" style="color:var(--success)">'+totalPaid+'</span><span class="sub">₹'+(totalPaid*amount).toLocaleString('en-IN')+' collected</span></div>'
   h+='<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+pendCount+'</span><span class="sub">₹'+(pendCount*amount).toLocaleString('en-IN')+' remaining</span></div>'
@@ -9350,9 +9351,11 @@ async function loadClassAttendance(){
     if(sessStart&&prevToStr>=sessStart){
       let prevAtt=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',prevToStr).range(_r,_r+999);if(_c&&_c.length)prevAtt.push(..._c);if(!_c||_c.length<1000)break}
       const{data:prevMonthly}=await sb.from('attendance_monthly').select('enrollment_id,from_date,to_date,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',prevToStr)
+      const{data:prevHols}=await sb.from('holidays').select('date,class_ids').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',prevToStr)
+      const prevHolSet=new Set((prevHols||[]).filter(h=>!h.class_ids||h.class_ids.includes(classId)).map(h=>h.date))
       const mPer={};(prevMonthly||[]).forEach(m=>{if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
       eids.forEach(eid=>{let t=0;(mPer[eid]||[]).forEach(p=>t+=p.p);_prevPMap[eid]=t})
-      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
+      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const dow=new Date(a.date+'T12:00:00').getDay();if(dow===0||prevHolSet.has(a.date))return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
     }
   }
 
