@@ -7466,7 +7466,7 @@ async function loadMiscFeeDashboard(fees){
   const el=$('mfDashboard');if(!el)return
   el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
   const feeIds=fees.map(f=>f.misc_fee_id)
-  const{data:allPayments}=await sb.from('misc_fee_payments').select('misc_fee_id,enrollment_id,is_paid,is_na,is_waived,waived_amount,collected_by_type,paid_at').in('misc_fee_id',feeIds)
+  const{data:allPayments}=await sb.from('misc_fee_payments').select('*').in('misc_fee_id',feeIds)
   const payMap={};(allPayments||[]).forEach(p=>{if(!payMap[p.misc_fee_id])payMap[p.misc_fee_id]=[];payMap[p.misc_fee_id].push(p)})
   const{data:enrollCounts}=await sb.from('student_enrollments').select('class_id').eq('session_id',SESS.session_id).eq('status','active').eq('relieved',false)
   const classCounts={};(enrollCounts||[]).forEach(e=>{classCounts[e.class_id]=(classCounts[e.class_id]||0)+1})
@@ -7481,7 +7481,7 @@ async function loadMiscFeeDashboard(fees){
     let naCount=0,waivedCount=0,paidCount=0
     allP.forEach(p=>{if(p.is_na)naCount++;else if(p.is_waived)waivedCount++;else if(p.is_paid)paidCount++})
     const applicable=Math.max(0,stuCount-naCount-waivedCount)
-    g.fees.push({...f,stuCount,paidCount,naCount,waivedCount,applicable,payments})
+    g.fees.push({...f,stuCount,paidCount,naCount,waivedCount,applicable})
     g.totalStudents+=stuCount
     g.totalPaid+=paidCount
     g.totalNA+=naCount
