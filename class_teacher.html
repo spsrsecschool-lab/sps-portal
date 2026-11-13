@@ -1700,24 +1700,15 @@ async function loadAttReport(){
     const prevEnd=new Date(year,month-1,0)
     const prevToStr=prevEnd.getFullYear()+'-'+String(prevEnd.getMonth()+1).padStart(2,'0')+'-'+String(prevEnd.getDate()).padStart(2,'0')
     const sessStart=SESS?.start_date||''
-    console.log('[PREV] range:',sessStart,'→',prevToStr,'for month',month,'/',year)
     if(sessStart&&prevToStr>=sessStart){
       let prevAtt=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',prevToStr).range(_r,_r+999);if(_c&&_c.length)prevAtt.push(..._c);if(!_c||_c.length<1000)break}
       const{data:prevMonthly}=await sb.from('attendance_monthly').select('enrollment_id,from_date,to_date,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',prevToStr)
       const{data:prevHols}=await sb.from('holidays').select('date,class_ids').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',prevToStr)
       const prevHolSet=new Set((prevHols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
-      console.log('[PREV] daily records fetched:',prevAtt.length,'| monthly summaries:',(prevMonthly||[]).length,'| holidays:',prevHolSet.size)
-      console.log('[PREV] monthly summaries:',(prevMonthly||[]).map(m=>m.enrollment_id.slice(0,8)+'… '+m.from_date+'→'+m.to_date+' P='+m.present_count))
-      const mPer={};(prevMonthly||[]).forEach(m=>{if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
+      let _mSkipped=0;const mPer={};(prevMonthly||[]).forEach(m=>{if(!m.from_date.endsWith('-01')){_mSkipped++;return}const[_y,_mo]=m.from_date.split('-');const _ld=new Date(parseInt(_y),parseInt(_mo),0).getDate();if(m.to_date!==_y+'-'+_mo+'-'+String(_ld).padStart(2,'0')){_mSkipped++;return}if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
       eids.forEach(eid=>{let t=0;(mPer[eid]||[]).forEach(p=>t+=p.p);_prevPMap[eid]=t})
-      const _debugExtra={}
-      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const dow=new Date(a.date+'T12:00:00').getDay();if(dow===0||prevHolSet.has(a.date))return;if(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(a.date))return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++;if(!_debugExtra[a.enrollment_id])_debugExtra[a.enrollment_id]=[];_debugExtra[a.enrollment_id].push(a.date)})
-      const firstEid=eids[0]
-      console.log('[PREV] Student roll 1 ('+firstEid.slice(0,8)+'…):','monthly total=',(mPer[firstEid]||[]).reduce((s,p)=>s+p.p,0),'| extra daily dates=',_debugExtra[firstEid]||[],'| final PREV=',_prevPMap[firstEid]||0)
-      const statuses={};prevAtt.filter(a=>a.enrollment_id===firstEid).forEach(a=>{if(!statuses[a.status])statuses[a.status]=0;statuses[a.status]++})
-      console.log('[PREV] Student roll 1 daily status breakdown:',statuses)
-      const byMonth={};prevAtt.filter(a=>a.enrollment_id===firstEid&&a.status==='P').forEach(a=>{const m=a.date.slice(0,7);if(!byMonth[m])byMonth[m]=0;byMonth[m]++})
-      console.log('[PREV] Student roll 1 daily P by month:',byMonth)
+      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const dow=new Date(a.date+'T12:00:00').getDay();if(dow===0||prevHolSet.has(a.date))return;if(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(a.date))return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
+      console.log('[PREV] month='+month+'/'+year,'range='+sessStart+'→'+prevToStr,'monthlyRecords='+(prevMonthly||[]).length,'exactMonthOnly='+(prevMonthly||[]).length-_mSkipped,'skippedNonExact='+_mSkipped)
     }
   }
 
