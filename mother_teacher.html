@@ -1941,7 +1941,9 @@ async function loadAttReport(){
       const prevHolSet=new Set((prevHols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
       const mPer={};(prevMonthly||[]).forEach(m=>{if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
       eids.forEach(eid=>{let t=0;(mPer[eid]||[]).forEach(p=>t+=p.p);_prevPMap[eid]=t})
-      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const dow=new Date(a.date+'T12:00:00').getDay();if(dow===0||prevHolSet.has(a.date))return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
+      const _prevDebug={sun:0,hol:0,ep:0,monthly:0,counted:0}
+      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const dow=new Date(a.date+'T12:00:00').getDay();if(dow===0){_prevDebug.sun++;return}if(prevHolSet.has(a.date)){_prevDebug.hol++;return}if(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(a.date)){_prevDebug.ep++;return}const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t)){_prevDebug.monthly++;return}if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++;_prevDebug.counted++})
+      console.log('[PREV] month='+month+'/'+year,'range='+sessStart+'→'+prevToStr,'dailyPL='+prevAtt.filter(a=>a.status==='P'||a.status==='L').length,'skipped: sun='+_prevDebug.sun+' hol='+_prevDebug.hol+' examPrep='+_prevDebug.ep+' coveredByMonthly='+_prevDebug.monthly,'counted='+_prevDebug.counted,'monthlySums='+Object.values(_prevPMap).reduce((a,b)=>a+b,0),'holidays='+[...prevHolSet].join(','),'examPrepCount='+(MY_EXAM_PREP_HOLS?MY_EXAM_PREP_HOLS.size:0))
     }
   }
 
@@ -2016,6 +2018,9 @@ async function loadAttReport(){
       +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+(prevP+pCount)+'</td>'
     html+='</tr>'
   })
+
+  const _gridTotals=CLASS_STUDENTS.map(s=>({roll:s.roll_no,prev:_prevPMap[s.enrollment_id]||0,total:(_prevPMap[s.enrollment_id]||0)}))
+  console.log('[GRID] month='+month+'/'+year,'first3students='+JSON.stringify(_gridTotals.slice(0,3)))
 
   // Totals row
   html+='<tr style="background:var(--lav-100);font-weight:700">'
