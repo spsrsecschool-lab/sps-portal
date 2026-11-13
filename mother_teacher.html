@@ -2004,6 +2004,7 @@ async function loadAttReport(){
       const isHD=hdSet.has(s.enrollment_id+'|'+d.dateStr)
       if(isHD&&st==='P'){pCount++;html+='<td class="cell-hd">½</td>'}
       else if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
+      else if(st==='L'){pCount++;html+='<td style="text-align:center;font-weight:600;color:#F57F17">L</td>'}
       else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
       else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
     })
