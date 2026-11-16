@@ -7666,7 +7666,8 @@ async function downloadMiscFeeGroupCSV(feeName){
   const enrolledIds=new Set(enrollments.map(e=>e.enrollment_id))
   const feeByClass={};fees.forEach(f=>{feeByClass[f.class_id]=f.misc_fee_id})
   const paidMap={};const waivedMap={};(payments||[]).filter(p=>enrolledIds.has(p.enrollment_id)).forEach(p=>{if(p.is_na)return;if(p.is_waived){waivedMap[p.enrollment_id]=p;paidMap[p.enrollment_id]=p}else if(p.is_paid)paidMap[p.enrollment_id]=p})
-  const paid=enrollments.filter(e=>paidMap[e.enrollment_id]).sort((a,b)=>{const cn=(a.classes?.name||'').localeCompare(b.classes?.name||'');if(cn)return cn;const sn=(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'');if(sn)return sn;return(parseInt(a.roll_no)||0)-(parseInt(b.roll_no)||0)})
+  const _clsOrd={};(ALL_CLASSES||[]).forEach(c=>{_clsOrd[c.class_id]=c.sort_order||0})
+  const paid=enrollments.filter(e=>paidMap[e.enrollment_id]).sort((a,b)=>{const co=(_clsOrd[a.class_id]||0)-(_clsOrd[b.class_id]||0);if(co)return co;const sn=(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'');if(sn)return sn;return(parseInt(a.roll_no)||0)-(parseInt(b.roll_no)||0)})
   if(!paid.length){toast('No paid students to download','error');return}
   const csvEsc=v=>{const s=String(v||'');return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s}
   let csv='Roll No,Student Name,Father\'s Name,Class,Section,Status\n'
@@ -7679,7 +7680,8 @@ function downloadMiscFeePaidCSV(){
   const{fee,enrollments,payments}=_mfStatusData
   const enrolledIds=new Set(enrollments.map(e=>e.enrollment_id))
   const paidMap={};const waivedMap={};(payments||[]).filter(p=>enrolledIds.has(p.enrollment_id)).forEach(p=>{if(p.is_na)return;if(p.is_waived){waivedMap[p.enrollment_id]=p;paidMap[p.enrollment_id]=p}else if(p.is_paid)paidMap[p.enrollment_id]=p})
-  const paid=enrollments.filter(e=>paidMap[e.enrollment_id]).sort((a,b)=>{const cn=(a.classes?.name||'').localeCompare(b.classes?.name||'');if(cn)return cn;const sn=(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'');if(sn)return sn;return(parseInt(a.roll_no)||0)-(parseInt(b.roll_no)||0)})
+  const _clsOrd={};(ALL_CLASSES||[]).forEach(c=>{_clsOrd[c.class_id]=c.sort_order||0})
+  const paid=enrollments.filter(e=>paidMap[e.enrollment_id]).sort((a,b)=>{const co=(_clsOrd[a.class_id]||0)-(_clsOrd[b.class_id]||0);if(co)return co;const sn=(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'');if(sn)return sn;return(parseInt(a.roll_no)||0)-(parseInt(b.roll_no)||0)})
   if(!paid.length){toast('No paid students to download','error');return}
   const csvEsc=v=>{const s=String(v||'');return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s}
   let csv='Roll No,Student Name,Father\'s Name,Class,Section,Status\n'
