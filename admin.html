@@ -7515,7 +7515,7 @@ async function loadMiscFeeDashboard(fees){
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px">'
     h+='<div><div style="font-size:16px;font-weight:800;color:var(--ink)">'+esc(g.name)+'</div>'
     h+='<div style="font-size:12px;color:var(--ink-faint);margin-top:2px">'+g.fees.length+' class(es) &middot; ₹'+g.fees[0].amount+' per student &middot; '+g.totalPaid+'/'+gApplicable+' paid'+(g.totalNA?' · '+g.totalNA+' NA':'')+(g.totalWaived?' · '+g.totalWaived+' waived':'')+'</div></div>'
-    h+='<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:'+(gPct===100?'var(--success)':'var(--ink)')+'">'+gPct+'%</div><div style="font-size:11px;color:var(--ink-faint)">collected</div></div>'
+    h+='<div style="display:flex;align-items:flex-start;gap:12px"><button class="btn btn-ghost btn-xs" style="white-space:nowrap;margin-top:4px" onclick="downloadMiscFeeGroupCSV(\''+esc(g.name).replace(/'/g,"\\'")+'\')">Download Paid List</button><div style="text-align:right"><div style="font-size:22px;font-weight:800;color:'+(gPct===100?'var(--success)':'var(--ink)')+'">'+gPct+'%</div><div style="font-size:11px;color:var(--ink-faint)">collected</div></div></div>'
     h+='</div>'
     h+='<div style="background:var(--lav-100);border-radius:6px;height:8px;overflow:hidden;margin-bottom:14px"><div style="background:'+(gPct===100?'var(--success)':'var(--indigo)')+';height:100%;width:'+gPct+'%;border-radius:6px;transition:width .3s"></div></div>'
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">'
@@ -7654,6 +7654,25 @@ function renderMiscFeeStatus(){
   })
   h+='</tbody></table></div></div>'
   el.innerHTML=h
+}
+async function downloadMiscFeeGroupCSV(feeName){
+  const fees=(window._miscFeesCache||[]).filter(f=>f.name===feeName)
+  if(!fees.length){toast('No fees found for '+feeName,'error');return}
+  const feeIds=fees.map(f=>f.misc_fee_id)
+  const classIds=[...new Set(fees.map(f=>f.class_id))]
+  const{data:enrollments}=await sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,students(full_name,father_name),classes(name),class_sections(name)').eq('session_id',SESS.session_id).in('class_id',classIds).eq('status','active').eq('relieved',false).order('roll_no')
+  if(!enrollments?.length){toast('No students found','error');return}
+  const{data:payments}=await sb.from('misc_fee_payments').select('*').in('misc_fee_id',feeIds)
+  const enrolledIds=new Set(enrollments.map(e=>e.enrollment_id))
+  const feeByClass={};fees.forEach(f=>{feeByClass[f.class_id]=f.misc_fee_id})
+  const paidMap={};const waivedMap={};(payments||[]).filter(p=>enrolledIds.has(p.enrollment_id)).forEach(p=>{if(p.is_na)return;if(p.is_waived){waivedMap[p.enrollment_id]=p;paidMap[p.enrollment_id]=p}else if(p.is_paid)paidMap[p.enrollment_id]=p})
+  const paid=enrollments.filter(e=>paidMap[e.enrollment_id]).sort((a,b)=>{const cn=(a.classes?.name||'').localeCompare(b.classes?.name||'');if(cn)return cn;const sn=(a.class_sections?.name||'').localeCompare(b.class_sections?.name||'');if(sn)return sn;return(parseInt(a.roll_no)||0)-(parseInt(b.roll_no)||0)})
+  if(!paid.length){toast('No paid students to download','error');return}
+  const csvEsc=v=>{const s=String(v||'');return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s}
+  let csv='Roll No,Student Name,Father\'s Name,Class,Section,Status\n'
+  paid.forEach(e=>{const wp=waivedMap[e.enrollment_id];csv+=csvEsc(e.roll_no)+','+csvEsc(e.students?.full_name)+','+csvEsc(e.students?.father_name)+','+csvEsc(e.classes?.name)+','+csvEsc(e.class_sections?.name)+','+(wp?'Waived':'Paid')+'\n'})
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'})
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(feeName||'misc_fee')+'_all_classes_paid.csv';a.click();URL.revokeObjectURL(a.href)
 }
 function downloadMiscFeePaidCSV(){
   if(!_mfStatusData)return
