@@ -857,10 +857,7 @@ async function loadFreePeriods(){
 }
 
 // ═══════════ BOOTSTRAP ═══════════
-document.addEventListener('DOMContentLoaded',()=>{
-  if(typeof SPS!=='undefined'&&SPS.ready)init()
-  else document.addEventListener('sps:ready',init)
-})
+SPS.ready().then(init)
 </script>
 </body>
 </html>
