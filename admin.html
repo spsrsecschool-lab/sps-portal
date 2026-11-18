@@ -1534,6 +1534,10 @@ tbody tr:hover td{background:var(--lav-50)}
             <div class="ic" style="background:linear-gradient(135deg,#2BB673,#1F9960)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
             <h4>Student Attendance</h4><p>View individual student attendance report with day-wise breakdown and missing days</p>
           </div>
+          <div class="menu-card" onclick="openCaSub('ca-halfday')">
+            <div class="ic" style="background:linear-gradient(135deg,#F39C12,#E67E22)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+            <h4>Half Day Records</h4><p>Record and manage student half days — search any student, set time and reason</p>
+          </div>
         </div>
       </div>
 
@@ -1598,6 +1602,27 @@ tbody tr:hover td{background:var(--lav-50)}
       </div>
 
       <!-- ── Student Individual Attendance ── -->
+      <!-- ── Half Day Records ── -->
+      <div id="ca-halfday" style="display:none">
+        <button class="back-btn" onclick="openCaSub('ca-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Half Day Records</h2><p>Record and manage student half days</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Search Student</label>
+          <div style="position:relative">
+            <input id="ahd_search" type="text" placeholder="Type student name…" autocomplete="off" oninput="ahdSearchStudent(this.value)" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box">
+            <div id="ahd_suggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--line);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 8px 20px rgba(0,0,0,.12)"></div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="flex-wrap:wrap;align-items:flex-end;margin-bottom:0">
+            <div class="fg"><label>Class</label><select id="ahd_class" onchange="ahdLoadSections()"><option value="">All classes</option></select></div>
+            <div class="fg"><label>Section</label><select id="ahd_section"><option value="">All sections</option></select></div>
+            <button class="btn btn-soft" style="align-self:flex-end" onclick="ahdLoadRecords()">Load Records</button>
+          </div>
+        </div>
+        <div id="ahdRecordsWrap"></div>
+      </div>
+
       <div id="ca-student" style="display:none">
         <button class="back-btn" onclick="openCaSub('ca-menu')">&#8592; Back</button>
         <div class="page-head"><div><h2>Student Attendance</h2><p>Individual student attendance report</p></div></div>
@@ -9024,7 +9049,7 @@ async function debugAttendance(){
 }
 
 function openCaSub(id){
-  ;['ca-menu','ca-pending','ca-record','ca-student'].forEach(s=>{const el=$(s);if(el)el.style.display='none'})
+  ;['ca-menu','ca-pending','ca-record','ca-student','ca-halfday'].forEach(s=>{const el=$(s);if(el)el.style.display='none'})
   const el=$(id);if(el)el.style.display='block'
 }
 
@@ -9036,6 +9061,7 @@ function caInit(){
   if($('ca_year')&&!$('ca_year').value)$('ca_year').value = now.getFullYear()
   if($('cap_month'))$('cap_month').value = now.getMonth()+1
   if($('cap_year'))$('cap_year').value = now.getFullYear()
+  ahdInitFilters()
 }
 
 // ── Pending attendance records ──
@@ -9561,7 +9587,7 @@ async function caSetAtt(td,eid,dateStr,val){
   if(error){toast('Failed: '+error.message,'error');return}
   if(val==='HD'){
     await sb.from('student_half_days').delete().eq('enrollment_id',eid).eq('date',dateStr)
-    const{error:e2}=await sb.from('student_half_days').insert({enrollment_id:eid,date:dateStr,session_id:SESS?.session_id})
+    const{error:e2}=await sb.from('student_half_days').insert({enrollment_id:eid,date:dateStr,leave_time:new Date().toTimeString().slice(0,5),session_id:SESS?.session_id})
     if(e2){toast('Half-day record failed: '+e2.message,'error');return}
   }else{
     await sb.from('student_half_days').delete().eq('enrollment_id',eid).eq('date',dateStr)
@@ -9571,6 +9597,107 @@ async function caSetAtt(td,eid,dateStr,val){
   td.className=cls[val]||'';td.style.cursor='pointer';td.textContent=txt[val]||'—'
   toast(val==='HD'?'Half-day set':val+' set','success')
 }
+
+// ═══════════ ADMIN HALF DAY MODULE ═══════════
+let _ahdAllStudents=null
+async function ahdSearchStudent(q){
+  const box=$('ahd_suggestions')
+  if(!q||q.length<2){box.style.display='none';return}
+  if(!_ahdAllStudents){
+    const{data}=await sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,students(full_name),classes(name),class_sections(name)').eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no')
+    _ahdAllStudents=data||[]
+  }
+  const lq=q.toLowerCase()
+  const matches=_ahdAllStudents.filter(s=>(s.students?.full_name||'').toLowerCase().includes(lq)).slice(0,10)
+  if(!matches.length){box.innerHTML='<div style="padding:10px 14px;color:var(--ink-faint);font-size:12.5px">No students found</div>';box.style.display='block';return}
+  box.innerHTML=matches.map(s=>'<div onclick="ahdPickStudent(\''+s.enrollment_id+'\')" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background=\'var(--lav-50)\'" onmouseout="this.style.background=\'\'"><span style="font-weight:600">'+esc(s.students?.full_name||'?')+'</span><span style="font-size:11px;color:var(--ink-soft)">'+esc(s.classes?.name||'')+'-'+esc(s.class_sections?.name||'')+' · Roll '+esc(s.roll_no||'—')+'</span></div>').join('')
+  box.style.display='block'
+}
+function ahdPickStudent(eid){
+  $('ahd_suggestions').style.display='none'
+  const s=(_ahdAllStudents||[]).find(x=>x.enrollment_id===eid)
+  if(!s)return
+  $('ahd_search').value=s.students?.full_name||''
+  openModal('Record Half Day for '+esc(s.students?.full_name||'?'),
+    '<div style="margin-bottom:16px"><div class="form-row" style="flex-wrap:wrap">'
+    +'<div class="fg"><label>Date</label><input type="date" id="ahd_date" value="'+today()+'" max="'+today()+'"></div>'
+    +'<div class="fg"><label>Time of Leaving</label><input type="time" id="ahd_time" value="'+new Date().toTimeString().slice(0,5)+'"></div>'
+    +'</div>'
+    +'<div style="margin-top:12px"><label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Reason for Leaving</label>'
+    +'<textarea id="ahd_reason" rows="3" placeholder="e.g. Not feeling well, parent picked up early…" style="width:100%;font-family:var(--font);font-size:13px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;color:var(--ink);background:var(--lav-50);box-sizing:border-box;resize:vertical"></textarea>'
+    +'</div></div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-primary" onclick="ahdApprove(\''+eid+'\')">Approve Half Day</button>'
+  )
+}
+async function ahdApprove(eid){
+  const date=$('ahd_date')?.value, time=$('ahd_time')?.value, reason=$('ahd_reason')?.value?.trim()
+  if(!date){toast('Please select a date','error');return}
+  if(!time){toast('Please enter the time of leaving','error');return}
+  const s=(_ahdAllStudents||[]).find(x=>x.enrollment_id===eid)
+  await sb.from('student_half_days').delete().eq('enrollment_id',eid).eq('date',date)
+  const{error}=await sb.from('student_half_days').insert({
+    enrollment_id:eid, date:date, leave_time:time, reason:reason||null,
+    approved_by:'admin', session_id:SESS?.session_id||''
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal()
+  toast('Half day approved for '+esc(s?.students?.full_name||'student'),'success')
+  logActivity('half_day_approved','Admin approved half day for '+(s?.students?.full_name||'a student')+' at '+time)
+  $('ahd_search').value=''
+  ahdLoadRecords()
+}
+async function ahdLoadSections(){
+  const cid=$('ahd_class')?.value,sel=$('ahd_section')
+  if(sel)sel.innerHTML='<option value="">All sections</option>'
+  if(!cid||!SESS)return
+  const{data}=await sb.from('class_sections').select('section_id,name').eq('class_id',cid).eq('session_id',SESS.session_id).eq('is_active',true).order('name')
+  if(sel)sel.innerHTML='<option value="">All sections</option>'+(data||[]).map(s=>'<option value="'+s.section_id+'">'+esc(s.name)+'</option>').join('')
+}
+function ahdInitFilters(){
+  const cls=$('ahd_class')
+  if(!cls)return
+  cls.innerHTML='<option value="">All classes</option>'+ALL_CLASSES.map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+}
+async function ahdLoadRecords(){
+  const el=$('ahdRecordsWrap')
+  if(!el)return
+  ldg(el,'Loading records…')
+  let q=sb.from('student_half_days').select('*,student_enrollments(roll_no,class_id,students(full_name),classes(name),class_sections(name))').eq('session_id',SESS?.session_id||'').order('date',{ascending:false}).order('created_at',{ascending:false}).limit(100)
+  const cid=$('ahd_class')?.value, secId=$('ahd_section')?.value
+  if(cid){
+    let eq=sb.from('student_enrollments').select('enrollment_id').eq('session_id',SESS?.session_id||'').eq('class_id',cid).eq('status','active').eq('relieved',false)
+    if(secId)eq=eq.eq('section_id',secId)
+    const{data:ens}=await eq
+    const eids=(ens||[]).map(e=>e.enrollment_id)
+    if(!eids.length){el.innerHTML='<div class="card" style="text-align:center;padding:30px;color:var(--ink-faint)">No students found.</div>';return}
+    q=q.in('enrollment_id',eids)
+  }
+  const{data:recs,error}=await q
+  if(error){emp(el,'Error: '+error.message);return}
+  if(!recs||!recs.length){el.innerHTML='<div class="card" style="text-align:center;padding:30px;color:var(--ink-faint)">No half day records found. Search a student above to record one.</div>';return}
+  let h='<div class="card" style="overflow-x:auto"><table style="width:100%"><thead><tr><th>Date</th><th>Roll</th><th>Student</th><th>Class</th><th>Left At</th><th>Reason</th><th></th></tr></thead><tbody>'
+  recs.forEach(r=>{
+    const en=r.student_enrollments||{}
+    h+='<tr><td style="white-space:nowrap;font-weight:600">'+fmtD(r.date)+'</td>'
+      +'<td class="mono" style="font-weight:700">'+esc(en.roll_no||'—')+'</td>'
+      +'<td style="font-weight:600">'+esc(en.students?.full_name||'?')+'</td>'
+      +'<td style="font-size:12px;color:var(--ink-soft)">'+esc(en.classes?.name||'')+'-'+esc(en.class_sections?.name||'')+'</td>'
+      +'<td style="white-space:nowrap">'+esc(r.leave_time||'—')+'</td>'
+      +'<td style="color:var(--ink-soft);font-size:12px;max-width:200px">'+esc(r.reason||'—')+'</td>'
+      +'<td><button class="btn btn-ghost btn-xs" style="color:var(--danger)" onclick="ahdDelete(\''+r.id+'\')">Remove</button></td></tr>'
+  })
+  h+='</tbody></table></div>'
+  el.innerHTML=h
+}
+async function ahdDelete(id){
+  if(!confirm('Remove this half day record?'))return
+  const{error}=await sb.from('student_half_days').delete().eq('id',id)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Record removed','success')
+  ahdLoadRecords()
+}
+
 function printClassAttendance(){
   const el=$('caTable')
   if(!el||!el.innerHTML.trim()){toast('Load a report first','error');return}
