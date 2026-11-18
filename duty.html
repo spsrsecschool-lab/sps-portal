@@ -97,6 +97,8 @@ tbody tr:hover td{background:var(--lav-50)}
 #modal-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
 #scrim{position:fixed;inset:0;background:rgba(26,46,32,.35);z-index:150;display:none}
 #scrim.show{display:block}
+#menuBtn{display:none;width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--white);align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+#menuBtn svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:2;stroke-linecap:round}
 @media(max-width:760px){
   #sidebar{transform:translateX(-100%)}#sidebar.show{transform:translateX(0)}
   #main{margin-left:0}.content{padding:16px}
@@ -104,6 +106,7 @@ tbody tr:hover td{background:var(--lav-50)}
   .topbar-title .crumb{display:none}
   .topbar-title{font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .user-chip .chip-text{display:none}
+  #menuBtn{display:flex}
 }
 </style>
 </head>
@@ -160,7 +163,7 @@ tbody tr:hover td{background:var(--lav-50)}
 
 <div id="main">
   <div class="topbar">
-    <div class="icon-btn" style="display:none" id="menuBtn" onclick="openMobileSidebar()">
+    <div id="menuBtn" onclick="openMobileSidebar()">
       <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </div>
     <div class="topbar-title"><span id="pageTitle">Live Dashboard</span><span class="crumb">Duty Teacher Portal</span></div>
@@ -277,7 +280,6 @@ function goTo(id,el){
 async function logout(){await sb.auth.signOut();window.location.href='login.html'}
 
 async function init(){
-  if(window.innerWidth<=760)$('menuBtn').style.display='flex'
   const authSess=SPS.session
   if(!authSess){window.location.href='login.html';return}
   const{data:teacher}=await sb.from('teachers').select('*').eq('auth_user_id',authSess.user.id).maybeSingle()
