@@ -3864,7 +3864,7 @@ function renderSlotView(idx,dir){
     const sch=d.schedMap[t.teacher_id]
     const ss=(sch?.start||d.defShift).slice(0,5)
     const se=(sch?.end||d.defShiftEnd).slice(0,5)
-    return slotStart>=ss&&slotStart<=se
+    return slotStart>=ss&&slotStart<se
   })
   if(free.length){
     h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
