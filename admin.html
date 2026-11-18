@@ -12114,9 +12114,8 @@ function tbCellClick(td){
   const day=_tbDay
   const curEntry=_tbEntries.find(e=>e.slot_id===slotId&&e.section_id===secId&&(e.days||[]).includes(day))
   const curAdj=_tbAdjs.find(a=>a.slot_id===slotId&&a.section_id===secId&&(a.days||[]).includes(day))
-  const subjectIds=[...new Set(_tbMappings.filter(m=>m.class_id===clsId&&(!m.section_id||m.section_id===secId)).map(m=>m.subject_id))]
   const subSel=$('tbEdSubject')
-  subSel.innerHTML='<option value="">— Select subject —</option>'+subjectIds.map(sid=>{const s=ALL_SUBJECTS.find(x=>x.subject_id===sid);return s?'<option value="'+sid+'">'+esc(s.name)+'</option>':''}).join('')
+  subSel.innerHTML='<option value="">— Select subject —</option>'+ALL_SUBJECTS.map(s=>'<option value="'+s.subject_id+'">'+esc(s.name)+'</option>').join('')
   const adjTSel=$('tbEdAdjTeacher')
   adjTSel.innerHTML='<option value="">— No teacher —</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
   const adjCb=$('tbEdAdj')
@@ -12156,9 +12155,10 @@ function tbSubjectChanged(){
   if(!subId){tSel.innerHTML='<option value="">— Select subject first —</option>';$('tbEdConflict').style.display='none';return}
   if(!_tbEdCell)return
   const{clsId,secId}=_tbEdCell
-  const teacherIds=[...new Set(_tbMappings.filter(m=>m.subject_id===subId&&m.class_id===clsId&&(!m.section_id||m.section_id===secId)).map(m=>m.teacher_id))]
-  tSel.innerHTML='<option value="">— Select teacher —</option>'+teacherIds.map(tid=>{const t=ALL_TEACHERS.find(x=>x.teacher_id===tid);return t?'<option value="'+tid+'">'+esc(t.full_name)+'</option>':''}).join('')
-  if(teacherIds.length===1){tSel.value=teacherIds[0]}
+  const mappedTids=[...new Set(_tbMappings.filter(m=>m.subject_id===subId&&m.class_id===clsId&&(!m.section_id||m.section_id===secId)).map(m=>m.teacher_id))]
+  const teachers=mappedTids.length?mappedTids.map(tid=>ALL_TEACHERS.find(x=>x.teacher_id===tid)).filter(Boolean):ALL_TEACHERS.filter(t=>t.is_active)
+  tSel.innerHTML='<option value="">— Select teacher —</option>'+teachers.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  if(mappedTids.length===1){tSel.value=mappedTids[0]}
   tbTeacherChanged()
 }
 
