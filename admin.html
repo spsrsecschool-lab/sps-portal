@@ -12349,14 +12349,18 @@ async function tbSaveAll(){
       await sb.from('adjustments').insert(row)
     }
   }
-  const mapSet=new Set(_tbMappings.map(m=>m.teacher_id+'|'+m.subject_id+'|'+m.class_id+'|'+(m.section_id||'')))
+  const liveSet=new Set()
+  _tbEntries.forEach(e=>{if(e.teacher_id&&e.subject_id)liveSet.add(e.teacher_id+'|'+e.subject_id+'|'+e.class_id+'|'+(e.section_id||''))})
   const newMaps=[]
-  _tbEntries.forEach(e=>{
-    if(!e.teacher_id||!e.subject_id)return
-    const k=e.teacher_id+'|'+e.subject_id+'|'+e.class_id+'|'+(e.section_id||'')
-    if(!mapSet.has(k)){mapSet.add(k);newMaps.push({session_id:SESS.session_id,teacher_id:e.teacher_id,subject_id:e.subject_id,class_id:e.class_id,section_id:e.section_id||null})}
+  liveSet.forEach(k=>{
+    if(!_tbMappings.some(m=>(m.teacher_id+'|'+m.subject_id+'|'+m.class_id+'|'+(m.section_id||''))===k)){
+      const[tid,sid,cid,secid]=k.split('|')
+      newMaps.push({session_id:SESS.session_id,teacher_id:tid,subject_id:sid,class_id:cid,section_id:secid||null})
+    }
   })
   if(newMaps.length)await sb.from('teacher_subject_class_map').insert(newMaps)
+  const staleMaps=_tbMappings.filter(m=>!liveSet.has(m.teacher_id+'|'+m.subject_id+'|'+m.class_id+'|'+(m.section_id||'')))
+  for(const m of staleMaps)await sb.from('teacher_subject_class_map').delete().eq('map_id',m.map_id)
   _tbLoaded=false;await loadTTBuilder();toast('Timetable saved!','success')
 }
 
