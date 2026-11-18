@@ -1941,6 +1941,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <button class="tab-btn" onclick="switchTab('settingsTab','appearance',this)">Appearance</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','downloads',this);initDownloadCenter()">Download Center</button>
         <button class="tab-btn" onclick="switchTab('settingsTab','inventory',this);loadInvOperators()">Inventory</button>
+        <button class="tab-btn" onclick="switchTab('settingsTab','duties',this);loadDutyAssignments()">Duty Assignments</button>
       </div>
 
       <div id="settingsTab-session">
@@ -2109,6 +2110,34 @@ tbody tr:hover td{background:var(--lav-50)}
               <tbody id="invOperatorsBody"><tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div id="settingsTab-duties" style="display:none">
+        <div class="card" style="max-width:640px">
+          <h3 style="margin-top:0">Duty Assignments</h3>
+          <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:18px">Assign special duties to teachers. Teachers with an assigned duty get a "Duty Panel" tab in their portal with access to substitution management, timetable browser, and free period tracking.</p>
+
+          <div style="background:var(--lav-50);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:20px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:12px">Assign New Duty</div>
+            <div class="form-row" style="margin-bottom:0">
+              <div class="fg">
+                <label>Duty Type</label>
+                <select id="duty_type">
+                  <option value="substitution">Substitution Teacher</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label>Teacher</label>
+                <select id="duty_teacher"><option value="">Select teacher</option></select>
+              </div>
+              <div class="fg" style="flex:0 0 auto;align-self:flex-end">
+                <button class="btn btn-dark btn-sm" onclick="assignDuty()">Assign</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="dutyAssignmentsList"></div>
         </div>
       </div>
     </div>
@@ -12865,6 +12894,38 @@ async function deleteInvOperator(id){
   if(error){toast(error.message,'error');return}
   toast('Operator deleted','success')
   loadInvOperators()
+}
+
+// ═══════════ DUTY ASSIGNMENTS ═══════════
+async function loadDutyAssignments(){
+  const sel=$('duty_teacher'),box=$('dutyAssignmentsList')
+  if(!sel||!box)return
+  const active=ALL_TEACHERS.filter(t=>t.is_active).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||''))
+  const assigned=active.filter(t=>t.is_duty_teacher)
+  const available=active.filter(t=>!t.is_duty_teacher)
+  sel.innerHTML='<option value="">Select teacher</option>'+available.map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+(t.designation?' — '+esc(t.designation):'')+'</option>').join('')
+  if(!assigned.length){box.innerHTML='<div style="text-align:center;padding:24px;color:var(--ink-faint);font-size:13px">No duty teachers assigned yet.</div>';return}
+  box.innerHTML='<div class="table-wrap"><table><thead><tr><th>Teacher</th><th>Designation</th><th>Duty</th><th>Action</th></tr></thead><tbody>'
+    +assigned.map(t=>'<tr><td style="font-weight:700">'+esc(t.full_name)+'</td><td>'+esc(t.designation||'—')+'</td><td><span class="pill" style="background:var(--indigo-100);color:var(--indigo)">Substitution Teacher</span></td><td><button class="btn btn-danger btn-xs" onclick="removeDuty(\''+t.teacher_id+'\')">Remove</button></td></tr>').join('')
+    +'</tbody></table></div>'
+}
+async function assignDuty(){
+  const tid=$('duty_teacher')?.value
+  if(!tid){toast('Select a teacher','error');return}
+  const{error}=await sb.from('teachers').update({is_duty_teacher:true}).eq('teacher_id',tid)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const t=ALL_TEACHERS.find(x=>x.teacher_id===tid);if(t)t.is_duty_teacher=true
+  toast(t?.full_name+' assigned as duty teacher','success')
+  loadDutyAssignments()
+}
+async function removeDuty(tid){
+  const t=ALL_TEACHERS.find(x=>x.teacher_id===tid)
+  if(!confirm('Remove duty assignment for '+(t?.full_name||'this teacher')+'?'))return
+  const{error}=await sb.from('teachers').update({is_duty_teacher:false}).eq('teacher_id',tid)
+  if(error){toast('Failed: '+error.message,'error');return}
+  if(t)t.is_duty_teacher=false
+  toast('Duty removed','success')
+  loadDutyAssignments()
 }
 
 // ═══════════ MERGE SECTIONS ═══════════
