@@ -12055,6 +12055,7 @@ function tbSelectDay(day,btn){
 
 function renderBuilderGrid(){
   const w=$('tbGridWrap');if(!w)return
+  const sc=w.querySelector('[style*="overflow-x"]');const _sx=sc?sc.scrollLeft:0,_sy=sc?sc.scrollTop:0
   if(!_tbSlots.length||!_tbCols.length){emp(w,'No periods or sections found. Set up periods in Roster Settings and ensure classes have sections.');return}
   const fv=$('tbClassFilter')?.value||'all'
   const cols=fv==='all'?_tbCols:_tbCols.filter(c=>c.class_id===fv)
@@ -12094,6 +12095,7 @@ function renderBuilderGrid(){
   })
   h+='</tbody></table>'
   w.innerHTML='<div class="card" style="padding:0;overflow:visible"><div style="overflow-x:auto;max-height:calc(100vh - 240px);overflow-y:auto">'+h+'</div></div>'
+  const sc2=w.querySelector('[style*="overflow-x"]');if(sc2){sc2.scrollLeft=_sx;sc2.scrollTop=_sy}
 }
 
 function tbCellClick(td){
