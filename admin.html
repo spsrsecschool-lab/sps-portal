@@ -1186,6 +1186,7 @@ tbody tr:hover td{background:var(--lav-50)}
           <button class="btn btn-ghost" id="assessTabOfficial" onclick="switchAssessTab('official')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;border-bottom:2px solid var(--indigo);font-weight:700;color:var(--indigo);margin-bottom:-2px">Official Assessments</button>
           <button class="btn btn-ghost" id="assessTabTeacher" onclick="switchAssessTab('teacher')" style="border-radius:var(--radius-sm) var(--radius-sm) 0 0;border-bottom:2px solid transparent;margin-bottom:-2px">Class Tests</button>
         </div>
+        <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px"><label style="font-size:12px;color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;gap:5px"><input type="checkbox" id="assessShowArchived" onchange="loadAssessments()"> Show Archived</label></div>
         <div id="assessFilterBar" style="display:none;margin-bottom:12px">
           <div class="form-row" style="margin-bottom:0">
             <div class="fg" style="max-width:180px"><select id="assessFltClass" onchange="renderTeacherTests()"><option value="">All Classes</option></select></div>
@@ -2117,6 +2118,7 @@ tbody tr:hover td{background:var(--lav-50)}
             <button class="tab-btn active" onclick="switchTab('mfTab','dashboard',this)">Dashboard</button>
             <button class="tab-btn" onclick="switchTab('mfTab','table',this)">All Fees</button>
           </div>
+          <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px"><label style="font-size:12px;color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;gap:5px"><input type="checkbox" id="mfShowArchived" onchange="loadMiscFees()"> Show Archived</label></div>
           <div id="mfTab-dashboard">
             <div id="mfDashboard"><div class="loading-row"><div class="spinner"></div></div></div>
           </div>
@@ -6370,7 +6372,10 @@ let _assessOfficial=[], _assessFeeOnly=[], _assessTeacher=[], _assessClsByA={}
 async function loadAssessments(){
   const el=$('assessGrid');ldg(el)
   if(!SESS){emp(el,'No active session');return}
-  const{data:asmts,error}=await sb.from('assessments').select('*,exam_fees(*),classes(name),subjects(name)').eq('session_id',SESS.session_id).order('commencement_date',{nullsFirst:false})
+  const showArcA=$('assessShowArchived')?.checked
+  let aQ=sb.from('assessments').select('*,exam_fees(*),classes(name),subjects(name)').eq('session_id',SESS.session_id)
+  if(!showArcA)aQ=aQ.or('is_archived.is.null,is_archived.eq.false')
+  const{data:asmts,error}=await aQ.order('commencement_date',{nullsFirst:false})
   if(error){emp(el,'Failed to load: '+error.message);return}
   _assessOfficial=(asmts||[]).filter(a=>!a.created_by_teacher_id&&!a.is_fee_only)
   _assessFeeOnly=(asmts||[]).filter(a=>a.is_fee_only)
@@ -6416,6 +6421,8 @@ function switchAssessTab(tab){
   if(tab==='official') renderOfficialAssessments()
   else renderTeacherTests()
 }
+async function archiveAssessment(id,name){confirmAct('Archive "'+name+'"?','Assessment will be hidden from active view. You can unarchive later.',async()=>{const{error}=await sb.from('assessments').update({is_archived:true}).eq('assessment_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Assessment archived','success');loadAssessments()})}
+async function unarchiveAssessment(id){const{error}=await sb.from('assessments').update({is_archived:false}).eq('assessment_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Assessment unarchived','success');loadAssessments()}
 function renderOfficialAssessments(){
   const el=$('assessGrid')
   if(!_assessOfficial.length&&!_assessFeeOnly.length){emp(el,'No official assessments yet.');el.className='assess-grid';return}
@@ -6426,14 +6433,16 @@ function renderOfficialAssessments(){
       const cn=(_assessClsByA[a.assessment_id]||[]).join(', ')||'No classes linked'
       const fees=a.exam_fees||[]
       const totalAmt=fees.reduce((s,f)=>s+Number(f.amount||0),0)
-      return '<div class="assess-card" style="border-left:3px solid var(--indigo)" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4><span class="pill pill-indigo">Special Fee</span></div><div class="meta" style="font-size:11px">'+esc(cn)+'</div>'+(totalAmt?'<div class="arow"><span>Total Amount</span><span>₹'+totalAmt+'</span></div>':'')+(fees.length?'<div class="arow"><span>Fee Rows</span><span>'+fees.length+'</span></div>':'')+'</div>'
+      const arcBtnA=a.is_archived?'<button class="btn btn-xs" style="background:var(--indigo);color:#fff;font-size:10px;margin-top:6px" onclick="event.stopPropagation();unarchiveAssessment(\''+a.assessment_id+'\')">Unarchive</button>':'<button class="btn btn-xs" style="font-size:10px;margin-top:6px" onclick="event.stopPropagation();archiveAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Archive</button>'
+      return '<div class="assess-card" style="border-left:3px solid var(--indigo)'+(a.is_archived?';opacity:.55':'')+'" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+(a.is_archived?' <span style="font-size:10px;color:var(--ink-faint)">(Archived)</span>':'')+'</h4><span class="pill pill-indigo">Special Fee</span></div><div class="meta" style="font-size:11px">'+esc(cn)+'</div>'+(totalAmt?'<div class="arow"><span>Total Amount</span><span>₹'+totalAmt+'</span></div>':'')+(fees.length?'<div class="arow"><span>Fee Rows</span><span>'+fees.length+'</span></div>':'')+arcBtnA+'</div>'
     }).join('')
   }
   html+=_assessOfficial.map(a=>{
     const pill=a.is_marks_unlocked?'<span class="pill pill-success">Marks Open</span>':(a.commencement_date&&a.commencement_date<today()?'<span class="pill pill-neutral">Closed</span>':'<span class="pill pill-warn">Scheduled</span>')
     const cn=(_assessClsByA[a.assessment_id]||[]).join(', ')||'No classes linked'
     const fees=a.exam_fees||[]
-    return '<div class="assess-card" onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+'</h4>'+pill+'</div><div class="meta" style="font-size:11px">'+esc(cn)+'</div><div class="arow"><span>Start</span><span>'+(fmtD(a.commencement_date)||'TBD')+'</span></div><div class="arow"><span>End</span><span>'+(a.end_date?fmtD(a.end_date):(fmtD(a.commencement_date)||'—'))+'</span></div><div class="arow"><span>Deadline</span><span>'+(a.submission_deadline?fmtD(a.submission_deadline.slice(0,10)):'—')+'</span></div>'+(fees.length?'<div class="arow"><span>Exam Fee</span><span>'+fees.map(f=>{const p=parseEFGroup(f.class_group);const lbl=p.label?p.label+' ':'';return lbl+'₹'+f.amount}).join(', ')+'</span></div>':'')+'</div>'
+    const arcBtnO=a.is_archived?'<button class="btn btn-xs" style="background:var(--indigo);color:#fff;font-size:10px;margin-top:6px" onclick="event.stopPropagation();unarchiveAssessment(\''+a.assessment_id+'\')">Unarchive</button>':'<button class="btn btn-xs" style="font-size:10px;margin-top:6px" onclick="event.stopPropagation();archiveAssessment(\''+a.assessment_id+'\',\''+esc(a.name)+'\')">Archive</button>'
+    return '<div class="assess-card"'+(a.is_archived?' style="opacity:.55"':'')+' onclick="openAssessEditById(\''+a.assessment_id+'\',\''+esc(cn)+'\')">'+'<div class="top"><h4>'+esc(a.name)+(a.is_archived?' <span style="font-size:10px;color:var(--ink-faint)">(Archived)</span>':'')+'</h4>'+pill+'</div><div class="meta" style="font-size:11px">'+esc(cn)+'</div><div class="arow"><span>Start</span><span>'+(fmtD(a.commencement_date)||'TBD')+'</span></div><div class="arow"><span>End</span><span>'+(a.end_date?fmtD(a.end_date):(fmtD(a.commencement_date)||'—'))+'</span></div><div class="arow"><span>Deadline</span><span>'+(a.submission_deadline?fmtD(a.submission_deadline.slice(0,10)):'—')+'</span></div>'+(fees.length?'<div class="arow"><span>Exam Fee</span><span>'+fees.map(f=>{const p=parseEFGroup(f.class_group);const lbl=p.label?p.label+' ':'';return lbl+'₹'+f.amount}).join(', ')+'</span></div>':'')+arcBtnO+'</div>'
   }).join('')
   el.innerHTML=html
 }
@@ -7488,14 +7497,19 @@ async function loadMiscFees(){
   const el=$('miscFeeBody');ldg(el)
   $('miscFeeListView').style.display='';$('miscFeeDetailView').style.display='none'
   if(!SESS){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No active session.</p></div></td></tr>';$('mfDashboard').innerHTML='<div class="empty-state"><p>No active session.</p></div>';return}
-  const{data,error}=await sb.from('misc_fees').select('*,classes(name),class_sections(name)').eq('session_id',SESS.session_id).order('created_at',{ascending:false})
+  const showArc=$('mfShowArchived')?.checked
+  let mfQ=sb.from('misc_fees').select('*,classes(name),class_sections(name)').eq('session_id',SESS.session_id)
+  if(!showArc)mfQ=mfQ.or('is_archived.is.null,is_archived.eq.false')
+  const{data,error}=await mfQ.order('created_at',{ascending:false})
   if(error){el.innerHTML='<tr><td colspan="9"><p style="padding:16px;color:var(--danger)">'+esc(error.message)+'</p></td></tr>';return}
   if(!data?.length){el.innerHTML='<tr><td colspan="9"><div class="empty-state"><p>No misc fees yet.</p></div></td></tr>';$('mfDashboard').innerHTML='<div class="empty-state"><p>No misc fees created yet. Click <b>Create Fee</b> to get started.</p></div>';return}
   el.innerHTML=data.map(f=>{
     const bd=f.fee_breakdown
     const hasBD=Array.isArray(bd)&&bd.length>0
     const bdCell=hasBD?'<a href="#" style="font-size:11.5px;color:var(--indigo);text-decoration:underline" onclick="event.preventDefault();viewMiscFeeBreakdown(\''+f.misc_fee_id+'\')">View ('+bd.length+' items)</a>':'<span style="font-size:11.5px;color:var(--ink-faint)">—</span>'
-    return '<tr><td style="font-weight:700">'+esc(f.name)+'</td><td>'+esc(f.classes?.name||'—')+'</td><td>'+esc(f.class_sections?.name||'All sections')+'</td><td class="mono">₹'+f.amount+'</td><td>'+bdCell+'</td><td><a href="#" style="font-size:12px;color:var(--indigo);text-decoration:underline;font-weight:600" onclick="event.preventDefault();openMiscFeeStatus(\''+f.misc_fee_id+'\')">View Status</a></td><td><div class="switch '+(f.is_collection_unlocked?'on':'')+'" onclick="toggleMiscFee(\''+f.misc_fee_id+'\','+f.is_collection_unlocked+')"></div></td><td class="mono" style="font-size:11px">'+fmtD(f.created_at?.slice(0,10))+'</td><td><button class="btn btn-danger btn-xs" onclick="deleteMiscFee(\''+f.misc_fee_id+'\',\''+esc(f.name)+'\')">Delete</button></td></tr>'
+    const arcBtn=f.is_archived?'<button class="btn btn-xs" style="background:var(--indigo);color:#fff;margin-right:4px" onclick="unarchiveMiscFee(\''+f.misc_fee_id+'\')">Unarchive</button>':'<button class="btn btn-xs" style="margin-right:4px" onclick="archiveMiscFee(\''+f.misc_fee_id+'\',\''+esc(f.name)+'\')">Archive</button>'
+    const arcBadge=f.is_archived?'<span style="font-size:10px;color:var(--ink-faint);margin-left:4px">(Archived)</span>':''
+    return '<tr'+(f.is_archived?' style="opacity:.55"':'')+'><td style="font-weight:700">'+esc(f.name)+arcBadge+'</td><td>'+esc(f.classes?.name||'—')+'</td><td>'+esc(f.class_sections?.name||'All sections')+'</td><td class="mono">₹'+f.amount+'</td><td>'+bdCell+'</td><td><a href="#" style="font-size:12px;color:var(--indigo);text-decoration:underline;font-weight:600" onclick="event.preventDefault();openMiscFeeStatus(\''+f.misc_fee_id+'\')">View Status</a></td><td><div class="switch '+(f.is_collection_unlocked?'on':'')+'" onclick="toggleMiscFee(\''+f.misc_fee_id+'\','+f.is_collection_unlocked+')"></div></td><td class="mono" style="font-size:11px">'+fmtD(f.created_at?.slice(0,10))+'</td><td style="white-space:nowrap">'+arcBtn+'<button class="btn btn-danger btn-xs" onclick="deleteMiscFee(\''+f.misc_fee_id+'\',\''+esc(f.name)+'\')">Delete</button></td></tr>'
   }).join('')
   window._miscFeesCache=data
   loadMiscFeeDashboard(data)
@@ -7625,6 +7639,8 @@ async function saveMiscFee(){
 }
 async function toggleMiscFee(id,current){const{error}=await sb.from('misc_fees').update({is_collection_unlocked:!current}).eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast(current?'Locked':'Unlocked','success');loadMiscFees()}
 async function deleteMiscFee(id,name){confirmAct('Delete "'+name+'"?','Payment records are preserved.',async()=>{const{error}=await sb.from('misc_fees').delete().eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Fee deleted','success');loadMiscFees()})}
+async function archiveMiscFee(id,name){confirmAct('Archive "'+name+'"?','Fee will be hidden from active view. You can unarchive it later.',async()=>{const{error}=await sb.from('misc_fees').update({is_archived:true}).eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Fee archived','success');loadMiscFees()})}
+async function unarchiveMiscFee(id){const{error}=await sb.from('misc_fees').update({is_archived:false}).eq('misc_fee_id',id);if(error){toast('Failed: '+error.message,'error');return};toast('Fee unarchived','success');loadMiscFees()}
 function viewMiscFeeBreakdown(feeId){
   const fee=(window._miscFeesCache||[]).find(f=>f.misc_fee_id===feeId)
   if(!fee||!Array.isArray(fee.fee_breakdown))return
@@ -9501,11 +9517,12 @@ async function loadClassAttendance(){
       if(sStart&&d.dateStr<sStart){html+='<td style="text-align:center;background:var(--lav-100);color:var(--ink-faint);font-size:9px">—</td>';return}
       const st=attMap[s.enrollment_id]?.[d.dateStr]||''
       const isHD=hdSet.has(s.enrollment_id+'|'+d.dateStr)
-      if(isHD&&st==='P'){pCount++;html+='<td class="cell-hd">½</td>'}
-      else if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
-      else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
-      else if(st==='L'){lCount++;pCount++;html+='<td class="cell-l">L</td>'}
-      else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
+      const ck=' style="cursor:pointer" onclick="caToggleAtt(this,\''+s.enrollment_id+'\',\''+d.dateStr+'\')"'
+      if(isHD&&st==='P'){pCount++;html+='<td class="cell-hd"'+ck+'>½</td>'}
+      else if(st==='P'){pCount++;html+='<td class="cell-p"'+ck+'>P</td>'}
+      else if(st==='A'){aCount++;html+='<td class="cell-a"'+ck+'>A</td>'}
+      else if(st==='L'){lCount++;pCount++;html+='<td class="cell-l"'+ck+'>L</td>'}
+      else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px;cursor:pointer" onclick="caToggleAtt(this,\''+s.enrollment_id+'\',\''+d.dateStr+'\')">—</td>'}
     })
     const prevP=_prevPMap[s.enrollment_id]||0
     html+='<td style="text-align:center;font-weight:700;color:var(--success)">'+pCount+'</td>'
@@ -9517,6 +9534,42 @@ async function loadClassAttendance(){
   el.innerHTML=html
 }
 
+let _caPickerEl=null
+function caToggleAtt(td,eid,dateStr){
+  if(_caPickerEl){_caPickerEl.remove();_caPickerEl=null}
+  const r=td.getBoundingClientRect()
+  const pk=document.createElement('div')
+  pk.style.cssText='position:fixed;z-index:9999;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:6px;display:flex;gap:4px;font-size:12px;font-weight:700'
+  pk.style.left=Math.min(r.left,window.innerWidth-220)+'px'
+  pk.style.top=(r.bottom+4)+'px'
+  const opts=[{l:'P',c:'#1A7A4A',bg:'#E4F7EE',v:'P'},{l:'A',c:'#C73E54',bg:'#FCE7EA',v:'A'},{l:'L',c:'#C47A20',bg:'#FCF1E0',v:'L'},{l:'½',c:'#1565C0',bg:'#E3F2FD',v:'HD'},{l:'✕',c:'#888',bg:'#f5f5f5',v:'CLEAR'}]
+  opts.forEach(o=>{const b=document.createElement('button');b.textContent=o.l;b.style.cssText='border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;font-size:13px;background:'+o.bg+';color:'+o.c;b.onmouseenter=()=>b.style.transform='scale(1.1)';b.onmouseleave=()=>b.style.transform='';b.onclick=()=>{pk.remove();_caPickerEl=null;caSetAtt(td,eid,dateStr,o.v)};pk.appendChild(b)})
+  document.body.appendChild(pk)
+  _caPickerEl=pk
+  const dismiss=e=>{if(!pk.contains(e.target)&&e.target!==td){pk.remove();_caPickerEl=null;document.removeEventListener('mousedown',dismiss)}}
+  setTimeout(()=>document.addEventListener('mousedown',dismiss),0)
+}
+async function caSetAtt(td,eid,dateStr,val){
+  if(val==='CLEAR'){
+    const[r1,r2]=await Promise.all([sb.from('student_attendance').delete().eq('enrollment_id',eid).eq('date',dateStr),sb.from('student_half_days').delete().eq('enrollment_id',eid).eq('date',dateStr)])
+    if(r1.error||r2.error){toast('Failed to clear','error');return}
+    td.className='';td.style.cssText='text-align:center;color:var(--ink-faint);font-size:10px;cursor:pointer';td.textContent='—'
+    toast('Cleared','success');return
+  }
+  const attStatus=val==='HD'?'P':val
+  const{error}=await sb.from('student_attendance').upsert({enrollment_id:eid,date:dateStr,status:attStatus},{onConflict:'enrollment_id,date'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  if(val==='HD'){
+    const{error:e2}=await sb.from('student_half_days').upsert({enrollment_id:eid,date:dateStr,session_id:SESS?.session_id},{onConflict:'enrollment_id,date'})
+    if(e2){toast('Half-day record failed: '+e2.message,'error');return}
+  }else{
+    await sb.from('student_half_days').delete().eq('enrollment_id',eid).eq('date',dateStr)
+  }
+  const cls={P:'cell-p',A:'cell-a',L:'cell-l',HD:'cell-hd'}
+  const txt={P:'P',A:'A',L:'L',HD:'½'}
+  td.className=cls[val]||'';td.style.cursor='pointer';td.textContent=txt[val]||'—'
+  toast(val==='HD'?'Half-day set':val+' set','success')
+}
 function printClassAttendance(){
   const el=$('caTable')
   if(!el||!el.innerHTML.trim()){toast('Load a report first','error');return}
