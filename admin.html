@@ -2225,8 +2225,10 @@ tbody tr:hover td{background:var(--lav-50)}
             <button class="btn btn-sm btn-ghost" onclick="tbSelectDay('Sat',this)" style="border-radius:6px;min-width:40px">Sat</button>
           </div>
           <select id="tbClassFilter" onchange="renderBuilderGrid()" style="font-family:var(--font);font-size:12px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white)"><option value="all">All Classes</option></select>
-          <div style="margin-left:auto;display:flex;gap:8px">
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <span id="tbUnsaved" style="display:none;font-size:11px;color:var(--warn);font-weight:600">Unsaved changes</span>
             <button class="btn btn-ghost btn-sm" onclick="tbCopyDayPrompt()">Copy from&hellip;</button>
+            <button id="tbSaveAllBtn" class="btn btn-dark btn-sm" onclick="tbSaveAll()" style="display:none">Save All</button>
             <button class="btn btn-ghost btn-sm" onclick="_tbLoaded=false;loadTTBuilder()">Refresh</button>
           </div>
         </div>
@@ -12015,7 +12017,7 @@ async function setTeacherLogin(teacherId, oldUsername){
 }
 
 // ═══════════ TIMETABLE BUILDER ═══════════
-let _tbDay='Mon',_tbSlots=[],_tbCols=[],_tbEntries=[],_tbAdjs=[],_tbMappings=[],_tbTimingMap={},_tbRoster=null,_tbLoaded=false,_tbEdCell=null
+let _tbDay='Mon',_tbSlots=[],_tbCols=[],_tbEntries=[],_tbAdjs=[],_tbMappings=[],_tbTimingMap={},_tbRoster=null,_tbLoaded=false,_tbEdCell=null,_tbOrigEntries=[],_tbOrigAdjs=[],_tbDirty=false
 
 async function loadTTBuilder(){
   const w=$('tbGridWrap');if(!w)return;ldg(w)
@@ -12031,8 +12033,9 @@ async function loadTTBuilder(){
     sb.from('teacher_subject_class_map').select('map_id,teacher_id,class_id,section_id,subject_id').eq('session_id',SESS?.session_id||'')
   ])
   _tbSlots=sl||[];_tbEntries=en||[];_tbAdjs=ad||[];_tbMappings=mp||[]
+  _tbOrigEntries=JSON.parse(JSON.stringify(_tbEntries));_tbOrigAdjs=JSON.parse(JSON.stringify(_tbAdjs))
   _tbCols=(sc||[]).filter(s=>s.classes?.is_active).sort((a,b)=>(a.classes?.sort_order||0)-(b.classes?.sort_order||0)||(a.name||'').localeCompare(b.name||''))
-  _tbLoaded=true
+  _tbLoaded=true;_tbDirty=false;tbUpdateDirtyUI()
   const f=$('tbClassFilter')
   if(f){
     const seen=new Set(),cls=[]
@@ -12197,7 +12200,7 @@ function tbCloseEditor(){
   _tbEdCell=null
 }
 
-async function tbSaveCell(){
+function tbSaveCell(){
   if(!_tbEdCell)return
   const{slotId,secId,clsId}=_tbEdCell,day=_tbDay
   const isAdj=$('tbEdAdj')?.checked
@@ -12208,60 +12211,52 @@ async function tbSaveCell(){
   const sections=[secId]
   document.querySelectorAll('.tbCombChk:checked').forEach(cb=>{if(!sections.includes(cb.value))sections.push(cb.value)})
   for(const sid of sections){
-    await tbRemoveDay(slotId,sid,day)
+    tbRemoveDay(slotId,sid,day)
     if(isAdj){
       const tid=$('tbEdAdjTeacher')?.value||null
-      await tbAddAdj(slotId,sid,clsId,day,tid)
+      tbAddAdj(slotId,sid,clsId,day,tid)
     }else{
-      await tbAddEntry(slotId,sid,clsId,day,$('tbEdSubject').value,$('tbEdTeacher').value)
+      tbAddEntry(slotId,sid,clsId,day,$('tbEdSubject').value,$('tbEdTeacher').value)
     }
   }
-  tbCloseEditor();renderBuilderGrid();toast('Saved','success')
+  _tbDirty=true;tbUpdateDirtyUI();tbCloseEditor();renderBuilderGrid()
 }
 
-async function tbClearCell(){
+function tbClearCell(){
   if(!_tbEdCell)return
   const{slotId,secId}=_tbEdCell,day=_tbDay
-  await tbRemoveDay(slotId,secId,day)
-  tbCloseEditor();renderBuilderGrid();toast('Cleared','success')
+  tbRemoveDay(slotId,secId,day)
+  _tbDirty=true;tbUpdateDirtyUI();tbCloseEditor();renderBuilderGrid()
 }
 
-async function tbRemoveDay(slotId,secId,day){
-  const ee=_tbEntries.filter(e=>e.slot_id===slotId&&e.section_id===secId&&(e.days||[]).includes(day))
-  for(const e of ee){
+function tbRemoveDay(slotId,secId,day){
+  _tbEntries.filter(e=>e.slot_id===slotId&&e.section_id===secId&&(e.days||[]).includes(day)).forEach(e=>{
     const nd=(e.days||[]).filter(d=>d!==day)
-    if(!nd.length){await sb.from('timetable_entries').delete().eq('entry_id',e.entry_id);_tbEntries=_tbEntries.filter(x=>x.entry_id!==e.entry_id)}
-    else{await sb.from('timetable_entries').update({days:nd}).eq('entry_id',e.entry_id);e.days=nd}
-  }
-  const aa=_tbAdjs.filter(a=>a.slot_id===slotId&&a.section_id===secId&&(a.days||[]).includes(day))
-  for(const a of aa){
+    if(!nd.length)_tbEntries=_tbEntries.filter(x=>x!==e)
+    else e.days=nd
+  })
+  _tbAdjs.filter(a=>a.slot_id===slotId&&a.section_id===secId&&(a.days||[]).includes(day)).forEach(a=>{
     const nd=(a.days||[]).filter(d=>d!==day)
-    if(!nd.length){await sb.from('adjustments').delete().eq('adjustment_id',a.adjustment_id);_tbAdjs=_tbAdjs.filter(x=>x.adjustment_id!==a.adjustment_id)}
-    else{await sb.from('adjustments').update({days:nd}).eq('adjustment_id',a.adjustment_id);a.days=nd}
-  }
+    if(!nd.length)_tbAdjs=_tbAdjs.filter(x=>x!==a)
+    else a.days=nd
+  })
 }
 
-async function tbAddEntry(slotId,secId,clsId,day,subId,tid){
+function tbAddEntry(slotId,secId,clsId,day,subId,tid){
   const m=_tbEntries.find(e=>e.slot_id===slotId&&e.section_id===secId&&e.subject_id===subId&&e.teacher_id===tid)
   if(m){
-    if(!(m.days||[]).includes(day)){const nd=[...(m.days||[]),day];await sb.from('timetable_entries').update({days:nd}).eq('entry_id',m.entry_id);m.days=nd}
+    if(!(m.days||[]).includes(day))m.days=[...(m.days||[]),day]
   }else{
-    const row={session_id:SESS.session_id,slot_id:slotId,section_id:secId,class_id:clsId,subject_id:subId,teacher_id:tid,days:[day],roster_id:_tbRoster?.roster_id||null}
-    const{data,error}=await sb.from('timetable_entries').insert(row).select('entry_id').single()
-    if(error){toast('Failed: '+error.message,'error');return}
-    row.entry_id=data.entry_id;_tbEntries.push(row)
+    _tbEntries.push({session_id:SESS.session_id,slot_id:slotId,section_id:secId,class_id:clsId,subject_id:subId,teacher_id:tid,days:[day],roster_id:_tbRoster?.roster_id||null})
   }
 }
 
-async function tbAddAdj(slotId,secId,clsId,day,tid){
+function tbAddAdj(slotId,secId,clsId,day,tid){
   const m=_tbAdjs.find(a=>a.slot_id===slotId&&a.section_id===secId&&((tid&&a.teacher_id===tid)||(!tid&&!a.teacher_id)))
   if(m){
-    if(!(m.days||[]).includes(day)){const nd=[...(m.days||[]),day];await sb.from('adjustments').update({days:nd}).eq('adjustment_id',m.adjustment_id);m.days=nd}
+    if(!(m.days||[]).includes(day))m.days=[...(m.days||[]),day]
   }else{
-    const row={session_id:SESS?.session_id||null,slot_id:slotId,section_id:secId,class_id:clsId,teacher_id:tid||null,days:[day],roster_id:_tbRoster?.roster_id||null,created_by:SPS.admin?.admin_id}
-    const{data,error}=await sb.from('adjustments').insert(row).select('adjustment_id').single()
-    if(error){toast('Failed: '+error.message,'error');return}
-    row.adjustment_id=data.adjustment_id;_tbAdjs.push(row)
+    _tbAdjs.push({session_id:SESS?.session_id||null,slot_id:slotId,section_id:secId,class_id:clsId,teacher_id:tid||null,days:[day],roster_id:_tbRoster?.roster_id||null,created_by:SPS.admin?.admin_id})
   }
 }
 
@@ -12274,32 +12269,70 @@ function tbCopyDayPrompt(){
     '<button class="btn btn-dark" onclick="tbDoCopyDay()">Copy</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
 
-async function tbDoCopyDay(){
+function tbDoCopyDay(){
   const from=$('tbCopyFrom')?.value
   if(!from){toast('Select a day','error');return}
   const to=_tbDay;closeModal()
-  const w=$('tbGridWrap');if(w)ldg(w)
-  const toClear=_tbEntries.filter(e=>(e.days||[]).includes(to))
-  for(const e of toClear){
+  _tbEntries.filter(e=>(e.days||[]).includes(to)).forEach(e=>{
     const nd=(e.days||[]).filter(d=>d!==to)
-    if(!nd.length){await sb.from('timetable_entries').delete().eq('entry_id',e.entry_id);_tbEntries=_tbEntries.filter(x=>x.entry_id!==e.entry_id)}
-    else{await sb.from('timetable_entries').update({days:nd}).eq('entry_id',e.entry_id);e.days=nd}
-  }
-  const adjClear=_tbAdjs.filter(a=>(a.days||[]).includes(to))
-  for(const a of adjClear){
+    if(!nd.length)_tbEntries=_tbEntries.filter(x=>x!==e);else e.days=nd
+  })
+  _tbAdjs.filter(a=>(a.days||[]).includes(to)).forEach(a=>{
     const nd=(a.days||[]).filter(d=>d!==to)
-    if(!nd.length){await sb.from('adjustments').delete().eq('adjustment_id',a.adjustment_id);_tbAdjs=_tbAdjs.filter(x=>x.adjustment_id!==a.adjustment_id)}
-    else{await sb.from('adjustments').update({days:nd}).eq('adjustment_id',a.adjustment_id);a.days=nd}
+    if(!nd.length)_tbAdjs=_tbAdjs.filter(x=>x!==a);else a.days=nd
+  })
+  _tbEntries.filter(e=>(e.days||[]).includes(from)).forEach(e=>{
+    if(!(e.days||[]).includes(to))e.days=[...(e.days||[]),to]
+  })
+  _tbAdjs.filter(a=>(a.days||[]).includes(from)).forEach(a=>{
+    if(!(a.days||[]).includes(to))a.days=[...(a.days||[]),to]
+  })
+  _tbDirty=true;tbUpdateDirtyUI();renderBuilderGrid();toast('Copied '+from+' → '+to,'success')
+}
+
+function tbUpdateDirtyUI(){
+  const u=$('tbUnsaved'),b=$('tbSaveAllBtn')
+  if(u)u.style.display=_tbDirty?'inline':'none'
+  if(b)b.style.display=_tbDirty?'inline-flex':'none'
+}
+
+async function tbSaveAll(){
+  if(!_tbDirty)return
+  const w=$('tbGridWrap');if(w)ldg(w)
+  const origEMap={};_tbOrigEntries.forEach(e=>{if(e.entry_id)origEMap[e.entry_id]=e})
+  const origAMap={};_tbOrigAdjs.forEach(a=>{if(a.adjustment_id)origAMap[a.adjustment_id]=a})
+  const curEIds=new Set(_tbEntries.filter(e=>e.entry_id).map(e=>e.entry_id))
+  const curAIds=new Set(_tbAdjs.filter(a=>a.adjustment_id).map(a=>a.adjustment_id))
+  const delE=_tbOrigEntries.filter(e=>e.entry_id&&!curEIds.has(e.entry_id))
+  const delA=_tbOrigAdjs.filter(a=>a.adjustment_id&&!curAIds.has(a.adjustment_id))
+  for(const e of delE)await sb.from('timetable_entries').delete().eq('entry_id',e.entry_id)
+  for(const a of delA)await sb.from('adjustments').delete().eq('adjustment_id',a.adjustment_id)
+  for(const e of _tbEntries){
+    if(e.entry_id){
+      const o=origEMap[e.entry_id]
+      if(o&&JSON.stringify(o.days?.sort())!==JSON.stringify(e.days?.sort())){
+        await sb.from('timetable_entries').update({days:e.days}).eq('entry_id',e.entry_id)
+      }
+      if(o&&(o.subject_id!==e.subject_id||o.teacher_id!==e.teacher_id)){
+        await sb.from('timetable_entries').update({subject_id:e.subject_id,teacher_id:e.teacher_id,days:e.days}).eq('entry_id',e.entry_id)
+      }
+    }else{
+      const row={session_id:SESS.session_id,slot_id:e.slot_id,section_id:e.section_id,class_id:e.class_id,subject_id:e.subject_id,teacher_id:e.teacher_id,days:e.days,roster_id:e.roster_id||null}
+      await sb.from('timetable_entries').insert(row)
+    }
   }
-  const srcE=_tbEntries.filter(e=>(e.days||[]).includes(from))
-  for(const e of srcE){
-    if(!(e.days||[]).includes(to)){const nd=[...(e.days||[]),to];await sb.from('timetable_entries').update({days:nd}).eq('entry_id',e.entry_id);e.days=nd}
+  for(const a of _tbAdjs){
+    if(a.adjustment_id){
+      const o=origAMap[a.adjustment_id]
+      if(o&&JSON.stringify(o.days?.sort())!==JSON.stringify(a.days?.sort())){
+        await sb.from('adjustments').update({days:a.days}).eq('adjustment_id',a.adjustment_id)
+      }
+    }else{
+      const row={session_id:SESS?.session_id||null,slot_id:a.slot_id,section_id:a.section_id,class_id:a.class_id,teacher_id:a.teacher_id||null,days:a.days,roster_id:a.roster_id||null,created_by:SPS.admin?.admin_id}
+      await sb.from('adjustments').insert(row)
+    }
   }
-  const srcA=_tbAdjs.filter(a=>(a.days||[]).includes(from))
-  for(const a of srcA){
-    if(!(a.days||[]).includes(to)){const nd=[...(a.days||[]),to];await sb.from('adjustments').update({days:nd}).eq('adjustment_id',a.adjustment_id);a.days=nd}
-  }
-  renderBuilderGrid();toast('Copied '+from+' → '+to+' ✓','success')
+  _tbLoaded=false;await loadTTBuilder();toast('Timetable saved!','success')
 }
 
 // ═══════════ TIMETABLE PAGE INIT ═══════════
