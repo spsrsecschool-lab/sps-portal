@@ -12065,6 +12065,17 @@ function renderBuilderGrid(){
   const aLk={};_tbAdjs.forEach(a=>{if((a.days||[]).includes(day))aLk[a.slot_id+'|'+a.section_id]=a})
   const tN={};ALL_TEACHERS.forEach(t=>{tN[t.teacher_id]=t.full_name})
   const sN={};ALL_SUBJECTS.forEach(s=>{sN[s.subject_id]=s.name})
+  const clashSet=new Set()
+  _tbSlots.forEach(slot=>{
+    if(slot.is_break)return
+    const tMap={}
+    Object.entries(eLk).forEach(([k,e])=>{if(k.startsWith(slot.slot_id+'|')&&e.teacher_id){(tMap[e.teacher_id]=tMap[e.teacher_id]||[]).push({k,cls:e.class_id})}})
+    Object.entries(aLk).forEach(([k,a])=>{if(k.startsWith(slot.slot_id+'|')&&a.teacher_id){(tMap[a.teacher_id]=tMap[a.teacher_id]||[]).push({k,cls:a.class_id})}})
+    Object.values(tMap).forEach(arr=>{
+      const uniqCls=new Set(arr.map(x=>x.cls))
+      if(uniqCls.size>1)arr.forEach(x=>clashSet.add(x.k))
+    })
+  })
   let h='<table style="border-collapse:collapse;width:max-content;font-size:12px">'
   h+='<thead><tr><th style="position:sticky;left:0;z-index:11;background:var(--lav-100);padding:8px 10px;border:1px solid var(--line);font-size:11px;min-width:80px">Period</th>'
   cols.forEach(c=>{h+='<th style="padding:6px;border:1px solid var(--line);background:var(--lav-100);font-size:11px;min-width:95px;text-align:center">'+esc(c.classes?.name||'')+'<br>'+esc(c.name)+'</th>'})
@@ -12081,12 +12092,16 @@ function renderBuilderGrid(){
     cols.forEach(c=>{
       const k=slot.slot_id+'|'+c.section_id,e=eLk[k],a=aLk[k]
       const bs='cursor:pointer;text-align:center;padding:5px 4px;border:1px solid var(--line);vertical-align:top;min-width:95px;'
+      const isClash=clashSet.has(k)
+      const clashBg=isClash?'background:#fee2e2;border-color:#fca5a5;':''
       if(e){
         const comb=cols.filter(c2=>c2.class_id===c.class_id&&c2.section_id!==c.section_id&&eLk[slot.slot_id+'|'+c2.section_id]?.teacher_id===e.teacher_id&&eLk[slot.slot_id+'|'+c2.section_id]?.subject_id===e.subject_id)
         const cb=comb.length?'<div style="font-size:8px;color:var(--indigo);font-weight:700;margin-top:1px">COMBINED</div>':''
-        h+='<td data-slot="'+slot.slot_id+'" data-sec="'+c.section_id+'" data-cls="'+c.class_id+'" onclick="tbCellClick(this)" style="'+bs+'"><div style="font-weight:700;font-size:11.5px">'+esc(sN[e.subject_id]||'—')+'</div><div style="font-size:10px;color:var(--ink-soft)">'+esc(tN[e.teacher_id]||'—')+'</div>'+cb+'</td>'
+        const clashBadge=isClash?'<div style="font-size:8px;color:#dc2626;font-weight:700;margin-top:1px">CLASH</div>':''
+        h+='<td data-slot="'+slot.slot_id+'" data-sec="'+c.section_id+'" data-cls="'+c.class_id+'" onclick="tbCellClick(this)" style="'+bs+clashBg+'"><div style="font-weight:700;font-size:11.5px">'+esc(sN[e.subject_id]||'—')+'</div><div style="font-size:10px;color:var(--ink-soft)">'+esc(tN[e.teacher_id]||'—')+'</div>'+cb+clashBadge+'</td>'
       }else if(a){
-        h+='<td data-slot="'+slot.slot_id+'" data-sec="'+c.section_id+'" data-cls="'+c.class_id+'" onclick="tbCellClick(this)" style="'+bs+'background:var(--warn-soft)"><div style="font-weight:700;font-size:10px;color:var(--warn);letter-spacing:.03em">ADJUSTMENT</div>'+(a.teacher_id?'<div style="font-size:10px;color:var(--ink-soft)">'+esc(tN[a.teacher_id]||'—')+'</div>':'')+'</td>'
+        const clashBadgeA=isClash?'<div style="font-size:8px;color:#dc2626;font-weight:700;margin-top:1px">CLASH</div>':''
+        h+='<td data-slot="'+slot.slot_id+'" data-sec="'+c.section_id+'" data-cls="'+c.class_id+'" onclick="tbCellClick(this)" style="'+bs+(isClash?clashBg:'background:var(--warn-soft)')+'"><div style="font-weight:700;font-size:10px;color:var(--warn);letter-spacing:.03em">ADJUSTMENT</div>'+(a.teacher_id?'<div style="font-size:10px;color:var(--ink-soft)">'+esc(tN[a.teacher_id]||'—')+'</div>':'')+clashBadgeA+'</td>'
       }else{
         h+='<td data-slot="'+slot.slot_id+'" data-sec="'+c.section_id+'" data-cls="'+c.class_id+'" onclick="tbCellClick(this)" style="'+bs+'background:var(--lav-50)"><div style="font-size:16px;color:var(--ink-faint);line-height:1.4">+</div></td>'
       }
@@ -12334,6 +12349,14 @@ async function tbSaveAll(){
       await sb.from('adjustments').insert(row)
     }
   }
+  const mapSet=new Set(_tbMappings.map(m=>m.teacher_id+'|'+m.subject_id+'|'+m.class_id+'|'+(m.section_id||'')))
+  const newMaps=[]
+  _tbEntries.forEach(e=>{
+    if(!e.teacher_id||!e.subject_id)return
+    const k=e.teacher_id+'|'+e.subject_id+'|'+e.class_id+'|'+(e.section_id||'')
+    if(!mapSet.has(k)){mapSet.add(k);newMaps.push({session_id:SESS.session_id,teacher_id:e.teacher_id,subject_id:e.subject_id,class_id:e.class_id,section_id:e.section_id||null})}
+  })
+  if(newMaps.length)await sb.from('teacher_subject_class_map').insert(newMaps)
   _tbLoaded=false;await loadTTBuilder();toast('Timetable saved!','success')
 }
 
