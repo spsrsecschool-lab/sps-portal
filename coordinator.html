@@ -730,7 +730,10 @@ async function loadTTViewer(){
   ldg(el)
   const roster=await getActiveRoster()
   if(!roster){emp(el,'No active roster.');return}
-  const{data:entries}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)').eq('roster_id',roster.roster_id).eq('teacher_id',tid)
+  const{data:entries}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)').eq('session_id',SESS.session_id).eq('teacher_id',tid)
+  const{data:rTimings}=await sb.from('roster_timings').select('slot_id,start_time,end_time').eq('roster_id',roster.roster_id)
+  const _rtMap={};(rTimings||[]).forEach(t=>{_rtMap[t.slot_id]=t})
+  ;(entries||[]).forEach(e=>{if(e.time_slots){const t=_rtMap[e.slot_id];if(t){e.time_slots.start_time=t.start_time;e.time_slots.end_time=t.end_time}}})
   const ws=(entries||[]).filter(e=>e.time_slots)
   if(!ws.length){emp(el,'No timetable periods for this teacher.');return}
   const days=['Mon','Tue','Wed','Thu','Fri','Sat']
@@ -753,7 +756,10 @@ async function loadSubSheet(){
   if(!roster){emp(el,'No active roster.');return}
   const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()]
   if(dow==='Sun'){emp(el,'Sunday — no periods.');return}
-  const{data:entries}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)').eq('roster_id',roster.roster_id).eq('teacher_id',tid)
+  const{data:entries}=await sb.from('timetable_entries').select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)').eq('session_id',SESS.session_id).eq('teacher_id',tid)
+  const{data:rTimings2}=await sb.from('roster_timings').select('slot_id,start_time,end_time').eq('roster_id',roster.roster_id)
+  const _rtMap2={};(rTimings2||[]).forEach(t=>{_rtMap2[t.slot_id]=t})
+  ;(entries||[]).forEach(e=>{if(e.time_slots){const t=_rtMap2[e.slot_id];if(t){e.time_slots.start_time=t.start_time;e.time_slots.end_time=t.end_time}}})
   // only periods on that weekday AND (optionally) in my wing classes
   const todays=(entries||[]).filter(e=>e.time_slots&&(e.days||[]).includes(dow))
   if(!todays.length){emp(el,'No periods for '+esc(tName(tid))+' on '+dow+'.');return}

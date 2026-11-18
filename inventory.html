@@ -180,8 +180,8 @@ tbody tr:hover td{background:var(--lav-50)}
 .loading-row{display:flex;align-items:center;justify-content:center;padding:40px}
 
 /* ── QR GRID ── */
-.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
-.qr-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-md);padding:10px;text-align:center}
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+.qr-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);padding:5px;text-align:center}
 .qr-card img,.qr-card canvas{max-width:100%;height:auto}
 .qr-card .qr-label{font-size:10px;color:var(--ink-soft);margin-top:4px;font-family:var(--mono);word-break:break-all}
 
@@ -197,6 +197,9 @@ tbody tr:hover td{background:var(--lav-50)}
   #sidebar,#scrim,.topbar,.sb-toggle{display:none!important}
   #main{margin-left:0!important}
   .content{padding:0!important}
+  .qr-grid{gap:2px!important;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))!important}
+  .qr-card{padding:2px!important;border:none!important;border-radius:0!important;page-break-inside:avoid}
+  .qr-label{font-size:8px!important;margin-top:1px!important}
 }
 </style>
 </head>
@@ -215,11 +218,14 @@ tbody tr:hover td{background:var(--lav-50)}
     <div class="sb-item" onclick="goTo('articles',this)"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Articles</div>
     <div class="sb-item" onclick="goTo('stock',this)"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Stock &amp; Batches</div>
     <div class="sb-item" onclick="goTo('qrcodes',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="14.01"/><line x1="21" y1="21" x2="21" y2="21.01"/></svg>QR Codes</div>
+    <div class="sb-item" onclick="goTo('sets',this)"><svg viewBox="0 0 24 24"><path d="M16 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="12" height="12" rx="2"/></svg>Set Discounts</div>
 
     <div class="sb-label">Transactions</div>
     <div class="sb-item" onclick="goTo('sell',this)"><svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Sell / Distribute</div>
     <div class="sb-item" onclick="goTo('exchange',this)"><svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Exchange</div>
+    <div class="sb-item" onclick="goTo('return',this)"><svg viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/></svg>Return to Stock</div>
     <div class="sb-item" onclick="goTo('history',this)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Purchase History</div>
+    <div class="sb-item" onclick="goTo('partial',this)"><svg viewBox="0 0 24 24"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="4" fill="none"/><path d="M12 8v4l2 2"/></svg>Partial Payments<span class="bc" id="partialBadge" style="display:none">0</span></div>
 
     <div class="sb-label">Links</div>
     <a class="sb-link" href="admin.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9z"/></svg>Admin Portal<svg class="ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
@@ -313,13 +319,24 @@ tbody tr:hover td{background:var(--lav-50)}
   <div class="page" id="page-qrcodes">
     <div class="page-head"><div><h2>QR Codes</h2><p>Generate and print QR labels for stock items</p></div></div>
     <div class="search-bar">
-      <div class="fg" style="max-width:220px"><label>Article</label><select id="qrFilterArticle" onchange="loadQrItems()"><option value="">Select article</option></select></div>
+      <div style="position:relative;min-width:200px;max-width:280px"><div class="fg"><label>Articles</label><div id="qrArtToggle" onclick="toggleQrArtPanel()" style="cursor:pointer;padding:7px 10px;background:var(--bg-lavender,#f0ebf8);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:13px;min-height:18px;user-select:none">Select articles ▾</div></div><div id="qrArtPanel" style="display:none;position:absolute;top:100%;left:0;min-width:260px;z-index:50;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:300px;overflow-y:auto;padding:6px"><label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-weight:600;border-bottom:1px solid var(--line);margin-bottom:4px;cursor:pointer;font-size:13px"><input type="checkbox" id="qrArtAll" onchange="qrToggleAll(this.checked)">Select All</label><div id="qrArtList"></div></div></div>
       <div class="fg" style="max-width:160px"><label>Size</label><select id="qrFilterSize" onchange="loadQrItems()"><option value="">All</option></select></div>
       <div class="fg" style="max-width:160px"><label>Status</label><select id="qrFilterStatus" onchange="loadQrItems()"><option value="in_stock">In Stock</option><option value="returned">Returned (Needs Relabeling)</option><option value="">All</option><option value="sold">Sold</option></select></div>
       <button class="btn btn-primary btn-sm" onclick="printQrCodes()">Print QR Labels</button>
       <button class="btn btn-success btn-sm" id="qrRelabelBtn" style="display:none" onclick="markRelabeled()">Mark All as Relabeled</button>
     </div>
     <div id="qrGrid" class="qr-grid"></div>
+  </div>
+
+  <!-- ════════ SET DISCOUNTS ════════ -->
+  <div class="page" id="page-sets">
+    <div class="page-head"><div><h2>Set Discounts</h2><p>Define article combos sold at a discounted set price</p></div><button class="btn btn-primary" onclick="openSetModal()">+ New Set</button></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Set Name</th><th>Articles in Set</th><th>Set Price</th><th>Actions</th></tr></thead>
+        <tbody id="setsBody"><tr><td colspan="4"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- ════════ SELL / DISTRIBUTE ════════ -->
@@ -361,7 +378,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div style="margin-bottom:16px">
         <button class="btn btn-primary" onclick="startReturnQrScan()" id="exchReturnScanBtn" style="width:100%;padding:14px;font-size:15px">📷 Scan Return Item QR</button>
       </div>
-      <div id="exchReturnCamWrap" style="display:none;margin:0 0 14px"><div id="exchReturnCamReader"></div><button class="btn btn-danger" onclick="cancelReturnQrScan()" style="margin-top:8px;width:100%;padding:14px;font-size:15px">Cancel Scan</button></div>
+      <div id="exchReturnCamWrap" style="display:none;margin:0 0 14px"><div id="exchReturnCamReader"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-success" onclick="doneReturnQrScan()" style="flex:1;padding:14px;font-size:15px">Done Scanning</button><button class="btn btn-danger" onclick="cancelReturnQrScan()" style="flex:1;padding:14px;font-size:15px">Cancel</button></div></div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;color:var(--ink-faint);font-size:12px;font-weight:600"><div style="flex:1;height:1px;background:var(--line)"></div>OR SELECT MANUALLY<div style="flex:1;height:1px;background:var(--line)"></div></div>
       <div class="form-row">
         <div class="fg" style="max-width:200px"><label>Class</label><select id="exchClass" onchange="onExchClassChange()"><option value="">Select class</option></select></div>
@@ -387,6 +404,17 @@ tbody tr:hover td{background:var(--lav-50)}
     </div>
   </div>
 
+  <!-- ════════ RETURN TO STOCK ════════ -->
+  <div class="page" id="page-return">
+    <div class="page-head"><div><h2>Return to Stock</h2><p>Scan sold items and return them directly to stock</p></div></div>
+    <div class="card" style="max-width:700px">
+      <button class="btn btn-primary" onclick="startReturnStockScan()" id="rtsStartBtn" style="width:100%;padding:14px;font-size:15px">📷 Scan Item QR</button>
+      <div id="rtsCamWrap" style="display:none;margin:14px 0"><div id="rtsCamReader"></div><button class="btn btn-danger" onclick="stopReturnStockScan()" style="margin-top:8px;width:100%;padding:14px;font-size:14px">Done Scanning</button></div>
+      <div id="rtsScannedList" style="margin-top:14px"></div>
+      <button class="btn btn-success" id="rtsConfirmBtn" onclick="confirmReturnToStock()" style="display:none;width:100%;padding:14px;font-size:15px;margin-top:14px">Return All to Stock</button>
+    </div>
+  </div>
+
   <!-- ════════ PURCHASE HISTORY ════════ -->
   <div class="page" id="page-history">
     <div class="page-head"><div><h2>Purchase History</h2><p>Items distributed to students</p></div></div>
@@ -402,6 +430,21 @@ tbody tr:hover td{background:var(--lav-50)}
         <tbody id="historyBody"><tr><td colspan="9"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- ════════ PARTIAL PAYMENTS ════════ -->
+  <div class="page" id="page-partial">
+    <div class="page-head"><div><h2>Partial Payments</h2><p>Track pending balances from inventory purchases</p></div><button class="btn btn-primary" onclick="openNewPartialModal()">+ Log Partial Payment</button></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px" id="partialStats">
+      <div class="stat-card danger"><div class="lbl">Pending</div><div class="val" id="ppPending">—</div><div class="sub" id="ppPendingAmt"></div></div>
+      <div class="stat-card success"><div class="lbl">Cleared</div><div class="val" id="ppCleared">—</div></div>
+      <div class="stat-card"><div class="lbl">Moved to Fee Portal</div><div class="val" id="ppMoved">—</div></div>
+    </div>
+    <div class="search-bar" style="margin-bottom:14px">
+      <div class="fg" style="max-width:200px"><label>Search</label><input id="ppSearch" placeholder="Student name..." oninput="renderPartialList()"></div>
+      <div class="fg" style="max-width:140px"><label>Status</label><select id="ppStatusFilter" onchange="renderPartialList()"><option value="pending">Pending</option><option value="cleared">Cleared</option><option value="moved">Moved to Fees</option><option value="">All</option></select></div>
+    </div>
+    <div id="partialListBody"><div class="loading-row"><div class="spinner"></div></div></div>
   </div>
 
   </div><!-- /content -->
@@ -428,7 +471,7 @@ function fmtINR(n){return '₹'+Number(n||0).toLocaleString('en-IN')}
 function today(){return new Date().toISOString().slice(0,10)}
 
 // ═══════════ NAV ═══════════
-const TITLES={dashboard:'Dashboard',articles:'Articles',stock:'Stock & Batches',qrcodes:'QR Codes',sell:'Sell / Distribute',exchange:'Exchange',history:'Purchase History'}
+const TITLES={dashboard:'Dashboard',articles:'Articles',stock:'Stock & Batches',qrcodes:'QR Codes',sets:'Set Discounts',sell:'Sell / Distribute',exchange:'Exchange','return':'Return to Stock',history:'Purchase History',partial:'Partial Payments'}
 function getItemPrice(item){
   const art=item.inv_articles
   if(!art)return 0
@@ -455,18 +498,20 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ GLOBAL DATA ═══════════
-let ALL_ARTICLES=[], ALL_CLASSES=[], SESS=null, _sellEid=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
+let ALL_ARTICLES=[], ALL_CLASSES=[], ALL_SETS=[], SESS=null, _sellEid=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
 let _sellStudentsCache=[], _exchStudentsCache=[]
 
 async function loadGlobals(){
-  const[{data:arts},{data:cls},{data:sess}]=await Promise.all([
+  const[{data:arts},{data:cls},{data:sess},{data:sets}]=await Promise.all([
     sb.from('inv_articles').select('*').order('name'),
     sb.from('classes').select('*').order('sort_order'),
-    sb.from('sessions').select('*').eq('is_current',true).maybeSingle()
+    sb.from('sessions').select('*').eq('is_current',true).maybeSingle(),
+    sb.from('inv_sets').select('*,inv_set_articles(article_id)')
   ])
   ALL_ARTICLES=arts||[]
   ALL_CLASSES=(cls||[]).filter(c=>c.is_active)
   SESS=sess
+  ALL_SETS=(sets||[]).map(s=>({...s,article_ids:(s.inv_set_articles||[]).map(sa=>sa.article_id)}))
   populateArticleDropdowns()
   populateClassDropdowns()
 }
@@ -477,7 +522,7 @@ function populateClassDropdowns(){
 }
 
 function populateArticleDropdowns(){
-  const drops=['stockFilterArticle','qrFilterArticle','histArticle']
+  const drops=['stockFilterArticle','histArticle']
   drops.forEach(id=>{
     const sel=$(id);if(!sel)return
     const val=sel.value
@@ -485,16 +530,54 @@ function populateArticleDropdowns(){
     ALL_ARTICLES.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.name+(a.category==='book_set'?' (Book Set)':'');sel.appendChild(o)})
     if(val)sel.value=val
   })
+  populateQrArticleCheckboxes()
+}
+
+function populateQrArticleCheckboxes(){
+  const list=$('qrArtList');if(!list)return
+  list.innerHTML=ALL_ARTICLES.map(a=>'<label style="display:flex;align-items:center;gap:6px;padding:3px 6px;cursor:pointer;font-size:13px;border-radius:4px" onmouseover="this.style.background=\'var(--bg-lavender,#f0ebf8)\'" onmouseout="this.style.background=\'\'"><input type="checkbox" class="qrArtCb" value="'+a.id+'" onchange="qrOnArticleCheck()">'+esc(a.name)+(a.category==='book_set'?' (Book Set)':'')+'</label>').join('')
+}
+
+function toggleQrArtPanel(){
+  const p=$('qrArtPanel');p.style.display=p.style.display==='none'?'block':'none'
+}
+document.addEventListener('click',e=>{const p=$('qrArtPanel');const t=$('qrArtToggle');if(p&&t&&!p.contains(e.target)&&!t.contains(e.target))p.style.display='none'})
+
+function qrToggleAll(checked){
+  document.querySelectorAll('.qrArtCb').forEach(cb=>{cb.checked=checked})
+  qrUpdateArtLabel()
+  loadQrItems()
+}
+
+function qrOnArticleCheck(){
+  const all=document.querySelectorAll('.qrArtCb')
+  const checked=document.querySelectorAll('.qrArtCb:checked')
+  $('qrArtAll').checked=all.length===checked.length
+  qrUpdateArtLabel()
+  loadQrItems()
+}
+
+function qrUpdateArtLabel(){
+  const checked=document.querySelectorAll('.qrArtCb:checked')
+  const toggle=$('qrArtToggle')
+  if(!checked.length)toggle.textContent='Select articles ▾'
+  else if(checked.length===document.querySelectorAll('.qrArtCb').length)toggle.textContent='All articles ('+checked.length+') ▾'
+  else toggle.textContent=checked.length+' article'+(checked.length>1?'s':'')+' selected ▾'
 }
 
 // ═══════════ DASHBOARD ═══════════
 async function renderDashboard(){
-  const[{data:articles},{data:items}]=await Promise.all([
-    sb.from('inv_articles').select('*'),
-    sb.from('inv_items').select('article_id,status')
-  ])
+  const{data:articles}=await sb.from('inv_articles').select('*')
   const arts=articles||[]
-  const allItems=items||[]
+  let allItems=[],from=0
+  while(true){
+    const{data}=await sb.from('inv_items').select('article_id,status').range(from,from+999)
+    if(!data?.length)break
+    allItems=allItems.concat(data)
+    if(data.length<1000)break
+    from+=1000
+  }
+  console.log('[DASHBOARD] articles:',arts.length,'items:',allItems.length,'(pages:',(Math.ceil(allItems.length/1000))+')')
   const artMap={};arts.forEach(a=>{artMap[a.id]=a})
 
   let uniStock=0,uniSold=0,bookStock=0,bookSold=0,totalStock=0,totalSold=0,totalReturned=0
@@ -655,6 +738,7 @@ async function saveArticle(editId){
   if(err){toast(err.message,'error');return}
   toast(editId?'Article updated':'Article created','success')
   closeModal()
+  _tabLoaded.delete('dashboard')
   loadArticles()
 }
 
@@ -663,6 +747,7 @@ async function deleteArticle(id){
   const{error}=await sb.from('inv_articles').delete().eq('id',id)
   if(error){toast(error.message,'error');return}
   toast('Article deleted','success')
+  _tabLoaded.delete('dashboard')
   loadArticles()
 }
 
@@ -761,6 +846,7 @@ async function saveBatch(){
   if(iErr){toast('Batch created but items failed: '+iErr.message,'error');return}
   toast(totalQty+' items added with QR codes','success')
   closeModal()
+  _tabLoaded.delete('dashboard')
   loadBatches()
 }
 
@@ -771,6 +857,7 @@ async function deleteBatch(batchId,qty){
   const{error}=await sb.from('inv_batches').delete().eq('id',batchId)
   if(error){toast('Failed to delete batch: '+error.message,'error');return}
   toast('Batch and '+qty+' items deleted','success')
+  _tabLoaded.delete('dashboard')
   loadBatches()
 }
 
@@ -778,34 +865,44 @@ async function deleteBatch(batchId,qty){
 let _qrLoadedItems=[]
 async function loadQrItems(){
   const grid=$('qrGrid')
-  const artId=$('qrFilterArticle').value
-  if(!artId){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">Select an article to view QR codes.</div>';return}
+  const checkedBoxes=document.querySelectorAll('.qrArtCb:checked')
+  const artIds=Array.from(checkedBoxes).map(cb=>cb.value)
+  if(!artIds.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">Select articles to view QR codes.</div>';_qrLoadedItems=[];$('qrRelabelBtn').style.display='none';return}
   grid.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
 
-  let q=sb.from('inv_items').select('*,inv_articles(name)').eq('article_id',artId)
+  const allSizes=new Set()
+  artIds.forEach(id=>{const a=ALL_ARTICLES.find(x=>x.id===id);if(a?.has_sizes&&a.sizes?.length)a.sizes.forEach(s=>allSizes.add(s))})
+  const sel=$('qrFilterSize');const cur=sel.value
+  if(allSizes.size){sel.innerHTML='<option value="">All</option>';[...allSizes].sort().forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'});sel.value=cur}else{sel.innerHTML='<option value="">All</option>'}
+
   const size=$('qrFilterSize').value
-  if(size)q=q.eq('size',size)
   const status=$('qrFilterStatus').value
-  if(status)q=q.eq('status',status)
-  q=q.order('created_at',{ascending:false}).limit(200)
-
-  const{data,error}=await q
-  if(error){grid.innerHTML='<div style="color:var(--danger)">'+esc(error.message)+'</div>';return}
-  if(!data?.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">No items found.</div>';_qrLoadedItems=[];$('qrRelabelBtn').style.display='none';return}
-  _qrLoadedItems=data
-  $('qrRelabelBtn').style.display=status==='returned'?'':'none'
-
-  const art=ALL_ARTICLES.find(a=>a.id===artId)
-  if(art?.has_sizes&&art.sizes?.length){
-    const sel=$('qrFilterSize');const cur=sel.value
-    sel.innerHTML='<option value="">All</option>'
-    art.sizes.forEach(s=>{sel.innerHTML+='<option value="'+esc(s)+'">'+esc(s)+'</option>'})
-    sel.value=cur
+  let allData=[]
+  for(const artId of artIds){
+    let from=0
+    while(true){
+      let q=sb.from('inv_items').select('*,inv_articles(name)').eq('article_id',artId)
+      if(size)q=q.eq('size',size)
+      if(status)q=q.eq('status',status)
+      q=q.order('created_at',{ascending:false}).range(from,from+999)
+      const{data,error}=await q
+      if(error){grid.innerHTML='<div style="color:var(--danger)">'+esc(error.message)+'</div>';return}
+      if(!data?.length)break
+      allData=allData.concat(data)
+      if(data.length<1000)break
+      from+=1000
+    }
   }
 
-  grid.innerHTML=data.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':item.status==='returned'?'danger':'neutral')+'">'+esc(item.status)+'</span></div></div>').join('')
+  if(!allData.length){grid.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:20px">No items found.</div>';_qrLoadedItems=[];$('qrRelabelBtn').style.display='none';return}
+  _qrLoadedItems=allData
+  $('qrRelabelBtn').style.display=status==='returned'?'':'none'
 
-  data.forEach((item,idx)=>{
+  allData.sort((a,b)=>{const an=(a.inv_articles?.name||'').localeCompare(b.inv_articles?.name||'');if(an)return an;return(a.size||'').localeCompare(b.size||'')})
+
+  grid.innerHTML=allData.map((item,idx)=>'<div class="qr-card" id="qrc_'+idx+'"><div id="qrcanvas_'+idx+'" style="display:inline-block"></div><div class="qr-label">SPS · '+esc(item.inv_articles?.name||'—')+(item.size?' · '+esc(item.size):'')+'</div><div style="font-size:10px;margin-top:2px"><span class="pill pill-'+(item.status==='in_stock'?'success':item.status==='returned'?'danger':'neutral')+'">'+esc(item.status)+'</span></div></div>').join('')
+
+  allData.forEach((item,idx)=>{
     new QRCode(document.getElementById('qrcanvas_'+idx),{text:item.qr_code,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})
   })
 }
@@ -815,12 +912,12 @@ function printQrCodes(){
   if(!grid.children.length||grid.querySelector('.spinner')){toast('No QR codes to print','error');return}
   const w=window.open('','_blank')
   let h='<!DOCTYPE html><html><head><title>QR Labels</title><style>'
-  h+='body{font-family:sans-serif;margin:10mm}'
-  h+='.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8mm}'
-  h+='.item{text-align:center;page-break-inside:avoid;border:1px solid #ddd;padding:4mm;border-radius:4px}'
+  h+='body{font-family:sans-serif;margin:5mm}'
+  h+='.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:2mm}'
+  h+='.item{text-align:center;page-break-inside:avoid;border:1px solid #ddd;padding:1.5mm;border-radius:2px}'
   h+='.item img{max-width:100%}'
-  h+='.item .lbl{font-size:8px;font-family:monospace;word-break:break-all;margin-top:2mm}'
-  h+='@page{size:A4 portrait;margin:8mm}'
+  h+='.item .lbl{font-size:7px;font-family:monospace;word-break:break-all;margin-top:1mm}'
+  h+='@page{size:A4 portrait;margin:5mm}'
   h+='</style></head><body><div class="grid">'
   const cards=grid.querySelectorAll('.qr-card')
   cards.forEach(card=>{
@@ -841,7 +938,124 @@ async function markRelabeled(){
   const{error}=await sb.from('inv_items').update({status:'in_stock'}).in('id',ids)
   if(error){toast(error.message,'error');return}
   toast(ids.length+' item(s) moved to In Stock','success')
+  _tabLoaded.delete('dashboard')
   loadQrItems()
+}
+
+// ═══════════ SET DISCOUNTS ═══════════
+async function loadSets(){
+  const{data}=await sb.from('inv_sets').select('*,inv_set_articles(article_id)')
+  ALL_SETS=(data||[]).map(s=>({...s,article_ids:(s.inv_set_articles||[]).map(sa=>sa.article_id)}))
+  const body=$('setsBody')
+  if(!ALL_SETS.length){body.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--ink-faint)">No sets defined yet.</td></tr>';return}
+  body.innerHTML=ALL_SETS.map(s=>{
+    const artNames=s.article_ids.map(aid=>{const a=ALL_ARTICLES.find(x=>x.id===aid);return a?esc(a.name):'?'}).join(' + ')
+    let priceCol=''
+    if(s.size_prices&&Object.keys(s.size_prices).length){
+      priceCol=Object.entries(s.size_prices).sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true})).map(([sz,pr])=>esc(sz)+': <span class="mono">'+fmtINR(pr)+'</span>').join(', ')
+    }else{priceCol='<span class="mono">'+fmtINR(s.set_price)+'</span>'}
+    return '<tr><td><b>'+esc(s.name)+'</b></td><td>'+artNames+'</td><td style="font-size:12px">'+priceCol+'</td><td><button class="btn btn-ghost btn-xs" onclick="openSetModal(\''+s.id+'\')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteSet(\''+s.id+'\')">Delete</button></td></tr>'
+  }).join('')
+}
+
+function openSetModal(editId){
+  const s=editId?ALL_SETS.find(x=>x.id===editId):null
+  let body='<div class="fg" style="margin-bottom:12px"><label>Set Name</label><input id="setName" placeholder="e.g. Track Suit Set" value="'+esc(s?.name||'')+'"></div>'
+  body+='<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">ARTICLES IN SET</div><div id="setArtChecks">'
+  body+=ALL_ARTICLES.map(a=>'<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;cursor:pointer"><input type="checkbox" class="setArtCb" value="'+a.id+'" onchange="updateSetSizeRows()"'+(s?.article_ids.includes(a.id)?' checked':'')+'>'+esc(a.name)+'</label>').join('')
+  body+='</div></div>'
+  body+='<div id="setSizePricesWrap" style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">SET PRICE PER SIZE</div><div id="setSizeRows"></div></div>'
+  body+='<div class="fg" style="max-width:200px"><label>Default Set Price (₹)</label><input type="number" id="setPrice" min="0" value="'+(s?.set_price||'')+'" placeholder="For items without size"></div>'
+  const foot='<button class="btn btn-primary" onclick="saveSet('+(editId?"'"+editId+"'":"null")+')">Save Set</button>'
+  openModal(editId?'Edit Set':'New Set',body,foot,true)
+  _editingSetSizePrices=s?.size_prices||{}
+  updateSetSizeRows()
+}
+
+let _editingSetSizePrices={}
+function updateSetSizeRows(){
+  const artIds=Array.from(document.querySelectorAll('.setArtCb:checked')).map(cb=>cb.value)
+  const allSizes=new Set()
+  artIds.forEach(aid=>{const a=ALL_ARTICLES.find(x=>x.id===aid);if(a?.has_sizes&&a.sizes?.length)a.sizes.forEach(s=>allSizes.add(s))})
+  const wrap=$('setSizePricesWrap')
+  const rows=$('setSizeRows')
+  if(!allSizes.size){wrap.style.display='none';rows.innerHTML='';return}
+  wrap.style.display='block'
+  const sizes=[...allSizes].sort()
+  rows.innerHTML=sizes.map(sz=>'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="min-width:60px;font-size:13px;font-weight:600">'+esc(sz)+'</span><input type="number" class="setSzPr" data-size="'+esc(sz)+'" placeholder="Set price ₹" value="'+(_editingSetSizePrices[sz]||'')+'" min="0" style="width:130px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius-sm)"></div>').join('')
+}
+
+async function saveSet(editId){
+  const name=$('setName').value.trim()
+  const defaultPrice=parseFloat($('setPrice').value)||0
+  const artIds=Array.from(document.querySelectorAll('.setArtCb:checked')).map(cb=>cb.value)
+  if(!name){toast('Enter a set name','error');return}
+  if(artIds.length<2){toast('Select at least 2 articles','error');return}
+  const sizePrices={}
+  let hasSizePrices=false
+  document.querySelectorAll('.setSzPr').forEach(inp=>{
+    const p=parseFloat(inp.value)||0
+    if(p>0){sizePrices[inp.dataset.size]=p;hasSizePrices=true}
+  })
+  if(!hasSizePrices&&defaultPrice<=0){toast('Enter at least one size price or a default price','error');return}
+  const row={name,set_price:defaultPrice,size_prices:hasSizePrices?sizePrices:null}
+  if(editId){
+    const{error}=await sb.from('inv_sets').update(row).eq('id',editId)
+    if(error){toast(error.message,'error');return}
+    await sb.from('inv_set_articles').delete().eq('set_id',editId)
+    const{error:e2}=await sb.from('inv_set_articles').insert(artIds.map(aid=>({set_id:editId,article_id:aid})))
+    if(e2){toast(e2.message,'error');return}
+  }else{
+    const{data:newSet,error}=await sb.from('inv_sets').insert(row).select().single()
+    if(error){toast(error.message,'error');return}
+    const{error:e2}=await sb.from('inv_set_articles').insert(artIds.map(aid=>({set_id:newSet.id,article_id:aid})))
+    if(e2){toast(e2.message,'error');return}
+  }
+  closeModal()
+  toast('Set saved','success')
+  loadSets()
+}
+
+async function deleteSet(id){
+  if(!confirm('Delete this set?'))return
+  const{error}=await sb.from('inv_sets').delete().eq('id',id)
+  if(error){toast(error.message,'error');return}
+  toast('Set deleted','success')
+  loadSets()
+}
+
+function getSetPrice(setDef,matchedItems){
+  if(setDef.size_prices&&Object.keys(setDef.size_prices).length){
+    const sizes=matchedItems.map(it=>it.size).filter(Boolean)
+    for(const sz of sizes){if(setDef.size_prices[sz]!=null)return setDef.size_prices[sz]}
+  }
+  return setDef.set_price||0
+}
+
+function detectSetsInItems(items){
+  const matched=[],usedIdx=new Set()
+  ALL_SETS.forEach(s=>{
+    const avail=items.map((it,i)=>usedIdx.has(i)?null:it).map((it,i)=>it&&s.article_ids.includes(it.article_id)?i:null).filter(i=>i!==null)
+    const sizedAvail=avail.filter(i=>items[i].size)
+    const sizes=[...new Set(sizedAvail.map(i=>items[i].size))]
+    const trySize=sizes.length?sizes:[null]
+    for(const sz of trySize){
+      const pick=[]
+      const taken=new Set()
+      let ok=true
+      for(const aid of s.article_ids){
+        const idx=avail.find(i=>!taken.has(i)&&items[i].article_id===aid&&(!items[i].size||items[i].size===sz))
+        if(idx==null){ok=false;break}
+        pick.push(idx);taken.add(idx)
+      }
+      if(!ok||pick.length!==s.article_ids.length)continue
+      const mItems=pick.map(i=>items[i])
+      const price=getSetPrice(s,mItems)
+      matched.push({set:s,itemIdxs:pick,setPrice:price})
+      pick.forEach(i=>usedIdx.add(i))
+    }
+  })
+  return matched
 }
 
 // ═══════════ SELL / DISTRIBUTE ═══════════
@@ -952,36 +1166,128 @@ function renderSellScannedItems(){
   const box=$('sellScannedItems')
   if(!_sellItems.length){wrap.style.display='none';return}
   wrap.style.display='block'
-  let total=0
-  box.innerHTML=_sellItems.map((item,i)=>{
+  const matched=detectSetsInItems(_sellItems)
+  const inSet=new Set()
+  matched.forEach(m=>m.itemIdxs.forEach(i=>inSet.add(i)))
+  let total=0,discount=0
+  let html=''
+  matched.forEach(m=>{
+    const setIndiv=m.itemIdxs.reduce((s,i)=>s+getItemPrice(_sellItems[i]),0)
+    const saving=setIndiv-m.setPrice
+    discount+=saving
+    html+='<div style="background:var(--lav-50,#f5f0ff);border-radius:6px;padding:6px 8px;margin:4px 0;border-left:3px solid var(--primary)">'
+    html+='<div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:2px">'+esc(m.set.name)+' — Set Price: '+fmtINR(m.setPrice)+' <span style="color:var(--success)">(Save '+fmtINR(saving)+')</span></div>'
+    m.itemIdxs.forEach(i=>{
+      const item=_sellItems[i]
+      const price=getItemPrice(item)
+      total+=price
+      html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">'
+        +'<span><b>'+esc(item.inv_articles?.name||'—')+'</b>'+(item.size?' · '+esc(item.size):'')
+        +' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(item.qr_code)+'</span></span>'
+        +'<span style="display:flex;align-items:center;gap:8px"><span class="mono" style="text-decoration:line-through;color:var(--ink-faint)">'+fmtINR(price)+'</span>'
+        +'<button class="btn btn-danger btn-xs" onclick="removeSellItem('+i+')" style="padding:2px 6px;font-size:11px">✕</button></span>'
+        +'</div>'
+    })
+    html+='</div>'
+  })
+  _sellItems.forEach((item,i)=>{
+    if(inSet.has(i))return
     const price=getItemPrice(item)
     total+=price
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">'
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">'
       +'<span><b>'+esc(item.inv_articles?.name||'—')+'</b>'+(item.size?' · '+esc(item.size):'')
       +' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(item.qr_code)+'</span></span>'
       +'<span style="display:flex;align-items:center;gap:8px"><span class="mono">'+fmtINR(price)+'</span>'
       +'<button class="btn btn-danger btn-xs" onclick="removeSellItem('+i+')" style="padding:2px 6px;font-size:11px">✕</button></span>'
       +'</div>'
-  }).join('')
-  $('sellTotal').textContent='Total: '+fmtINR(total)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')'
+  })
+  box.innerHTML=html
+  const finalTotal=total-discount
+  let totalText='Total: '+fmtINR(finalTotal)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')'
+  if(discount>0)totalText+=' · <span style="color:var(--success)">Set discount: -'+fmtINR(discount)+'</span>'
+  $('sellTotal').innerHTML=totalText
 }
 
 function confirmSell(){
   if(!_sellEid||!_sellItems.length){toast('No items scanned','error');return}
   stopCamScanner('sell')
+  const matched=detectSetsInItems(_sellItems)
+  const inSet=new Set()
+  matched.forEach(m=>m.itemIdxs.forEach(i=>inSet.add(i)))
+  let total=0,discount=0
+  matched.forEach(m=>{
+    const setIndiv=m.itemIdxs.reduce((s,i)=>s+getItemPrice(_sellItems[i]),0)
+    discount+=setIndiv-m.setPrice
+    m.itemIdxs.forEach(i=>{total+=getItemPrice(_sellItems[i])})
+  })
+  _sellItems.forEach((item,i)=>{if(!inSet.has(i))total+=getItemPrice(item)})
+  const finalTotal=total-discount
+  window._sellFinalTotal=finalTotal
+  window._sellMatched=matched
+  window._sellInSet=inSet
+  window._sellDiscount=discount
+  const s=_sellStudentInfo||{}
+  let body='<div style="text-align:center;padding:10px 0 6px"><div style="font-size:13px;color:var(--ink-soft)">'+esc(s.name||'—')+' — '+esc(s.cls||'')+'-'+esc(s.sec||'')+'</div>'
+    +'<div style="font-size:28px;font-weight:800;margin:10px 0">'+fmtINR(finalTotal)+'</div>'
+    +'<div style="font-size:12px;color:var(--ink-faint)">'+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+(discount>0?' &middot; Set discount: -'+fmtINR(discount):'')+'</div></div>'
+  body+='<div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">'
+    +'<button class="btn btn-success" onclick="showSaleBill(false)" style="padding:16px;font-size:15px;width:100%">Full Payment — '+fmtINR(finalTotal)+'</button>'
+    +'<button class="btn" onclick="showPartialStep()" style="padding:14px;font-size:14px;width:100%;background:var(--warn);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer">Partial Payment</button>'
+    +'</div>'
+  openModal('Payment',body,'<button class="btn btn-ghost" onclick="resumeSellScan()" style="padding:10px 20px">Back to Scanning</button>')
+}
+function showPartialStep(){
+  const finalTotal=window._sellFinalTotal||0
+  let body='<div style="text-align:center;margin-bottom:16px"><div style="font-size:13px;color:var(--ink-soft)">Total Bill</div><div style="font-size:24px;font-weight:800">'+fmtINR(finalTotal)+'</div></div>'
+    +'<div class="form-row" style="justify-content:center"><div class="fg" style="max-width:180px"><label>Amount Received</label><input type="number" inputmode="decimal" id="sellPartialAmt" placeholder="0" oninput="updatePartialDue()" style="font-family:var(--mono);font-size:18px;text-align:center;padding:12px" autofocus></div></div>'
+    +'<div style="text-align:center;margin-top:10px"><div style="font-size:12px;color:var(--ink-faint)">Remaining Due</div><div id="sellPartialDue" style="font-family:var(--mono);font-weight:800;color:var(--danger);font-size:22px;margin-top:4px">'+fmtINR(finalTotal)+'</div></div>'
+    +'<div style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:10px">Remaining amount will be tracked as a pending partial payment.</div>'
+  const foot='<button class="btn btn-success" onclick="showSaleBill(true)" style="padding:12px 28px;font-size:14px">Proceed to Bill</button>'
+    +'<button class="btn btn-ghost" onclick="confirmSell()">Back</button>'
+  openModal('Partial Payment',body,foot)
+}
+function showSaleBill(isPartial){
   const s=_sellStudentInfo||{}
   const mode=$('sellPayMode').value
-  let total=0
-  let rows=_sellItems.map((item,i)=>{
-    const price=getItemPrice(item)
-    total+=price
-    return '<tr><td style="padding:6px 8px">'+(i+1)+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono">'+fmtINR(price)+'</td></tr>'
-  }).join('')
+  const finalTotal=window._sellFinalTotal||0
+  const matched=window._sellMatched||[]
+  const inSet=window._sellInSet||new Set()
+  const discount=window._sellDiscount||0
+  window._sellIsPartial=isPartial
+  if(isPartial){
+    const paidAmt=parseFloat($('sellPartialAmt')?.value)||0
+    if(paidAmt<=0){toast('Enter amount received','error');return}
+    if(paidAmt>=finalTotal){toast('Amount equals or exceeds total — use Full Payment','error');return}
+    window._sellPartialPaid=paidAmt
+  }
+  let rows='',n=0
+  matched.forEach(m=>{
+    const setIndiv=m.itemIdxs.reduce((sm,i)=>sm+getItemPrice(_sellItems[i]),0)
+    const saving=setIndiv-m.setPrice
+    rows+='<tr style="background:var(--lav-50,#f5f0ff)"><td colspan="4" style="padding:6px 8px;font-weight:700;font-size:12px;color:var(--primary)">'+esc(m.set.name)+' — Set Price: '+fmtINR(m.setPrice)+' <span style="color:var(--success)">(Save '+fmtINR(saving)+')</span></td></tr>'
+    m.itemIdxs.forEach(i=>{
+      n++;const item=_sellItems[i];const price=getItemPrice(item)
+      rows+='<tr style="background:var(--lav-50,#f5f0ff)"><td style="padding:6px 8px">'+n+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono">'+fmtINR(price)+'</td></tr>'
+    })
+  })
+  _sellItems.forEach((item,i)=>{
+    if(inSet.has(i))return
+    n++;const price=getItemPrice(item)
+    rows+='<tr><td style="padding:6px 8px">'+n+'</td><td style="padding:6px 8px">'+esc(item.inv_articles?.name||'—')+'</td><td style="padding:6px 8px">'+(item.size||'—')+'</td><td style="padding:6px 8px;text-align:right" class="mono">'+fmtINR(price)+'</td></tr>'
+  })
   let body='<div style="margin-bottom:12px;font-size:13px"><b>'+esc(s.name||'—')+'</b> — '+esc(s.cls||'')+'-'+esc(s.sec||'')+' (s/o '+esc(s.father||'—')+')</div>'
-  body+='<div style="margin-bottom:8px;font-size:12px">Payment: <b>'+esc(mode==='cash'?'Cash':'Online')+'</b></div>'
+  body+='<div style="margin-bottom:8px;font-size:12px">Payment: <b>'+esc(isPartial?'Partial ('+mode+')':mode==='cash'?'Cash':'Online')+'</b></div>'
   body+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--lav-100)"><th style="padding:6px 8px;text-align:left">#</th><th style="padding:6px 8px;text-align:left">Article</th><th style="padding:6px 8px;text-align:left">Size</th><th style="padding:6px 8px;text-align:right">Price</th></tr></thead><tbody>'+rows+'</tbody></table>'
-  body+='<div style="text-align:right;font-weight:700;font-size:15px;padding:10px 8px 0;border-top:2px solid var(--ink)">Total: '+fmtINR(total)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')</div>'
-  const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="resumeSellScan()" style="padding:12px 20px">Back to Scanning</button>'
+  if(discount>0)body+='<div style="text-align:right;font-size:13px;padding:6px 8px 0;color:var(--success)">Set Discount: -'+fmtINR(discount)+'</div>'
+  body+='<div style="text-align:right;font-weight:700;font-size:15px;padding:6px 8px 0;border-top:2px solid var(--ink)">Total: '+fmtINR(finalTotal)+' ('+_sellItems.length+' item'+(_sellItems.length>1?'s':'')+')</div>'
+  if(isPartial){
+    const paidAmt=window._sellPartialPaid||0
+    const due=finalTotal-paidAmt
+    body+='<div style="margin-top:10px;padding:10px 12px;background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);font-size:13px">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Received</span><b style="color:var(--success)">'+fmtINR(paidAmt)+'</b></div>'
+      +'<div style="display:flex;justify-content:space-between"><span>Balance Due</span><b style="color:var(--danger)">'+fmtINR(due)+'</b></div></div>'
+  }
+  const foot='<button class="btn btn-success" onclick="processSell()" style="padding:12px 28px;font-size:14px">Confirm & Save</button><button class="btn btn-ghost" onclick="confirmSell()">Back</button>'
   openModal('Sale Bill',body,foot)
 }
 
@@ -999,17 +1305,43 @@ function resumeSellScan(){
 async function processSell(){
   const mode=$('sellPayMode').value
   const now=new Date().toISOString()
-  const by=SPS.admin?.admin_id||'admin'
+  const by=SPS.admin?.admin_id||(_invOperator?.id||'admin')
   const count=_sellItems.length
+  const isPartial=!!window._sellIsPartial
+  const totalAmt=window._sellFinalTotal||0
+  const paidAmt=isPartial?(window._sellPartialPaid||0):totalAmt
   let failed=0
   for(const item of _sellItems){
-    const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:now,sold_by:by,payment_mode:mode}).eq('id',item.id)
+    const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_sellEid,sold_at:now,sold_by:by,payment_mode:isPartial?'partial':mode}).eq('id',item.id)
     if(error)failed++
   }
   if(failed){closeModal();toast(failed+' item(s) failed to save','error');_resetSellUI();return}
-  $('modalBody').innerHTML='<div style="display:flex;flex-direction:column;align-items:center;padding:30px 0"><svg class="sell-tick" viewBox="0 0 80 80" style="width:100px;height:100px"><circle cx="40" cy="40" r="36" fill="none" stroke="#22c55e" stroke-width="4" stroke-dasharray="226" stroke-dashoffset="226" style="animation:sell-tick-circle .5s ease forwards"/><path d="M24 42 L35 53 L56 28" fill="none" stroke="#22c55e" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="50" stroke-dashoffset="50" style="animation:sell-tick-check .35s .4s ease forwards"/></svg><div style="margin-top:18px;font-size:18px;font-weight:700;color:#22c55e">Sale Confirmed!</div><div style="margin-top:6px;font-size:13px;color:var(--ink-soft)">'+count+' item'+(count>1?'s':'')+' sold successfully</div></div>'
+  if(isPartial){
+    const remaining=totalAmt-paidAmt
+    const items=_sellItems.map(i=>({article:i.inv_articles?.name||'—',size:i.size||null,qr:i.qr_code,price:getItemPrice(i)}))
+    const{error:ppErr}=await sb.from('inv_partial_payments').insert({
+      enrollment_id:_sellEid,session_id:SESS?.session_id||null,
+      total_amount:totalAmt,paid_amount:paidAmt,remaining_amount:remaining,
+      payment_mode:mode,items,
+      created_by:by,status:'pending',
+      payments:[{amount:paidAmt,mode,date:now,by}]
+    })
+    if(ppErr)console.warn('Partial payment record failed:',ppErr.message)
+  }
+  let msg=count+' item'+(count>1?'s':'')+' sold successfully'
+  if(isPartial)msg+='<br><span style="color:var(--warn);font-size:12px">Partial payment of '+fmtINR(paidAmt)+' recorded. Balance '+fmtINR(totalAmt-paidAmt)+' pending.</span>'
+  $('modalBody').innerHTML='<div style="display:flex;flex-direction:column;align-items:center;padding:30px 0"><svg class="sell-tick" viewBox="0 0 80 80" style="width:100px;height:100px"><circle cx="40" cy="40" r="36" fill="none" stroke="#22c55e" stroke-width="4" stroke-dasharray="226" stroke-dashoffset="226" style="animation:sell-tick-circle .5s ease forwards"/><path d="M24 42 L35 53 L56 28" fill="none" stroke="#22c55e" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="50" stroke-dashoffset="50" style="animation:sell-tick-check .35s .4s ease forwards"/></svg><div style="margin-top:18px;font-size:18px;font-weight:700;color:#22c55e">Sale Confirmed!</div><div style="margin-top:6px;font-size:13px;color:var(--ink-soft)">'+msg+'</div></div>'
   $('modalFoot').innerHTML=''
-  setTimeout(()=>{closeModal();_resetSellUI()},2000)
+  _tabLoaded.delete('dashboard');_tabLoaded.delete('partial')
+  setTimeout(()=>{closeModal();_resetSellUI()},2500)
+}
+
+function updatePartialDue(){
+  const total=window._sellFinalTotal||0
+  const paid=parseFloat($('sellPartialAmt')?.value)||0
+  const due=Math.max(0,total-paid)
+  $('sellPartialDue').textContent=fmtINR(due)
+  $('sellPartialDue').style.color=due>0?'var(--danger)':'var(--success)'
 }
 
 function cancelSell(){
@@ -1019,7 +1351,7 @@ function cancelSell(){
 }
 
 function _resetSellUI(){
-  _sellItems=[];_sellEid=null;_sellStudentInfo=null;_sellScannedCodes.clear()
+  _sellItems=[];_sellEid=null;_sellStudentInfo=null;_sellScannedCodes.clear();window._sellIsPartial=false;window._sellPartialPaid=0;window._sellFinalTotal=0
   $('sellScannedList').style.display='none'
   $('sellScannedItems').innerHTML=''
   $('sellSelectedStudent').style.display='none'
@@ -1067,7 +1399,7 @@ function searchStudentsExch(){
 }
 
 async function selectExchStudent(eid,name,cls,sec,father){
-  _exchEid=eid;_exchOldItem=null;_exchNewItem=null
+  _exchEid=eid;_exchOldItems=[];_exchOldItem=null;_exchNewItem=null
   $('exchSelectedStudent').style.display='block'
   $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+'-'+esc(sec)+' (s/o '+esc(father)+')</div>'
   $('exchStudentResults').style.display='none'
@@ -1083,20 +1415,40 @@ async function selectExchStudent(eid,name,cls,sec,father){
   const{data}=await sb.from('inv_items').select('*,inv_articles(name)').eq('sold_to_enrollment_id',eid).eq('status','sold').order('sold_at',{ascending:false})
   const box=$('exchStudentItems')
   if(!data?.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:8px">No items found for this student.</div>';return}
-  box.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">ITEMS ISSUED TO STUDENT — Select item to return:</div>'
+  box.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">ITEMS ISSUED TO STUDENT — Select item(s) to return:</div>'
     +data.map(i=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>'+esc(i.inv_articles?.name||'—')+'</b>'+(i.size?' · '+esc(i.size):'')+' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(i.qr_code)+'</span></span><button class="btn btn-danger btn-xs" onclick="selectExchReturn(\''+i.id+'\',\''+esc(i.inv_articles?.name||'')+'\',\''+esc(i.size||'')+'\',\''+esc(i.qr_code)+'\')">Return This</button></div>').join('')
 }
 
-function selectExchReturn(itemId,artName,size,qr,viaQr){
-  _exchOldItem={id:itemId,name:artName,size,qr,viaQr:!!viaQr}
-  $('exchReturnInfo').style.display='block'
-  $('exchReturnInfo').innerHTML='<div class="card" style="padding:10px;background:var(--danger-soft);border-color:var(--danger)"><b>Returning:</b> '+esc(artName)+(size?' · '+esc(size):'')+' <span class="mono" style="font-size:10px">'+esc(qr)+'</span></div>'
+function selectExchReturn(itemId,artName,size,qr,viaQr){addExchReturn(itemId,artName,size,qr,viaQr)}
+function addExchReturn(itemId,artName,size,qr,viaQr){
+  if(_exchOldItems.find(i=>i.id===itemId))return
+  _exchOldItems.push({id:itemId,name:artName,size,qr,viaQr:!!viaQr})
+  _exchOldItem=_exchOldItems[0]
+  renderExchReturnList()
   checkExchReady()
 }
+function removeExchReturn(idx){
+  _exchOldItems.splice(idx,1)
+  _exchOldItem=_exchOldItems[0]||null
+  renderExchReturnList()
+  if(!_exchOldItems.length){$('exchReturnInfo').style.display='none'}
+  checkExchReady()
+}
+function renderExchReturnList(){
+  const el=$('exchReturnInfo')
+  if(!_exchOldItems.length){el.style.display='none';return}
+  el.style.display='block'
+  let h='<div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:6px">RETURNING ('+_exchOldItems.length+')</div>'
+  _exchOldItems.forEach((item,idx)=>{
+    h+='<div class="card" style="padding:8px 10px;background:var(--danger-soft);border-color:var(--danger);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span><b>'+esc(item.name)+'</b>'+(item.size?' · '+esc(item.size):'')+' <span class="mono" style="font-size:10px">'+esc(item.qr)+'</span></span><button class="btn btn-danger btn-xs" onclick="removeExchReturn('+idx+')">✕</button></div>'
+  })
+  el.innerHTML=h
+}
 
-let _exchReturnScanner=null,_exchReturnScannedCode=null
+let _exchReturnScanner=null,_exchReturnProcessing=false
+let _exchOldItems=[]
 function startReturnQrScan(){
-  _exchReturnScannedCode=null
+  _exchReturnProcessing=false
   $('exchReturnScanBtn').style.display='none'
   $('exchReturnCamWrap').style.display='block'
   _exchReturnScanner=new Html5Qrcode('exchReturnCamReader')
@@ -1105,34 +1457,48 @@ function startReturnQrScan(){
     cancelReturnQrScan()
   })
 }
-function cancelReturnQrScan(){
+function _stopExchReturnCam(){
   if(_exchReturnScanner){try{_exchReturnScanner.stop().then(()=>{_exchReturnScanner.clear()}).catch(()=>{})}catch(e){}}
-  _exchReturnScanner=null;_exchReturnScannedCode=null
+  _exchReturnScanner=null;_exchReturnProcessing=false
   $('exchReturnCamWrap').style.display='none'
   $('exchReturnScanBtn').style.display='block'
 }
+function cancelReturnQrScan(){
+  _stopExchReturnCam()
+  _exchOldItems=[];_exchOldItem=null;_exchEid=null
+  $('exchReturnInfo').style.display='none'
+  $('exchSelectedStudent').style.display='none'
+  checkExchReady()
+}
+function doneReturnQrScan(){
+  _stopExchReturnCam()
+}
 async function onReturnQrScanned(code){
-  if(_exchReturnScannedCode)return
-  _exchReturnScannedCode=code
+  if(_exchReturnProcessing)return
+  if(_exchOldItems.find(i=>i.qr===code))return
+  _exchReturnProcessing=true
   const{data:item,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices)').eq('qr_code',code).maybeSingle()
-  if(error||!item){toast('Item not found: '+code,'error');_exchReturnScannedCode=null;return}
-  if(item.status!=='sold'){toast(code+' is not a sold item (status: '+item.status+')','error');_exchReturnScannedCode=null;return}
-  if(!item.sold_to_enrollment_id){toast('No student linked to this item','error');_exchReturnScannedCode=null;return}
+  if(error||!item){toast('Item not found: '+code,'error');_exchReturnProcessing=false;return}
+  if(item.status!=='sold'){toast(code+' is not a sold item (status: '+item.status+')','error');_exchReturnProcessing=false;return}
+  if(!item.sold_to_enrollment_id){toast('No student linked to this item','error');_exchReturnProcessing=false;return}
+  if(_exchEid&&_exchEid!==item.sold_to_enrollment_id){toast('This item belongs to a different student','error');_exchReturnProcessing=false;return}
   _beep()
-  cancelReturnQrScan()
-  const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,students!inner(full_name,father_name),classes(name),class_sections(name)').eq('enrollment_id',item.sold_to_enrollment_id).maybeSingle()
-  if(!enr||!enr.students){toast('Student record not found for this item','error');return}
-  _exchEid=enr.enrollment_id;_exchOldItem=null;_exchNewItem=null
-  $('exchSelectedStudent').style.display='block'
-  $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(enr.students.full_name)+' — '+esc(enr.classes?.name||'')+'-'+esc(enr.class_sections?.name||'')+' (s/o '+esc(enr.students.father_name||'—')+')</div>'
-  $('exchStudentItems').innerHTML=''
-  selectExchReturn(item.id,item.inv_articles?.name||'—',item.size||'',item.qr_code,true)
+  if(!_exchEid){
+    const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,students!inner(full_name,father_name),classes(name),class_sections(name)').eq('enrollment_id',item.sold_to_enrollment_id).maybeSingle()
+    if(!enr||!enr.students){toast('Student record not found for this item','error');_exchReturnProcessing=false;return}
+    _exchEid=enr.enrollment_id;_exchNewItem=null
+    $('exchSelectedStudent').style.display='block'
+    $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(enr.students.full_name)+' — '+esc(enr.classes?.name||'')+'-'+esc(enr.class_sections?.name||'')+' (s/o '+esc(enr.students.father_name||'—')+')</div>'
+    $('exchStudentItems').innerHTML=''
+  }
+  addExchReturn(item.id,item.inv_articles?.name||'—',item.size||'',item.qr_code,true)
   $('exchScanBtn').disabled=false
+  _exchReturnProcessing=false
 }
 
 let _exchScannedCode=null
 function startExchScan(){
-  if(!_exchEid||!_exchOldItem){toast('Select a student and item to return first','error');return}
+  if(!_exchEid||!_exchOldItems.length){toast('Select a student and item(s) to return first','error');return}
   _exchNewItem=null;_exchScannedCode=null
   $('exchNewItemInfo').style.display='none'
   $('exchScanBtn').style.display='none'
@@ -1171,25 +1537,28 @@ function cancelExchScan(){
   $('exchCancelBtn').style.display='none'
 }
 function checkExchReady(){
-  $('exchScanBtn').disabled=!(_exchEid&&_exchOldItem)
+  $('exchScanBtn').disabled=!(_exchEid&&_exchOldItems.length)
 }
 
 async function confirmExchange(){
-  if(!_exchEid||!_exchOldItem||!_exchNewItem)return
+  if(!_exchEid||!_exchOldItems.length||!_exchNewItem)return
   const reason=$('exchReason').value.trim()
 
-  const returnStatus=_exchOldItem.viaQr?'in_stock':'returned'
-  const{error:e1}=await sb.from('inv_items').update({status:returnStatus,sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',_exchOldItem.id)
-  if(e1){toast(e1.message,'error');return}
+  for(const old of _exchOldItems){
+    const returnStatus=old.viaQr?'in_stock':'returned'
+    const{error}=await sb.from('inv_items').update({status:returnStatus,sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).eq('id',old.id)
+    if(error){toast(error.message,'error');return}
+  }
 
-  const{error:e2}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItem.id}).eq('id',_exchNewItem.id)
+  const{error:e2}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItems[0].id}).eq('id',_exchNewItem.id)
   if(e2){toast(e2.message,'error');return}
 
-  const{error:e3}=await sb.from('inv_exchanges').insert({old_item_id:_exchOldItem.id,new_item_id:_exchNewItem.id,enrollment_id:_exchEid,reason,exchanged_by:SPS.admin?.admin_id||'admin'})
+  const{error:e3}=await sb.from('inv_exchanges').insert({old_item_id:_exchOldItems[0].id,new_item_id:_exchNewItem.id,enrollment_id:_exchEid,reason,exchanged_by:SPS.admin?.admin_id||'admin'})
   if(e3)console.error('Exchange log failed:',e3.message)
 
-  toast('Exchange completed','success')
-  _exchOldItem=null;_exchNewItem=null;_exchEid=null;_exchScannedCode=null
+  toast('Exchange completed — '+_exchOldItems.length+' item(s) returned','success')
+  _tabLoaded.delete('dashboard')
+  _exchOldItems=[];_exchOldItem=null;_exchNewItem=null;_exchEid=null;_exchScannedCode=null
   $('exchReturnInfo').style.display='none'
   $('exchNewItemInfo').style.display='none'
   $('exchSelectedStudent').style.display='none'
@@ -1200,6 +1569,69 @@ async function confirmExchange(){
   $('exchBtn').style.display='none'
   $('exchCancelBtn').style.display='none'
   $('exchReturnScanBtn').style.display='block'
+}
+
+// ═══════════ RETURN TO STOCK ═══════════
+let _rtsItems=[],_rtsScanner=null,_rtsProcessing=false
+function startReturnStockScan(){
+  _rtsProcessing=false
+  $('rtsStartBtn').style.display='none'
+  $('rtsCamWrap').style.display='block'
+  _rtsScanner=new Html5Qrcode('rtsCamReader')
+  _rtsScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:280,height:280},aspectRatio:1},onRtsQrScanned,()=>{}).catch(err=>{
+    toast('Camera error: '+err,'error')
+    stopReturnStockScan()
+  })
+}
+function stopReturnStockScan(){
+  if(_rtsScanner){try{_rtsScanner.stop().then(()=>{_rtsScanner.clear()}).catch(()=>{})}catch(e){}}
+  _rtsScanner=null;_rtsProcessing=false
+  $('rtsCamWrap').style.display='none'
+  $('rtsStartBtn').style.display='block'
+}
+async function onRtsQrScanned(code){
+  if(_rtsProcessing)return
+  if(_rtsItems.find(i=>i.qr_code===code))return
+  _rtsProcessing=true
+  const{data:item,error}=await sb.from('inv_items').select('*,inv_articles(name)').eq('qr_code',code).maybeSingle()
+  if(error||!item){toast('Item not found: '+code,'error');_rtsProcessing=false;return}
+  if(item.status!=='sold'){toast(code+' is not sold (status: '+item.status+')','error');_rtsProcessing=false;return}
+  _beep()
+  let stuName=''
+  if(item.sold_to_enrollment_id){
+    const{data:enr}=await sb.from('student_enrollments').select('students!inner(full_name),classes(name)').eq('enrollment_id',item.sold_to_enrollment_id).maybeSingle()
+    if(enr?.students)stuName=enr.students.full_name+(enr.classes?' — '+enr.classes.name:'')
+  }
+  _rtsItems.push({...item,studentName:stuName})
+  renderRtsList()
+  _rtsProcessing=false
+}
+function removeRtsItem(idx){_rtsItems.splice(idx,1);renderRtsList()}
+function renderRtsList(){
+  const el=$('rtsScannedList')
+  if(!_rtsItems.length){el.innerHTML='';$('rtsConfirmBtn').style.display='none';return}
+  let h='<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">SCANNED ITEMS ('+_rtsItems.length+')</div>'
+  _rtsItems.forEach((item,idx)=>{
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--lav-50);border:1px solid var(--line);border-radius:var(--radius-sm);margin-bottom:4px">'
+    h+='<div><b>'+esc(item.inv_articles?.name||'—')+'</b>'+(item.size?' · '+esc(item.size):'')
+    h+=' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(item.qr_code)+'</span>'
+    if(item.studentName)h+='<div style="font-size:11px;color:var(--ink-faint);margin-top:2px">'+esc(item.studentName)+'</div>'
+    h+='</div><button class="btn btn-danger btn-xs" onclick="removeRtsItem('+idx+')">✕</button></div>'
+  })
+  el.innerHTML=h
+  $('rtsConfirmBtn').style.display='block'
+}
+async function confirmReturnToStock(){
+  if(!_rtsItems.length)return
+  if(!confirm('Return '+_rtsItems.length+' item(s) to stock? This will unlink them from their students.'))return
+  const ids=_rtsItems.map(i=>i.id)
+  const{error}=await sb.from('inv_items').update({status:'in_stock',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null,exchanged_from:null}).in('id',ids)
+  if(error){toast(error.message,'error');return}
+  toast(_rtsItems.length+' item(s) returned to stock','success')
+  _rtsItems=[]
+  renderRtsList()
+  stopReturnStockScan()
+  _tabLoaded.delete('dashboard')
 }
 
 // ═══════════ PURCHASE HISTORY ═══════════
@@ -1255,11 +1687,231 @@ async function _loadHistory(){
 
 async function deleteTransaction(itemId){
   if(!confirm('Delete this transaction? The item will be returned to stock.'))return
+  const{data:item}=await sb.from('inv_items').select('qr_code,sold_to_enrollment_id,payment_mode').eq('id',itemId).single()
   const{error}=await sb.from('inv_items').update({status:'in_stock',sold_to_enrollment_id:null,sold_at:null,sold_by:null,payment_mode:null}).eq('id',itemId)
   if(error){toast('Failed: '+error.message,'error');return}
+  if(item&&item.payment_mode==='partial'&&item.sold_to_enrollment_id&&item.qr_code){
+    const{data:pp}=await sb.from('inv_partial_payments').select('id,items,total_amount,paid_amount,remaining_amount').eq('enrollment_id',item.sold_to_enrollment_id).eq('status','pending')
+    if(pp&&pp.length){
+      const match=pp.find(r=>(r.items||[]).some(i=>i.qr===item.qr_code))
+      if(match){
+        const left=(match.items||[]).filter(i=>i.qr!==item.qr_code)
+        if(left.length===0){
+          await sb.from('inv_partial_payments').delete().eq('id',match.id)
+        }else{
+          const removedPrice=(match.items||[]).find(i=>i.qr===item.qr_code)?.price||0
+          const newTotal=Math.max(0,(match.total_amount||0)-removedPrice)
+          const newRemaining=Math.max(0,newTotal-(match.paid_amount||0))
+          const upd={items:left,total_amount:newTotal,remaining_amount:newRemaining}
+          if(newRemaining<=0)upd.status='cleared'
+          await sb.from('inv_partial_payments').update(upd).eq('id',match.id)
+        }
+      }
+    }
+  }
   toast('Transaction deleted, item returned to stock','success')
+  _tabLoaded.delete('dashboard')
   _tabLoaded.delete('history')
+  _tabLoaded.delete('partial')
   _loadHistory()
+}
+
+// ═══════════ PARTIAL PAYMENTS ═══════════
+let _ppData=[]
+async function loadPartialPayments(){
+  const{data}=await sb.from('inv_partial_payments').select('*').eq('session_id',SESS?.session_id||'').order('created_at',{ascending:false})
+  _ppData=data||[]
+  const eids=[...new Set(_ppData.map(r=>r.enrollment_id).filter(Boolean))]
+  window._ppStuMap={}
+  if(eids.length){
+    const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,roll_no,students!inner(full_name,father_name),classes(name),class_sections(name)').in('enrollment_id',eids)
+    ;(enr||[]).forEach(e=>{window._ppStuMap[e.enrollment_id]=e})
+  }
+  const pending=_ppData.filter(r=>r.status==='pending')
+  const cleared=_ppData.filter(r=>r.status==='cleared')
+  const moved=_ppData.filter(r=>r.status==='moved')
+  $('ppPending').textContent=pending.length
+  $('ppPendingAmt').textContent='Total due: '+fmtINR(pending.reduce((s,r)=>s+(r.remaining_amount||0),0))
+  $('ppCleared').textContent=cleared.length
+  $('ppMoved').textContent=moved.length
+  const badge=$('partialBadge')
+  if(badge){badge.textContent=pending.length;badge.style.display=pending.length?'flex':'none'}
+  renderPartialList()
+}
+function renderPartialList(){
+  const search=($('ppSearch')?.value||'').toLowerCase()
+  const status=$('ppStatusFilter')?.value||''
+  let rows=_ppData
+  if(status)rows=rows.filter(r=>r.status===status)
+  if(search)rows=rows.filter(r=>{const s=window._ppStuMap[r.enrollment_id];return s?.students?.full_name?.toLowerCase().includes(search)})
+  const el=$('partialListBody')
+  if(!rows.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No partial payments found.</div>';return}
+  el.innerHTML=rows.map(r=>{
+    const s=window._ppStuMap[r.enrollment_id]||{}
+    const stu=s.students||{}
+    const cls=(s.classes?.name||'')+(s.class_sections?.name?' - '+s.class_sections.name:'')
+    const isPending=r.status==='pending'
+    const badge=isPending?'<span class="pill pill-danger">Pending '+fmtINR(r.remaining_amount)+'</span>'
+      :r.status==='cleared'?'<span class="pill pill-success">Cleared</span>'
+      :'<span class="pill pill-pur">Moved to Fees</span>'
+    const items=(r.items||[]).map(i=>esc(i.article)+(i.size?' ('+esc(i.size)+')':'')).join(', ')
+    const payments=(r.payments||[]).map(p=>{
+      const d=p.date?new Date(p.date).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''
+      return '<div style="font-size:11.5px;padding:3px 0;display:flex;justify-content:space-between"><span>'+d+' — <b>'+esc(p.mode||'cash')+'</b></span><span style="color:var(--success);font-weight:600">'+fmtINR(p.amount)+'</span></div>'
+    }).join('')
+    let actions=''
+    if(isPending){
+      actions='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+        +'<button class="btn btn-primary btn-xs" onclick="openAddPayment(\''+r.id+'\')">+ Add Payment</button>'
+        +'<button class="btn btn-success btn-xs" onclick="markPartialCleared(\''+r.id+'\')">Mark Cleared</button>'
+        +'<button class="btn btn-xs" style="background:var(--warn);color:#fff" onclick="moveToFeePortal(\''+r.id+'\')">Move to Fee Portal</button>'
+        +'</div>'
+    }
+    const created=r.created_at?new Date(r.created_at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''
+    return '<div class="card" style="padding:16px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">'
+      +'<div><span style="font-weight:700;font-size:14px">'+esc(stu.full_name||'Unknown')+'</span>'
+      +'<span style="font-size:12px;color:var(--ink-soft);margin-left:8px">s/o '+esc(stu.father_name||'—')+'</span>'
+      +(cls?'<span style="font-size:11px;color:var(--ink-faint);margin-left:8px">'+esc(cls)+'</span>':'')+'</div>'
+      +badge+'</div>'
+      +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px">'+created+'</div>'
+      +'<div style="font-size:12.5px;margin-bottom:6px"><b>Items:</b> '+items+'</div>'
+      +'<div style="display:flex;gap:20px;font-size:12.5px;margin-bottom:6px">'
+      +'<span>Total: <b>'+fmtINR(r.total_amount)+'</b></span>'
+      +'<span style="color:var(--success)">Paid: <b>'+fmtINR(r.paid_amount)+'</b></span>'
+      +(isPending?'<span style="color:var(--danger)">Due: <b>'+fmtINR(r.remaining_amount)+'</b></span>':'')
+      +'</div>'
+      +(payments?'<div style="background:var(--lav-50);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin-bottom:4px">Payment History</div>'+payments+'</div>':'')
+      +actions+'</div>'
+  }).join('')
+}
+function openAddPayment(ppId){
+  const rec=_ppData.find(r=>r.id===ppId)
+  if(!rec)return
+  openModal('Add Payment','<div style="margin-bottom:10px;font-size:13px">Remaining: <b style="color:var(--danger)">'+fmtINR(rec.remaining_amount)+'</b></div>'
+    +'<div class="form-row"><div class="fg" style="max-width:160px"><label>Amount Received</label><input type="number" inputmode="decimal" id="ppAddAmt" placeholder="0" max="'+rec.remaining_amount+'" style="font-family:var(--mono)"></div>'
+    +'<div class="fg" style="max-width:140px"><label>Mode</label><select id="ppAddMode"><option value="cash">Cash</option><option value="online">Online</option></select></div></div>',
+    '<button class="btn btn-success" onclick="saveAddPayment(\''+ppId+'\')">Save Payment</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+async function saveAddPayment(ppId){
+  const amt=parseFloat($('ppAddAmt')?.value)||0
+  const mode=$('ppAddMode')?.value||'cash'
+  const rec=_ppData.find(r=>r.id===ppId)
+  if(!rec){toast('Record not found','error');return}
+  if(amt<=0){toast('Enter a valid amount','error');return}
+  if(amt>rec.remaining_amount){toast('Amount exceeds remaining balance','error');return}
+  const by=SPS.admin?.admin_id||(_invOperator?.id||'admin')
+  const newPayments=[...(rec.payments||[]),{amount:amt,mode,date:new Date().toISOString(),by}]
+  const newPaid=(rec.paid_amount||0)+amt
+  const newRemaining=rec.total_amount-newPaid
+  const newStatus=newRemaining<=0?'cleared':'pending'
+  const{error}=await sb.from('inv_partial_payments').update({
+    paid_amount:newPaid,remaining_amount:Math.max(0,newRemaining),
+    payments:newPayments,status:newStatus,
+    ...(newStatus==='cleared'?{cleared_at:new Date().toISOString()}:{})
+  }).eq('id',ppId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal()
+  toast(newStatus==='cleared'?'Payment complete — balance cleared!':'Payment of '+fmtINR(amt)+' recorded','success')
+  _tabLoaded.delete('partial');loadPartialPayments()
+}
+async function markPartialCleared(ppId){
+  if(!confirm('Mark this balance as fully cleared?'))return
+  const{error}=await sb.from('inv_partial_payments').update({status:'cleared',remaining_amount:0,cleared_at:new Date().toISOString()}).eq('id',ppId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast('Marked as cleared','success')
+  _tabLoaded.delete('partial');loadPartialPayments()
+}
+async function moveToFeePortal(ppId){
+  const rec=_ppData.find(r=>r.id===ppId)
+  if(!rec||!rec.enrollment_id){toast('Record not found','error');return}
+  const remaining=rec.remaining_amount||0
+  if(remaining<=0){toast('No remaining amount to move','error');return}
+  const stu=window._ppStuMap[rec.enrollment_id]
+  const stuName=stu?.students?.full_name||'Student'
+  const items=(rec.items||[]).map(i=>i.article).join(', ')
+  if(!confirm('Move '+fmtINR(remaining)+' to Family Prev Balance for '+stuName+'?\n\nThis will:\n1. Add '+fmtINR(remaining)+' to their previous balance in Fee Portal\n2. Log it as "Inventory partial payment — '+items+'"\n3. Mark this record as moved'))return
+  const{data:existing}=await sb.from('previous_balances').select('prev_balance_id,amount').eq('enrollment_id',rec.enrollment_id).limit(1)
+  const source='Inventory partial payment: '+items
+  if(existing?.length){
+    const newAmt=(existing[0].amount||0)+remaining
+    const{error:updErr}=await sb.from('previous_balances').update({amount:newAmt}).eq('prev_balance_id',existing[0].prev_balance_id)
+    if(updErr){toast('Failed to update prev balance: '+updErr.message,'error');return}
+  }else{
+    const{error:insErr}=await sb.from('previous_balances').insert({enrollment_id:rec.enrollment_id,amount:remaining})
+    if(insErr){toast('Failed to create prev balance: '+insErr.message,'error');return}
+  }
+  await sb.from('prev_balance_ledger').insert({
+    enrollment_id:rec.enrollment_id,entry_date:today(),source,amount:remaining
+  })
+  const{error:mvErr}=await sb.from('inv_partial_payments').update({
+    status:'moved',remaining_amount:0,moved_at:new Date().toISOString(),
+    moved_to_fee_portal:true
+  }).eq('id',ppId)
+  if(mvErr)console.warn('Move status update failed:',mvErr.message)
+  toast(fmtINR(remaining)+' moved to Fee Portal prev balance for '+stuName,'success')
+  _tabLoaded.delete('partial');loadPartialPayments()
+}
+function openNewPartialModal(){
+  const co=ALL_CLASSES.map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
+  openModal('Log Partial Payment',
+    '<div class="form-row"><div class="fg" style="max-width:180px"><label>Class</label><select id="ppClass" onchange="ppLoadStudents()"><option value="">Select class</option>'+co+'</select></div>'
+    +'<div class="fg" style="flex:2;position:relative"><label>Student</label><input id="ppStudent" placeholder="Type student name..." autocomplete="off" oninput="ppSearchStudent()" onfocus="ppSearchStudent()">'
+    +'<div id="ppStudentResults" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--white);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:200px;overflow-y:auto;display:none"></div></div></div>'
+    +'<div id="ppSelectedStudent" style="margin-bottom:10px;display:none"></div>'
+    +'<div class="form-row"><div class="fg" style="max-width:140px"><label>Total Bill</label><input type="number" inputmode="decimal" id="ppTotalBill" placeholder="0" style="font-family:var(--mono)"></div>'
+    +'<div class="fg" style="max-width:140px"><label>Amount Received</label><input type="number" inputmode="decimal" id="ppAmtReceived" placeholder="0" style="font-family:var(--mono)"></div>'
+    +'<div class="fg" style="max-width:120px"><label>Mode</label><select id="ppPayMode"><option value="cash">Cash</option><option value="online">Online</option></select></div></div>'
+    +'<div class="fg"><label>Description (items)</label><input id="ppDesc" placeholder="e.g. Uniform set, shoes"></div>',
+    '<button class="btn btn-success" onclick="saveNewPartial()">Save</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+let _ppStudentsCache=[],_ppSelectedEid=null
+async function ppLoadStudents(){
+  _ppStudentsCache=[];_ppSelectedEid=null
+  $('ppSelectedStudent').style.display='none'
+  const classId=$('ppClass')?.value
+  if(!classId)return
+  const{data}=await sb.from('student_enrollments').select('enrollment_id,students!inner(full_name,father_name),classes(name),class_sections(name)')
+    .eq('class_id',classId).eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false)
+  _ppStudentsCache=data||[]
+}
+function ppSearchStudent(){
+  const q=($('ppStudent')?.value||'').toLowerCase()
+  const box=$('ppStudentResults')
+  if(q.length<1){box.style.display='none';return}
+  const matches=_ppStudentsCache.filter(e=>e.students.full_name.toLowerCase().includes(q)).slice(0,8)
+  if(!matches.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:12px;padding:8px">No results.</div>';box.style.display='block';return}
+  box.innerHTML=matches.map(e=>'<div onmousedown="ppSelectStudent(\''+e.enrollment_id+'\',\''+esc(e.students.full_name).replace(/'/g,"\\'")+'\')" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)" onmouseover="this.style.background=\'var(--lav-100)\'" onmouseout="this.style.background=\'\'"><b>'+esc(e.students.full_name)+'</b> <span style="color:var(--ink-faint);font-size:11px">s/o '+esc(e.students.father_name||'')+'</span></div>').join('')
+  box.style.display='block'
+}
+function ppSelectStudent(eid,name){
+  _ppSelectedEid=eid
+  $('ppSelectedStudent').style.display='block'
+  $('ppSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:5px 12px">'+esc(name)+'</div>'
+  $('ppStudentResults').style.display='none'
+  $('ppStudent').value=''
+}
+async function saveNewPartial(){
+  if(!_ppSelectedEid){toast('Select a student','error');return}
+  const total=parseFloat($('ppTotalBill')?.value)||0
+  const paid=parseFloat($('ppAmtReceived')?.value)||0
+  const mode=$('ppPayMode')?.value||'cash'
+  const desc=$('ppDesc')?.value?.trim()||''
+  if(total<=0){toast('Enter total bill amount','error');return}
+  if(paid<=0){toast('Enter amount received','error');return}
+  if(paid>=total){toast('Amount received should be less than total','error');return}
+  const by=SPS.admin?.admin_id||(_invOperator?.id||'admin')
+  const items=desc?[{article:desc}]:[]
+  const{error}=await sb.from('inv_partial_payments').insert({
+    enrollment_id:_ppSelectedEid,session_id:SESS?.session_id||null,
+    total_amount:total,paid_amount:paid,remaining_amount:total-paid,
+    payment_mode:mode,items,
+    created_by:by,status:'pending',
+    payments:[{amount:paid,mode,date:new Date().toISOString(),by}]
+  })
+  if(error){toast('Failed: '+error.message,'error');return}
+  closeModal();toast('Partial payment logged','success')
+  _tabLoaded.delete('partial');loadPartialPayments()
 }
 
 // ═══════════ CAMERA QR SCANNER ═══════════
@@ -1272,7 +1924,7 @@ function stopCamScanner(mode){
 }
 
 // ═══════════ LAZY LOAD ═══════════
-const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sell:()=>{},exchange:()=>{},history:_loadHistory}
+const LAZY={dashboard:renderDashboard,articles:loadArticles,stock:loadBatches,qrcodes:loadQrItems,sets:loadSets,sell:()=>{},exchange:()=>{},'return':()=>{},history:_loadHistory,partial:loadPartialPayments}
 const _tabLoaded=new Set()
 
 // ═══════════ AUTH & INIT ═══════════
@@ -1281,6 +1933,9 @@ let _invOperator=null
 async function invBoot(){
   await loadGlobals()
   renderDashboard()
+  sb.from('inv_partial_payments').select('id',{count:'exact',head:true}).eq('session_id',SESS?.session_id||'').eq('status','pending').then(({count})=>{
+    const b=$('partialBadge');if(b&&count>0){b.textContent=count;b.style.display='flex'}
+  })
   function tickClock(){const n=new Date();const hc=$('headerClock');if(hc)hc.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).toUpperCase()}
   tickClock();setInterval(tickClock,1000)
   const who=SPS.admin?(SPS.admin.full_name||SPS.admin.username||'AD'):(_invOperator?.name||'OP')

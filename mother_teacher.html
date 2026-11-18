@@ -429,12 +429,17 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
       <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       Exam Fee Collection
     </div>
+    <div class="sb-item" onclick="goTo('miscfees',this)">
+      <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+      Misc Fee Collection
+    </div>
     <div class="sb-label">Personal</div>
     <div class="sb-item" onclick="goTo('myattendance',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       My Attendance
     </div>
     <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Code of Conduct</div>
+    <div class="sb-item" onclick="goTo('notices',this)"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notices</div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>
       My Profile
@@ -529,22 +534,51 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
     <!-- ATTENDANCE REPORT -->
     <div class="page" id="page-attreport">
-      <div class="page-head"><div><h2>Attendance Report</h2><p>Monthly attendance matrix for your class</p></div></div>
-      <div class="card" style="margin-bottom:18px">
-        <div class="form-row" style="margin-bottom:0">
-          <div class="fg" style="max-width:200px"><label>Month</label>
-            <select id="att_month">
-              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
-              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
-            </select>
+      <div id="ar-menu">
+        <div class="page-head"><div><h2>Attendance Report</h2><p>Choose a report type</p></div></div>
+        <div class="menu-board" style="grid-template-columns:repeat(2,1fr)">
+          <div class="menu-card" onclick="openArSub('ar-monthly')">
+            <div class="ic" style="background:linear-gradient(135deg,#3AB6E0,#2D8FC4)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+            <h4>Monthly Report</h4><p>Monthly attendance matrix for the entire class with day-wise breakdown</p>
           </div>
-          <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="att_year" min="2024" max="2030"></div>
-          <button class="btn btn-soft" onclick="loadAttReport()">Generate Report</button>
+          <div class="menu-card" onclick="openArSub('ar-student')">
+            <div class="ic" style="background:linear-gradient(135deg,#2BB673,#1F9960)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <h4>Student Report</h4><p>View individual student attendance report with day-wise breakdown and missing days</p>
+          </div>
         </div>
       </div>
-      <div id="attReportWrap"></div>
+      <div id="ar-monthly" style="display:none">
+        <button class="back-btn" onclick="openArSub('ar-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Monthly Report</h2><p>Monthly attendance matrix for your class</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0">
+            <div class="fg" style="max-width:200px"><label>Month</label>
+              <select id="att_month">
+                <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              </select>
+            </div>
+            <div class="fg" style="max-width:120px"><label>Year</label><input type="number" inputmode="numeric" id="att_year" min="2024" max="2030"></div>
+            <button class="btn btn-soft" onclick="loadAttReport()">Generate Report</button>
+          </div>
+        </div>
+        <div id="attReportWrap"></div>
+      </div>
+      <div id="ar-student" style="display:none">
+        <button class="back-btn" onclick="openArSub('ar-menu')">&#8592; Back</button>
+        <div class="page-head"><div><h2>Student Report</h2><p>Individual student attendance report</p></div></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="form-row" style="margin-bottom:0;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg" style="min-width:200px"><label>Student</label>
+              <select id="arStudentSelect"><option value="">Select student</option></select>
+            </div>
+            <button class="btn btn-soft" onclick="loadStudentAttReport()">Load Report</button>
+          </div>
+        </div>
+        <div id="arStudentWrap"></div>
+      </div>
     </div>
 
     <!-- PREVIOUS (BACKLOG) ATTENDANCE -->
@@ -656,6 +690,17 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
         </div>
       </div>
       <div id="examFeesWrap"></div>
+    </div>
+
+    <div class="page" id="page-miscfees">
+      <div class="page-head"><div><h2>Misc Fee Collection</h2><p>Collect misc fees unlocked by admin for your class</p></div></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="form-row" style="margin-bottom:0">
+          <div class="fg"><label>Fee</label><select id="mf_select"><option value="">Select fee</option></select></div>
+          <button class="btn btn-soft" onclick="loadMiscFeesList()">Load</button>
+        </div>
+      </div>
+      <div id="miscFeesWrap"></div>
     </div>
 
     <!-- MESSAGES (ported from teacher.html) -->
@@ -821,6 +866,12 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
 
 
     <!-- PROFILE (ported from teacher.html) -->
+    <div class="page" id="page-notices">
+      <div class="page-head"><div><h2>Notices &amp; Circulars</h2><p>Notices from administration</p></div></div>
+      <div id="noticesContent"><div class="loading-row"><div class="spinner"></div></div></div>
+      <div id="noticeDetail" style="display:none"></div>
+    </div>
+
     <div class="page" id="page-profile">
       <div class="page-head"><div><h2>My Profile</h2><p>Your details on record with the school</p></div></div>
       <div id="profileContent"><div style="text-align:center;padding:30px;color:var(--ink-faint)">Loading…</div></div>
@@ -889,7 +940,7 @@ let CLASS_STUDENTS=[], ALL_ASSESSMENTS=[], _classRaw=[]
 let _isClassTeacher=true, _myClassTeacher=null, MY_MAPPINGS=[]
 
 const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-const TITLES={dashboard:'Dashboard',messages:'Messages',marks:'Marks & Assessments',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',dues:'Student Dues',examfees:'Exam Fee Collection',myattendance:'My Attendance',handbook:'Code of Conduct',profile:'My Profile'}
+const TITLES={dashboard:'Dashboard',messages:'Messages',marks:'Marks & Assessments',daily:'Daily Attendance',attreport:'Attendance Report',prevatt:'Previous Attendance',halfday:'Half Day Records',myclass:'Manage My Class',readmit:'Re-admission Status',rollnos:'Roll Numbers',dues:'Student Dues',examfees:'Exam Fee Collection',miscfees:'Misc Fee Collection',myattendance:'My Attendance',handbook:'Code of Conduct',notices:'Notices & Circulars',profile:'My Profile'}
 
 // ═══════════ UTILS ═══════════
 const $=id=>document.getElementById(id)
@@ -1166,17 +1217,19 @@ function goTo(id,el,_fromPop){
   if(!_fromPop){if(id==='dashboard'){history.replaceState({pg:'dashboard'},'')}else{history.pushState({pg:id},'')}}
   if(window.innerWidth<=760)closeMobileSidebar()
   if(id==='daily'&&!$('att_date').value){$('att_date').value=today()}
-  if(id==='attreport'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
+  if(id==='attreport'){openArSub('ar-menu')}
   if(id==='prevatt'){const now=new Date();if($('pa_month'))$('pa_month').value=(SESS?.start_date?new Date(SESS.start_date+'T12:00:00').getMonth()+1:now.getMonth()+1);if($('pa_year'))$('pa_year').value=(SESS?.start_date?new Date(SESS.start_date+'T12:00:00').getFullYear():now.getFullYear());paComputeWorking()}
   if(id==='myclass'&&!_classRaw.length)loadMyClass()
   if(id==='readmit')loadReadmit()
   if(id==='rollnos')loadRollNos()
   if(id==='dues')loadDues()
   if(id==='examfees')loadExamFeeDropdown()
+  if(id==='miscfees')loadMiscFeeDropdown()
   if(id==='messages'){ showMsgView(window._forceInbox?'inbox':'compose'); window._forceInbox=false }
   if(id==='marks')loadMarksSection()
   if(id==='myattendance'){const now=new Date();const first=new Date(now.getFullYear(),now.getMonth(),1);const _fiso=first.getFullYear()+'-'+String(first.getMonth()+1).padStart(2,'0')+'-'+String(first.getDate()).padStart(2,'0');if($('att_from')&&!$('att_from').value)$('att_from').value=_fiso;if($('att_to')&&!$('att_to').value)$('att_to').value=today();loadMyAttendance();loadDeductionHistory()}
   if(id==='halfday')loadHalfDayRecords()
+  if(id==='notices')loadMTNotices()
   if(id==='profile')loadProfile()
 }
 history.replaceState({pg:'dashboard'},'')
@@ -1274,7 +1327,7 @@ SPS.ready().then(async()=>{
 
   // Load all students for this class
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -1523,9 +1576,10 @@ function renderAttTable(date, alreadySubmitted){
 
   CLASS_STUDENTS.forEach(s=>{
     const cur=_attState[s.enrollment_id]||''
-    html+='<tr data-eid="'+s.enrollment_id+'">'
+    const fl=s.students?.flagged
+    html+='<tr data-eid="'+s.enrollment_id+'"'+(fl?' style="background:#FEF2F2"':'')+'>'
       +'<td style="font-weight:700;font-family:var(--mono)">'+esc(s.roll_no||'—')+'</td>'
-      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td>'
+      +'<td>'+(fl?'<span title="'+(s.students?.flag_notes?esc(s.students.flag_notes):'Profile needs update')+'" style="color:#DC2626;margin-right:3px">⚠️</span>':'')+'<span style="font-weight:600">'+esc(s.students?.full_name||'?')+'</span></td>'
       +'<td style="color:var(--ink-soft)">'+esc(s.students?.father_name||'—')+'</td>'
       +'<td><div style="display:flex;gap:5px">'
       +['P','A'].map(st=>'<button class="att-btn'+( cur===st?' '+st:'')+'" data-eid="'+s.enrollment_id+'" data-status="'+st+'" onclick="setAtt(this,\''+s.enrollment_id+'\',\''+st+'\')">'+st+'</button>').join('')
@@ -1843,6 +1897,15 @@ async function savePrevAttOne(eid){
   toast(name+': '+present+' present · '+absent+' absent saved ✓','success')
 }
 
+function openArSub(id){
+  ['ar-menu','ar-monthly','ar-student'].forEach(s=>{const e=$(s);if(e)e.style.display=s===id?'':'none'})
+  if(id==='ar-monthly'){const now=new Date();if($('att_month'))$('att_month').value=now.getMonth()+1;if($('att_year'))$('att_year').value=now.getFullYear()}
+  if(id==='ar-student')populateArStudents()
+}
+function populateArStudents(){
+  const sel=$('arStudentSelect');if(!sel)return
+  sel.innerHTML='<option value="">Select student</option>'+CLASS_STUDENTS.map(s=>'<option value="'+s.enrollment_id+'">'+esc((s.roll_no?s.roll_no+' — ':'')+( s.students?.full_name||'?'))+'</option>').join('')
+}
 async function loadAttReport(){
   const month=parseInt($('att_month')?.value),year=parseInt($('att_year')?.value),el=$('attReportWrap')
   if(!month||!year){toast('Select month and year','error');return}
@@ -1865,6 +1928,25 @@ async function loadAttReport(){
   const hdSet=new Set(); (hdRecs||[]).forEach(r=>hdSet.add(r.enrollment_id+'|'+r.date))
   const holSet=new Set((hols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
 
+  // Fetch previous months' cumulative present for each student
+  const _prevPMap={}
+  {
+    const prevEnd=new Date(year,month-1,0)
+    const prevToStr=prevEnd.getFullYear()+'-'+String(prevEnd.getMonth()+1).padStart(2,'0')+'-'+String(prevEnd.getDate()).padStart(2,'0')
+    const sessStart=SESS?.start_date||''
+    if(sessStart&&prevToStr>=sessStart){
+      let _prevAttRaw=[];for(let _r=0;;_r+=1000){const{data:_c}=await sb.from('student_attendance').select('enrollment_id,date,status').in('enrollment_id',eids).gte('date',sessStart).lte('date',prevToStr).range(_r,_r+999);if(_c&&_c.length)_prevAttRaw.push(..._c);if(!_c||_c.length<1000)break}
+      const _dd={};_prevAttRaw.forEach(a=>{_dd[a.enrollment_id+'|'+a.date]=a});const prevAtt=Object.values(_dd)
+      const{data:prevMonthly}=await sb.from('attendance_monthly').select('enrollment_id,from_date,to_date,present_count').in('enrollment_id',eids).gte('from_date',sessStart).lte('to_date',prevToStr)
+      const{data:prevHols}=await sb.from('holidays').select('date,class_ids').eq('session_id',SESS?.session_id||'').gte('date',sessStart).lte('date',prevToStr)
+      const prevHolSet=new Set((prevHols||[]).filter(h=>!h.class_ids||h.class_ids.includes(MY_CLASS.class_id)).map(h=>h.date))
+      const mPer={};(prevMonthly||[]).forEach(m=>{if(!m.from_date.endsWith('-01'))return;const[_y,_mo]=m.from_date.split('-');const _ld=new Date(parseInt(_y),parseInt(_mo),0).getDate();if(m.to_date!==_y+'-'+_mo+'-'+String(_ld).padStart(2,'0'))return;if(!mPer[m.enrollment_id])mPer[m.enrollment_id]=[];mPer[m.enrollment_id].push({f:m.from_date,t:m.to_date,p:m.present_count})})
+      eids.forEach(eid=>{let t=0;(mPer[eid]||[]).forEach(p=>t+=p.p);_prevPMap[eid]=t})
+      prevAtt.forEach(a=>{if(a.status!=='P'&&a.status!=='L')return;const dow=new Date(a.date+'T12:00:00').getDay();if(dow===0)return;if(prevHolSet.has(a.date))return;if(MY_EXAM_PREP_HOLS&&MY_EXAM_PREP_HOLS.has(a.date))return;const ps=mPer[a.enrollment_id]||[];if(ps.some(p=>a.date>=p.f&&a.date<=p.t))return;if(!_prevPMap[a.enrollment_id])_prevPMap[a.enrollment_id]=0;_prevPMap[a.enrollment_id]++})
+      console.log('[PREV] month='+month+'/'+year,'range='+sessStart+'→'+prevToStr,'raw='+_prevAttRaw.length,'deduped='+prevAtt.length,'dupes='+(_prevAttRaw.length-prevAtt.length))
+    }
+  }
+
   // Build day list (exclude Sundays)
   const days=[]
   for(let d=1;d<=daysInMonth;d++){
@@ -1884,20 +1966,21 @@ async function loadAttReport(){
     const mMap={}; (monthly||[]).forEach(m=>mMap[m.enrollment_id]=m)
     let h='<div class="card" style="overflow-x:auto"><h3>'+monthName+' — Working Days: '+workingDays+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· uploaded as monthly totals</span></h3>'
       +'<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">This month was back-filled with monthly totals, so only Present/Absent counts are available (no day-by-day record).</div>'
-      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">Present</th><th style="text-align:center">Absent</th></tr></thead><tbody>'
+      +'<table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th style="text-align:center">Working</th><th style="text-align:center">P</th><th style="text-align:center">Prev</th><th style="text-align:center">Total</th></tr></thead><tbody>'
     CLASS_STUDENTS.forEach(s=>{const m=mMap[s.enrollment_id];h+='<tr>'
       +'<td class="mono" style="font-weight:700">'+esc(s.roll_no||'—')+'</td>'
       +'<td style="font-weight:600;white-space:nowrap">'+esc(s.students?.full_name||'?')+'</td>'
       +'<td style="color:var(--ink-soft);white-space:nowrap">'+esc(s.students?.father_name||'—')+'</td>'
       +'<td style="text-align:center;font-weight:700">'+(m?m.working_days:'—')+'</td>'
       +'<td style="text-align:center;font-weight:700;color:var(--success)">'+(m?m.present_count:'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+(m?m.absent_count:'—')+'</td></tr>'})
+      +'<td style="text-align:center;font-weight:700">'+(_prevPMap[s.enrollment_id]||0)+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+((m?m.present_count:0)+(_prevPMap[s.enrollment_id]||0))+'</td></tr>'})
     h+='</tbody></table></div>'
     el.innerHTML=h; return
   }
 
   // Table — pinned month bar + column headers; only Roll frozen horizontally.
-  const ncols=3+days.length+2
+  const ncols=3+days.length+3
   let html='<div class="card"><div class="att-scroll"><table style="min-width:800px">'
     +'<thead>'
     +'<tr class="mrow"><th class="rollcol" colspan="'+ncols+'">'+monthName+' — Working Days: '+workingDays+'</th></tr>'
@@ -1909,7 +1992,7 @@ async function loadAttReport(){
     const bg=d.isSun||d.isHol?'background:#F0F0F0;color:#888':'';
     html+='<th style="text-align:center;padding:8px 4px;min-width:48px;'+bg+'">'+d.dayLabel+'<br><span style="font-size:9px;font-weight:400">'+d.dayName+'</span></th>'
   })
-  html+='<th style="text-align:center">P</th><th style="text-align:center">A</th></tr></thead><tbody>'
+  html+='<th style="text-align:center">P</th><th style="text-align:center">Prev</th><th style="text-align:center">Total</th></tr></thead><tbody>'
 
   CLASS_STUDENTS.forEach(s=>{
     let pCount=0,aCount=0
@@ -1925,11 +2008,14 @@ async function loadAttReport(){
       const isHD=hdSet.has(s.enrollment_id+'|'+d.dateStr)
       if(isHD&&st==='P'){pCount++;html+='<td class="cell-hd">½</td>'}
       else if(st==='P'){pCount++;html+='<td class="cell-p">P</td>'}
+      else if(st==='L'){pCount++;html+='<td style="text-align:center;font-weight:600;color:#F57F17">L</td>'}
       else if(st==='A'){aCount++;html+='<td class="cell-a">A</td>'}
       else{html+='<td style="text-align:center;color:var(--ink-faint);font-size:10px">—</td>'}
     })
+    const prevP=_prevPMap[s.enrollment_id]||0
     html+='<td style="text-align:center;font-weight:700;color:var(--success)">'+pCount+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:var(--danger)">'+aCount+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+prevP+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:var(--indigo)">'+(prevP+pCount)+'</td>'
     html+='</tr>'
   })
 
@@ -1943,7 +2029,7 @@ async function loadAttReport(){
     const cnt=CLASS_STUDENTS.filter(s=>attMap[s.enrollment_id]?.[d.dateStr]==='P').length
     html+='<td style="text-align:center;font-size:11px">'+cnt+'</td>'
   })
-  html+='<td></td><td></td></tr>'
+  html+='<td></td><td></td><td></td></tr>'
   html+='</tbody></table></div></div>'
 
   // Summary below
@@ -1974,6 +2060,142 @@ async function loadAttReport(){
 
   el.innerHTML=html
 }
+async function loadStudentAttReport(){
+  const eid=$('arStudentSelect')?.value,el=$('arStudentWrap')
+  if(!eid){toast('Select a student','error');return}
+  if(!el)return
+  ldg(el,'Loading attendance…')
+  const _ds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+  const sid=SESS?.session_id||''
+  const sessStart=SESS?.start_date||''
+  const todayStr=_ds(new Date())
+
+  const[{data:enr},{data:hols},{data:cssD},{data:att},{data:monthly},{data:hdRecs}]=await Promise.all([
+    sb.from('student_enrollments').select('enrollment_id,roll_no,class_id,section_id,is_new_admission,att_from_admission,students(full_name,father_name,admission_date),classes(name),class_sections(name)').eq('enrollment_id',eid).single(),
+    sb.from('holidays').select('date,label,applies_to,class_ids').eq('session_id',sid),
+    sb.from('class_session_start').select('class_id,start_date').eq('session_id',sid),
+    sb.from('student_attendance').select('date,status').eq('enrollment_id',eid),
+    sb.from('attendance_monthly').select('from_date,to_date,working_days,present_count,absent_count').eq('enrollment_id',eid),
+    sb.from('student_half_days').select('date').eq('enrollment_id',eid).eq('session_id',sid)
+  ])
+  if(!enr){emp(el,'Student not found.');return}
+  const holMap={}; (hols||[]).filter(h=>(h.applies_to||'both')!=='staff_only'&&(!h.class_ids||h.class_ids.includes(enr.class_id))).forEach(h=>{holMap[h.date]=h.label})
+  const classStart=(cssD||[]).find(c=>c.class_id===enr.class_id)?.start_date||sessStart
+  const admDate=((enr.is_new_admission||enr.att_from_admission)&&enr.students?.admission_date)?enr.students.admission_date:null
+  const effStart=[sessStart,classStart,admDate].filter(Boolean).sort().pop()
+
+  const attMap={}; (att||[]).forEach(a=>{attMap[a.date]=a.status})
+  const hdDateSet=new Set(); (hdRecs||[]).forEach(r=>hdDateSet.add(r.date))
+  const monthlyMap={}; (monthly||[]).forEach(m=>{monthlyMap[m.from_date+'|'+m.to_date]=m})
+
+  const{data:secMates}=await sb.from('student_enrollments').select('enrollment_id').eq('session_id',sid).eq('class_id',enr.class_id).eq('section_id',enr.section_id).eq('status','active').eq('relieved',false).neq('enrollment_id',eid)
+  const secEids=(secMates||[]).map(s=>s.enrollment_id)
+  const classMonthlySet=new Set()
+  for(let i=0;i<secEids.length;i+=500){
+    const batch=secEids.slice(i,i+500)
+    const{data:cm}=await sb.from('attendance_monthly').select('from_date,to_date').in('enrollment_id',batch)
+    if(cm)cm.forEach(r=>classMonthlySet.add(r.from_date+'|'+r.to_date))
+  }
+
+  const epSet=MY_EXAM_PREP_HOLS||null
+  const sessionEnd=SESS?.end_date||todayStr
+  const MNAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+  let sY=parseInt(sessStart.slice(0,4)),sM=parseInt(sessStart.slice(5,7))
+  const eY=parseInt(sessionEnd.slice(0,4)),eM=parseInt(sessionEnd.slice(5,7))
+  const monthBlocks=[]
+  while(sY<eY||(sY===eY&&sM<=eM)){
+    const dim=new Date(sY,sM,0).getDate()
+    const from=sY+'-'+String(sM).padStart(2,'0')+'-01'
+    const to=sY+'-'+String(sM).padStart(2,'0')+'-'+String(dim).padStart(2,'0')
+    monthBlocks.push({year:sY,month:sM,from,to,dim,label:MNAMES[sM-1]+' '+sY})
+    sM++;if(sM>12){sM=1;sY++}
+  }
+
+  let totalWork=0,totalP=0,totalA=0,totalL=0,totalMissing=0
+  const allMissingLabels=[]
+
+  let body='<h3 style="margin-bottom:4px">'+esc(enr.students?.full_name||'?')+'</h3>'
+    +'<p style="font-size:12px;color:var(--ink-soft);margin-bottom:16px">Roll: '+esc(enr.roll_no||'—')+' · '+esc(enr.classes?.name||'')+'-'+esc(enr.class_sections?.name||'')+' · Father: '+esc(enr.students?.father_name||'—')+'</p>'
+
+  monthBlocks.forEach(mb=>{
+    if(mb.from>todayStr)return
+    const capTo=mb.to>todayStr?todayStr:mb.to
+    const mKey=mb.from+'|'+mb.to
+    const mon=monthlyMap[mKey]
+
+    if(mon){
+      body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· monthly totals</span></div>'
+        +'<div style="display:flex;gap:18px;font-size:12.5px"><span>Working: <b>'+mon.working_days+'</b></span><span style="color:var(--grn)">Present: <b>'+mon.present_count+'</b></span><span style="color:var(--danger)">Absent: <b>'+mon.absent_count+'</b></span></div></div>'
+      totalWork+=mon.working_days;totalP+=mon.present_count;totalA+=mon.absent_count
+      return
+    }
+
+    if(classMonthlySet.has(mKey)){
+      const wdDays=[];for(let d=1;d<=mb.dim;d++){const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0');if(ds>capTo)break;const dow=new Date(ds+'T12:00:00').getDay();if(dow===0||holMap[ds]||(epSet&&epSet.has(ds))||ds<effStart)continue;wdDays.push(ds)}
+      const wk=wdDays.length, dr=Object.keys(attMap).filter(d=>d>=mb.from&&d<=capTo)
+      const pres=dr.filter(d=>attMap[d]==='P'||attMap[d]==='L').length
+      const abs=Math.max(0,wk-pres)
+      body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label+' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· monthly totals</span></div>'
+        +'<div style="display:flex;gap:18px;font-size:12.5px"><span>Working: <b>'+wk+'</b></span><span style="color:var(--grn)">Present: <b>'+pres+'</b></span><span style="color:var(--danger)">Absent: <b>'+abs+'</b></span></div></div>'
+      totalWork+=wk;totalP+=pres;totalA+=abs
+      return
+    }
+
+    const days=[]
+    for(let d=1;d<=mb.dim;d++){
+      const ds=mb.year+'-'+String(mb.month).padStart(2,'0')+'-'+String(d).padStart(2,'0')
+      if(ds>capTo)break
+      const dow=new Date(ds+'T12:00:00').getDay()
+      const isEP=!!(epSet&&epSet.has(ds))
+      const isSun=dow===0, isHol=!!holMap[ds]||isEP, beforeStart=ds<effStart
+      const skip=isSun||isHol||beforeStart
+      const status=attMap[ds]||null
+      days.push({ds,d,dow,isSun,isHol,holLabel:holMap[ds]||(isEP?'Exam period':''),beforeStart,skip,status})
+    }
+    const workDays=days.filter(x=>!x.skip)
+    const recorded=workDays.filter(x=>x.status)
+    const missing=workDays.filter(x=>!x.status)
+    const pCount=recorded.filter(x=>x.status==='P').length
+    const aCount=recorded.filter(x=>x.status==='A').length
+    const lCount=recorded.filter(x=>x.status==='L'||x.status==='HD').length
+    totalWork+=workDays.length;totalP+=pCount;totalA+=aCount;totalL+=lCount;totalMissing+=missing.length
+    if(missing.length)missing.forEach(x=>allMissingLabels.push(x.d+' '+MNAMES[mb.month-1]))
+
+    body+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">'+mb.label
+      +' <span style="font-size:11px;font-weight:600;color:var(--ink-soft)">· Working: '+workDays.length+' · P: '+pCount+' · A: '+aCount+(lCount?' · L: '+lCount:'')+'</span>'
+      +(missing.length?'<span style="font-size:11px;font-weight:700;color:#C0392B;margin-left:8px">'+missing.length+' pending</span>':'')
+      +'</div>'
+    body+='<div style="display:flex;flex-wrap:wrap;gap:4px">'
+    days.forEach(x=>{
+      let bg='var(--lav-50)',clr='var(--ink-faint)',lbl=String(x.d)
+      if(x.isSun){bg='#f0f0f0';clr='#bbb'}
+      else if(x.isHol){bg='#FFF3E0';clr='#E65100'}
+      else if(x.beforeStart){bg='#f5f5f5';clr='#ccc'}
+      else if(x.status==='P'&&hdDateSet.has(x.ds)){bg='#E3F2FD';clr='#1565C0';lbl='½'}
+      else if(x.status==='P'){bg='#E8F5E9';clr='#2E7D32'}
+      else if(x.status==='A'){bg='#FFEBEE';clr='#C62828'}
+      else if(x.status==='L'||x.status==='HD'){bg='#FFF8E1';clr='#F57F17'}
+      else{bg='#FFCDD2';clr='#B71C1C'}
+      const title=x.isSun?'Sunday':x.isHol?x.holLabel:x.beforeStart?'Before start':hdDateSet.has(x.ds)?'Half Day':x.status?x.status:'Missing'
+      body+='<div title="'+esc(x.ds+' — '+title)+'" style="width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:'+bg+';color:'+clr+'">'+lbl+'</div>'
+    })
+    body+='</div></div>'
+  })
+
+  const pct=totalWork>0?Math.round(totalP/totalWork*100):0
+  let summary='<div class="card" style="margin-bottom:18px"><div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px">'
+    +'<div style="text-align:center;padding:12px 20px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800">'+totalWork+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Working Days</div></div>'
+    +'<div style="text-align:center;padding:12px 20px;background:#E8F5E9;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#2E7D32">'+totalP+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Present</div></div>'
+    +'<div style="text-align:center;padding:12px 20px;background:#FFEBEE;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#C62828">'+totalA+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Absent</div></div>'
+    +(totalL?'<div style="text-align:center;padding:12px 20px;background:#FFF8E1;border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:#F57F17">'+totalL+'</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Late/HD</div></div>':'')
+    +'<div style="text-align:center;padding:12px 20px;background:var(--lav-50);border-radius:var(--radius-sm)"><div style="font-size:22px;font-weight:800;color:var(--indigo)">'+pct+'%</div><div style="font-size:10px;text-transform:uppercase;color:var(--ink-soft);font-weight:700">Attendance</div></div>'
+    +'</div>'
+    +(totalMissing?'<div style="padding:10px 14px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:var(--radius-sm);margin-bottom:16px;font-size:12.5px"><span style="font-weight:700;color:#E65100">'+totalMissing+' day'+(totalMissing>1?'s':'')+' pending:</span> <span style="color:#BF360C">'+esc(allMissingLabels.join(', '))+'</span></div>':'')
+    +body+'</div>'
+
+  el.innerHTML=summary
+}
 
 // ═══════════ MANAGE MY CLASS ═══════════
 async function loadMyClass(){
@@ -1982,7 +2204,7 @@ async function loadMyClass(){
   if(!CLASS_STUDENTS.length){
     ldg(el)
     const{data:students}=await sb.from('student_enrollments')
-      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+      .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
       .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
       .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
     CLASS_STUDENTS=students||[]
@@ -2007,15 +2229,15 @@ function renderClassList(list){
   if(!list.length){emp(el,'No students match the filter.');return}
   el.innerHTML='<div class="card"><div style="overflow-x:auto"><table><thead><tr>'
     +'<th>Roll</th><th>Student Name</th><th>S.No.</th><th>Father\'s Name</th><th>Phone</th><th>Alt. Phone</th><th></th></tr></thead><tbody>'
-    +list.map(s=>'<tr>'
+    +list.map(s=>{const fl=s.students?.flagged;return '<tr'+(fl?' style="background:#FEF2F2"':'')+'>'
       +'<td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td>'
-      +'<td style="font-weight:600">'+esc(s.students?.full_name||'?')+(s.is_new_admission?' <span style="display:inline-block;background:var(--indigo-100);color:var(--indigo-dark);font-size:8.5px;font-weight:800;letter-spacing:.03em;padding:1px 6px;border-radius:999px;vertical-align:middle">NEW</span>':'')+'</td>'
+      +'<td style="font-weight:600">'+(fl?'<span title="'+(s.students?.flag_notes?esc(s.students.flag_notes):'Profile needs update')+'" style="color:#DC2626;margin-right:4px">⚠️</span>':'')+esc(s.students?.full_name||'?')+(s.is_new_admission?' <span style="display:inline-block;background:var(--indigo-100);color:var(--indigo-dark);font-size:8.5px;font-weight:800;letter-spacing:.03em;padding:1px 6px;border-radius:999px;vertical-align:middle">NEW</span>':'')+'</td>'
       +'<td style="font-family:var(--mono)">'+(s.s_no?'<span class="pill pill-grn">'+esc(String(s.s_no))+'</span>':'<span class="pill pill-neutral">—</span>')+'</td>'
       +'<td>'+esc(s.students?.father_name||'—')+'</td>'
       +'<td style="font-family:var(--mono)">'+esc(s.students?.phone||'—')+'</td>'
       +'<td style="font-family:var(--mono)">'+esc(s.students?.alt_phone||'—')+'</td>'
       +'<td><button class="btn btn-soft btn-xs" data-eid="'+s.enrollment_id+'" onclick="viewStudentProfile(this.dataset.eid)">View Profile</button></td>'
-      +'</tr>').join('')
+      +'</tr>'}).join('')
     +'</tbody></table></div></div>'
 }
 
@@ -2024,6 +2246,8 @@ async function viewStudentProfile(eid){
   if(!enr)return
   const s=enr.students||{}
   window._profileStudentId=s.student_id
+  window._profileSnapshot={full_name:s.full_name||'',father_name:s.father_name||'',mother_name:s.mother_name||'',phone:s.phone||'',alt_phone:s.alt_phone||'',aadhar_no:s.aadhar_no||'',gender:s.gender||'',blood_group:s.blood_group||'',dob:s.dob||'',address:s.address||'',admission_date:s.admission_date||'',notes:s.notes||''}
+  window._profileDiff=null
 
   // Read edit-rights from the ACTIVE class row (MY_CLASS), which the realtime
   // watcher keeps current. A per-open .maybeSingle() query on class_teacher_map
@@ -2075,6 +2299,7 @@ async function viewStudentProfile(eid){
     +'<div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px">Roll: '+esc(String(enr.roll_no||'—'))+' &middot; S.No: '+(enr.s_no?esc(String(enr.s_no)):'—')+'</div>'
     +(canEdit?'<button type="button" onclick="mtChangePhoto(_profileStudentId)" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:var(--grn);color:#fff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;border:none">Change Photo</button>':'')
     +'</div></div>'
+    +(s.flagged?'<div style="background:#FEE2E2;border:1px solid #EF4444;border-radius:8px;padding:10px 14px;font-size:13px;color:#991B1B;margin-bottom:14px;line-height:1.5;display:flex;align-items:flex-start;gap:8px"><span style="font-size:16px">⚠️</span><div style="flex:1"><strong>Flagged for update</strong>'+(s.flag_notes?' — '+esc(s.flag_notes):'')+'</div><button type="button" onclick="resolveStudentFlag(\''+esc(s.student_id||'')+'\')" style="background:#fff;border:1px solid #EF4444;color:#EF4444;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap">Resolve</button></div>':'')
     +(s.notes?'<div style="background:#FEF9C3;border:1px solid #FACC15;border-radius:8px;padding:10px 14px;font-size:13px;color:#713F12;margin-bottom:14px;line-height:1.5"><strong>Notes:</strong> '+esc(s.notes)+'</div>':'')
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">'+fieldsHtml+'</div>'
     +function(){
@@ -2102,6 +2327,17 @@ async function viewStudentProfile(eid){
       :'<div style="font-weight:700;font-size:14px">'+esc(MY_CLASS.classes?.name||'?')+' &middot; '+esc(MY_CLASS.class_sections?.name||'?')+'</div>')
     +'</div>'
     +(!canEdit?'<div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 14px;font-size:12.5px;margin-bottom:14px">'+(reqPending?'Editing is locked. Your access request has been sent — waiting for admin approval.':'Profile editing is locked. Request access from admin to make changes.')+'</div>':'')
+    +'<div style="margin-top:14px;margin-bottom:14px"><label style="'+lbl+'">Notes</label>'
+    +'<textarea id="sp_notes" rows="3" '+(canEdit?'':'disabled')+' style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical;font-family:var(--font);box-sizing:border-box" placeholder="Add notes about this student...">'+esc(s.notes||'')+'</textarea>'
+    +(canEdit?'<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      +'<button type="button" class="btn btn-soft btn-sm" onclick="spStartVoice()" id="sp_voice_btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice</button>'
+      +'<span style="display:inline-flex;border:1.5px solid var(--line);border-radius:999px;overflow:hidden;font-size:11px;font-weight:700">'
+        +'<button id="sp_lang_en" type="button" onclick="spSetLang(\'en-IN\')" style="padding:4px 10px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;background:#E85C82;color:#fff">EN</button>'
+        +'<button id="sp_lang_hi" type="button" onclick="spSetLang(\'hi-IN\')" style="padding:4px 10px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;background:transparent;color:var(--ink-soft)">HI</button>'
+      +'</span>'
+      +'<button type="button" class="btn btn-soft btn-sm" onclick="spCleanupNote()" id="sp_ai_btn" style="margin-left:auto"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup</button>'
+    +'</div>':'')
+    +'</div>'
     +'<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.04em;margin-bottom:8px">Documents</div>'
     +docsHtml
     +(canEdit?'<button onclick="openDocUploadModal(_profileStudentId)" style="margin-top:10px;background:var(--lav-100);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);font-family:var(--font)">📎 Upload Document</button>':'')
@@ -2116,6 +2352,16 @@ async function viewStudentProfile(eid){
   openModal('Student Profile',body,foot)
   if(canEdit) populateSectionPicker(enr)
   renderSiblings('sp_siblings', s, enr.enrollment_id)
+}
+async function resolveStudentFlag(studentId){
+  if(!confirm('Resolve this flag? The warning will be removed.'))return
+  const{error}=await sb.from('students').update({flagged:false,flag_notes:null}).eq('student_id',studentId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const{data:pending}=await sb.from('profile_flag_log').select('id').eq('student_id',studentId).eq('status','pending').order('flagged_at',{ascending:false}).limit(1)
+  if(pending?.[0])await sb.from('profile_flag_log').update({resolved_by:TEACHER.teacher_id,resolved_by_type:'mother_teacher',resolved_at:new Date().toISOString(),status:'resolved',changes_made:window._profileDiff||null}).eq('id',pending[0].id)
+  const enr=CLASS_STUDENTS.find(x=>x.students?.student_id===studentId)
+  if(enr)enr.students.flagged=false
+  toast('Flag resolved','success');closeModal()
 }
 // Siblings (same family_code + same father) shown as chips (display-only).
 async function renderSiblings(containerId, s, selfEnrollmentId){
@@ -2260,15 +2506,19 @@ async function saveStudentProfile(){
     blood_group:document.getElementById('sp_blood_group')?.value||null,
     dob:document.getElementById('sp_dob')?.value||null,
     admission_date:document.getElementById('sp_admission_date')?.value||null,
+    notes:document.getElementById('sp_notes')?.value?.trim()||null,
   }
   const _hno=document.getElementById('sp_addr_hno')?.value?.trim()
   const _area=document.getElementById('sp_addr_area')?.value?.trim()
   if(_hno||_area) updates.address='H.No. '+(_hno||'—')+', '+(_area||'—')+', NIT Faridabad'
   if(!updates.full_name){toast('Name cannot be empty','error');return}
+  const snap=window._profileSnapshot||{}
+  const diff=[];Object.keys(updates).forEach(k=>{const o=snap[k]||'';const n=updates[k]||'';if(String(o)!==String(n))diff.push({field:k,from:o,to:n})})
+  window._profileDiff=diff.length?diff:null
   const{error}=await sb.from('students').update(updates).eq('student_id',sid)
   if(error){toast('Failed: '+error.message,'error');return}
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -2421,18 +2671,22 @@ async function saveStudentProfile(studentId){
     blood_group:document.getElementById('sp_blood_group')?.value||null,
     dob:document.getElementById('sp_dob')?.value||null,
     admission_date:document.getElementById('sp_admission_date')?.value||null,
+    notes:document.getElementById('sp_notes')?.value?.trim()||null,
   }
   const _hno2=document.getElementById('sp_addr_hno')?.value?.trim()
   const _area2=document.getElementById('sp_addr_area')?.value?.trim()
   if(_hno2||_area2) updates.address='H.No. '+(_hno2||'—')+', '+(_area2||'—')+', NIT Faridabad'
   if(!updates.full_name){toast("Student name can't be empty",'error');return}
+  const snap=window._profileSnapshot||{}
+  const diff=[];Object.keys(updates).forEach(k=>{const o=snap[k]||'';const n=updates[k]||'';if(String(o)!==String(n))diff.push({field:k,from:o,to:n})})
+  window._profileDiff=diff.length?diff:null
   const{data:updated,error}=await sb.from('students').update(updates).eq('student_id',sid).select()
   console.log('[profile] update result →',{sid,rows:updated?.length,error})
   if(error){toast('Failed to save: '+error.message,'error');return}
   if(!updated||!updated.length){toast('Save did not persist — the database blocked this update (permissions).','error');console.warn('[profile] UPDATE affected 0 rows — likely RLS on students table',{sid});return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[];_classRaw=students||[]
@@ -2652,7 +2906,7 @@ async function saveAllRollNos(){
   if(errors){toast('Some roll numbers failed to save ('+errors+' errors)','error');return}
   // Reload students
   const{data:students}=await sb.from('student_enrollments')
-    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes)')
+    .select('*,students(student_id,full_name,father_name,mother_name,phone,alt_phone,aadhar_no,gender,blood_group,dob,address,photo_url,family_code,admission_date,admission_number,notes,flagged,flag_notes)')
     .eq('class_id',MY_CLASS.class_id).eq('section_id',MY_CLASS.section_id)
     .eq('session_id',SESS?.session_id||'').eq('status','active').eq('relieved',false).order('roll_no',{nullsFirst:true})
   CLASS_STUDENTS=students||[]
@@ -3081,6 +3335,80 @@ async function toggleNotAppearing(enrollmentId, feeId, mark){
   if(error){toast('Failed: '+error.message,'error');return}
   toast(mark?'Marked as not appearing':'Unmarked','success')
   loadExamFees()
+}
+
+async function loadMiscFeeDropdown(){
+  const sel=$('mf_select')
+  if(!sel)return
+  sel.innerHTML='<option value="">Loading…</option>'
+  const{data}=await sb.from('misc_fees').select('*').eq('class_id',MY_CLASS.class_id).eq('is_collection_unlocked',true)
+  const fees=data||[]
+  if(!fees.length){sel.innerHTML='<option value="">No misc fees unlocked for your class</option>';return}
+  sel.innerHTML='<option value="">Select fee</option>'+fees.map(f=>'<option value="'+f.misc_fee_id+'">'+esc(f.name)+'  (₹'+f.amount+')</option>').join('')
+}
+async function loadMiscFeesList(){
+  const feeId=$('mf_select')?.value,el=$('miscFeesWrap')
+  if(!feeId){el.innerHTML='';return}
+  ldg(el,'Loading…')
+  const{data:feeRow}=await sb.from('misc_fees').select('*').eq('misc_fee_id',feeId).maybeSingle()
+  if(!feeRow){emp(el,'Fee record not found.');return}
+  const eids=CLASS_STUDENTS.map(s=>s.enrollment_id)
+  const{data:payments}=await sb.from('misc_fee_payments').select('*').eq('misc_fee_id',feeId).in('enrollment_id',eids)
+  const paidMap={};const naMap={};(payments||[]).forEach(p=>{paidMap[p.enrollment_id]=p;if(p.is_na)naMap[p.enrollment_id]=true})
+  const totalCollected=(payments||[]).filter(p=>p.is_paid).length
+  const totalNA=Object.keys(naMap).length
+  const applicable=CLASS_STUDENTS.length-totalNA
+  const amount=feeRow.amount||0
+  let html='<div class="grid-3" style="margin-bottom:16px;grid-template-columns:repeat(3,1fr)">'
+    +'<div class="stat-card"><span class="lbl">Fee Amount</span><span class="val">₹'+amount+'</span>'+(totalNA?'<span class="sub">'+totalNA+' NA</span>':'')+'</div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--success)">Paid</span><span class="val" style="color:var(--success)">'+totalCollected+'</span><span class="sub">₹'+(totalCollected*amount)+' collected</span></div>'
+    +'<div class="stat-card"><span class="lbl" style="color:var(--danger)">Pending</span><span class="val" style="color:var(--danger)">'+(applicable-totalCollected)+'</span></div>'
+    +'</div>'
+  html+='<div class="card"><div class="table-wrap"><table><thead><tr><th>Roll</th><th>Student Name</th><th>Father\'s Name</th><th>Status</th><th>Action</th></tr></thead><tbody>'
+  CLASS_STUDENTS.forEach(s=>{
+    const p=paidMap[s.enrollment_id]
+    const isNA=!!naMap[s.enrollment_id]
+    const paidByAdmin=p?.is_paid&&p?.collected_by_type==='admin'
+    const paidByTeacher=p?.is_paid&&p?.collected_by_type==='teacher'
+    const mode=p?.collection_mode;
+    const paidTime=p?.paid_at?new Date(p.paid_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+    const modeTag=mode?' <span style="font-size:10px;color:var(--ink-faint)">('+mode+')</span>':'';
+    const timeTag=paidTime?'<div style="font-size:10px;color:var(--ink-faint)">'+paidTime+'</div>':'';
+    let statusCell,actionCell
+    if(isNA){statusCell='<span class="pill pill-neutral" style="background:#F3F4F6;color:#6B7280">N/A</span>';actionCell='<button class="btn btn-ghost btn-xs" onclick="toggleMiscFeeNA(\''+s.enrollment_id+'\',\''+feeId+'\',false)">Remove NA</button>'}
+    else if(paidByAdmin){statusCell='<span class="pill pill-neutral">Paid via Admin'+modeTag+'</span>'+timeTag;actionCell='<span style="font-size:11.5px;color:var(--ink-faint)">Admin collected</span>'}
+    else if(paidByTeacher){statusCell='<span class="pill pill-success">Collected ✓'+modeTag+'</span>'+timeTag;actionCell='<button class="btn btn-ghost btn-xs" onclick="toggleMiscFeePayment(\''+s.enrollment_id+'\',\''+feeId+'\',false)">Undo</button>'}
+    else{statusCell='<span class="pill pill-danger">Pending</span>';actionCell='<button class="btn btn-soft btn-xs" style="color:var(--grn)" onclick="toggleMiscFeePayment(\''+s.enrollment_id+'\',\''+feeId+'\',true)">Mark Paid</button> <button class="btn btn-ghost btn-xs" style="font-size:10px;color:#6B7280" onclick="toggleMiscFeeNA(\''+s.enrollment_id+'\',\''+feeId+'\',true)">NA</button>'}
+    html+='<tr'+(isNA?' style="opacity:.5"':'')+'><td style="font-family:var(--mono);font-weight:700">'+esc(s.roll_no||'—')+'</td><td style="font-weight:600">'+esc(s.students?.full_name||'?')+'</td><td>'+esc(s.students?.father_name||'—')+'</td><td>'+statusCell+'</td><td>'+actionCell+'</td></tr>'
+  })
+  html+='</tbody></table></div></div>'
+  el.innerHTML=html
+}
+async function toggleMiscFeePayment(enrollmentId,feeId,markPaid){
+  let collectionMode=null;
+  if(markPaid) collectionMode=await askCollectionMode();
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:markPaid,
+    collected_by_type:'teacher',collected_by_id:TEACHER.teacher_id,
+    paid_at:markPaid?new Date().toISOString():null,
+    collection_mode:collectionMode
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(markPaid?'Marked as paid ('+collectionMode+') ✓':'Marked as unpaid','success')
+  if(markPaid){
+    const stu=(CLASS_STUDENTS||[]).find(s=>s.enrollment_id===enrollmentId)
+    logActivity('misc_fee_collected',TEACHER.full_name+' collected misc fee ('+collectionMode+') for '+(stu?.students?.full_name||'a student')+' ('+myClassLabel()+')')
+  }
+  loadMiscFeesList()
+}
+async function toggleMiscFeeNA(enrollmentId,feeId,mark){
+  const{error}=await sb.from('misc_fee_payments').upsert({
+    misc_fee_id:feeId,enrollment_id:enrollmentId,is_paid:false,is_na:mark,
+    collected_by_type:'teacher',collected_by_id:TEACHER.teacher_id,paid_at:null,collection_mode:null
+  },{onConflict:'misc_fee_id,enrollment_id'})
+  if(error){toast('Failed: '+error.message,'error');return}
+  toast(mark?'Marked as N/A':'NA removed','success')
+  loadMiscFeesList()
 }
 
 async function logout(){
@@ -4444,6 +4772,124 @@ function prependActivity(text,type){
   const row='<div class="log-row"><div class="log-dot" style="background:'+(type==='access'?'var(--grn)':'var(--warn)')+'"></div><div><div class="txt">'+esc(text)+'</div><div class="ts">just now</div></div></div>'
   if(actEl.querySelector('.log-row'))actEl.insertAdjacentHTML('afterbegin',row)
   else actEl.innerHTML=row
+}
+
+// ═══════════ PROFILE NOTES (Voice + AI) ═══════════
+let _spRecognition=null
+let _spVoiceLang='en-IN'
+function spSetLang(lang){
+  _spVoiceLang=lang
+  const enBtn=$('sp_lang_en'),hiBtn=$('sp_lang_hi')
+  if(enBtn&&hiBtn){
+    enBtn.style.background=lang==='en-IN'?'#E85C82':'transparent'
+    enBtn.style.color=lang==='en-IN'?'#fff':'var(--ink-soft)'
+    hiBtn.style.background=lang==='hi-IN'?'#E85C82':'transparent'
+    hiBtn.style.color=lang==='hi-IN'?'#fff':'var(--ink-soft)'
+  }
+  if(_spRecognition){_spRecognition.stop();setTimeout(()=>spStartVoice(),300)}
+}
+async function spCleanupNote(){
+  const ta=$('sp_notes')
+  if(!ta||!ta.value.trim()){toast('Nothing to clean up','warn');return}
+  const btn=$('sp_ai_btn')
+  if(btn){btn.disabled=true;btn.textContent='Cleaning up...'}
+  try{
+    const sess=await sb.auth.getSession()
+    const token=sess?.data?.session?.access_token
+    if(!token){toast('Not signed in','error');return}
+    const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/super-action',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({mode:'cleanup_note',text:ta.value.trim()})
+    })
+    const data=await res.json()
+    if(!res.ok){toast(data.error||'Cleanup failed','error');return}
+    if(data.cleaned)ta.value=data.cleaned
+    toast('Note cleaned up','success')
+  }catch(e){toast(e.message==='Failed to fetch'?'AI function not deployed yet':'AI error: '+e.message,'error')}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup'}}
+}
+async function spStartVoice(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition
+  if(!SpeechRecognition){toast('Voice input not supported on this browser','error');return}
+  const btn=$('sp_voice_btn')
+  if(_spRecognition){_spRecognition.stop();return}
+  try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop())}catch(e){toast('Microphone permission denied','error');return}
+  _spRecognition=new SpeechRecognition()
+  _spRecognition.lang=_spVoiceLang
+  _spRecognition.continuous=false
+  _spRecognition.interimResults=true
+  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#E5556B" stroke-width="2" style="margin-right:4px;vertical-align:middle"><circle cx="12" cy="12" r="8"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Listening...'
+  btn.style.borderColor='var(--danger)';btn.style.color='var(--danger)'
+  _spRecognition.onresult=function(e){
+    const result=e.results[0]
+    const text=result[0].transcript
+    const ta=$('sp_notes')
+    if(!ta)return
+    const prev=ta.value.replace(/\s*\[.*?\]$/,'').trim()
+    if(result.isFinal){
+      ta.value=(prev?(prev+' '):'')+text.trim()
+    }else{
+      ta.value=prev+(prev?' ':'')+' ['+text+']'
+    }
+  }
+  _spRecognition.onerror=function(e){if(e.error!=='no-speech')toast('Voice error: '+e.error,'error');spStopVoice()}
+  _spRecognition.onend=function(){spStopVoice()}
+  try{_spRecognition.start()}catch(e){toast('Could not start voice — '+e.message,'error');_spRecognition=null}
+}
+function spStopVoice(){
+  if(_spRecognition){try{_spRecognition.stop()}catch(_){}_spRecognition=null}
+  const btn=$('sp_voice_btn')
+  if(btn){btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice';btn.style.borderColor='';btn.style.color=''}
+  const ta=$('sp_notes')
+  if(ta){ta.value=ta.value.replace(/\s*\[.*?\]$/,'').trim();if(ta.value.trim())setTimeout(()=>spCleanupNote(),300)}
+}
+
+// ═══════════ NOTICES ═══════════
+const _ntcTypeLabels={general:'General',administrative:'Administrative',academic:'Academic',disciplinary:'Disciplinary',event:'Event',holiday:'Holiday',exam:'Examination',fee:'Fee Related'}
+const _ntcTypeColors={general:'var(--indigo)',administrative:'#6B7280',academic:'#2563EB',disciplinary:'#DC2626',event:'#7C3AED',holiday:'#059669',exam:'#D97706',fee:'#0D9488'}
+let _mtNoticesData=[]
+async function loadMTNotices(){
+  $('noticesContent').style.display='';$('noticeDetail').style.display='none'
+  const el=$('noticesContent');el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data,error}=await sb.from('notices').select('*').eq('is_active',true).contains('target',['mother_teachers']).order('created_at',{ascending:false})
+  _mtNoticesData=data||[]
+  if(error){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--danger)">Failed to load notices.</div>';return}
+  if(!_mtNoticesData.length){el.innerHTML='<div style="padding:40px;text-align:center;color:var(--ink-faint)">No notices at the moment.</div>';return}
+  let h=''
+  _mtNoticesData.forEach(n=>{
+    const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+    const isImp=n.priority==='important'
+    const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
+    const typeClr=_ntcTypeColors[n.notice_type]||'var(--indigo)'
+    h+='<div onclick="viewMTNotice(\''+n.id+'\')" style="cursor:pointer;background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:18px 20px;margin-bottom:12px;transition:box-shadow .15s'+(isImp?';border-left:4px solid var(--warn)':'')+'" onmouseover="this.style.boxShadow=\'0 2px 8px rgba(0,0,0,.08)\'" onmouseout="this.style.boxShadow=\'none\'">'
+    h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+    h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
+    if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase;letter-spacing:.04em">Important</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span>'
+    h+='</div>'
+    h+='<div style="font-size:15px;font-weight:700;color:var(--ink)">'+esc(n.title)+'</div>'
+    h+='</div>'
+  })
+  el.innerHTML=h
+}
+function viewMTNotice(id){
+  const n=_mtNoticesData.find(x=>x.id===id);if(!n)return
+  const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+' '+new Date(n.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):''
+  const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
+  const typeClr=_ntcTypeColors[n.notice_type]||'var(--indigo)'
+  const isImp=n.priority==='important'
+  let h='<div style="margin-bottom:16px"><button class="btn btn-ghost" onclick="loadMTNotices()" style="padding:6px 10px;font-size:13px"><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M15 18l-6-6 6-6"/></svg> Back to Notices</button></div>'
+  h+='<div style="background:#fff;border-radius:var(--radius-lg);border:1.5px solid var(--line);padding:24px">'
+  h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+  h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
+  if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase">Important</span>'
+  h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span></div>'
+  h+='<h2 style="font-size:20px;font-weight:700;color:var(--ink);margin:0 0 16px">'+esc(n.title)+'</h2>'
+  h+='<div style="font-size:14px;color:var(--ink-soft);line-height:1.8;word-break:break-word">'+(n.body||'<span style="color:var(--ink-faint)">No content.</span>')+'</div>'
+  h+='</div>'
+  $('noticesContent').style.display='none'
+  const det=$('noticeDetail');det.innerHTML=h;det.style.display=''
 }
 </script>
 </body>

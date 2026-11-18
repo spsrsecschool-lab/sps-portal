@@ -335,6 +335,12 @@
   .btn-soft{background:var(--indigo-100);color:var(--indigo-dark)}
   .btn-success{background:var(--success);color:#fff}
   .btn-sm{padding:6px 12px;font-size:11.5px}
+  .btn-dark{background:var(--ink);color:#fff}
+  .btn-dark:active{opacity:.85}
+
+  .tab-btn{font-family:var(--font);font-size:13px;font-weight:700;padding:8px 18px;border-radius:999px;border:1.5px solid var(--line);background:var(--white);color:var(--ink-soft);cursor:pointer;transition:all .15s}
+  .tab-btn.active{background:var(--indigo);color:#fff;border-color:var(--indigo);box-shadow:0 2px 8px rgba(53,92,125,.18)}
+  .tab-btn:not(.active):hover{border-color:var(--indigo);color:var(--indigo)}
 
   /* profile */
   .profile-hero{
@@ -515,6 +521,9 @@ body.dark .field-grp input,body.dark .field-grp select,body.dark .field-grp text
 body.dark .field-grp input:focus,body.dark .field-grp select:focus,body.dark .field-grp textarea:focus{background:#1E1E1E;border-color:#355C7D}
 body.dark .btn-ghost{background:#111111;border-color:#2A2A2A;color:#A0A0A0}
 body.dark .btn-soft{background:#0E2030;color:#5A9ABE}
+body.dark .btn-dark{background:#E0E0E0;color:#111}
+body.dark .tab-btn{background:#111;border-color:#2A2A2A;color:#888}
+body.dark .tab-btn.active{background:var(--indigo);color:#fff;border-color:var(--indigo)}
 body.dark .banner{background:linear-gradient(120deg,#1A3A52 0%,#2A5070 100%)}
 body.dark .profile-hero{background:#111111;border-color:#1A1A1A}
 body.dark .field-row{border-color:#1A1A1A}
@@ -853,7 +862,9 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       My Attendance
     </div>
     <div class="sb-item" onclick="goTo('qpapers',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Question Papers</div>
+    <div class="sb-item" onclick="goTo('syllabus',this)"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Syllabus</div>
     <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Code of Conduct</div>
+    <div class="sb-item" onclick="goTo('notices',this)"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notices</div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Profile
@@ -1176,9 +1187,34 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       </div>
     </div>
 
+    <div class="page" id="page-syllabus">
+      <div class="page-head"><div><h2>Syllabus</h2><p>View syllabus plans and track your progress</p></div></div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="tab-btn active" onclick="tSylSwitchTab('plan',this)">My Syllabus</button>
+        <button class="tab-btn" onclick="tSylSwitchTab('recheck',this)" id="tSylRecheckBtn">Rechecking</button>
+      </div>
+      <div id="tSylPlanTab">
+        <div class="card" style="margin-bottom:16px;padding:16px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div class="field-grp" style="flex:1;min-width:140px"><label>Class-Section</label><select id="tsyl_class" onchange="tSylClassChanged()"><option value="">Select</option></select></div>
+            <div class="field-grp" style="flex:1;min-width:140px"><label>Subject</label><select id="tsyl_subject"><option value="">Select</option></select></div>
+            <button class="btn btn-primary btn-sm" onclick="tSylLoadPlan()" style="white-space:nowrap;align-self:flex-end">Load Plan</button>
+          </div>
+        </div>
+        <div id="tSylPlanBody"></div>
+      </div>
+      <div id="tSylRecheckTab" style="display:none"></div>
+    </div>
+
     <div class="page" id="page-handbook">
       <div class="page-head"><div><h2>Code of Conduct and Declaration</h2><p>Staff code of conduct &amp; declaration</p></div></div>
       <div id="hbHost"></div>
+    </div>
+
+    <div class="page" id="page-notices">
+      <div class="page-head"><div><h2>Notices &amp; Circulars</h2><p>Notices from administration</p></div></div>
+      <div id="noticesContent"><div class="loading-row"><div class="spinner"></div></div></div>
+      <div id="noticeDetail" style="display:none"></div>
     </div>
 
     <div class="page" id="page-profile">
@@ -1223,7 +1259,7 @@ let _isClassView=false
 
 const TITLES={
   dashboard:'Dashboard',timetable:'My Timetable',marks:'Marks & Assessment',
-  critical:'Critical Students',myattendance:'My Attendance',qpapers:'Question Papers',handbook:'Code of Conduct',messages:'Messages',profile:'My Profile'
+  critical:'Critical Students',myattendance:'My Attendance',qpapers:'Question Papers',syllabus:'Syllabus',handbook:'Code of Conduct',notices:'Notices & Circulars',messages:'Messages',profile:'My Profile'
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1589,8 +1625,10 @@ function goTo(id,el){
   if(id==='messages'){ showMsgView(window._forceInbox?'inbox':'compose'); window._forceInbox=false }
   if(id==='profile')loadProfile()
   if(id==='qpapers'){document.querySelectorAll('#page-qpapers .sub-page').forEach(sp=>sp.classList.remove('active'));$('sub-qp-list').classList.add('active');loadTeacherQPapers()}
+  if(id==='syllabus')tSylInit()
   if(id==='critical')loadCriticalStudents()
   if(id==='myattendance'){const t=today();if($('att_from'))$('att_from').value=t.slice(0,8)+'01';if($('att_to'))$('att_to').value=t;loadDeductionHistory()}
+  if(id==='notices')loadTeacherNotices()
 }
 
 
@@ -2146,13 +2184,16 @@ async function renderLiveSchedule(){
   const roster=await getActiveRoster()
   if(!roster){el.innerHTML='';return}
 
-  const[{data:slots},{data:entries},{data:adjs},{data:subs}]=await Promise.all([
-    sb.from('time_slots').select('*').eq('roster_id',roster.roster_id).order('sort_order'),
-    sb.from('timetable_entries').select('slot_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name)').eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id),
+  const[{data:slots},{data:entries},{data:adjs},{data:subs},{data:rTimings}]=await Promise.all([
+    sb.from('time_slots').select('*').eq('session_id',SESS.session_id).order('sort_order'),
+    sb.from('timetable_entries').select('slot_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name)').eq('session_id',SESS.session_id).eq('teacher_id',TEACHER.teacher_id),
     sb.from('adjustments').select('slot_id,class_id,section_id,days,classes(name),class_sections(name)').eq('teacher_id',TEACHER.teacher_id).then(r=>r,()=>({data:[]})),
-    sb.from('substitutions').select('entry_id,substitute_teacher_id,slot_id,timetable_entries!inner(teacher_id,classes(name),class_sections(name),subjects(name)),time_slots:slot_id(name,start_time,end_time,sort_order)').eq('date',iso).then(r=>r,()=>({data:[]}))
+    sb.from('substitutions').select('entry_id,substitute_teacher_id,slot_id,timetable_entries!inner(teacher_id,classes(name),class_sections(name),subjects(name)),time_slots:slot_id(name,start_time,end_time,sort_order)').eq('date',iso).then(r=>r,()=>({data:[]})),
+    sb.from('roster_timings').select('slot_id,start_time,end_time').eq('roster_id',roster.roster_id)
   ])
   if(!slots?.length){el.innerHTML='';return}
+  const _rtMap={};(rTimings||[]).forEach(t=>{_rtMap[t.slot_id]=t})
+  ;(slots||[]).forEach(s=>{const t=_rtMap[s.slot_id];if(t){s.start_time=t.start_time;s.end_time=t.end_time}})
 
   // Build per-slot schedule
   const slotMap={}
@@ -2272,8 +2313,11 @@ async function loadMyTimetable(){
   console.log('[TT] Querying entries for roster:',roster.roster_id,'teacher:',TEACHER.teacher_id)
   const{data:entries,error}=await sb.from('timetable_entries')
     .select('*,time_slots(name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)')
-    .eq('roster_id',roster.roster_id).eq('teacher_id',TEACHER.teacher_id)
+    .eq('session_id',SESS.session_id).eq('teacher_id',TEACHER.teacher_id)
   console.log('[TT] Entries:',entries?.length,'error:',error)
+  const{data:rTimings}=await sb.from('roster_timings').select('slot_id,start_time,end_time').eq('roster_id',roster.roster_id)
+  const _rtMap={};(rTimings||[]).forEach(t=>{_rtMap[t.slot_id]=t})
+  ;(entries||[]).forEach(e=>{if(e.time_slots){const t=_rtMap[e.slot_id];if(t){e.time_slots.start_time=t.start_time;e.time_slots.end_time=t.end_time}}})
 
   // Standing adjustments (classes this teacher covers, not their own teaching).
   let adjustments=[]
@@ -2291,6 +2335,7 @@ async function loadMyTimetable(){
       ])
       const slM={},clM={},seM={}
       ;(slR.data||[]).forEach(s=>slM[s.slot_id]=s)
+      Object.values(slM).forEach(s=>{const t=_rtMap[s.slot_id];if(t){s.start_time=t.start_time;s.end_time=t.end_time}})
       ;(clR.data||[]).forEach(c=>clM[c.class_id]=c.name)
       ;(seR.data||[]).forEach(s=>seM[s.section_id]=s.name)
       adjustments=rows.filter(a=>slM[a.slot_id]).map(a=>({
@@ -3932,7 +3977,483 @@ async function tqpMarkFinal(){
 }
 
 
+// ═══════════════════════════════════════════════════════════════
+// TEACHER SYLLABUS
+// ═══════════════════════════════════════════════════════════════
+let _tSylInited=false,_tSylPlan=null,_tSylParts=[],_tSylItems=[],_tSylProgress=[],_tSylSectionId=null,_tSylClassId=null,_tSylSubjectId=null
+const TSYL_MONTHS=['april','may','june','july','august','september','october','november','december','january','february','march']
+function tSylMonthLabel(m){if(!m)return '';return m.charAt(0).toUpperCase()+m.slice(1)}
+const TSYL_STATUS_CFG={
+  not_started:{label:'Not Started',bg:'var(--lav-100)',color:'var(--ink-soft)',icon:'○'},
+  ongoing:{label:'Ongoing',bg:'#DBEAFE',color:'#1D4ED8',icon:'◐'},
+  completed:{label:'Completed',bg:'var(--success-soft)',color:'#15803D',icon:'●'}
+}
 
+async function tSylInit(){
+  if(_tSylInited)return
+  _tSylInited=true
+  const classSections=[...new Map(MY_MAPPINGS.map(m=>[(m.class_id||'')+'_'+(m.section_id||''),m])).values()]
+  const sel=$('tsyl_class')
+  sel.innerHTML='<option value="">Select</option>'+classSections.map(m=>'<option value="'+m.class_id+'|'+m.section_id+'">'+esc((m.classes?.name||'?')+' – '+(m.class_sections?.name||'?'))+'</option>').join('')
+}
+
+function tSylClassChanged(){
+  const val=$('tsyl_class')?.value
+  if(!val){$('tsyl_subject').innerHTML='<option value="">Select</option>';return}
+  const[classId]=val.split('|')
+  const subs=[...new Map(MY_MAPPINGS.filter(m=>m.class_id===classId).map(m=>[m.subject_id,m])).values()]
+  $('tsyl_subject').innerHTML='<option value="">Select</option>'+subs.map(m=>'<option value="'+m.subject_id+'">'+esc(m.subjects?.name||m.subject_id)+'</option>').join('')
+}
+
+async function tSylLoadPlan(){
+  const cv=$('tsyl_class')?.value,subId=$('tsyl_subject')?.value
+  if(!cv||!subId){toast('Select class and subject','error');return}
+  const[classId,sectionId]=cv.split('|')
+  _tSylSectionId=sectionId;_tSylClassId=classId;_tSylSubjectId=subId
+  if(!SESS){toast('No active session','error');return}
+  $('tSylPlanBody').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data:plan}=await sb.from('syllabus_plans').select('*').eq('class_id',classId).eq('subject_id',subId).eq('session_id',SESS.session_id).maybeSingle()
+  if(!plan){$('tSylPlanBody').innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--ink-faint)"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px;opacity:.4"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg><div style="font-size:14px;font-weight:600;margin-bottom:4px">No Syllabus Plan</div><div style="font-size:12px">Admin has not created a plan for this class-subject yet.</div></div>';return}
+  _tSylPlan=plan
+  const{data:parts}=await sb.from('syllabus_parts').select('*').eq('plan_id',plan.id).order('sort_order')
+  _tSylParts=parts||[]
+  if(!_tSylParts.length){$('tSylPlanBody').innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--ink-faint)"><div style="font-size:14px;font-weight:600">Plan Exists</div><div style="font-size:12px">But no chapters/items have been added yet.</div></div>';return}
+  const partIds=_tSylParts.map(p=>p.id)
+  const{data:items}=await sb.from('syllabus_items').select('*').in('part_id',partIds).order('sort_order')
+  _tSylItems=items||[]
+  const itemIds=_tSylItems.map(i=>i.id)
+  if(itemIds.length){
+    const{data:prog}=await sb.from('syllabus_progress').select('*').eq('teacher_id',TEACHER.teacher_id).eq('section_id',sectionId).in('item_id',itemIds)
+    _tSylProgress=prog||[]
+  }else{_tSylProgress=[]}
+  tSylRender()
+}
+
+function tSylGetStatus(itemId){
+  const p=_tSylProgress.find(p=>p.item_id===itemId)
+  if(!p)return{status:'not_started',started_at:null,completed_at:null}
+  return{status:p.status||'not_started',started_at:p.started_at||null,completed_at:p.completed_at||null}
+}
+
+function tSylRender(){
+  const total=_tSylItems.length
+  const completed=_tSylItems.filter(i=>tSylGetStatus(i.id).status==='completed').length
+  const ongoing=_tSylItems.filter(i=>tSylGetStatus(i.id).status==='ongoing').length
+  const pct=total?Math.round(completed*100/total):0
+  let h=''
+  h+='<div style="padding:16px;margin-bottom:14px;background:linear-gradient(135deg,var(--indigo) 0%,var(--indigo-dark) 100%);color:#fff;border-radius:var(--radius-md)">'
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:13px;font-weight:600;opacity:.9">Overall Progress</span><span style="font-size:22px;font-weight:800">'+pct+'%</span></div>'
+  h+='<div style="height:6px;background:rgba(255,255,255,.25);border-radius:3px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:'+pct+'%;background:#fff;border-radius:3px;transition:width .4s ease"></div></div>'
+  h+='<div style="display:flex;gap:16px;font-size:12px;opacity:.85">'
+  h+='<span>'+TSYL_STATUS_CFG.completed.icon+' '+completed+' Done</span>'
+  h+='<span>'+TSYL_STATUS_CFG.ongoing.icon+' '+ongoing+' Ongoing</span>'
+  h+='<span>'+TSYL_STATUS_CFG.not_started.icon+' '+(total-completed-ongoing)+' Pending</span>'
+  h+='</div></div>'
+  const byMonth={}
+  _tSylItems.forEach(item=>{const m=item.month||'unscheduled';if(!byMonth[m])byMonth[m]=[];byMonth[m].push(item)})
+  const monthOrder=[...TSYL_MONTHS,'unscheduled']
+  monthOrder.forEach(month=>{
+    const items=byMonth[month]
+    if(!items)return
+    const mLabel=month==='unscheduled'?'Unscheduled':tSylMonthLabel(month)
+    const mDone=items.filter(i=>tSylGetStatus(i.id).status==='completed').length
+    h+='<div style="margin-bottom:16px">'
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 2px">'
+    h+='<span style="font-size:14px;font-weight:800;color:var(--ink)">'+esc(mLabel)+'</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint);font-weight:500">'+mDone+'/'+items.length+'</span>'
+    h+='<span style="flex:1"></span>'
+    h+='<button onclick="tSylAddItem(\''+month+'\')" style="background:none;border:1.5px dashed var(--line);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-faint);font-size:16px;line-height:1" title="Add item to '+esc(mLabel)+'">+</button>'
+    h+='</div>'
+    items.forEach(item=>{
+      const st=tSylGetStatus(item.id)
+      const cfg=TSYL_STATUS_CFG[st.status]
+      const part=_tSylParts.find(p=>p.id===item.part_id)
+      const borderColor=st.status==='completed'?'var(--success)':st.status==='ongoing'?'#93C5FD':'var(--line)'
+      h+='<div ontouchstart="tSylLongPress(event,\''+item.id+'\')" onmousedown="tSylLongPress(event,\''+item.id+'\')" ontouchend="tSylCancelLong()" onmouseup="tSylCancelLong()" ontouchmove="tSylCancelLong()" style="background:var(--white);border:1.5px solid '+borderColor+';border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px;transition:border-color .2s;-webkit-user-select:none;user-select:none">'
+      h+='<div style="display:flex;align-items:flex-start;gap:10px">'
+      h+='<div style="flex:1;min-width:0">'
+      h+='<div style="font-size:13.5px;font-weight:600;line-height:1.35;margin-bottom:4px">'+esc(item.title)+'</div>'
+      h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+      if(part)h+='<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:var(--lav-100);color:var(--indigo-dark);font-weight:600">'+esc(part.name)+'</span>'
+      h+='<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:'+(item.type==='revision'?'var(--warn-soft)':'var(--lav-100)')+';color:'+(item.type==='revision'?'var(--warn-dark)':'var(--indigo-dark)')+';font-weight:600">'+(item.type==='chapter'?'Chapter':item.type==='revision'?'Revision':'Topic')+'</span>'
+      h+='</div>'
+      if(st.started_at||st.completed_at){
+        h+='<div style="display:flex;gap:10px;margin-top:5px;font-size:10.5px;color:var(--ink-faint)">'
+        if(st.started_at)h+='<span>Started: '+fmtD(st.started_at)+'</span>'
+        if(st.completed_at)h+='<span>Done: '+fmtD(st.completed_at)+'</span>'
+        h+='</div>'
+      }
+      h+='</div>'
+      h+='<select onchange="tSylSetStatus(\''+item.id+'\',this.value)" style="font-size:11px;padding:5px 8px;border-radius:20px;border:1.5px solid '+cfg.color+';background:'+cfg.bg+';color:'+cfg.color+';font-weight:700;cursor:pointer;min-width:100px;appearance:auto;-webkit-appearance:auto;flex-shrink:0">'
+      Object.entries(TSYL_STATUS_CFG).forEach(([k,v])=>{h+='<option value="'+k+'"'+(st.status===k?' selected':'')+'>'+v.label+'</option>'})
+      h+='</select>'
+      h+='</div></div>'
+    })
+    h+='</div>'
+  })
+  $('tSylPlanBody').innerHTML=h
+}
+
+// ─── Long-press to move item between months ───
+let _tSylLongTimer=null
+function tSylLongPress(e,itemId){
+  _tSylLongTimer=setTimeout(()=>{
+    _tSylLongTimer=null
+    e.preventDefault()
+    tSylShowMoveModal(itemId)
+  },500)
+}
+function tSylCancelLong(){if(_tSylLongTimer){clearTimeout(_tSylLongTimer);_tSylLongTimer=null}}
+
+function tSylShowMoveModal(itemId){
+  const item=_tSylItems.find(i=>i.id===itemId)
+  if(!item)return
+  let body='<div style="margin-bottom:12px;font-size:13px;color:var(--ink-soft)">Move <b>'+esc(item.title)+'</b> to:</div>'
+  body+='<div style="display:flex;flex-wrap:wrap;gap:8px">'
+  TSYL_MONTHS.forEach(m=>{
+    const active=item.month===m
+    body+='<button onclick="tSylMoveItem(\''+itemId+'\',\''+m+'\')" class="btn btn-sm" style="border-radius:20px;'+(active?'background:var(--indigo);color:#fff;':'background:var(--white);border:1.5px solid var(--line);color:var(--ink);')+'">'+tSylMonthLabel(m)+'</button>'
+  })
+  body+='</div>'
+  openModal('Move to Month',body,'')
+}
+
+async function tSylMoveItem(itemId,newMonth){
+  const{error}=await sb.from('syllabus_items').update({month:newMonth}).eq('id',itemId)
+  if(error){toast('Failed: '+error.message,'error');return}
+  const item=_tSylItems.find(i=>i.id===itemId)
+  if(item)item.month=newMonth
+  closeModal();toast('Moved to '+tSylMonthLabel(newMonth),'success');tSylRender()
+}
+
+// ─── Add item (teacher adds topic to a month) ───
+function tSylAddItem(month){
+  const mLabel=month==='unscheduled'?'Unscheduled':tSylMonthLabel(month)
+  const partOpts=_tSylParts.map((p,i)=>'<option value="'+p.id+'"'+(i===0?' selected':'')+'>'+esc(p.name)+'</option>').join('')
+  let body='<div class="field-grp"><label>Title</label><input id="tsyl_add_title" placeholder="e.g. Revision: Units 1-3"></div>'
+  body+='<div class="field-grp"><label>Section</label><select id="tsyl_add_part">'+partOpts+'</select></div>'
+  body+='<div class="field-grp"><label>Type</label><select id="tsyl_add_type"><option value="topic">Topic</option><option value="chapter">Chapter</option><option value="revision">Revision</option></select></div>'
+  const foot='<button class="btn btn-primary" onclick="tSylSaveNewItem(\''+month+'\')">Add</button>'
+  openModal('Add Item — '+mLabel,body,foot)
+}
+
+async function tSylSaveNewItem(month){
+  const title=$('tsyl_add_title')?.value?.trim()
+  const partId=$('tsyl_add_part')?.value
+  const type=$('tsyl_add_type')?.value||'topic'
+  if(!title){toast('Enter a title','error');return}
+  const maxSort=_tSylItems.filter(i=>i.part_id===partId).reduce((mx,i)=>Math.max(mx,i.sort_order||0),0)
+  const{data,error}=await sb.from('syllabus_items').insert({part_id:partId,title,type,month:month==='unscheduled'?null:month,sort_order:maxSort+1}).select().single()
+  if(error){toast('Failed: '+error.message,'error');return}
+  _tSylItems.push(data)
+  closeModal();toast('Item added','success');tSylRender()
+}
+
+async function tSylSetStatus(itemId,newStatus){
+  const sectionId=_tSylSectionId
+  const now=new Date().toISOString()
+  const existing=_tSylProgress.find(p=>p.item_id===itemId)
+  const row={item_id:itemId,teacher_id:TEACHER.teacher_id,section_id:sectionId,status:newStatus}
+  if(newStatus==='ongoing'){
+    row.started_at=existing?.started_at||now
+    row.completed_at=null
+  }else if(newStatus==='completed'){
+    row.started_at=existing?.started_at||now
+    row.completed_at=now
+  }else{
+    row.started_at=null;row.completed_at=null
+  }
+  const{error}=await sb.from('syllabus_progress').upsert(row,{onConflict:'item_id,teacher_id,section_id'})
+  if(error){toast('Failed: '+error.message,'error');tSylRender();return}
+  _tSylProgress=_tSylProgress.filter(p=>p.item_id!==itemId)
+  _tSylProgress.push(row)
+  tSylRender()
+}
+
+function tSylSwitchTab(tab,btn){
+  document.querySelectorAll('#page-syllabus .tab-btn').forEach(b=>b.classList.remove('active'))
+  if(btn)btn.classList.add('active')
+  $('tSylPlanTab').style.display=tab==='plan'?'':'none'
+  $('tSylRecheckTab').style.display=tab==='recheck'?'':'none'
+  if(tab==='recheck')tSylLoadRecheck()
+}
+
+// ─── RECHECKING ───
+let _tSylRecheckLoaded=false,_rcAssignments=[],_rcStudents=[],_rcRecords=[],_rcCurrentAssign=null
+async function tSylLoadRecheck(){
+  if(_tSylRecheckLoaded)return
+  _tSylRecheckLoaded=true
+  if(!SESS){$('tSylRecheckTab').innerHTML='<div style="text-align:center;padding:40px;color:var(--ink-faint)">No active session.</div>';return}
+  $('tSylRecheckTab').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  // Fetch without joins to avoid PostgREST FK embedding errors
+  const{data:raw,error:rcErr}=await sb.from('rechecking_assignments').select('*').eq('teacher_id',TEACHER.teacher_id)
+  if(rcErr)console.error('[RECHECK] error:',rcErr)
+  console.log('[RECHECK] teacher_id=',TEACHER.teacher_id,'session_id=',SESS.session_id,'raw=',raw)
+  const filtered=(raw||[]).filter(a=>a.session_id===SESS.session_id)
+  // Look up class/subject/section names separately
+  const classIds=[...new Set(filtered.map(a=>a.class_id))].filter(Boolean)
+  const subjectIds=[...new Set(filtered.map(a=>a.subject_id))].filter(Boolean)
+  const sectionIds=[...new Set(filtered.map(a=>a.section_id))].filter(Boolean)
+  const[{data:classes},{data:subjects},{data:sections}]=await Promise.all([
+    classIds.length?sb.from('classes').select('class_id,name').in('class_id',classIds):{data:[]},
+    subjectIds.length?sb.from('subjects').select('subject_id,name').in('subject_id',subjectIds):{data:[]},
+    sectionIds.length?sb.from('class_sections').select('section_id,name').in('section_id',sectionIds):{data:[]}
+  ])
+  const classMap=Object.fromEntries((classes||[]).map(c=>[c.class_id,c.name]))
+  const subjectMap=Object.fromEntries((subjects||[]).map(s=>[s.subject_id,s.name]))
+  const sectionMap=Object.fromEntries((sections||[]).map(s=>[s.section_id,s.name]))
+  _rcAssignments=filtered.map(a=>({...a,_className:classMap[a.class_id]||'?',_subjectName:subjectMap[a.subject_id]||'?',_sectionName:sectionMap[a.section_id]||'?'}))
+  console.log('[RECHECK] final assignments:',_rcAssignments.length)
+  rcRenderMain()
+}
+
+function rcRenderMain(){
+  if(!_rcAssignments.length){
+    $('tSylRecheckTab').innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--ink-faint)"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px;opacity:.4"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><div style="font-size:14px;font-weight:600;margin-bottom:4px">No Rechecking Assignments</div><div style="font-size:12px">Admin has not assigned any rechecking to you yet.</div></div>'
+    return
+  }
+  let h='<div style="font-size:13px;color:var(--ink-soft);margin-bottom:12px">Select an assignment to start rechecking:</div>'
+  _rcAssignments.forEach((a,i)=>{
+    h+='<div onclick="rcSelectAssignment('+i+')" style="background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,box-shadow .15s" onmouseover="this.style.borderColor=\'var(--indigo)\';this.style.boxShadow=\'0 2px 8px rgba(53,92,125,.1)\'" onmouseout="this.style.borderColor=\'var(--line)\';this.style.boxShadow=\'none\'">'
+    h+='<div style="font-size:14px;font-weight:700;margin-bottom:3px">'+esc(a._className+' – '+a._sectionName)+'</div>'
+    h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    h+='<span style="font-size:12px;color:var(--indigo-dark);font-weight:600">'+esc(a._subjectName)+'</span>'
+    h+='<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:var(--lav-100);color:var(--ink-soft)">'+esc(a.frequency)+'</span>'
+    h+='</div></div>'
+  })
+  $('tSylRecheckTab').innerHTML=h
+}
+
+async function rcSelectAssignment(idx){
+  const a=_rcAssignments[idx]
+  if(!a)return
+  _rcCurrentAssign=a
+  $('tSylRecheckTab').innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  // Load students for this section
+  const{data:enrollments,error:enrErr}=await sb.from('student_enrollments').select('student_id,roll_no').eq('class_id',a.class_id).eq('section_id',a.section_id).eq('session_id',SESS.session_id).eq('status','active').order('roll_no')
+  if(enrErr)console.error('[RECHECK] enrollment error:',enrErr)
+  const stuIds=(enrollments||[]).map(e=>e.student_id).filter(Boolean)
+  let stuMap={}
+  if(stuIds.length){
+    const{data:stuRows}=await sb.from('students').select('student_id,full_name').in('student_id',stuIds)
+    stuMap=Object.fromEntries((stuRows||[]).map(s=>[s.student_id,s.full_name]))
+  }
+  _rcStudents=(enrollments||[]).map(e=>({student_id:e.student_id,full_name:stuMap[e.student_id]||'?',roll_no:e.roll_no}))
+  // Load existing rechecking records
+  const{data:records}=await sb.from('rechecking_records').select('*').eq('assignment_id',a.id)
+  _rcRecords=records||[]
+  rcRenderStudents()
+}
+
+function rcRenderStudents(){
+  const a=_rcCurrentAssign
+  let h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
+  h+='<button class="btn btn-ghost btn-sm" onclick="rcRenderMain()" style="padding:4px 8px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>'
+  h+='<div style="flex:1"><div style="font-size:15px;font-weight:700">'+esc(a._className+' – '+a._sectionName)+'</div>'
+  h+='<div style="font-size:12px;color:var(--ink-soft)">'+esc(a._subjectName)+'</div></div>'
+  const doneCnt=_rcStudents.filter(s=>_rcRecords.some(r=>r.student_id===s.student_id&&r.is_checked)).length
+  h+='<span style="font-size:12px;font-weight:600;color:var(--success)">'+doneCnt+'/'+_rcStudents.length+' checked</span>'
+  h+='</div>'
+  if(!_rcStudents.length){
+    h+='<div style="text-align:center;padding:30px;color:var(--ink-faint)">No students found in this section.</div>'
+    $('tSylRecheckTab').innerHTML=h;return
+  }
+  _rcStudents.forEach(s=>{
+    const rec=_rcRecords.find(r=>r.student_id===s.student_id)
+    const checked=rec?.is_checked||false
+    h+='<div style="background:var(--white);border:1.5px solid '+(checked?'var(--success)':'var(--line)')+';border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:6px;display:flex;align-items:center;gap:12px;transition:border-color .15s">'
+    h+='<div style="width:30px;height:30px;border-radius:50%;background:'+(checked?'var(--success-soft)':'var(--lav-100)')+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:'+(checked?'var(--success)':'var(--ink-soft)')+';flex-shrink:0">'+esc(s.roll_no||'?')+'</div>'
+    h+='<div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(s.full_name)+'</div>'
+    if(rec?.notes)h+='<div style="font-size:11px;color:var(--ink-soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(rec.notes)+'</div>'
+    if(rec?.checked_at)h+='<div style="font-size:10px;color:var(--ink-faint);margin-top:1px">'+fmtD(rec.checked_at)+'</div>'
+    h+='</div>'
+    h+='<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'
+    h+='<button onclick="rcAddNote(\''+s.student_id+'\')" title="Add note" style="background:none;border:none;cursor:pointer;padding:4px;color:var(--ink-faint)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
+    h+='<button onclick="rcVoiceNote(\''+s.student_id+'\')" title="Voice note" style="background:none;border:none;cursor:pointer;padding:4px;color:var(--ink-faint)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>'
+    h+='<label style="cursor:pointer;display:flex;align-items:center"><input type="checkbox" '+(checked?'checked':'')+' onchange="rcToggle(\''+s.student_id+'\',this.checked)" style="width:20px;height:20px;accent-color:var(--success);cursor:pointer"></label>'
+    h+='</div></div>'
+  })
+  $('tSylRecheckTab').innerHTML=h
+}
+
+async function rcToggle(studentId,checked){
+  const a=_rcCurrentAssign
+  if(checked){
+    const row={assignment_id:a.id,student_id:studentId,is_checked:true,checked_at:new Date().toISOString(),checked_by:TEACHER.teacher_id}
+    const existing=_rcRecords.find(r=>r.student_id===studentId)
+    if(existing){
+      await sb.from('rechecking_records').update({is_checked:true,checked_at:row.checked_at}).eq('id',existing.id)
+      existing.is_checked=true;existing.checked_at=row.checked_at
+    }else{
+      const{data,error}=await sb.from('rechecking_records').insert(row).select().single()
+      if(error){toast('Failed: '+error.message,'error');return}
+      _rcRecords.push(data)
+    }
+  }else{
+    const existing=_rcRecords.find(r=>r.student_id===studentId)
+    if(existing){
+      await sb.from('rechecking_records').update({is_checked:false,checked_at:null}).eq('id',existing.id)
+      existing.is_checked=false;existing.checked_at=null
+    }
+  }
+  rcRenderStudents()
+}
+
+function rcAddNote(studentId){
+  const rec=_rcRecords.find(r=>r.student_id===studentId)
+  const stu=_rcStudents.find(s=>s.student_id===studentId)
+  const body='<div style="margin-bottom:12px;font-size:13px;color:var(--ink-soft)">Notes for <b>'+esc(stu?.full_name||'')+'</b></div>'+
+    '<textarea id="rc_note_text" rows="4" style="width:100%;font-size:13px;padding:10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);resize:vertical;font-family:var(--font)" placeholder="Type or use voice input...">'+(rec?.notes||'')+'</textarea>'+
+    '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+      '<button class="btn btn-soft btn-sm" onclick="rcStartVoiceForNote()" id="rc_voice_btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice</button>'+
+      '<span style="display:inline-flex;border:1.5px solid var(--line);border-radius:999px;overflow:hidden;font-size:11px;font-weight:700">'+
+        '<button id="rc_lang_en" onclick="rcSetLang(\'en-IN\')" style="padding:4px 10px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;background:var(--indigo);color:#fff">EN</button>'+
+        '<button id="rc_lang_hi" onclick="rcSetLang(\'hi-IN\')" style="padding:4px 10px;border:none;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;background:transparent;color:var(--ink-soft)">हिं</button>'+
+      '</span>'+
+      '<button class="btn btn-soft btn-sm" onclick="rcCleanupNote()" id="rc_ai_btn" style="margin-left:auto"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup</button>'+
+    '</div>'
+  const foot='<button class="btn btn-primary" onclick="rcSaveNote(\''+studentId+'\')">Save Note</button>'
+  openModal('Rechecking Note',body,foot)
+}
+
+async function rcSaveNote(studentId){
+  const notes=$('rc_note_text')?.value?.trim()||''
+  const a=_rcCurrentAssign
+  const existing=_rcRecords.find(r=>r.student_id===studentId)
+  if(existing){
+    await sb.from('rechecking_records').update({notes}).eq('id',existing.id)
+    existing.notes=notes
+  }else{
+    const{data,error}=await sb.from('rechecking_records').insert({assignment_id:a.id,student_id:studentId,is_checked:false,notes,checked_by:TEACHER.teacher_id}).select().single()
+    if(error){toast('Failed: '+error.message,'error');return}
+    _rcRecords.push(data)
+  }
+  closeModal();toast('Note saved','success');rcRenderStudents()
+}
+
+function rcVoiceNote(studentId){
+  rcAddNote(studentId)
+  setTimeout(()=>rcStartVoiceForNote(),400)
+}
+
+let _rcRecognition=null
+let _rcVoiceLang='en-IN'
+function rcSetLang(lang){
+  _rcVoiceLang=lang
+  const enBtn=$('rc_lang_en'),hiBtn=$('rc_lang_hi')
+  if(enBtn&&hiBtn){
+    enBtn.style.background=lang==='en-IN'?'var(--indigo)':'transparent'
+    enBtn.style.color=lang==='en-IN'?'#fff':'var(--ink-soft)'
+    hiBtn.style.background=lang==='hi-IN'?'var(--indigo)':'transparent'
+    hiBtn.style.color=lang==='hi-IN'?'#fff':'var(--ink-soft)'
+  }
+  if(_rcRecognition){_rcRecognition.stop();setTimeout(()=>rcStartVoiceForNote(),300)}
+}
+async function rcCleanupNote(){
+  const ta=$('rc_note_text')
+  if(!ta||!ta.value.trim()){toast('Nothing to clean up','warn');return}
+  const btn=$('rc_ai_btn')
+  if(btn){btn.disabled=true;btn.textContent='Cleaning up...'}
+  try{
+    const sess=await sb.auth.getSession()
+    const token=sess?.data?.session?.access_token
+    if(!token){toast('Not signed in','error');return}
+    const res=await fetch(SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/super-action',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({mode:'cleanup_note',text:ta.value.trim()})
+    })
+    const data=await res.json()
+    if(!res.ok){toast(data.error||'Cleanup failed','error');return}
+    if(data.cleaned)ta.value=data.cleaned
+    toast('Note cleaned up','success')
+  }catch(e){toast(e.message==='Failed to fetch'?'AI function not deployed yet — deploy the edge function first':'AI error: '+e.message,'error')}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 2l1.09 3.26L16 6l-2.91.74L12 10l-1.09-3.26L8 6l2.91-.74L12 2z"/><path d="M5 15l.54 1.63L7 17.17l-1.46.37L5 19.17l-.54-1.63L3 17.17l1.46-.37L5 15z"/><path d="M19 11l.54 1.63L21 13.17l-1.46.37L19 15.17l-.54-1.63L17 13.17l1.46-.37L19 11z"/></svg>AI Cleanup'}}
+}
+async function rcStartVoiceForNote(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition
+  if(!SpeechRecognition){toast('Voice input not supported on this browser','error');return}
+  const btn=$('rc_voice_btn')
+  if(_rcRecognition){_rcRecognition.stop();return}
+  // Explicitly request mic permission — forces the OS prompt on phones that won't ask otherwise
+  try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop())}catch(e){toast('Microphone permission denied — please allow mic access in your browser settings and try again','error');return}
+  _rcRecognition=new SpeechRecognition()
+  _rcRecognition.lang=_rcVoiceLang
+  _rcRecognition.continuous=false
+  _rcRecognition.interimResults=true
+  btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#E5556B" stroke-width="2" style="margin-right:4px;vertical-align:middle"><circle cx="12" cy="12" r="8"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>Listening...'
+  btn.style.borderColor='var(--danger)';btn.style.color='var(--danger)'
+  _rcRecognition.onresult=function(e){
+    const result=e.results[0]
+    const text=result[0].transcript
+    const ta=$('rc_note_text')
+    if(!ta)return
+    const prev=ta.value.replace(/\s*\[.*?\]$/,'').trim()
+    if(result.isFinal){
+      ta.value=(prev?(prev+' '):'')+text.trim()
+    }else{
+      ta.value=prev+(prev?' ':'')+' ['+text+']'
+    }
+  }
+  _rcRecognition.onerror=function(e){if(e.error!=='no-speech')toast('Voice error: '+e.error,'error');rcStopVoice()}
+  _rcRecognition.onend=function(){rcStopVoice()}
+  try{_rcRecognition.start()}catch(e){toast('Could not start voice — '+e.message,'error');_rcRecognition=null}
+}
+
+function rcStopVoice(){
+  if(_rcRecognition){try{_rcRecognition.stop()}catch(_){}_rcRecognition=null}
+  const btn=$('rc_voice_btn')
+  if(btn){btn.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>Voice';btn.style.borderColor='';btn.style.color=''}
+  const ta=$('rc_note_text')
+  if(ta){ta.value=ta.value.replace(/\s*\[.*?\]$/,'').trim();if(ta.value.trim())setTimeout(()=>rcCleanupNote(),300)}
+}
+
+// ═══════════ NOTICES ═══════════
+const _ntcTypeLabels={general:'General',administrative:'Administrative',academic:'Academic',disciplinary:'Disciplinary',event:'Event',holiday:'Holiday',exam:'Examination',fee:'Fee Related'}
+const _ntcTypeColors={general:'var(--indigo)',administrative:'#6B7280',academic:'#2563EB',disciplinary:'#DC2626',event:'#7C3AED',holiday:'#059669',exam:'#D97706',fee:'#0D9488'}
+let _tchNoticesData=[]
+async function loadTeacherNotices(){
+  $('noticesContent').style.display='';$('noticeDetail').style.display='none'
+  const el=$('noticesContent');el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  const{data,error}=await sb.from('notices').select('*').eq('is_active',true).contains('target',['teachers']).order('created_at',{ascending:false})
+  _tchNoticesData=data||[]
+  if(error){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--danger)">Failed to load notices.</div>';return}
+  if(!_tchNoticesData.length){el.innerHTML='<div style="padding:40px;text-align:center;color:var(--ink-faint)">No notices at the moment.</div>';return}
+  let h=''
+  _tchNoticesData.forEach(n=>{
+    const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):''
+    const isImp=n.priority==='important'
+    const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
+    const typeClr=_ntcTypeColors[n.notice_type]||'var(--indigo)'
+    h+='<div onclick="viewNotice(\''+n.id+'\')" style="cursor:pointer;background:#fff;border-radius:var(--radius-lg);border:1.5px solid '+(isImp?'var(--warn)':'var(--line)')+';padding:18px 20px;margin-bottom:12px;transition:box-shadow .15s'+(isImp?';border-left:4px solid var(--warn)':'')+'" onmouseover="this.style.boxShadow=\'0 2px 8px rgba(0,0,0,.08)\'" onmouseout="this.style.boxShadow=\'none\'">'
+    h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+    h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
+    if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase;letter-spacing:.04em">Important</span>'
+    h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span>'
+    h+='</div>'
+    h+='<div style="font-size:15px;font-weight:700;color:var(--ink)">'+esc(n.title)+'</div>'
+    h+='</div>'
+  })
+  el.innerHTML=h
+}
+function viewNotice(id){
+  const n=_tchNoticesData.find(x=>x.id===id);if(!n)return
+  const dt=n.created_at?new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+' '+new Date(n.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):''
+  const typeLbl=_ntcTypeLabels[n.notice_type]||n.notice_type||'General'
+  const typeClr=_ntcTypeColors[n.notice_type]||'var(--indigo)'
+  const isImp=n.priority==='important'
+  let h='<div style="margin-bottom:16px"><button class="btn btn-ghost" onclick="loadTeacherNotices()" style="padding:6px 10px;font-size:13px"><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M15 18l-6-6 6-6"/></svg> Back to Notices</button></div>'
+  h+='<div style="background:#fff;border-radius:var(--radius-lg);border:1.5px solid var(--line);padding:24px">'
+  h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+  h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+typeClr+'15;color:'+typeClr+';text-transform:uppercase;letter-spacing:.04em">'+esc(typeLbl)+'</span>'
+  if(isImp)h+='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--warn-soft);color:var(--warn-dark);text-transform:uppercase">Important</span>'
+  h+='<span style="font-size:11px;color:var(--ink-faint)">'+esc(dt)+'</span></div>'
+  h+='<h2 style="font-size:20px;font-weight:700;color:var(--ink);margin:0 0 16px">'+esc(n.title)+'</h2>'
+  h+='<div style="font-size:14px;color:var(--ink-soft);line-height:1.8;word-break:break-word">'+(n.body||'<span style="color:var(--ink-faint)">No content.</span>')+'</div>'
+  h+='</div>'
+  $('noticesContent').style.display='none'
+  const det=$('noticeDetail');det.innerHTML=h;det.style.display=''
+}
 
 </script>
 </body>

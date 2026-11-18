@@ -1,16 +1,16 @@
 // SPS AI Assistant — Supabase Edge Function
 //
-// Model: NVIDIA Nemotron Ultra (OpenAI-compatible API via build.nvidia.com)
-// Secret: NVIDIA_API_KEY
-// Optional: NVIDIA_MODEL to override the default model.
+// Model: Groq (free tier, OpenAI-compatible API)
+// Secret: GROQ_API_KEY
+// Optional: GROQ_MODEL to override the default model.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const NVIDIA_MODEL = Deno.env.get('NVIDIA_MODEL') ?? 'nvidia/llama-3.3-nemotron-super-49b-v1'
-const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
+const GROQ_MODEL = Deno.env.get('GROQ_MODEL') ?? 'openai/gpt-oss-120b'
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 async function callLLM(apiKey: string, payload: unknown, attempt = 0): Promise<Response> {
-  const res = await fetch(NVIDIA_URL, {
+  const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(payload),
@@ -40,7 +40,7 @@ interface SectionAccess {
 }
 
 interface Caller {
-  kind: 'admin' | 'teacher'
+  kind: 'admin' | 'teacher' | 'guest'
   id: string
   name: string
   sessionId: string | null
@@ -129,8 +129,8 @@ function toolsFor(caller: Caller) {
       parameters: {
         type: 'object',
         properties: {
-          class_name: { type: 'string' },
-          section_name: { type: 'string' },
+          class_name: { type: 'string', description: 'e.g. "LKG", "5th", "9th", "11th"' },
+          section_name: { type: 'string', description: 'e.g. "A". Optional — defaults to first section.' },
           date: { type: 'string', description: 'YYYY-MM-DD for a single day' },
           from: { type: 'string', description: 'YYYY-MM-DD range start' },
           to: { type: 'string', description: 'YYYY-MM-DD range end' },
@@ -195,26 +195,6 @@ function toolsFor(caller: Caller) {
       },
     },
     {
-      name: 'get_my_staff_attendance',
-      description: "The caller's own staff attendance (in/out times, present/late/absent) over a date range.",
-      parameters: {
-        type: 'object',
-        properties: { from: { type: 'string' }, to: { type: 'string' } },
-        required: ['from', 'to'],
-      },
-    },
-    {
-      name: 'get_my_timetable',
-      description: "Get the caller's timetable schedule for a specific day of the week (Mon/Tue/etc). Shows period, time, class, section, subject.",
-      parameters: {
-        type: 'object',
-        properties: {
-          day: { type: 'string', description: 'Day of week: Mon, Tue, Wed, Thu, Fri, Sat' },
-        },
-        required: ['day'],
-      },
-    },
-    {
       name: 'get_class_timetable',
       description: 'Get the timetable for a class section on a specific day. Shows each period with subject and teacher.',
       parameters: {
@@ -237,20 +217,43 @@ function toolsFor(caller: Caller) {
         },
       },
     },
-    {
-      name: 'send_message',
-      description: 'Send an internal portal message. ALWAYS confirm the exact wording with the user before calling this.',
-      parameters: {
-        type: 'object',
-        properties: {
-          to: { type: 'string', description: '"admin" or a teacher\'s full name' },
-          subject: { type: 'string' },
-          body: { type: 'string' },
-        },
-        required: ['to', 'subject', 'body'],
-      },
-    },
   ]
+
+  if (caller.kind === 'guest') return t
+
+  t.push({
+    name: 'get_my_staff_attendance',
+    description: "The caller's own staff attendance (in/out times, present/late/absent) over a date range.",
+    parameters: {
+      type: 'object',
+      properties: { from: { type: 'string' }, to: { type: 'string' } },
+      required: ['from', 'to'],
+    },
+  })
+  t.push({
+    name: 'get_my_timetable',
+    description: "Get the caller's timetable schedule for a specific day of the week (Mon/Tue/etc). Shows period, time, class, section, subject.",
+    parameters: {
+      type: 'object',
+      properties: {
+        day: { type: 'string', description: 'Day of week: Mon, Tue, Wed, Thu, Fri, Sat' },
+      },
+      required: ['day'],
+    },
+  })
+  t.push({
+    name: 'send_message',
+    description: 'Send an internal portal message. ALWAYS confirm the exact wording with the user before calling this.',
+    parameters: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: '"admin" or a teacher\'s full name' },
+        subject: { type: 'string' },
+        body: { type: 'string' },
+      },
+      required: ['to', 'subject', 'body'],
+    },
+  })
 
   if (caller.kind === 'teacher') {
     t.push({
@@ -321,10 +324,41 @@ function toolsFor(caller: Caller) {
 const WRITE_TOOLS = new Set(['mark_attendance', 'send_message'])
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+// ── Fuzzy helpers ─────────────────────────────────────────────────────────
+function norm(s: string): string {
+  return s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+function normClass(raw: string): string {
+  let s = raw.trim().toLowerCase().replace(/^class\s*/i, '').replace(/\s+/g, '')
+  s = s.replace(/(st|nd|rd|th)$/, '')
+  return s
+}
+function normDay(raw: string): string {
+  const d = raw.trim().toLowerCase().replace(/[^a-z]/g, '')
+  const map: Record<string, string> = {
+    mon: 'Mon', monday: 'Mon', tue: 'Tue', tues: 'Tue', tuesday: 'Tue',
+    wed: 'Wed', wednesday: 'Wed', thu: 'Thu', thur: 'Thu', thurs: 'Thu', thursday: 'Thu',
+    fri: 'Fri', friday: 'Fri', sat: 'Sat', saturday: 'Sat', sun: 'Sun', sunday: 'Sun',
+  }
+  return map[d] ?? raw.trim()
+}
+function fuzzyMatch<T>(items: T[], getText: (item: T) => string, query: string): T | undefined {
+  const q = norm(query)
+  return items.find(i => norm(getText(i)) === q)
+    ?? items.find(i => norm(getText(i)).includes(q))
+    ?? items.find(i => q.includes(norm(getText(i))))
+}
+
 async function resolveSection(db: any, caller: Caller, className: string, sectionName?: string) {
   const { data: cls } = await db.from('classes').select('class_id, name')
-  const cl = (cls ?? []).find((c: any) => (c.name ?? '').toLowerCase() === String(className).toLowerCase())
-  if (!cl) return { error: `No class named "${className}".` }
+  const allClasses = cls ?? []
+  const needle = normClass(className)
+  const cl = allClasses.find((c: any) => normClass(c.name ?? '') === needle)
+    ?? fuzzyMatch(allClasses, (c: any) => c.name ?? '', className)
+  if (!cl) {
+    const available = allClasses.map((c: any) => c.name).join(', ')
+    return { error: `No class named "${className}". Available classes: ${available}` }
+  }
 
   const { data: secs } = await db
     .from('class_sections')
@@ -333,14 +367,23 @@ async function resolveSection(db: any, caller: Caller, className: string, sectio
     .eq('session_id', caller.sessionId ?? '')
     .eq('is_active', true)
 
-  let sec = sectionName
-    ? (secs ?? []).find((s: any) => (s.name ?? '').toLowerCase() === String(sectionName).toLowerCase())
-    : (secs ?? [])[0]
-  if (!sec) return { error: `No section "${sectionName ?? ''}" in ${className}.` }
+  const allSecs = secs ?? []
+  let sec: any
+  if (sectionName) {
+    sec = allSecs.find((s: any) => norm(s.name ?? '') === norm(sectionName))
+      ?? fuzzyMatch(allSecs, (s: any) => s.name ?? '', sectionName)
+    if (!sec) {
+      const available = allSecs.map((s: any) => s.name).join(', ')
+      return { error: `No section "${sectionName}" in ${cl.name}. Available sections: ${available}` }
+    }
+  } else {
+    sec = allSecs[0]
+  }
+  if (!sec) return { error: `No sections found for ${cl.name}.` }
 
   if (caller.kind === 'teacher') {
     const ok = caller.sections.some((s) => s.section_id === sec.section_id)
-    if (!ok) return { error: `You don't have access to ${className}-${sec.name}. You can only see classes you teach or are class teacher of.` }
+    if (!ok) return { error: `You don't have access to ${cl.name}-${sec.name}. You can only see classes you teach or are class teacher of.` }
   }
   return { class_id: cl.class_id, section_id: sec.section_id, class_name: cl.name, section_name: sec.name }
 }
@@ -649,7 +692,7 @@ async function runTool(db: any, caller: Caller, name: string, args: any): Promis
         .eq('roster_id', rid)
         .eq('teacher_id', caller.id)
 
-      const day = String(args.day ?? '').trim()
+      const day = normDay(args.day ?? '')
       const dayEntries = (entries ?? []).filter((e: any) => (e.days ?? []).includes(day))
       const slotMap: Record<string, any> = {}
       ;(slots ?? []).forEach((s: any) => { slotMap[s.slot_id] = s })
@@ -684,7 +727,7 @@ async function runTool(db: any, caller: Caller, name: string, args: any): Promis
         .eq('class_id', s.class_id)
         .eq('section_id', s.section_id)
 
-      const day = String(args.day ?? '').trim()
+      const day = normDay(args.day ?? '')
       const dayEntries = (entries ?? []).filter((e: any) => (e.days ?? []).includes(day))
       const slotMap: Record<string, any> = {}
       ;(slots ?? []).forEach((sl: any) => { slotMap[sl.slot_id] = sl })
@@ -709,7 +752,8 @@ async function runTool(db: any, caller: Caller, name: string, args: any): Promis
         .order('commencement_date', { nullsFirst: false })
       if (args.class_name) {
         const { data: cls } = await db.from('classes').select('class_id, name')
-        const cl = (cls ?? []).find((c: any) => (c.name ?? '').toLowerCase() === String(args.class_name).toLowerCase())
+        const cl = (cls ?? []).find((c: any) => normClass(c.name ?? '') === normClass(args.class_name))
+          ?? fuzzyMatch(cls ?? [], (c: any) => c.name ?? '', args.class_name)
         if (cl) q = q.eq('class_id', cl.class_id)
       }
       const { data } = await q.limit(30)
@@ -862,7 +906,7 @@ async function runTool(db: any, caller: Caller, name: string, args: any): Promis
 
     case 'send_message': {
       let recipientType = 'admin', recipientId = ''
-      if (String(args.to).toLowerCase() === 'admin') {
+      if (['admin', 'administrator', 'principal', 'school'].includes(norm(args.to))) {
         const { data: a } = await db.from('admins').select('admin_id').limit(1)
         recipientId = a?.[0]?.admin_id ?? ''
         if (!recipientId) return { error: 'No admin account found.' }
@@ -889,7 +933,9 @@ function systemPrompt(caller: Caller) {
   const today = new Date().toISOString().slice(0, 10)
 
   let scope: string
-  if (caller.kind === 'admin') {
+  if (caller.kind === 'guest') {
+    scope = 'You are speaking with a school portal user. They have access to school data tools — use them to answer questions about students, classes, attendance, fees, marks, timetables, and assessments. They cannot mark attendance, send messages, or run raw SQL.'
+  } else if (caller.kind === 'admin') {
     scope = 'You are speaking with a school ADMIN. They can see school-wide data and run raw SQL queries.'
   } else {
     const ctSections = caller.sections.filter((s) => s.role === 'class_teacher')
@@ -948,8 +994,34 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const apiKey = Deno.env.get('NVIDIA_API_KEY')
-    if (!apiKey) return json({ error: 'NVIDIA_API_KEY is not configured. Add it as a secret in the Edge Function settings.' }, 500)
+    const body = await req.json()
+
+    // ── Note cleanup mode — completely separate path ──
+    if (body.mode === 'cleanup_note') {
+      const ak = Deno.env.get('GROQ_API_KEY')
+      if (!ak) return json({ error: 'GROQ_API_KEY is not configured.' }, 500)
+      const ah = req.headers.get('Authorization') ?? ''
+      if (!ah) return json({ error: 'Not signed in.' }, 401)
+      const rawText = String(body.text ?? '').trim()
+      if (!rawText) return json({ error: 'No text to clean up.' }, 400)
+      const r = await callLLM(ak, {
+        model: GROQ_MODEL,
+        messages: [
+          { role: 'system', content: 'You are a note formatting assistant for a school teacher. The teacher dictated a note using voice input — it may be in Hindi, Hinglish, or English. Your job: translate everything into clean, professional English. Fix grammar, remove filler words, repetitions, and gibberish. Frame it as a proper teacher\'s remark about the student. Be concise — one or two sentences. Return ONLY the cleaned English note, nothing else.' },
+          { role: 'user', content: rawText },
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
+      })
+      if (!r.ok) return json({ error: 'AI cleanup failed.' }, 502)
+      const d = await r.json()
+      const cleaned = d?.choices?.[0]?.message?.content?.trim() || rawText
+      return json({ cleaned })
+    }
+
+    // ── Sakha chatbot flow ──
+    const apiKey = Deno.env.get('GROQ_API_KEY')
+    if (!apiKey) return json({ error: 'GROQ_API_KEY is not configured. Add it as a secret in the Edge Function settings.' }, 500)
 
     const authHeader = req.headers.get('Authorization') ?? ''
     const token = authHeader.replace('Bearer ', '')
@@ -966,10 +1038,15 @@ Deno.serve(async (req) => {
 
     const db = createClient(url, serviceKey, { auth: { persistSession: false } })
 
-    const caller = await identify(db, userData.user.id)
-    if (!caller) return json({ error: 'Your account is not linked to a staff profile.' }, 403)
+    const identified = await identify(db, userData.user.id)
+    let caller: Caller
+    if (identified) {
+      caller = identified
+    } else {
+      const { data: sess } = await db.from('sessions').select('session_id').eq('is_current', true).maybeSingle()
+      caller = { kind: 'guest', id: userData.user.id, name: userData.user.email ?? 'User', sessionId: sess?.session_id ?? null, sections: [] }
+    }
 
-    const body = await req.json()
     const history: any[] = Array.isArray(body.history) ? body.history.slice(-16) : []
     const confirmed = body.confirmedAction as { name: string; args: any } | undefined
 
@@ -984,7 +1061,7 @@ Deno.serve(async (req) => {
         ...history.filter((m) => m.role !== 'system'),
         { role: 'user', content: `[The user approved the action. Result: ${JSON.stringify(result)}. Tell them what happened in one or two sentences.]` },
       ]
-      const r = await callLLM(apiKey, { model: NVIDIA_MODEL, messages, temperature: 0.2 })
+      const r = await callLLM(apiKey, { model: GROQ_MODEL, messages, temperature: 0.2 })
       if (!r.ok) return json({ reply: 'Done.', executed: result })
       const d = await r.json()
       const text = d?.choices?.[0]?.message?.content?.trim() || 'Done.'
@@ -1000,14 +1077,10 @@ Deno.serve(async (req) => {
       { role: 'user', content: question },
     ]
 
-    for (let hop = 0; hop < 5; hop++) {
-      const r = await callLLM(apiKey, {
-        model: NVIDIA_MODEL,
-        messages,
-        tools: wrappedTools,
-        tool_choice: 'auto',
-        temperature: 0.2,
-      })
+    for (let hop = 0; hop < 8; hop++) {
+      const llmPayload: any = { model: GROQ_MODEL, messages, temperature: 0.2 }
+      if (wrappedTools.length) { llmPayload.tools = wrappedTools; llmPayload.tool_choice = 'auto' }
+      const r = await callLLM(apiKey, llmPayload)
       if (!r.ok) {
         let detail = ''
         try { detail = (await r.json())?.error?.message ?? '' } catch (_) { /* ignore */ }

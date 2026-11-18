@@ -491,7 +491,7 @@
   function endpoint () {
     // SUPABASE_URL comes from config.js, which every portal already loads.
     var base = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL) || ''
-    return base.replace(/\/$/, '') + '/functions/v1/ai-assistant'
+    return base.replace(/\/$/, '') + '/functions/v1/super-action'
   }
 
   async function callFn (payload) {
