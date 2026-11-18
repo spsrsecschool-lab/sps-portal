@@ -9560,7 +9560,8 @@ async function caSetAtt(td,eid,dateStr,val){
   const{error}=await sb.from('student_attendance').upsert({enrollment_id:eid,date:dateStr,status:attStatus},{onConflict:'enrollment_id,date'})
   if(error){toast('Failed: '+error.message,'error');return}
   if(val==='HD'){
-    const{error:e2}=await sb.from('student_half_days').upsert({enrollment_id:eid,date:dateStr,session_id:SESS?.session_id},{onConflict:'enrollment_id,date'})
+    await sb.from('student_half_days').delete().eq('enrollment_id',eid).eq('date',dateStr)
+    const{error:e2}=await sb.from('student_half_days').insert({enrollment_id:eid,date:dateStr,session_id:SESS?.session_id})
     if(e2){toast('Half-day record failed: '+e2.message,'error');return}
   }else{
     await sb.from('student_half_days').delete().eq('enrollment_id',eid).eq('date',dateStr)
