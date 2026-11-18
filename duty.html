@@ -479,7 +479,7 @@ function renderSlotView(idx,dir){
     const sch=d.schedMap[t.teacher_id]
     const ss=(sch?.shift_start||d.defShift).slice(0,5)
     const se=(sch?.shift_end||d.defShiftEnd).slice(0,5)
-    return slotStart>=ss&&slotStart<se
+    return slotStart>=ss&&slotStart<=se
   })
   if(free.length){
     h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">'
@@ -838,7 +838,7 @@ async function loadFreePeriods(){
       const sch=_schedMap[t.teacher_id]
       const ss=(sch?.shift_start||_defShift).slice(0,5)
       const se=(sch?.shift_end||_defShiftEnd).slice(0,5)
-      return st>=ss&&st<se
+      return st>=ss&&st<=se
     }).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||''))
 
     h+='<div class="card" style="margin-bottom:12px;'+(isNow?'border-color:var(--indigo);box-shadow:0 0 0 2px var(--indigo-100)':'')+'">'
