@@ -2177,6 +2177,7 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="page-head"><div><h2>School Timetable</h2><p>Rosters, class &amp; teacher timetables, and substitution management</p></div></div>
       <div class="tab-row">
         <button class="tab-btn active" onclick="switchTab('ttTab','roster',this)">Roster Settings</button>
+        <button class="tab-btn" onclick="switchTab('ttTab','builder',this);loadTTBuilder()">Builder</button>
         <button class="tab-btn" onclick="switchTab('ttTab','student',this)">Student Timetable</button>
         <button class="tab-btn" onclick="switchTab('ttTab','teacher',this)">Teacher Timetable</button>
         <button class="tab-btn" onclick="switchTab('ttTab','sub',this)">Substitution</button>
@@ -2209,6 +2210,41 @@ tbody tr:hover td{background:var(--lav-50)}
             </div>
             <div id="rosterTimings" style="margin-top:14px"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- TIMETABLE BUILDER -->
+      <div id="ttTab-builder" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+          <div style="display:flex;gap:2px;background:var(--lav-50);border-radius:8px;padding:3px" id="tbDayTabs">
+            <button class="btn btn-sm btn-dark" onclick="tbSelectDay('Mon',this)" style="border-radius:6px;min-width:40px">Mon</button>
+            <button class="btn btn-sm btn-ghost" onclick="tbSelectDay('Tue',this)" style="border-radius:6px;min-width:40px">Tue</button>
+            <button class="btn btn-sm btn-ghost" onclick="tbSelectDay('Wed',this)" style="border-radius:6px;min-width:40px">Wed</button>
+            <button class="btn btn-sm btn-ghost" onclick="tbSelectDay('Thu',this)" style="border-radius:6px;min-width:40px">Thu</button>
+            <button class="btn btn-sm btn-ghost" onclick="tbSelectDay('Fri',this)" style="border-radius:6px;min-width:40px">Fri</button>
+            <button class="btn btn-sm btn-ghost" onclick="tbSelectDay('Sat',this)" style="border-radius:6px;min-width:40px">Sat</button>
+          </div>
+          <select id="tbClassFilter" onchange="renderBuilderGrid()" style="font-family:var(--font);font-size:12px;padding:6px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--white)"><option value="all">All Classes</option></select>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="tbCopyDayPrompt()">Copy from&hellip;</button>
+            <button class="btn btn-ghost btn-sm" onclick="_tbLoaded=false;loadTTBuilder()">Refresh</button>
+          </div>
+        </div>
+        <div id="tbGridWrap"><div class="loading-row"><div class="spinner"></div></div></div>
+        <div id="tbEditor" style="display:none;position:fixed;z-index:9999;background:var(--white);border:2px solid var(--indigo);border-radius:12px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,.2);width:280px;max-height:80vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-weight:700;font-size:13px" id="tbEdLabel"></div>
+            <span onclick="tbCloseEditor()" style="cursor:pointer;font-size:20px;color:var(--ink-faint);line-height:1">&times;</span>
+          </div>
+          <div style="margin-bottom:10px"><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;font-weight:600"><input type="checkbox" id="tbEdAdj" onchange="tbAdjToggled()" style="accent-color:var(--indigo)"> Adjustment</label></div>
+          <div id="tbEdNormal">
+            <div class="fg" style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--ink-soft)">Subject</label><select id="tbEdSubject" onchange="tbSubjectChanged()" style="width:100%;font-family:var(--font);font-size:12.5px;padding:7px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm)"></select></div>
+            <div class="fg" style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--ink-soft)">Teacher</label><select id="tbEdTeacher" onchange="tbTeacherChanged()" style="width:100%;font-family:var(--font);font-size:12.5px;padding:7px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm)"></select></div>
+          </div>
+          <div id="tbEdAdjWrap" style="display:none"><div class="fg" style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--ink-soft)">Teacher (optional)</label><select id="tbEdAdjTeacher" onchange="tbTeacherChanged()" style="width:100%;font-family:var(--font);font-size:12.5px;padding:7px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm)"></select></div></div>
+          <div id="tbEdCombineWrap" style="display:none;border-top:1px solid var(--line);padding-top:10px;margin-bottom:10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:6px">Also assign to</div><div id="tbEdCombineList"></div></div>
+          <div id="tbEdConflict" style="display:none;background:#FEE2E2;border:1px solid #EF4444;border-radius:8px;padding:8px 10px;font-size:11px;color:#DC2626;margin-bottom:10px"></div>
+          <div style="display:flex;gap:8px"><button class="btn btn-dark btn-sm" onclick="tbSaveCell()">Save</button><button class="btn btn-danger btn-sm" onclick="tbClearCell()">Clear</button></div>
         </div>
       </div>
 
@@ -11976,6 +12012,294 @@ async function setTeacherLogin(teacherId, oldUsername){
     toast('Error: '+err.message,'error')
     if(btn){btn.disabled=false;btn.textContent=oldUsername?'Update Login':'Create Login'}
   }
+}
+
+// ═══════════ TIMETABLE BUILDER ═══════════
+let _tbDay='Mon',_tbSlots=[],_tbCols=[],_tbEntries=[],_tbAdjs=[],_tbMappings=[],_tbTimingMap={},_tbRoster=null,_tbLoaded=false,_tbEdCell=null
+
+async function loadTTBuilder(){
+  const w=$('tbGridWrap');if(!w)return;ldg(w)
+  tbCloseEditor()
+  const{roster,timingMap}=await getActiveTimingMap()
+  if(!roster){emp(w,'No active roster. Create one in Roster Settings first.');return}
+  _tbRoster=roster;_tbTimingMap=timingMap
+  const[{data:sl},{data:sc},{data:en},{data:ad},{data:mp}]=await Promise.all([
+    sb.from('time_slots').select('*').eq('session_id',SESS.session_id).order('sort_order'),
+    sb.from('class_sections').select('section_id,name,class_id,classes!inner(name,class_id,sort_order,is_active)').eq('session_id',SESS.session_id).eq('is_active',true),
+    sb.from('timetable_entries').select('entry_id,slot_id,teacher_id,class_id,section_id,subject_id,days,stream_id').eq('session_id',SESS.session_id),
+    sb.from('adjustments').select('adjustment_id,slot_id,teacher_id,class_id,section_id,days,note').eq('session_id',SESS?.session_id||''),
+    sb.from('teacher_subject_class_map').select('map_id,teacher_id,class_id,section_id,subject_id').eq('session_id',SESS?.session_id||'')
+  ])
+  _tbSlots=sl||[];_tbEntries=en||[];_tbAdjs=ad||[];_tbMappings=mp||[]
+  _tbCols=(sc||[]).filter(s=>s.classes?.is_active).sort((a,b)=>(a.classes?.sort_order||0)-(b.classes?.sort_order||0)||(a.name||'').localeCompare(b.name||''))
+  _tbLoaded=true
+  const f=$('tbClassFilter')
+  if(f){
+    const seen=new Set(),cls=[]
+    _tbCols.forEach(c=>{if(!seen.has(c.class_id)){seen.add(c.class_id);cls.push({id:c.class_id,name:c.classes?.name||'?',ord:c.classes?.sort_order||0})}})
+    cls.sort((a,b)=>a.ord-b.ord)
+    f.innerHTML='<option value="all">All Classes</option>'+cls.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('')
+  }
+  renderBuilderGrid()
+}
+
+function tbSelectDay(day,btn){
+  _tbDay=day;tbCloseEditor()
+  document.querySelectorAll('#tbDayTabs button').forEach(b=>{b.className='btn btn-sm btn-ghost'})
+  if(btn)btn.className='btn btn-sm btn-dark'
+  renderBuilderGrid()
+}
+
+function renderBuilderGrid(){
+  const w=$('tbGridWrap');if(!w)return
+  if(!_tbSlots.length||!_tbCols.length){emp(w,'No periods or sections found. Set up periods in Roster Settings and ensure classes have sections.');return}
+  const fv=$('tbClassFilter')?.value||'all'
+  const cols=fv==='all'?_tbCols:_tbCols.filter(c=>c.class_id===fv)
+  if(!cols.length){emp(w,'No sections for selected class.');return}
+  const day=_tbDay
+  const eLk={};_tbEntries.forEach(e=>{if((e.days||[]).includes(day))eLk[e.slot_id+'|'+e.section_id]=e})
+  const aLk={};_tbAdjs.forEach(a=>{if((a.days||[]).includes(day))aLk[a.slot_id+'|'+a.section_id]=a})
+  const tN={};ALL_TEACHERS.forEach(t=>{tN[t.teacher_id]=t.full_name})
+  const sN={};ALL_SUBJECTS.forEach(s=>{sN[s.subject_id]=s.name})
+  let h='<table style="border-collapse:collapse;width:max-content;font-size:12px">'
+  h+='<thead><tr><th style="position:sticky;left:0;z-index:11;background:var(--lav-100);padding:8px 10px;border:1px solid var(--line);font-size:11px;min-width:80px">Period</th>'
+  cols.forEach(c=>{h+='<th style="padding:6px;border:1px solid var(--line);background:var(--lav-100);font-size:11px;min-width:95px;text-align:center">'+esc(c.classes?.name||'')+'<br>'+esc(c.name)+'</th>'})
+  h+='</tr></thead><tbody>'
+  _tbSlots.forEach(slot=>{
+    const tm=_tbTimingMap[slot.slot_id]
+    const st=(tm?.start_time||slot.start_time||'').slice(0,5)
+    const et=(tm?.end_time||slot.end_time||'').slice(0,5)
+    if(slot.is_break){
+      h+='<tr><td colspan="'+(cols.length+1)+'" style="text-align:center;background:var(--lav-100);font-weight:700;font-size:11px;padding:7px;border:1px solid var(--line);color:var(--ink-soft)">'+esc(slot.name)+(st?' ('+st+' – '+et+')':'')+'</td></tr>'
+      return
+    }
+    h+='<tr><td style="position:sticky;left:0;z-index:1;background:var(--white);padding:7px 8px;border:1px solid var(--line);font-weight:700;white-space:nowrap;vertical-align:top"><div>'+esc(slot.name)+'</div><div style="font-weight:400;font-size:10px;color:var(--ink-soft)">'+st+' – '+et+'</div></td>'
+    cols.forEach(c=>{
+      const k=slot.slot_id+'|'+c.section_id,e=eLk[k],a=aLk[k]
+      const bs='cursor:pointer;text-align:center;padding:5px 4px;border:1px solid var(--line);vertical-align:top;min-width:95px;'
+      if(e){
+        const comb=cols.filter(c2=>c2.class_id===c.class_id&&c2.section_id!==c.section_id&&eLk[slot.slot_id+'|'+c2.section_id]?.teacher_id===e.teacher_id&&eLk[slot.slot_id+'|'+c2.section_id]?.subject_id===e.subject_id)
+        const cb=comb.length?'<div style="font-size:8px;color:var(--indigo);font-weight:700;margin-top:1px">COMBINED</div>':''
+        h+='<td data-slot="'+slot.slot_id+'" data-sec="'+c.section_id+'" data-cls="'+c.class_id+'" onclick="tbCellClick(this)" style="'+bs+'"><div style="font-weight:700;font-size:11.5px">'+esc(sN[e.subject_id]||'—')+'</div><div style="font-size:10px;color:var(--ink-soft)">'+esc(tN[e.teacher_id]||'—')+'</div>'+cb+'</td>'
+      }else if(a){
+        h+='<td data-slot="'+slot.slot_id+'" data-sec="'+c.section_id+'" data-cls="'+c.class_id+'" onclick="tbCellClick(this)" style="'+bs+'background:var(--warn-soft)"><div style="font-weight:700;font-size:10px;color:var(--warn);letter-spacing:.03em">ADJUSTMENT</div>'+(a.teacher_id?'<div style="font-size:10px;color:var(--ink-soft)">'+esc(tN[a.teacher_id]||'—')+'</div>':'')+'</td>'
+      }else{
+        h+='<td data-slot="'+slot.slot_id+'" data-sec="'+c.section_id+'" data-cls="'+c.class_id+'" onclick="tbCellClick(this)" style="'+bs+'background:var(--lav-50)"><div style="font-size:16px;color:var(--ink-faint);line-height:1.4">+</div></td>'
+      }
+    })
+    h+='</tr>'
+  })
+  h+='</tbody></table>'
+  w.innerHTML='<div class="card" style="padding:0;overflow:visible"><div style="overflow-x:auto;max-height:calc(100vh - 240px);overflow-y:auto">'+h+'</div></div>'
+}
+
+function tbCellClick(td){
+  const slotId=td.dataset.slot,secId=td.dataset.sec,clsId=td.dataset.cls
+  if(!slotId||!secId)return
+  tbCloseEditor()
+  _tbEdCell={slotId,secId,clsId,td}
+  td.style.outline='2px solid var(--indigo)';td.style.outlineOffset='-2px'
+  const ed=$('tbEditor');if(!ed)return
+  const rect=td.getBoundingClientRect()
+  ed.style.display='block'
+  let left=rect.right+8,top=rect.top
+  if(left+290>window.innerWidth)left=rect.left-290-8
+  if(left<8)left=8
+  if(top+400>window.innerHeight)top=Math.max(8,window.innerHeight-400)
+  ed.style.left=left+'px';ed.style.top=top+'px'
+  const slotName=(_tbSlots.find(s=>s.slot_id===slotId)||{}).name||'?'
+  const clsName=(ALL_CLASSES.find(c=>c.class_id===clsId)||{}).name||'?'
+  const secName=(_tbCols.find(c=>c.section_id===secId)||{}).name||'?'
+  $('tbEdLabel').textContent=clsName+'-'+secName+' · '+slotName+' ('+_tbDay+')'
+  const day=_tbDay
+  const curEntry=_tbEntries.find(e=>e.slot_id===slotId&&e.section_id===secId&&(e.days||[]).includes(day))
+  const curAdj=_tbAdjs.find(a=>a.slot_id===slotId&&a.section_id===secId&&(a.days||[]).includes(day))
+  const subjectIds=[...new Set(_tbMappings.filter(m=>m.class_id===clsId&&(!m.section_id||m.section_id===secId)).map(m=>m.subject_id))]
+  const subSel=$('tbEdSubject')
+  subSel.innerHTML='<option value="">— Select subject —</option>'+subjectIds.map(sid=>{const s=ALL_SUBJECTS.find(x=>x.subject_id===sid);return s?'<option value="'+sid+'">'+esc(s.name)+'</option>':''}).join('')
+  const adjTSel=$('tbEdAdjTeacher')
+  adjTSel.innerHTML='<option value="">— No teacher —</option>'+ALL_TEACHERS.filter(t=>t.is_active).map(t=>'<option value="'+t.teacher_id+'">'+esc(t.full_name)+'</option>').join('')
+  const adjCb=$('tbEdAdj')
+  if(curAdj&&!curEntry){
+    adjCb.checked=true;tbAdjToggled()
+    adjTSel.value=curAdj.teacher_id||''
+  }else{
+    adjCb.checked=false;tbAdjToggled()
+    if(curEntry){
+      subSel.value=curEntry.subject_id||''
+      tbSubjectChanged()
+      setTimeout(()=>{$('tbEdTeacher').value=curEntry.teacher_id||'';tbTeacherChanged()},0)
+    }else{
+      $('tbEdTeacher').innerHTML='<option value="">— Select subject first —</option>'
+    }
+  }
+  const otherSecs=_tbCols.filter(c=>c.class_id===clsId&&c.section_id!==secId)
+  const combWrap=$('tbEdCombineWrap')
+  if(otherSecs.length){
+    combWrap.style.display='block'
+    $('tbEdCombineList').innerHTML=otherSecs.map(c=>{
+      const oEntry=curEntry?_tbEntries.find(e=>e.slot_id===slotId&&e.section_id===c.section_id&&(e.days||[]).includes(day)&&e.subject_id===curEntry.subject_id&&e.teacher_id===curEntry.teacher_id):null
+      return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:4px"><input type="checkbox" class="tbCombChk" value="'+c.section_id+'" '+(oEntry?'checked':'')+' style="accent-color:var(--indigo)"> '+esc(c.name)+'</label>'
+    }).join('')
+  }else{combWrap.style.display='none'}
+  $('tbEdConflict').style.display='none'
+}
+
+function tbAdjToggled(){
+  const isAdj=$('tbEdAdj')?.checked
+  $('tbEdNormal').style.display=isAdj?'none':'block'
+  $('tbEdAdjWrap').style.display=isAdj?'block':'none'
+}
+
+function tbSubjectChanged(){
+  const subId=$('tbEdSubject')?.value,tSel=$('tbEdTeacher')
+  if(!subId){tSel.innerHTML='<option value="">— Select subject first —</option>';$('tbEdConflict').style.display='none';return}
+  if(!_tbEdCell)return
+  const{clsId,secId}=_tbEdCell
+  const teacherIds=[...new Set(_tbMappings.filter(m=>m.subject_id===subId&&m.class_id===clsId&&(!m.section_id||m.section_id===secId)).map(m=>m.teacher_id))]
+  tSel.innerHTML='<option value="">— Select teacher —</option>'+teacherIds.map(tid=>{const t=ALL_TEACHERS.find(x=>x.teacher_id===tid);return t?'<option value="'+tid+'">'+esc(t.full_name)+'</option>':''}).join('')
+  if(teacherIds.length===1){tSel.value=teacherIds[0]}
+  tbTeacherChanged()
+}
+
+function tbTeacherChanged(){
+  const isAdj=$('tbEdAdj')?.checked
+  const tid=isAdj?$('tbEdAdjTeacher')?.value:$('tbEdTeacher')?.value
+  const cfEl=$('tbEdConflict')
+  if(!tid||!_tbEdCell){cfEl.style.display='none';return}
+  const{slotId,secId}=_tbEdCell,day=_tbDay
+  const conflicts=[]
+  _tbEntries.forEach(e=>{
+    if(e.teacher_id===tid&&e.slot_id===slotId&&e.section_id!==secId&&(e.days||[]).includes(day)){
+      const cls=ALL_CLASSES.find(c=>c.class_id===e.class_id)
+      const sec=_tbCols.find(c=>c.section_id===e.section_id)
+      const sub=ALL_SUBJECTS.find(s=>s.subject_id===e.subject_id)
+      conflicts.push((cls?.name||'?')+'-'+(sec?.name||'?')+' ('+( sub?.name||'?')+')')
+    }
+  })
+  _tbAdjs.forEach(a=>{
+    if(a.teacher_id===tid&&a.slot_id===slotId&&a.section_id!==secId&&(a.days||[]).includes(day)){
+      const cls=ALL_CLASSES.find(c=>c.class_id===a.class_id)
+      const sec=_tbCols.find(c=>c.section_id===a.section_id)
+      conflicts.push((cls?.name||'?')+'-'+(sec?.name||'?')+' (Adj)')
+    }
+  })
+  if(conflicts.length){
+    cfEl.style.display='block'
+    const tn=ALL_TEACHERS.find(t=>t.teacher_id===tid)?.full_name||'Teacher'
+    cfEl.innerHTML='<b>Conflict:</b> '+esc(tn)+' already in '+conflicts.map(c=>'<b>'+esc(c)+'</b>').join(', ')
+  }else{cfEl.style.display='none'}
+}
+
+function tbCloseEditor(){
+  const ed=$('tbEditor');if(ed)ed.style.display='none'
+  if(_tbEdCell?.td){_tbEdCell.td.style.outline='';_tbEdCell.td.style.outlineOffset=''}
+  _tbEdCell=null
+}
+
+async function tbSaveCell(){
+  if(!_tbEdCell)return
+  const{slotId,secId,clsId}=_tbEdCell,day=_tbDay
+  const isAdj=$('tbEdAdj')?.checked
+  if(!isAdj){
+    const subId=$('tbEdSubject')?.value,tid=$('tbEdTeacher')?.value
+    if(!subId||!tid){toast('Select subject and teacher','error');return}
+  }
+  const sections=[secId]
+  document.querySelectorAll('.tbCombChk:checked').forEach(cb=>{if(!sections.includes(cb.value))sections.push(cb.value)})
+  for(const sid of sections){
+    await tbRemoveDay(slotId,sid,day)
+    if(isAdj){
+      const tid=$('tbEdAdjTeacher')?.value||null
+      await tbAddAdj(slotId,sid,clsId,day,tid)
+    }else{
+      await tbAddEntry(slotId,sid,clsId,day,$('tbEdSubject').value,$('tbEdTeacher').value)
+    }
+  }
+  tbCloseEditor();renderBuilderGrid();toast('Saved','success')
+}
+
+async function tbClearCell(){
+  if(!_tbEdCell)return
+  const{slotId,secId}=_tbEdCell,day=_tbDay
+  await tbRemoveDay(slotId,secId,day)
+  tbCloseEditor();renderBuilderGrid();toast('Cleared','success')
+}
+
+async function tbRemoveDay(slotId,secId,day){
+  const ee=_tbEntries.filter(e=>e.slot_id===slotId&&e.section_id===secId&&(e.days||[]).includes(day))
+  for(const e of ee){
+    const nd=(e.days||[]).filter(d=>d!==day)
+    if(!nd.length){await sb.from('timetable_entries').delete().eq('entry_id',e.entry_id);_tbEntries=_tbEntries.filter(x=>x.entry_id!==e.entry_id)}
+    else{await sb.from('timetable_entries').update({days:nd}).eq('entry_id',e.entry_id);e.days=nd}
+  }
+  const aa=_tbAdjs.filter(a=>a.slot_id===slotId&&a.section_id===secId&&(a.days||[]).includes(day))
+  for(const a of aa){
+    const nd=(a.days||[]).filter(d=>d!==day)
+    if(!nd.length){await sb.from('adjustments').delete().eq('adjustment_id',a.adjustment_id);_tbAdjs=_tbAdjs.filter(x=>x.adjustment_id!==a.adjustment_id)}
+    else{await sb.from('adjustments').update({days:nd}).eq('adjustment_id',a.adjustment_id);a.days=nd}
+  }
+}
+
+async function tbAddEntry(slotId,secId,clsId,day,subId,tid){
+  const m=_tbEntries.find(e=>e.slot_id===slotId&&e.section_id===secId&&e.subject_id===subId&&e.teacher_id===tid)
+  if(m){
+    if(!(m.days||[]).includes(day)){const nd=[...(m.days||[]),day];await sb.from('timetable_entries').update({days:nd}).eq('entry_id',m.entry_id);m.days=nd}
+  }else{
+    const row={session_id:SESS.session_id,slot_id:slotId,section_id:secId,class_id:clsId,subject_id:subId,teacher_id:tid,days:[day],roster_id:_tbRoster?.roster_id||null}
+    const{data,error}=await sb.from('timetable_entries').insert(row).select('entry_id').single()
+    if(error){toast('Failed: '+error.message,'error');return}
+    row.entry_id=data.entry_id;_tbEntries.push(row)
+  }
+}
+
+async function tbAddAdj(slotId,secId,clsId,day,tid){
+  const m=_tbAdjs.find(a=>a.slot_id===slotId&&a.section_id===secId&&((tid&&a.teacher_id===tid)||(!tid&&!a.teacher_id)))
+  if(m){
+    if(!(m.days||[]).includes(day)){const nd=[...(m.days||[]),day];await sb.from('adjustments').update({days:nd}).eq('adjustment_id',m.adjustment_id);m.days=nd}
+  }else{
+    const row={session_id:SESS?.session_id||null,slot_id:slotId,section_id:secId,class_id:clsId,teacher_id:tid||null,days:[day],roster_id:_tbRoster?.roster_id||null,created_by:SPS.admin?.admin_id}
+    const{data,error}=await sb.from('adjustments').insert(row).select('adjustment_id').single()
+    if(error){toast('Failed: '+error.message,'error');return}
+    row.adjustment_id=data.adjustment_id;_tbAdjs.push(row)
+  }
+}
+
+function tbCopyDayPrompt(){
+  if(!_tbLoaded){toast('Load the builder first','error');return}
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat'].filter(d=>d!==_tbDay)
+  openModal('Copy Day',
+    '<p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px">Copy all assignments from another day to <b>'+_tbDay+'</b>. Existing assignments on '+_tbDay+' will be replaced.</p>'+
+    '<div class="fg"><label>Copy from</label><select id="tbCopyFrom" style="width:100%;font-family:var(--font);font-size:13px;padding:8px 11px;border:1.5px solid var(--line);border-radius:var(--radius-sm)">'+days.map(d=>'<option value="'+d+'">'+d+'</option>').join('')+'</select></div>',
+    '<button class="btn btn-dark" onclick="tbDoCopyDay()">Copy</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+}
+
+async function tbDoCopyDay(){
+  const from=$('tbCopyFrom')?.value
+  if(!from){toast('Select a day','error');return}
+  const to=_tbDay;closeModal()
+  const w=$('tbGridWrap');if(w)ldg(w)
+  const toClear=_tbEntries.filter(e=>(e.days||[]).includes(to))
+  for(const e of toClear){
+    const nd=(e.days||[]).filter(d=>d!==to)
+    if(!nd.length){await sb.from('timetable_entries').delete().eq('entry_id',e.entry_id);_tbEntries=_tbEntries.filter(x=>x.entry_id!==e.entry_id)}
+    else{await sb.from('timetable_entries').update({days:nd}).eq('entry_id',e.entry_id);e.days=nd}
+  }
+  const adjClear=_tbAdjs.filter(a=>(a.days||[]).includes(to))
+  for(const a of adjClear){
+    const nd=(a.days||[]).filter(d=>d!==to)
+    if(!nd.length){await sb.from('adjustments').delete().eq('adjustment_id',a.adjustment_id);_tbAdjs=_tbAdjs.filter(x=>x.adjustment_id!==a.adjustment_id)}
+    else{await sb.from('adjustments').update({days:nd}).eq('adjustment_id',a.adjustment_id);a.days=nd}
+  }
+  const srcE=_tbEntries.filter(e=>(e.days||[]).includes(from))
+  for(const e of srcE){
+    if(!(e.days||[]).includes(to)){const nd=[...(e.days||[]),to];await sb.from('timetable_entries').update({days:nd}).eq('entry_id',e.entry_id);e.days=nd}
+  }
+  const srcA=_tbAdjs.filter(a=>(a.days||[]).includes(from))
+  for(const a of srcA){
+    if(!(a.days||[]).includes(to)){const nd=[...(a.days||[]),to];await sb.from('adjustments').update({days:nd}).eq('adjustment_id',a.adjustment_id);a.days=nd}
+  }
+  renderBuilderGrid();toast('Copied '+from+' → '+to+' ✓','success')
 }
 
 // ═══════════ TIMETABLE PAGE INIT ═══════════
