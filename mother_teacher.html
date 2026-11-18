@@ -440,6 +440,10 @@ tbody tr:nth-child(n+4){animation-delay:.08s}
     </div>
     <div class="sb-item" onclick="goTo('handbook',this)"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Code of Conduct</div>
     <div class="sb-item" onclick="goTo('notices',this)"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notices</div>
+    <div class="sb-item" id="sb-duty" style="display:none" onclick="window.open('duty.html','_blank')">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Duty Panel
+    </div>
     <div class="sb-item" onclick="goTo('profile',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>
       My Profile
@@ -1333,6 +1337,7 @@ SPS.ready().then(async()=>{
   CLASS_STUDENTS=students||[]
 
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
+  if(TEACHER.is_duty_teacher){const dBtn=$('sb-duty');if(dBtn)dBtn.style.display=''}
   await renderDashboard()
   if(typeof initNotifications==='function')initNotifications()
   if(typeof subscribeMessages==='function')subscribeMessages(TEACHER.teacher_id)

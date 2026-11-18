@@ -869,6 +869,10 @@ tbody tr:nth-child(n+6){animation-delay:.12s}
       <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Profile
     </div>
+    <div class="sb-item" id="sb-duty" style="display:none" onclick="window.open('duty.html','_blank')">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Duty Panel
+    </div>
   </div>
 
   <div class="sb-foot">
@@ -1912,6 +1916,7 @@ SPS.ready().then(async()=>{
   subscribeTimetable(TEACHER.teacher_id)
   subscribeSubstitutions(TEACHER.teacher_id)
   if(typeof initPushNotifications==='function')initPushNotifications(sb,'teacher',TEACHER.teacher_id)
+  if(TEACHER.is_duty_teacher){const dBtn=$('sb-duty');if(dBtn)dBtn.style.display=''}
 
   // Populate subject dropdowns
   const subjects=[...new Map(MY_MAPPINGS.map(m=>[m.subject_id,m])).values()]
