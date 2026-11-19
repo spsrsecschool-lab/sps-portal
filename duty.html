@@ -797,8 +797,16 @@ async function loadSubSummary(){
   const unmatchedIds=entryIds.filter(id=>!entryMap[id])
   let adjMap={}
   if(unmatchedIds.length){
-    const{data:adjData}=await sb.from('adjustments').select('adjustment_id,slot_id,teacher_id,class_id,section_id,classes:class_id(name),class_sections:section_id(name)').in('adjustment_id',unmatchedIds).then(r=>r,()=>({data:[]}))
-    ;(adjData||[]).forEach(a=>{const v={classes:a.classes||{name:'?'},class_sections:a.class_sections||{name:'?'},subjects:{name:'Adjustment'}};adjMap[a.adjustment_id]=v})
+    const{data:adjData}=await sb.from('adjustments').select('adjustment_id,class_id,section_id').in('adjustment_id',unmatchedIds).then(r=>r,()=>({data:[]}))
+    if(adjData?.length){
+      const aClsIds=[...new Set(adjData.map(a=>a.class_id).filter(Boolean))],aSecIds=[...new Set(adjData.map(a=>a.section_id).filter(Boolean))]
+      const[clR,seR]=await Promise.all([
+        aClsIds.length?sb.from('classes').select('class_id,name').in('class_id',aClsIds):Promise.resolve({data:[]}),
+        aSecIds.length?sb.from('class_sections').select('section_id,name').in('section_id',aSecIds):Promise.resolve({data:[]})
+      ])
+      const clM={},seM={};(clR.data||[]).forEach(c=>clM[c.class_id]=c.name);(seR.data||[]).forEach(s=>seM[s.section_id]=s.name)
+      adjData.forEach(a=>{adjMap[a.adjustment_id]={classes:{name:clM[a.class_id]||'?'},class_sections:{name:seM[a.section_id]||'?'},subjects:{name:'Adjustment'}}})
+    }
   }
   const slotMap={};(slots||[]).forEach(s=>slotMap[s.slot_id]=s)
   const grouped={};subs.forEach(r=>{const k=r.absent_teacher_id;if(!grouped[k])grouped[k]=[];grouped[k].push(r)})
