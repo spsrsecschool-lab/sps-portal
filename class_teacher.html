@@ -2146,8 +2146,8 @@ async function resolveStudentFlag(studentId){
   const{data:pending}=await sb.from('profile_flag_log').select('id').eq('student_id',studentId).eq('status','pending').order('flagged_at',{ascending:false}).limit(1)
   if(pending?.[0])await sb.from('profile_flag_log').update({resolved_by:TEACHER.teacher_id,resolved_by_type:'class_teacher',resolved_at:new Date().toISOString(),status:'resolved',changes_made:window._profileDiff||null}).eq('id',pending[0].id)
   const enr=CLASS_STUDENTS.find(x=>x.students?.student_id===studentId)
-  if(enr)enr.students.flagged=false
-  toast('Flag resolved','success');closeModal()
+  if(enr){enr.students.flagged=false;enr.students.flag_notes=null}
+  toast('Flag resolved','success');closeModal();filterClassList()
 }
 // Siblings (same family_code + same father) shown as chips (display-only, since a
 // sibling may be in another class this teacher doesn't manage).

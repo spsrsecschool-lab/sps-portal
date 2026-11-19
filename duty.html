@@ -313,6 +313,7 @@ async function init(){
 
   populateDropdowns()
   loadLiveDashboard()
+  startRealtime()
 }
 
 function populateDropdowns(){
@@ -856,6 +857,24 @@ async function loadFreePeriods(){
     h+='</div>'
   })
   el.innerHTML=h
+}
+
+// ═══════════ REALTIME ═══════════
+let _rtDebounce=null
+function _rtBump(){
+  clearTimeout(_rtDebounce)
+  _rtDebounce=setTimeout(()=>{
+    const dash=$('page-dashboard'),fp=$('page-freeperiods'),sub=$('page-substitution')
+    if(dash?.classList.contains('active'))loadLiveDashboard()
+    else if(fp?.classList.contains('active'))loadFreePeriods()
+    else if(sub?.classList.contains('active'))onSubDateChange()
+  },600)
+}
+function startRealtime(){
+  sb.channel('duty_rt')
+    .on('postgres_changes',{event:'*',schema:'public',table:'substitutions'},_rtBump)
+    .on('postgres_changes',{event:'*',schema:'public',table:'teacher_attendance'},_rtBump)
+    .subscribe()
 }
 
 // ═══════════ BOOTSTRAP ═══════════
