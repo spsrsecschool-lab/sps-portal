@@ -819,7 +819,7 @@ function shareSubsWhatsApp(){
     })
     Object.values(bySlot).forEach(g=>{
       const sl=g.sl,subNames=Object.keys(g.subs)
-      txt+=(sl.name||'—')+' ('+(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5)+'): '+g.classes.join(', ')+(subNames.length?' → '+subNames.join(', '):'')+'\n'
+      txt+=(sl.name||'—')+': '+g.classes.join(', ')+(subNames.length?' → '+subNames.join(', '):'')+'\n'
     })
   })
   txt+='\n_— Duty Panel, SPS Portal_'
