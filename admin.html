@@ -4177,7 +4177,7 @@ function filterStaff(ctMap){
   const rows=(_staffRaw||[]).filter(t=>(!s||t.full_name?.toLowerCase().includes(s)||t.employee_code?.toLowerCase().includes(s))&&(!f||(f==='active'?t.is_active:!t.is_active)))
   const body=$('staffBody')
   if(!rows.length){body.innerHTML='<tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No teachers found.</p></div></td></tr>';return}
-  body.innerHTML=rows.map(t=>'<tr><td class="mono">'+esc(t.employee_code||'—')+'</td><td><span class="av-tbl">'+ini(t.full_name)+'</span>'+esc(t.full_name)+(window._motherSet?.has(t.teacher_id)?' <span class="pill pill-success" style="margin-left:6px;font-size:9px">MOTHER</span>':'')+'</td><td>'+esc(t.designation||'—')+'</td><td class="mono">'+esc(t.phone||'—')+'</td><td>'+esc((ctMap||{})[t.teacher_id]||'—')+'</td><td>'+(t.username?'<span class="pill pill-success">'+esc(t.username)+'</span>':'<span class="pill pill-warn">No Login</span>')+'</td><td><span class="pill '+(t.is_active?'pill-success':'pill-neutral')+'">'+(t.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px"><button class="btn btn-indigo btn-xs" data-tid="'+t.teacher_id+'" data-name="'+esc(t.full_name)+'" data-uname="'+esc(t.username||'')+'" onclick="openSetLoginModal(this.dataset.tid,this.dataset.name,this.dataset.uname)">'+( t.username?'Change Login':'Set Login')+'</button><button class="btn btn-ghost btn-xs" onclick="editTeacher(\''+t.teacher_id+'\')">Edit</button><button class="btn btn-danger btn-xs" onclick="toggleTeacher(\''+t.teacher_id+'\','+t.is_active+')">'+(t.is_active?'Delete':'Activate')+'</button></td></tr>').join('')
+  body.innerHTML=rows.map(t=>'<tr><td class="mono">'+esc(t.employee_code||'—')+'</td><td><span class="av-tbl">'+ini(t.full_name)+'</span>'+esc(t.full_name)+(window._motherSet?.has(t.teacher_id)?' <span class="pill pill-success" style="margin-left:6px;font-size:9px">MOTHER</span>':'')+'</td><td>'+esc(t.designation||'—')+'</td><td class="mono">'+esc(t.phone||'—')+'</td><td>'+esc((ctMap||{})[t.teacher_id]||'—')+'</td><td>'+(t.username?'<span class="pill pill-success">'+esc(t.username)+'</span>':'<span class="pill pill-warn">No Login</span>')+'</td><td><span class="pill '+(t.is_active?'pill-success':'pill-neutral')+'">'+(t.is_active?'Active':'Inactive')+'</span></td><td style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn btn-soft btn-xs" onclick="openTeacherDocsModal(\''+t.teacher_id+'\',\''+esc(t.full_name)+'\')">Docs</button><button class="btn btn-indigo btn-xs" data-tid="'+t.teacher_id+'" data-name="'+esc(t.full_name)+'" data-uname="'+esc(t.username||'')+'" onclick="openSetLoginModal(this.dataset.tid,this.dataset.name,this.dataset.uname)">'+( t.username?'Change Login':'Set Login')+'</button><button class="btn btn-ghost btn-xs" onclick="editTeacher(\''+t.teacher_id+'\')">Edit</button><button class="btn btn-danger btn-xs" onclick="toggleTeacher(\''+t.teacher_id+'\','+t.is_active+')">'+(t.is_active?'Delete':'Activate')+'</button></td></tr>').join('')
 }
 
 function toggleMotherFields(){
@@ -4298,6 +4298,48 @@ async function toggleTeacher(id,active){
         toast('Delete failed: '+(e.message||e),'error')
       }
     })
+}
+
+// ═══════════ TEACHER DOCUMENTS (admin) ═══════════
+const _teacherDocTypes=['Aadhar Card','PAN Card','ESIC Card','Bank Passbook','Qualification Certificate','Experience Certificate','Other']
+let _tdocTeacherId=null
+async function openTeacherDocsModal(teacherId,teacherName){
+  _tdocTeacherId=teacherId
+  openModal('Documents — '+teacherName,
+    '<div id="teacherDocsBody"><div class="loading-row"><div class="spinner"></div></div></div>'
+    +'<div style="height:1px;background:var(--lav-200);margin:16px 0"></div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.06em;margin-bottom:8px">Upload New Document</div>'
+    +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><select id="adminDocType" style="font-size:13px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);color:var(--ink)">'+_teacherDocTypes.map(t=>'<option>'+esc(t)+'</option>').join('')+'</select><label class="btn btn-primary btn-sm" style="display:inline-flex;cursor:pointer"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload<input type="file" accept="image/*,.pdf" style="display:none" onchange="adminUploadTeacherDoc(this)"></label></div>',
+    '<button class="btn btn-ghost" onclick="closeModal()">Close</button>')
+  loadTeacherDocsAdmin()
+}
+async function loadTeacherDocsAdmin(){
+  const el=$('teacherDocsBody');if(!el||!_tdocTeacherId)return
+  const{data:docs}=await sb.from('teacher_documents').select('*').eq('teacher_id',_tdocTeacherId).order('uploaded_at',{ascending:false})
+  if(!docs?.length){el.innerHTML='<div style="font-size:12.5px;color:var(--ink-faint);padding:8px 0">No documents uploaded yet.</div>';return}
+  el.innerHTML=docs.map(d=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><a href="'+esc(R2.url(d.file_url))+'" target="_blank" style="color:var(--indigo);font-size:13px;font-weight:600;text-decoration:none">'+esc(d.file_type||'Document')+'</a><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--ink-faint)">'+fmtDT(d.uploaded_at)+(d.uploaded_by_type==='teacher'?' (by teacher)':' (by admin)')+'</span><button class="btn btn-danger btn-xs" onclick="adminDeleteTeacherDoc(\''+d.id+'\',\''+esc(d.file_url)+'\')">✕</button></div></div>').join('')
+}
+async function adminUploadTeacherDoc(inp){
+  const file=inp.files?.[0];if(!file||!_tdocTeacherId)return
+  const type=$('adminDocType')?.value||'Document'
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
+  const ts=Date.now()
+  const path='teacher-docs/'+_tdocTeacherId+'/'+type.replace(/[^A-Za-z0-9]+/g,'_')+'_'+ts+'.'+ext
+  toast('Uploading…','info')
+  const{error:upErr}=await R2.upload(path,file,{upsert:true})
+  if(upErr){toast('Upload failed: '+upErr.message,'error');inp.value='';return}
+  const{data:{publicUrl}}=R2.getPublicUrl(path)
+  const{error}=await sb.from('teacher_documents').insert({teacher_id:_tdocTeacherId,file_url:publicUrl,file_type:type,uploaded_by_type:'admin',uploaded_by_id:SPS.admin?.admin_id||'admin',uploaded_at:new Date().toISOString()})
+  if(error){toast('Save failed: '+error.message,'error');inp.value='';return}
+  toast('Document uploaded','success');inp.value='';loadTeacherDocsAdmin()
+}
+async function adminDeleteTeacherDoc(docId,fileUrl){
+  if(!confirm('Delete this document?'))return
+  const r2Path=R2.extractPath(fileUrl)
+  if(r2Path)await R2.remove([r2Path])
+  const{error}=await sb.from('teacher_documents').delete().eq('id',docId)
+  if(error){toast('Delete failed: '+error.message,'error');return}
+  toast('Document deleted','success');loadTeacherDocsAdmin()
 }
 
 // ═══════════ STUDENTS ═══════════

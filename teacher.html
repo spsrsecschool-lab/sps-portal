@@ -3701,8 +3701,10 @@ async function loadProfile(){
     +(canEdit?renderEditForm(t):renderViewFields(t))
     +(canEdit?'<div style="margin-top:14px;display:flex;gap:10px"><button class="btn btn-primary" onclick="saveProfileEdit()">Save Changes</button><button class="btn btn-ghost" onclick="loadProfile()">Cancel</button></div>':'<div style="margin-top:16px"><button class="btn btn-soft btn-sm" onclick="requestProfileEdit()">Request Edit Access</button></div>')
     +'</div>'
-    +'<div class="stack"><div class="card"><h3>Class-Subject Assignments</h3><div style="display:flex;flex-wrap:wrap;gap:6px">'+( mapTags||'<span style="font-size:12.5px;color:var(--ink-faint)">No assignments yet.</span>')+'</div></div></div>'
+    +'<div class="stack"><div class="card"><h3>Class-Subject Assignments</h3><div style="display:flex;flex-wrap:wrap;gap:6px">'+( mapTags||'<span style="font-size:12.5px;color:var(--ink-faint)">No assignments yet.</span>')+'</div></div>'
+    +'<div class="card"><h3>My Documents</h3><div id="myDocsSection"><div class="loading-row"><div class="spinner"></div></div></div></div></div>'
     +'</div>'
+  loadMyDocuments()
 }
 
 function renderViewFields(t){
@@ -3750,6 +3752,46 @@ async function submitProfileEditRequest(){
   const{error}=await sb.from('access_requests').insert({request_type:'profile_edit',teacher_id:TEACHER.teacher_id,session_id:SESS?.session_id||'',note:note})
   if(error){toast('Failed: '+error.message,'error');return}
   toast('Request sent to admin ✓','success');closeModal()
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MY DOCUMENTS
+// ═══════════════════════════════════════════════════════════════
+const _teacherDocTypes=['Aadhar Card','PAN Card','ESIC Card','Bank Passbook','Qualification Certificate','Experience Certificate','Other']
+async function loadMyDocuments(){
+  const el=$('myDocsSection');if(!el)return
+  const{data:docs}=await sb.from('teacher_documents').select('*').eq('teacher_id',TEACHER.teacher_id).order('uploaded_at',{ascending:false})
+  let h='<div style="margin-bottom:12px"><select id="teacherDocType" style="font-size:13px;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--lav-50);color:var(--ink);margin-right:8px">'+_teacherDocTypes.map(t=>'<option>'+esc(t)+'</option>').join('')+'</select><label class="btn btn-primary btn-sm" style="display:inline-flex;cursor:pointer;vertical-align:middle"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload<input type="file" accept="image/*,.pdf" style="display:none" onchange="uploadTeacherDoc(this)"></label></div>'
+  if(!docs?.length){
+    h+='<div style="font-size:12.5px;color:var(--ink-faint);padding:8px 0">No documents uploaded yet.</div>'
+  }else{
+    docs.forEach(d=>{
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><a href="'+esc(R2.url(d.file_url))+'" target="_blank" style="color:var(--indigo);font-size:13px;font-weight:600;text-decoration:none">'+esc(d.file_type||'Document')+'</a><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--ink-faint)">'+fmtD(d.uploaded_at)+'</span><button class="btn btn-danger btn-xs" onclick="deleteTeacherDoc(\''+d.id+'\',\''+esc(d.file_url)+'\')">✕</button></div></div>'
+    })
+  }
+  el.innerHTML=h
+}
+async function uploadTeacherDoc(inp){
+  const file=inp.files?.[0];if(!file)return
+  const type=$('teacherDocType')?.value||'Document'
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
+  const ts=Date.now()
+  const path='teacher-docs/'+TEACHER.teacher_id+'/'+type.replace(/[^A-Za-z0-9]+/g,'_')+'_'+ts+'.'+ext
+  toast('Uploading…','info')
+  const{error:upErr}=await R2.upload(path,file,{upsert:true})
+  if(upErr){toast('Upload failed: '+upErr.message,'error');inp.value='';return}
+  const{data:{publicUrl}}=R2.getPublicUrl(path)
+  const{error}=await sb.from('teacher_documents').insert({teacher_id:TEACHER.teacher_id,file_url:publicUrl,file_type:type,uploaded_by_type:'teacher',uploaded_by_id:TEACHER.teacher_id,uploaded_at:new Date().toISOString()})
+  if(error){toast('Save failed: '+error.message,'error');inp.value='';return}
+  toast('Document uploaded','success');inp.value='';loadMyDocuments()
+}
+async function deleteTeacherDoc(docId,fileUrl){
+  if(!confirm('Delete this document?'))return
+  const r2Path=R2.extractPath(fileUrl)
+  if(r2Path)await R2.remove([r2Path])
+  const{error}=await sb.from('teacher_documents').delete().eq('id',docId)
+  if(error){toast('Delete failed: '+error.message,'error');return}
+  toast('Document deleted','success');loadMyDocuments()
 }
 
 // ═══════════════════════════════════════════════════════════════
