@@ -394,10 +394,11 @@ tbody tr:hover td{background:var(--lav-50)}
       <div class="form-row" style="margin-top:14px">
         <div class="fg" style="max-width:300px"><label>Reason</label><input id="exchReason" placeholder="e.g. Size change, defective..."></div>
       </div>
-      <div id="exchCamWrap" style="display:none;margin:14px 0"><div id="exchCamReader"></div></div>
+      <div id="exchCamWrap" style="display:none;margin:14px 0"><div id="exchCamReader"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-success" onclick="doneExchNewScan()" style="flex:1;padding:14px;font-size:15px">Done Scanning</button><button class="btn btn-danger" onclick="cancelExchScan()" style="flex:1;padding:14px;font-size:15px">Cancel</button></div></div>
       <div id="exchNewItemInfo" style="margin-top:10px;display:none"></div>
+      <div id="exchPriceSummary" style="margin-top:10px;display:none"></div>
       <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
-        <button class="btn btn-primary" onclick="startExchScan()" id="exchScanBtn" disabled style="width:100%;padding:14px;font-size:15px">📷 Scan New Item</button>
+        <button class="btn btn-primary" onclick="startExchScan()" id="exchScanBtn" disabled style="width:100%;padding:14px;font-size:15px">📷 Scan New Item(s)</button>
         <button class="btn btn-success" onclick="confirmExchange()" id="exchBtn" style="display:none;width:100%;padding:14px;font-size:15px">Confirm Exchange</button>
         <button class="btn btn-danger" onclick="cancelExchScan()" id="exchCancelBtn" style="display:none;width:100%;padding:12px;font-size:14px">Cancel</button>
       </div>
@@ -498,7 +499,7 @@ function openModal(title,body,foot='',wide=false){$('modalTitle').textContent=ti
 function closeModal(){$('modalOverlay').classList.remove('show')}
 
 // ═══════════ GLOBAL DATA ═══════════
-let ALL_ARTICLES=[], ALL_CLASSES=[], ALL_SETS=[], SESS=null, _sellEid=null, _exchEid=null, _exchOldItem=null, _exchNewItem=null
+let ALL_ARTICLES=[], ALL_CLASSES=[], ALL_SETS=[], SESS=null, _sellEid=null, _exchEid=null, _exchOldItem=null, _exchNewItems=[]
 let _sellStudentsCache=[], _exchStudentsCache=[]
 
 async function loadGlobals(){
@@ -1399,32 +1400,34 @@ function searchStudentsExch(){
 }
 
 async function selectExchStudent(eid,name,cls,sec,father){
-  _exchEid=eid;_exchOldItems=[];_exchOldItem=null;_exchNewItem=null
+  _exchEid=eid;_exchOldItems=[];_exchOldItem=null;_exchNewItems=[]
   $('exchSelectedStudent').style.display='block'
   $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(name)+' — '+esc(cls)+'-'+esc(sec)+' (s/o '+esc(father)+')</div>'
   $('exchStudentResults').style.display='none'
   $('exchStudent').value=''
   $('exchReturnInfo').style.display='none'
   $('exchNewItemInfo').style.display='none'
+  $('exchPriceSummary').style.display='none'
   $('exchCamWrap').style.display='none'
   $('exchScanBtn').style.display='block'
   $('exchScanBtn').disabled=true
   $('exchBtn').style.display='none'
   $('exchCancelBtn').style.display='none'
 
-  const{data}=await sb.from('inv_items').select('*,inv_articles(name)').eq('sold_to_enrollment_id',eid).eq('status','sold').order('sold_at',{ascending:false})
+  const{data}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices)').eq('sold_to_enrollment_id',eid).eq('status','sold').order('sold_at',{ascending:false})
   const box=$('exchStudentItems')
   if(!data?.length){box.innerHTML='<div style="color:var(--ink-faint);font-size:13px;padding:8px">No items found for this student.</div>';return}
   box.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px">ITEMS ISSUED TO STUDENT — Select item(s) to return:</div>'
-    +data.map(i=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>'+esc(i.inv_articles?.name||'—')+'</b>'+(i.size?' · '+esc(i.size):'')+' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(i.qr_code)+'</span></span><button class="btn btn-danger btn-xs" onclick="selectExchReturn(\''+i.id+'\',\''+esc(i.inv_articles?.name||'')+'\',\''+esc(i.size||'')+'\',\''+esc(i.qr_code)+'\')">Return This</button></div>').join('')
+    +data.map(i=>{const p=getItemPrice(i,i.inv_articles||{});return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>'+esc(i.inv_articles?.name||'—')+'</b>'+(i.size?' · '+esc(i.size):'')+' · '+fmtINR(p)+' <span class="mono" style="font-size:10px;color:var(--ink-faint)">'+esc(i.qr_code)+'</span></span><button class="btn btn-danger btn-xs" onclick="selectExchReturn(\''+i.id+'\',\''+esc(i.inv_articles?.name||'')+'\',\''+esc(i.size||'')+'\',\''+esc(i.qr_code)+'\','+p+')">Return This</button></div>'}).join('')
 }
 
-function selectExchReturn(itemId,artName,size,qr,viaQr){addExchReturn(itemId,artName,size,qr,viaQr)}
-function addExchReturn(itemId,artName,size,qr,viaQr){
+function selectExchReturn(itemId,artName,size,qr,price){addExchReturn(itemId,artName,size,qr,false,price)}
+function addExchReturn(itemId,artName,size,qr,viaQr,price){
   if(_exchOldItems.find(i=>i.id===itemId))return
-  _exchOldItems.push({id:itemId,name:artName,size,qr,viaQr:!!viaQr})
+  _exchOldItems.push({id:itemId,name:artName,size,qr,viaQr:!!viaQr,price:price||0})
   _exchOldItem=_exchOldItems[0]
   renderExchReturnList()
+  renderExchPriceSummary()
   checkExchReady()
 }
 function removeExchReturn(idx){
@@ -1432,6 +1435,7 @@ function removeExchReturn(idx){
   _exchOldItem=_exchOldItems[0]||null
   renderExchReturnList()
   if(!_exchOldItems.length){$('exchReturnInfo').style.display='none'}
+  renderExchPriceSummary()
   checkExchReady()
 }
 function renderExchReturnList(){
@@ -1440,7 +1444,7 @@ function renderExchReturnList(){
   el.style.display='block'
   let h='<div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:6px">RETURNING ('+_exchOldItems.length+')</div>'
   _exchOldItems.forEach((item,idx)=>{
-    h+='<div class="card" style="padding:8px 10px;background:var(--danger-soft);border-color:var(--danger);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span><b>'+esc(item.name)+'</b>'+(item.size?' · '+esc(item.size):'')+' <span class="mono" style="font-size:10px">'+esc(item.qr)+'</span></span><button class="btn btn-danger btn-xs" onclick="removeExchReturn('+idx+')">✕</button></div>'
+    h+='<div class="card" style="padding:8px 10px;background:var(--danger-soft);border-color:var(--danger);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span><b>'+esc(item.name)+'</b>'+(item.size?' · '+esc(item.size):'')+' · '+fmtINR(item.price)+' <span class="mono" style="font-size:10px">'+esc(item.qr)+'</span></span><button class="btn btn-danger btn-xs" onclick="removeExchReturn('+idx+')">✕</button></div>'
   })
   el.innerHTML=h
 }
@@ -1465,8 +1469,10 @@ function _stopExchReturnCam(){
 }
 function cancelReturnQrScan(){
   _stopExchReturnCam()
-  _exchOldItems=[];_exchOldItem=null;_exchEid=null
+  _exchOldItems=[];_exchOldItem=null;_exchNewItems=[];_exchEid=null
   $('exchReturnInfo').style.display='none'
+  $('exchNewItemInfo').style.display='none'
+  $('exchPriceSummary').style.display='none'
   $('exchSelectedStudent').style.display='none'
   checkExchReady()
 }
@@ -1486,24 +1492,24 @@ async function onReturnQrScanned(code){
   if(!_exchEid){
     const{data:enr}=await sb.from('student_enrollments').select('enrollment_id,students!inner(full_name,father_name),classes(name),class_sections(name)').eq('enrollment_id',item.sold_to_enrollment_id).maybeSingle()
     if(!enr||!enr.students){toast('Student record not found for this item','error');_exchReturnProcessing=false;return}
-    _exchEid=enr.enrollment_id;_exchNewItem=null
+    _exchEid=enr.enrollment_id;_exchNewItems=[]
     $('exchSelectedStudent').style.display='block'
     $('exchSelectedStudent').innerHTML='<div class="pill pill-pur" style="font-size:12px;padding:6px 12px">'+esc(enr.students.full_name)+' — '+esc(enr.classes?.name||'')+'-'+esc(enr.class_sections?.name||'')+' (s/o '+esc(enr.students.father_name||'—')+')</div>'
     $('exchStudentItems').innerHTML=''
   }
-  addExchReturn(item.id,item.inv_articles?.name||'—',item.size||'',item.qr_code,true)
+  const price=getItemPrice(item,item.inv_articles||{})
+  addExchReturn(item.id,item.inv_articles?.name||'—',item.size||'',item.qr_code,true,price)
   $('exchScanBtn').disabled=false
   _exchReturnProcessing=false
 }
 
-let _exchScannedCode=null
+let _exchNewScanning=false
 function startExchScan(){
   if(!_exchEid||!_exchOldItems.length){toast('Select a student and item(s) to return first','error');return}
-  _exchNewItem=null;_exchScannedCode=null
-  $('exchNewItemInfo').style.display='none'
+  _exchNewScanning=false
   $('exchScanBtn').style.display='none'
   $('exchBtn').style.display='none'
-  $('exchCancelBtn').style.display='block'
+  $('exchCancelBtn').style.display='none'
   $('exchCamWrap').style.display='block'
   _camMode='exch'
   _camScanner=new Html5Qrcode('exchCamReader')
@@ -1513,35 +1519,81 @@ function startExchScan(){
   })
 }
 async function onExchQrScanned(code){
-  if(_exchScannedCode)return
-  _exchScannedCode=code
+  if(_exchNewScanning)return
+  if(_exchNewItems.find(i=>i.qr_code===code))return
+  _exchNewScanning=true
   const{data,error}=await sb.from('inv_items').select('*,inv_articles(name,selling_price,size_prices)').eq('qr_code',code).maybeSingle()
-  if(error||!data){toast('Item not found: '+code,'error');_exchScannedCode=null;return}
-  if(data.status!=='in_stock'){toast(code+' not in stock ('+data.status+')','error');_exchScannedCode=null;return}
+  if(error||!data){toast('Item not found: '+code,'error');_exchNewScanning=false;return}
+  if(data.status!=='in_stock'){toast(code+' not in stock ('+data.status+')','error');_exchNewScanning=false;return}
   _beep()
-  _exchNewItem=data
+  const price=getItemPrice(data,data.inv_articles||{})
+  _exchNewItems.push({...data,_price:price})
+  renderExchNewList()
+  renderExchPriceSummary()
+  _exchNewScanning=false
+}
+function doneExchNewScan(){
   stopCamScanner('exch')
   $('exchCamWrap').style.display='none'
-  $('exchNewItemInfo').style.display='block'
-  $('exchNewItemInfo').innerHTML='<div class="card" style="padding:10px;background:var(--success-soft);border-color:var(--success)"><b>New item:</b> '+esc(data.inv_articles?.name||'—')+(data.size?' · '+esc(data.size):'')+' <span class="mono" style="font-size:10px">'+esc(data.qr_code)+'</span></div>'
-  $('exchBtn').style.display='block'
-  $('exchCancelBtn').style.display='block'
+  if(_exchNewItems.length){
+    $('exchBtn').style.display='block'
+    $('exchCancelBtn').style.display='block'
+  } else {
+    $('exchScanBtn').style.display='block'
+  }
+}
+function removeExchNew(idx){
+  _exchNewItems.splice(idx,1)
+  renderExchNewList()
+  renderExchPriceSummary()
+  if(!_exchNewItems.length){$('exchBtn').style.display='none';$('exchScanBtn').style.display='block';$('exchCancelBtn').style.display='none'}
+}
+function renderExchNewList(){
+  const el=$('exchNewItemInfo')
+  if(!_exchNewItems.length){el.style.display='none';return}
+  el.style.display='block'
+  let h='<div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:6px">NEW ITEMS ('+_exchNewItems.length+')</div>'
+  _exchNewItems.forEach((item,idx)=>{
+    h+='<div class="card" style="padding:8px 10px;background:var(--success-soft);border-color:var(--success);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span><b>'+esc(item.inv_articles?.name||'—')+'</b>'+(item.size?' · '+esc(item.size):'')+' · '+fmtINR(item._price)+' <span class="mono" style="font-size:10px">'+esc(item.qr_code)+'</span></span><button class="btn btn-danger btn-xs" onclick="removeExchNew('+idx+')">✕</button></div>'
+  })
+  el.innerHTML=h
+}
+function renderExchPriceSummary(){
+  const el=$('exchPriceSummary')
+  if(!_exchOldItems.length&&!_exchNewItems.length){el.style.display='none';return}
+  const retTotal=_exchOldItems.reduce((s,i)=>s+(i.price||0),0)
+  const newTotal=_exchNewItems.reduce((s,i)=>s+(i._price||0),0)
+  const diff=newTotal-retTotal
+  el.style.display='block'
+  let diffHtml=''
+  if(diff>0) diffHtml='<span style="color:var(--danger);font-weight:700">Collect '+fmtINR(diff)+' from student</span>'
+  else if(diff<0) diffHtml='<span style="color:var(--success);font-weight:700">Refund '+fmtINR(Math.abs(diff))+' to student</span>'
+  else diffHtml='<span style="color:var(--ink-soft);font-weight:700">No price difference</span>'
+  el.innerHTML='<div class="card" style="padding:12px;background:var(--bg);border:2px solid var(--line);text-align:center">'
+    +'<div style="display:flex;justify-content:space-around;margin-bottom:8px;font-size:13px">'
+    +'<div>Return: <b style="color:var(--danger)">'+fmtINR(retTotal)+'</b></div>'
+    +'<div>New: <b style="color:var(--success)">'+fmtINR(newTotal)+'</b></div>'
+    +'</div>'
+    +'<div style="font-size:15px">'+diffHtml+'</div>'
+    +'</div>'
 }
 function cancelExchScan(){
   stopCamScanner('exch')
-  _exchNewItem=null;_exchScannedCode=null
+  _exchNewItems=[];_exchNewScanning=false
   $('exchCamWrap').style.display='none'
   $('exchNewItemInfo').style.display='none'
+  $('exchPriceSummary').style.display='none'
   $('exchScanBtn').style.display='block'
   $('exchBtn').style.display='none'
   $('exchCancelBtn').style.display='none'
+  renderExchPriceSummary()
 }
 function checkExchReady(){
   $('exchScanBtn').disabled=!(_exchEid&&_exchOldItems.length)
 }
 
 async function confirmExchange(){
-  if(!_exchEid||!_exchOldItems.length||!_exchNewItem)return
+  if(!_exchEid||!_exchOldItems.length||!_exchNewItems.length)return
   const reason=$('exchReason').value.trim()
 
   for(const old of _exchOldItems){
@@ -1550,17 +1602,26 @@ async function confirmExchange(){
     if(error){toast(error.message,'error');return}
   }
 
-  const{error:e2}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItems[0].id}).eq('id',_exchNewItem.id)
-  if(e2){toast(e2.message,'error');return}
+  for(const nw of _exchNewItems){
+    const{error}=await sb.from('inv_items').update({status:'sold',sold_to_enrollment_id:_exchEid,sold_at:new Date().toISOString(),sold_by:SPS.admin?.admin_id||'admin',payment_mode:'exchange',exchanged_from:_exchOldItems[0].id}).eq('id',nw.id)
+    if(error){toast(error.message,'error');return}
+  }
 
-  const{error:e3}=await sb.from('inv_exchanges').insert({old_item_id:_exchOldItems[0].id,new_item_id:_exchNewItem.id,enrollment_id:_exchEid,reason,exchanged_by:SPS.admin?.admin_id||'admin'})
+  const exchRows=[]
+  for(const nw of _exchNewItems){
+    for(const old of _exchOldItems){
+      exchRows.push({old_item_id:old.id,new_item_id:nw.id,enrollment_id:_exchEid,reason,exchanged_by:SPS.admin?.admin_id||'admin'})
+    }
+  }
+  const{error:e3}=await sb.from('inv_exchanges').insert(exchRows)
   if(e3)console.error('Exchange log failed:',e3.message)
 
-  toast('Exchange completed — '+_exchOldItems.length+' item(s) returned','success')
+  toast('Exchange completed — '+_exchOldItems.length+' returned, '+_exchNewItems.length+' issued','success')
   _tabLoaded.delete('dashboard')
-  _exchOldItems=[];_exchOldItem=null;_exchNewItem=null;_exchEid=null;_exchScannedCode=null
+  _exchOldItems=[];_exchOldItem=null;_exchNewItems=[];_exchEid=null;_exchNewScanning=false
   $('exchReturnInfo').style.display='none'
   $('exchNewItemInfo').style.display='none'
+  $('exchPriceSummary').style.display='none'
   $('exchSelectedStudent').style.display='none'
   $('exchStudentItems').innerHTML=''
   $('exchReason').value=''
