@@ -680,10 +680,25 @@ async function loadSubstitutionSheet(teacherIdArg){
   if(!_roster){emp(el,'No active roster.');return}
   const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(date+'T12:00:00').getDay()]
   if(dow==='Sun'){emp(el,'Sunday — no classes.');return}
-  const{data:dayEntries}=await sb.from('timetable_entries')
-    .select('entry_id,slot_id,teacher_id,days,time_slots(slot_id,name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)')
-    .eq('session_id',SESS.session_id).eq('teacher_id',teacherId)
-  const filtered=(dayEntries||[]).filter(e=>(e.days||[]).includes(dow))
+  const[{data:dayEntries},{data:adjRows}]=await Promise.all([
+    sb.from('timetable_entries')
+      .select('entry_id,slot_id,teacher_id,days,time_slots(slot_id,name,start_time,end_time,sort_order),classes(name),class_sections(name),subjects(name)')
+      .eq('session_id',SESS.session_id).eq('teacher_id',teacherId),
+    sb.from('adjustments').select('adjustment_id,slot_id,teacher_id,class_id,section_id,days').eq('teacher_id',teacherId).then(r=>r,()=>({data:[]}))
+  ])
+  const allEntries=[...(dayEntries||[])]
+  const adjFiltered=(adjRows||[]).filter(a=>a.slot_id&&(a.days||[]).includes(dow))
+  if(adjFiltered.length){
+    const aSlotIds=[...new Set(adjFiltered.map(a=>a.slot_id))],aClsIds=[...new Set(adjFiltered.map(a=>a.class_id).filter(Boolean))],aSecIds=[...new Set(adjFiltered.map(a=>a.section_id).filter(Boolean))]
+    const[slR,clR,seR]=await Promise.all([
+      aSlotIds.length?sb.from('time_slots').select('slot_id,name,start_time,end_time,sort_order').in('slot_id',aSlotIds):Promise.resolve({data:[]}),
+      aClsIds.length?sb.from('classes').select('class_id,name').in('class_id',aClsIds):Promise.resolve({data:[]}),
+      aSecIds.length?sb.from('class_sections').select('section_id,name').in('section_id',aSecIds):Promise.resolve({data:[]})
+    ])
+    const slM={},clM={},seM={};(slR.data||[]).forEach(s=>slM[s.slot_id]=s);(clR.data||[]).forEach(c=>clM[c.class_id]=c.name);(seR.data||[]).forEach(s=>seM[s.section_id]=s.name)
+    adjFiltered.forEach(a=>{if(slM[a.slot_id])allEntries.push({entry_id:'adj_'+a.adjustment_id,slot_id:a.slot_id,days:a.days||[],time_slots:slM[a.slot_id],classes:{name:clM[a.class_id]||'?'},class_sections:{name:seM[a.section_id]||'?'},subjects:{name:'Adjustment'},_adj:true})})
+  }
+  const filtered=allEntries.filter(e=>(e.days||[]).includes(dow))
   filtered.forEach(e=>{const tm=_timingMap[e.slot_id];if(tm&&e.time_slots){e.time_slots.start_time=tm.start_time||e.time_slots.start_time;e.time_slots.end_time=tm.end_time||e.time_slots.end_time}})
   const sorted=filtered.sort((a,b)=>(a.time_slots?.sort_order||0)-(b.time_slots?.sort_order||0))
   const unavMap=getUnavailable(date)
@@ -710,14 +725,14 @@ async function loadSubstitutionSheet(teacherIdArg){
   ;(busyAll||[]).filter(b=>(b.days||[]).includes(dow)).forEach(b=>mark(b.slot_id,b.teacher_id))
   ;(adjAll||[]).filter(a=>(a.days||[]).includes(dow)).forEach(a=>mark(a.slot_id,a.teacher_id))
   ;(subAll||[]).forEach(s=>mark(s.slot_id,s.substitute_teacher_id))
-  const{data:existingSubs}=await sb.from('substitutions').select('entry_id,substitute_teacher_id').eq('date',date).eq('absent_teacher_id',teacherId)
-  const existMap={};(existingSubs||[]).forEach(s=>{existMap[s.entry_id]=s.substitute_teacher_id})
+  const{data:existingSubs}=await sb.from('substitutions').select('entry_id,slot_id,substitute_teacher_id').eq('date',date).eq('absent_teacher_id',teacherId)
+  const existMap={};(existingSubs||[]).forEach(s=>{if(s.entry_id)existMap[s.entry_id]=s.substitute_teacher_id;else existMap['adj_slot_'+s.slot_id]=s.substitute_teacher_id})
   const tName=esc(ALL_TEACHERS.find(t=>t.teacher_id===teacherId)?.full_name||'Teacher')
   el.innerHTML='<div class="card"><h3 style="margin-top:0">Schedule for '+tName+'</h3><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute</th></tr></thead><tbody>'
     +_subData.map(e=>{
       const busy=busyBySlot[e.slot_id]||new Set()
       const st=(e.time_slots?.start_time||'').slice(0,5)
-      const cur=existMap[e.entry_id]||''
+      const cur=existMap[e.entry_id]||(e._adj?existMap['adj_slot_'+e.slot_id]:'')||''
       const free=ALL_TEACHERS.filter(t=>t.is_active&&t.teacher_id!==teacherId&&!motherSet.has(t.teacher_id)&&(!busy.has(t.teacher_id)||t.teacher_id===cur)&&_availForSlot(t.teacher_id,unavMap,st))
       return'<tr><td style="font-weight:700">'+esc(e.time_slots?.name||'—')+'</td>'
         +'<td class="mono" style="font-size:11px">'+(e.time_slots?.start_time||'').slice(0,5)+'–'+(e.time_slots?.end_time||'').slice(0,5)+'</td>'
@@ -733,15 +748,25 @@ async function loadSubstitutionSheet(teacherIdArg){
 async function saveSubstitutions(){
   const teacherId=_subActiveTeacher,date=$('sub_date')?.value
   if(!teacherId||!date||!_roster){toast('Missing data','error');return}
-  const rows=[],notify=[]
+  const rows=[],adjRows=[],notify=[]
   document.querySelectorAll('.sub_sel').forEach(sel=>{
     const entryId=sel.dataset.entryId,subId=sel.value||null
     const entry=_subData.find(e=>e.entry_id===entryId);if(!entry)return
-    rows.push({date,absent_teacher_id:teacherId,roster_id:_roster.roster_id,slot_id:entry.slot_id,entry_id:entryId,substitute_teacher_id:subId,notification_sent:false})
+    if(entry._adj){
+      adjRows.push({date,absent_teacher_id:teacherId,roster_id:_roster.roster_id,slot_id:entry.slot_id,entry_id:null,substitute_teacher_id:subId,notification_sent:false})
+    }else{
+      rows.push({date,absent_teacher_id:teacherId,roster_id:_roster.roster_id,slot_id:entry.slot_id,entry_id:entryId,substitute_teacher_id:subId,notification_sent:false})
+    }
     if(subId)notify.push({teacherId:subId,slot:entry.time_slots?.name,cls:(entry.classes?.name||'—')+'-'+(entry.class_sections?.name||'—'),subj:entry.subjects?.name})
   })
-  if(!rows.length){toast('Nothing to save','error');return}
-  const{error}=await sb.from('substitutions').upsert(rows,{onConflict:'date,entry_id'})
+  if(!rows.length&&!adjRows.length){toast('Nothing to save','error');return}
+  let error=null
+  if(rows.length){const r=await sb.from('substitutions').upsert(rows,{onConflict:'date,entry_id'});error=r.error}
+  if(!error&&adjRows.length){
+    const adjSlotIds=adjRows.map(r=>r.slot_id)
+    await sb.from('substitutions').delete().eq('date',date).eq('absent_teacher_id',teacherId).is('entry_id',null).in('slot_id',adjSlotIds)
+    const r=await sb.from('substitutions').insert(adjRows);error=r.error
+  }
   if(error){toast('Failed: '+error.message,'error');return}
   const absentT=ALL_TEACHERS.find(t=>t.teacher_id===teacherId)
   let notifiedCount=0
@@ -757,9 +782,10 @@ async function saveSubstitutions(){
     if(msgErr)toast('Saved, but notifications failed: '+msgErr.message,'error')
     else{
       notifiedCount=msgs.length
-      const notifiedEntryIds=[]
-      document.querySelectorAll('.sub_sel').forEach(sel=>{if(sel.value)notifiedEntryIds.push(sel.dataset.entryId)})
+      const notifiedEntryIds=[],hasAdj=[]
+      document.querySelectorAll('.sub_sel').forEach(sel=>{if(sel.value){if(sel.dataset.entryId.startsWith('adj_'))hasAdj.push(sel.dataset.entryId);else notifiedEntryIds.push(sel.dataset.entryId)}})
       if(notifiedEntryIds.length){try{await sb.from('substitutions').update({notification_sent:true}).eq('date',date).in('entry_id',notifiedEntryIds)}catch(e){}}
+      if(hasAdj.length){try{await sb.from('substitutions').update({notification_sent:true}).eq('date',date).eq('absent_teacher_id',teacherId).is('entry_id',null)}catch(e){}}
     }
   }
   toast('Substitutions saved'+(notifiedCount?' & '+notifiedCount+' teacher'+(notifiedCount>1?'s':'')+' notified':''),'success')
@@ -773,15 +799,19 @@ async function loadSubSummary(){
   if(error||!subs?.length){el.innerHTML='';return}
   const entryIds=[...new Set(subs.map(s=>s.entry_id).filter(Boolean))]
   const slotIds=[...new Set(subs.map(s=>s.slot_id).filter(Boolean))]
-  const[{data:entries},{data:slots}]=await Promise.all([
+  const adjSlotIds=subs.filter(s=>!s.entry_id).map(s=>s.slot_id).filter(Boolean)
+  const adjTeacherIds=[...new Set(subs.filter(s=>!s.entry_id).map(s=>s.absent_teacher_id))]
+  const[{data:entries},{data:slots},adjRes]=await Promise.all([
     entryIds.length?sb.from('timetable_entries').select('entry_id,classes(name),class_sections(name),subjects(name)').in('entry_id',entryIds):Promise.resolve({data:[]}),
-    slotIds.length?sb.from('time_slots').select('slot_id,name,start_time,end_time,sort_order').in('slot_id',slotIds):Promise.resolve({data:[]})
+    slotIds.length?sb.from('time_slots').select('slot_id,name,start_time,end_time,sort_order').in('slot_id',slotIds):Promise.resolve({data:[]}),
+    adjSlotIds.length&&adjTeacherIds.length?sb.from('adjustments').select('adjustment_id,slot_id,teacher_id,class_id,section_id,classes:class_id(name),class_sections:section_id(name)').in('slot_id',adjSlotIds).in('teacher_id',adjTeacherIds).then(r=>r,()=>({data:[]})):Promise.resolve({data:[]})
   ])
   const entryMap={};(entries||[]).forEach(e=>entryMap[e.entry_id]=e)
+  const adjMap={};(adjRes.data||[]).forEach(a=>{adjMap[a.teacher_id+'_'+a.slot_id]={classes:a.classes||{name:'?'},class_sections:a.class_sections||{name:'?'},subjects:{name:'Adjustment'}}})
   const slotMap={};(slots||[]).forEach(s=>slotMap[s.slot_id]=s)
   const grouped={};subs.forEach(r=>{const k=r.absent_teacher_id;if(!grouped[k])grouped[k]=[];grouped[k].push(r)})
   const dateLabel=new Date(date+'T12:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
-  window._lastSubSnap={grouped,slotMap,entryMap,dateLabel}
+  window._lastSubSnap={grouped,slotMap,entryMap,adjMap,dateLabel}
   let h='<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px"><h3 style="margin:0">Substitutions for '+new Date(date+'T12:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})+'</h3>'
     +'<button class="btn btn-soft btn-sm" onclick="shareSubsWhatsApp()" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>Share on WhatsApp</button></div>'
   Object.keys(grouped).forEach(tid=>{
@@ -792,7 +822,7 @@ async function loadSubSummary(){
       +esc(t?.full_name||tid)+' <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px">— absent</span></div>'
       +'<div class="table-wrap"><table style="font-size:12.5px"><thead><tr><th>Period</th><th>Time</th><th>Class</th><th>Subject</th><th>Substitute</th></tr></thead><tbody>'
     rows.forEach(r=>{
-      const sl=slotMap[r.slot_id]||{};const en=entryMap[r.entry_id]||{}
+      const sl=slotMap[r.slot_id]||{};const en=entryMap[r.entry_id]||adjMap[r.absent_teacher_id+'_'+r.slot_id]||{}
       const sub=r.substitute_teacher_id?ALL_TEACHERS.find(x=>x.teacher_id===r.substitute_teacher_id):null
       h+='<tr><td style="font-weight:700">'+esc(sl.name||'—')+'</td>'
         +'<td class="mono" style="font-size:11px">'+(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5)+'</td>'
@@ -808,7 +838,7 @@ async function loadSubSummary(){
 function shareSubsWhatsApp(){
   const snap=window._lastSubSnap
   if(!snap){toast('No substitutions to share','error');return}
-  const{grouped,slotMap,entryMap,dateLabel}=snap
+  const{grouped,slotMap,entryMap,adjMap,dateLabel}=snap
   let txt='📋 *Substitutions — '+dateLabel+'*\n'
   Object.keys(grouped).forEach(tid=>{
     const t=ALL_TEACHERS.find(x=>x.teacher_id===tid)
@@ -816,7 +846,7 @@ function shareSubsWhatsApp(){
     txt+='\n❌ *'+(t?.full_name||'Unknown')+'*\n'
     const bySlot={}
     rows.forEach(r=>{
-      const sl=slotMap[r.slot_id]||{};const en=entryMap[r.entry_id]||{}
+      const sl=slotMap[r.slot_id]||{};const en=entryMap[r.entry_id]||(adjMap||{})[r.absent_teacher_id+'_'+r.slot_id]||{}
       const key=r.slot_id;if(!bySlot[key])bySlot[key]={sl,classes:[],subs:{}}
       const cls=(en.classes?.name||'?')+(en.class_sections?.name||'')
       bySlot[key].classes.push(cls)
