@@ -732,7 +732,7 @@ async function saveSubstitutions(){
   document.querySelectorAll('.sub_sel').forEach(sel=>{
     const entryId=sel.dataset.entryId,subId=sel.value||null
     const entry=_subData.find(e=>e.entry_id===entryId);if(!entry)return
-    rows.push({date,absent_teacher_id:teacherId,roster_id:_roster.roster_id,slot_id:entry.slot_id,entry_id:entryId,substitute_teacher_id:subId,notification_sent:false,created_by:TEACHER.teacher_id})
+    rows.push({date,absent_teacher_id:teacherId,roster_id:_roster.roster_id,slot_id:entry.slot_id,entry_id:entryId,substitute_teacher_id:subId,notification_sent:false,created_by:TEACHER.auth_user_id})
     if(subId)notify.push({teacherId:subId,slot:entry.time_slots?.name,cls:(entry.classes?.name||'—')+'-'+(entry.class_sections?.name||'—'),subj:entry.subjects?.name})
   })
   if(!rows.length){toast('Nothing to save','error');return}
