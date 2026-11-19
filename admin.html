@@ -3640,14 +3640,15 @@ async function buildLiveClassSnapshot(iso,off){
   if(dow==='Sun')return ''
   const{roster,timingMap:_rtMap}=await getActiveTimingMap()
   if(!roster)return ''
-  const[{data:slots},{data:entries},{data:adjs},{data:subs},{data:tScheds},{data:mtRows},{data:allSecs}]=await Promise.all([
+  const[{data:slots},{data:entries},{data:adjs},{data:subs},{data:tScheds},{data:mtRows},{data:allSecs},{data:attDefs}]=await Promise.all([
     sb.from('time_slots').select('*').eq('session_id',SESS.session_id).order('sort_order'),
     sb.from('timetable_entries').select('entry_id,slot_id,teacher_id,class_id,section_id,days,classes(name),class_sections(name),subjects(name),teachers(full_name)').eq('session_id',SESS.session_id),
     sb.from('adjustments').select('slot_id,teacher_id,class_id,section_id,days,teachers(full_name)').then(r=>r,()=>({data:[]})),
     sb.from('substitutions').select('entry_id,substitute_teacher_id,absent_teacher_id,slot_id,teachers:substitute_teacher_id(full_name)').eq('date',iso).then(r=>r,()=>({data:[]})),
     sb.from('teacher_schedules').select('teacher_id,shift_start,shift_end').then(r=>r,()=>({data:[]})),
     sb.from('mother_teacher_map').select('teacher_id,class_id,section_id').eq('session_id',SESS?.session_id||'').then(r=>r,()=>({data:[]})),
-    sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS?.session_id||'').eq('is_active',true).then(r=>r,()=>({data:[]}))
+    sb.from('class_sections').select('section_id,name,class_id').eq('session_id',SESS?.session_id||'').eq('is_active',true).then(r=>r,()=>({data:[]})),
+    sb.from('attendance_settings').select('default_shift_start,default_shift_end').eq('id',1).maybeSingle().then(r=>r,()=>({data:null}))
   ])
   if(slots?.length)(slots).forEach(s=>{const tm=_rtMap[s.slot_id];if(tm){s.start_time=tm.start_time;s.end_time=tm.end_time}})
   const motherIds=new Set((mtRows||[]).map(r=>r.teacher_id))
@@ -3658,8 +3659,8 @@ async function buildLiveClassSnapshot(iso,off){
   const subMap={};(subs||[]).forEach(s=>{subMap[s.entry_id]=s})
   const absentIds=new Set((subs||[]).map(s=>s.absent_teacher_id).filter(Boolean))
   const schedMap={};(tScheds||[]).forEach(s=>{schedMap[s.teacher_id]={start:s.shift_start,end:s.shift_end}})
-  const defShift=(_saDefaults?.default_shift_start||'07:20').slice(0,5)
-  const defShiftEnd=(_saDefaults?.default_shift_end||'13:15').slice(0,5)
+  const defShift=(attDefs?.default_shift_start||'07:20').slice(0,5)
+  const defShiftEnd=(attDefs?.default_shift_end||'13:15').slice(0,5)
 
   // Filter slots that have timetable entries for today
   const todaySlots=slots.filter(s=>(entries||[]).some(e=>(e.days||[]).includes(dow)&&e.slot_id===s.slot_id))
