@@ -808,13 +808,18 @@ function shareSubsWhatsApp(){
   Object.keys(grouped).forEach(tid=>{
     const t=ALL_TEACHERS.find(x=>x.teacher_id===tid)
     const rows=grouped[tid].sort((a,b)=>(slotMap[a.slot_id]?.sort_order||0)-(slotMap[b.slot_id]?.sort_order||0))
-    txt+='\n❌ *'+(t?.full_name||'Unknown')+' — Absent*\n'
+    txt+='\n❌ *'+(t?.full_name||'Unknown')+'*\n'
+    const bySlot={}
     rows.forEach(r=>{
       const sl=slotMap[r.slot_id]||{};const en=entryMap[r.entry_id]||{}
-      const sub=r.substitute_teacher_id?ALL_TEACHERS.find(x=>x.teacher_id===r.substitute_teacher_id):null
-      const cls=(en.classes?.name||'?')+'-'+(en.class_sections?.name||'?')
-      const subj=en.subjects?.name||'—'
-      txt+='  • '+(sl.name||'—')+' ('+(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5)+') '+cls+' '+subj+' → '+(sub?sub.full_name:'_Unassigned_')+'\n'
+      const key=r.slot_id;if(!bySlot[key])bySlot[key]={sl,classes:[],subs:{}}
+      const cls=(en.classes?.name||'?')+(en.class_sections?.name||'')
+      bySlot[key].classes.push(cls)
+      if(r.substitute_teacher_id){const s=ALL_TEACHERS.find(x=>x.teacher_id===r.substitute_teacher_id);if(s)bySlot[key].subs[s.full_name]=true}
+    })
+    Object.values(bySlot).forEach(g=>{
+      const sl=g.sl,subNames=Object.keys(g.subs)
+      txt+=(sl.name||'—')+' ('+(sl.start_time||'').slice(0,5)+'–'+(sl.end_time||'').slice(0,5)+'): '+g.classes.join(', ')+(subNames.length?' → '+subNames.join(', '):'')+'\n'
     })
   })
   txt+='\n_— Duty Panel, SPS Portal_'
