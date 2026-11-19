@@ -630,10 +630,15 @@ function addUnavailable(){
   renderUnavailable()
   if(_subActiveTeacher&&$('subSheet')&&$('subSheet').innerHTML.trim())loadSubstitutionSheet(_subActiveTeacher)
 }
-function removeUnavailable(tid){
+async function removeUnavailable(tid){
   const date=$('sub_date')?.value;const m=getUnavailable(date);delete m[tid];setUnavailable(date,m)
   if(_subActiveTeacher===tid){_subActiveTeacher=null;$('subSheet').innerHTML='';$('subSaveRow').style.display='none'}
   renderUnavailable()
+  if(date){
+    const{error}=await sb.from('substitutions').delete().eq('date',date).eq('absent_teacher_id',tid)
+    if(error)toast('Could not remove substitutions: '+error.message,'error')
+    else loadSubSummary()
+  }
   if(_subActiveTeacher&&$('subSheet')&&$('subSheet').innerHTML.trim())loadSubstitutionSheet(_subActiveTeacher)
 }
 function renderUnavailable(){
