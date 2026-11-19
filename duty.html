@@ -309,7 +309,7 @@ async function init(){
   ALL_TEACHERS.forEach(t=>{if(/mother/i.test(t.designation||''))_motherIds.add(t.teacher_id)})
   _motherSecKeys=new Set((mtRows||[]).filter(r=>r.class_id&&r.section_id).map(r=>r.class_id+'_'+r.section_id))
   _schedMap={};(tScheds||[]).forEach(s=>{_schedMap[s.teacher_id]=s})
-  if(attDefs?.data){_defShift=(attDefs.data.default_shift_start||'07:20').slice(0,5);_defShiftEnd=(attDefs.data.default_shift_end||'13:15').slice(0,5)}
+  if(attDefs){_defShift=(attDefs.default_shift_start||'07:20').slice(0,5);_defShiftEnd=(attDefs.default_shift_end||'13:15').slice(0,5)}
 
   populateDropdowns()
   loadLiveDashboard()
