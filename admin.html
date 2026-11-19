@@ -4320,8 +4320,9 @@ async function loadTeacherDocsAdmin(){
   el.innerHTML=docs.map(d=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><a href="'+esc(R2.url(d.file_url))+'" target="_blank" style="color:var(--indigo);font-size:13px;font-weight:600;text-decoration:none">'+esc(d.file_type||'Document')+'</a><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--ink-faint)">'+fmtDT(d.uploaded_at)+(d.uploaded_by_type==='teacher'?' (by teacher)':' (by admin)')+'</span><button class="btn btn-danger btn-xs" onclick="adminDeleteTeacherDoc(\''+d.id+'\',\''+esc(d.file_url)+'\')">✕</button></div></div>').join('')
 }
 async function adminUploadTeacherDoc(inp){
-  const file=inp.files?.[0];if(!file||!_tdocTeacherId)return
+  let file=inp.files?.[0];if(!file||!_tdocTeacherId)return
   const type=$('adminDocType')?.value||'Document'
+  if(/^image\//.test(file.type)){file=await SPSMedia.cropDocument(file,{title:'Edit — '+type});if(!file){inp.value='';return}}
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
   const ts=Date.now()
   const path='teacher-docs/'+_tdocTeacherId+'/'+type.replace(/[^A-Za-z0-9]+/g,'_')+'_'+ts+'.'+ext

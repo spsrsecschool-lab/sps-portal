@@ -21,6 +21,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth.js"></script>
 <script src="r2-storage.js"></script>
+<script src="media.js"></script>
 <script src="ai-chat.js"></script>
 <script src="push.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -3772,8 +3773,9 @@ async function loadMyDocuments(){
   el.innerHTML=h
 }
 async function uploadTeacherDoc(inp){
-  const file=inp.files?.[0];if(!file)return
+  let file=inp.files?.[0];if(!file)return
   const type=$('teacherDocType')?.value||'Document'
+  if(/^image\//.test(file.type)){file=await SPSMedia.cropDocument(file,{title:'Edit — '+type});if(!file){inp.value='';return}}
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
   const ts=Date.now()
   const path='teacher-docs/'+TEACHER.teacher_id+'/'+type.replace(/[^A-Za-z0-9]+/g,'_')+'_'+ts+'.'+ext

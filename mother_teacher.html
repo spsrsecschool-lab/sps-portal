@@ -4725,8 +4725,9 @@ async function loadMyDocuments(){
   el.innerHTML=h
 }
 async function uploadTeacherDoc(inp){
-  const file=inp.files?.[0];if(!file)return
+  let file=inp.files?.[0];if(!file)return
   const type=$('teacherDocType')?.value||'Document'
+  if(/^image\//.test(file.type)){file=await SPSMedia.cropDocument(file,{title:'Edit — '+type});if(!file){inp.value='';return}}
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase()
   const ts=Date.now()
   const path='teacher-docs/'+TEACHER.teacher_id+'/'+type.replace(/[^A-Za-z0-9]+/g,'_')+'_'+ts+'.'+ext
