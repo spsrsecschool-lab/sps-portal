@@ -4514,7 +4514,7 @@ async function runDownloadPhotos(){
       const blob=await resp.blob()
       const img=await createImageBitmap(blob)
       const stamped=await _stampDate(img,stampText)
-      const name=(e.roll_no||'0')+'_'+(s.full_name||s.student_id||'photo').replace(/[^A-Za-z0-9 ]+/g,'_')
+      const name=(s.full_name||s.student_id||'photo').replace(/[^A-Za-z0-9 ]+/g,'_')+'_'+(e.roll_no||'0')
       zip.file(name+'.jpg',stamped)
       done++
     }catch(err){console.warn('Photo dl fail',s?.student_id,err);fail++}
