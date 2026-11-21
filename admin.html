@@ -4492,7 +4492,8 @@ function pdToggleDop(){
 async function pdLoadSections(){
   const cls=$('pdClass')?.value;const fg=$('pdSecFg');const sel=$('pdSection')
   if(!cls||!sel){if(fg)fg.style.display='none';return}
-  const secs=[...new Set((_studentsRaw||[]).filter(e=>e.classes?.class_id===cls&&!e.relieved).map(e=>e.class_sections?.name).filter(Boolean))].sort()
+  const{data}=await sb.from('student_enrollments').select('class_sections(name)').eq('session_id',SESS.session_id).eq('class_id',cls).eq('relieved',false)
+  const secs=[...new Set((data||[]).map(e=>e.class_sections?.name).filter(Boolean))].sort()
   if(secs.length>1){sel.innerHTML='<option value="">All</option>'+secs.map(s=>'<option>'+esc(s)+'</option>').join('');fg.style.display=''}
   else{fg.style.display='none';sel.innerHTML='<option value="">All</option>'}
 }
@@ -4500,9 +4501,13 @@ let _pdAllRows=[]
 async function pdLoadStudents(){
   const cls=$('pdClass')?.value;if(!cls){toast('Select a class','info');return}
   const sec=$('pdSection')?.value||''
-  _pdAllRows=(_studentsRaw||[]).filter(e=>{
-    if(e.relieved||e.status!=='active')return false
-    if(e.classes?.class_id!==cls)return false
+  const el=$('pdStudentList');if(!el)return
+  el.innerHTML='<div class="loading-row"><div class="spinner"></div></div>'
+  let q=sb.from('student_enrollments').select('enrollment_id,roll_no,section_id,students(student_id,full_name,photo_url),class_sections(name)').eq('session_id',SESS.session_id).eq('class_id',cls).eq('status','active').eq('relieved',false)
+  if(sec){const secObj=(ALL_CLASSES||[]).flatMap(c=>(c.sections||[]));/* filter by section name after fetch */}
+  const{data,error}=await q
+  if(error){toast('Failed to load students','error');return}
+  _pdAllRows=(data||[]).filter(e=>{
     if(sec&&(e.class_sections?.name||'')!==sec)return false
     return true
   }).sort((a,b)=>(a.roll_no||0)-(b.roll_no||0))
