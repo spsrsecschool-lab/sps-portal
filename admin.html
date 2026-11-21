@@ -898,10 +898,7 @@ tbody tr:hover td{background:var(--lav-50)}
         <div class="fg" style="max-width:140px"><label>Gender</label><select id="studentGenderFilter" onchange="filterStudents()"><option value="">All</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
         <div class="fg" style="max-width:160px"><label>Admission</label><select id="studentNewFilter" onchange="filterStudents()"><option value="">All</option><option value="new">New Admissions</option><option value="old">Not New</option></select></div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
-        <div id="studentCount" style="font-size:12.5px;color:var(--ink-soft);font-weight:600"></div>
-        <button class="btn btn-soft btn-sm" id="downloadPhotosBtn" onclick="openDownloadPhotosModal()" style="font-size:11px;padding:4px 12px">⬇ Download Photos</button>
-      </div>
+      <div id="studentCount" style="font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:10px"></div>
       <div class="card"><div class="table-wrap"><table>
         <thead><tr><th class="sortable asc" onclick="sortStudentCol('student_id',this)">ID</th><th class="sortable" onclick="sortStudentCol('full_name',this)">Student Name</th><th class="sortable" onclick="sortStudentCol('father_name',this)">Father's Name</th><th class="sortable" onclick="sortStudentCol('class',this)">Class</th><th class="sortable" onclick="sortStudentCol('section',this)">Sec</th><th class="sortable" onclick="sortStudentCol('roll_no',this)">Roll</th><th class="sortable" onclick="sortStudentCol('s_no',this)">S.No</th><th class="sortable" onclick="sortStudentCol('family_code',this)">Family</th><th class="sortable" onclick="sortStudentCol('phone',this)">Phone</th><th>Profile</th><th></th></tr></thead>
         <tbody id="studentBody"><tr><td colspan="11"><div class="loading-row"><div class="spinner"></div></div></td></tr></tbody>
@@ -4467,46 +4464,77 @@ function filterStudents(){
       (s?.profile_updated_at?'<span class="pbadge-last">'+fmtDT(s.profile_updated_at)+'</span>':'')
     return'<tr><td class="mono">'+esc(s?.student_id||'—')+'</td><td><span class="av-tbl">'+ini(s?.full_name||'')+'</span>'+esc(s?.full_name||'—')+'</td><td>'+esc(s?.father_name||'—')+'</td><td>'+esc(e.classes?.name||'—')+'</td><td>'+esc(e.class_sections?.name||'—')+'</td><td class="mono">'+(e.roll_no||'—')+'</td><td class="mono">'+esc(e.s_no||'—')+'</td><td class="mono">'+esc(s?.family_code||'—')+'</td><td class="mono">'+esc(s?.phone||'—')+'</td><td style="white-space:nowrap">'+badges+'</td><td><button class="btn btn-soft btn-xs" onclick="openProfile(\''+e.enrollment_id+'\')">View</button></td></tr>'}).join('')
 }
-// ═══════════ DOWNLOAD PHOTOS WITH DATE STAMP ═══════════
-function openDownloadPhotosModal(){
-  const cls=$('studentClassFilter')?.value||''
-  if(!cls){toast('Please select a class first','info');return}
-  const clsName=($('studentClassFilter')?.selectedOptions[0]?.text||'').trim()
-  const secF=$('studentSectionFilter')?.value||''
-  const secName=secF?($('studentSectionFilter')?.selectedOptions[0]?.text||'').trim():''
+// ═══════════ DOWNLOAD PHOTOS (Download Center) ═══════════
+let _pdRows=[]
+async function openPhotoDownloadPanel(){
   const today=new Date()
-  const dd=String(today.getDate()).padStart(2,'0'), mm=String(today.getMonth()+1).padStart(2,'0'), yy=String(today.getFullYear()).slice(-2)
+  const dd=String(today.getDate()).padStart(2,'0'),mm=String(today.getMonth()+1).padStart(2,'0')
+  const clsOpts=(ALL_CLASSES||[]).filter(c=>c.is_active).sort((a,b)=>(a.sort_order??999)-(b.sort_order??999)).map(c=>'<option value="'+c.class_id+'">'+esc(c.name)+'</option>').join('')
   openModal('Download Student Photos',
-    '<div style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">Downloads profile photos of <b>Class '+esc(clsName)+(secName?' — '+esc(secName):'')+'</b> as a ZIP with a date stamp on each photo.</div>'
-    +'<div class="form-row"><div class="fg"><label>Date to stamp on photos (DOP: DD/MM/YY)</label><input type="date" id="dlPhotoDate" value="'+today.getFullYear()+'-'+mm+'-'+dd+'" style="max-width:200px"></div></div>'
-    +'<div id="dlPhotoProgress" style="font-size:12px;color:var(--ink-soft);margin-top:8px"></div>',
-    '<button class="btn btn-primary" id="dlPhotoStartBtn" onclick="runDownloadPhotos()">Download ZIP</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
+    '<div style="font-size:13px;color:var(--ink-soft);margin-bottom:14px">Select a class, pick students, and download their profile photos as a ZIP.</div>'
+    +'<div class="form-row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
+      +'<div class="fg" style="max-width:160px"><label>Class</label><select id="pdClass" onchange="pdLoadSections()"><option value="">Select</option>'+clsOpts+'</select></div>'
+      +'<div class="fg" id="pdSecFg" style="max-width:140px;display:none"><label>Section</label><select id="pdSection"><option value="">All</option></select></div>'
+      +'<button class="btn btn-dark btn-sm" onclick="pdLoadStudents()" style="height:36px">Load Students</button>'
+    +'</div>'
+    +'<div style="margin-top:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
+      +'<label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="pdDopCheck" checked onchange="pdToggleDop()"> Add DOP on photo</label>'
+      +'<div class="fg" id="pdDateFg" style="max-width:180px;margin:0"><input type="date" id="pdDate" value="'+today.getFullYear()+'-'+mm+'-'+dd+'" style="font-size:13px"></div>'
+    +'</div>'
+    +'<div id="pdStudentList" style="margin-top:14px;max-height:360px;overflow-y:auto"></div>'
+    +'<div id="pdProgress" style="font-size:12px;color:var(--ink-soft);margin-top:8px"></div>',
+    '<button class="btn btn-primary" id="pdStartBtn" onclick="pdRunDownload()" disabled>Download ZIP</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
-async function runDownloadPhotos(){
-  const cls=$('studentClassFilter')?.value
-  const secF=$('studentSectionFilter')?.value||''
-  if(!cls){toast('Select a class','info');return}
-  const dateStr=$('dlPhotoDate')?.value||''
-  let stampText=''
-  if(dateStr){
-    const [y,m,d]=dateStr.split('-')
-    stampText='DOP: '+d+'/'+m+'/'+y.slice(-2)
-  }
-  const clsName=($('studentClassFilter')?.selectedOptions[0]?.text||'').trim()
-  const secName=secF?($('studentSectionFilter')?.selectedOptions[0]?.text||'').trim():''
-  const btn=$('dlPhotoStartBtn');if(btn)btn.disabled=true
-  const prog=$('dlPhotoProgress')
-  const rows=(_studentsRaw||[]).filter(e=>{
+function pdToggleDop(){
+  const on=$('pdDopCheck')?.checked
+  const fg=$('pdDateFg');if(fg)fg.style.display=on?'':'none'
+}
+async function pdLoadSections(){
+  const cls=$('pdClass')?.value;const fg=$('pdSecFg');const sel=$('pdSection')
+  if(!cls||!sel){if(fg)fg.style.display='none';return}
+  const secs=[...new Set((_studentsRaw||[]).filter(e=>e.classes?.class_id===cls&&!e.relieved).map(e=>e.class_sections?.name).filter(Boolean))].sort()
+  if(secs.length>1){sel.innerHTML='<option value="">All</option>'+secs.map(s=>'<option>'+esc(s)+'</option>').join('');fg.style.display=''}
+  else{fg.style.display='none';sel.innerHTML='<option value="">All</option>'}
+}
+let _pdAllRows=[]
+async function pdLoadStudents(){
+  const cls=$('pdClass')?.value;if(!cls){toast('Select a class','info');return}
+  const sec=$('pdSection')?.value||''
+  _pdAllRows=(_studentsRaw||[]).filter(e=>{
     if(e.relieved||e.status!=='active')return false
-    if(cls&&e.classes?.class_id!==cls)return false
-    if(secF&&e.section_id!==secF)return false
-    return !!e.students?.photo_url
-  })
-  if(!rows.length){toast('No students with photos in this filter','info');if(btn)btn.disabled=false;return}
-  if(prog)prog.textContent='Preparing '+rows.length+' photos…'
+    if(e.classes?.class_id!==cls)return false
+    if(sec&&(e.class_sections?.name||'')!==sec)return false
+    return true
+  }).sort((a,b)=>(a.roll_no||0)-(b.roll_no||0))
+  _pdRows=_pdAllRows.filter(e=>!!e.students?.photo_url)
+  const noPhoto=_pdAllRows.filter(e=>!e.students?.photo_url)
+  const el=$('pdStudentList');if(!el)return
+  let h='<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700;color:var(--ink-soft)">'+_pdRows.length+' with photos, '+noPhoto.length+' without</span><span><button class="btn btn-ghost btn-xs" onclick="pdToggleAll(true)">Select All</button> <button class="btn btn-ghost btn-xs" onclick="pdToggleAll(false)">Deselect All</button></span></div>'
+  h+=_pdRows.map((e,i)=>{const s=e.students;return'<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line)"><input type="checkbox" class="pd-chk" data-idx="'+i+'" checked> <span style="min-width:30px;font-weight:600">'+(e.roll_no||'—')+'</span> '+esc(s.full_name||'—')+'</label>'}).join('')
+  if(noPhoto.length){
+    h+='<div style="margin-top:12px;padding:10px 14px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;font-size:12px;color:#92400E"><b>Missing Photos ('+noPhoto.length+'):</b><br>'
+      +noPhoto.map(e=>(e.roll_no||'—')+'. '+esc(e.students?.full_name||'—')).join(', ')+'</div>'
+  }
+  el.innerHTML=h
+  $('pdStartBtn').disabled=!_pdRows.length
+}
+function pdToggleAll(on){document.querySelectorAll('.pd-chk').forEach(c=>c.checked=on)}
+async function pdRunDownload(){
+  const checked=[...document.querySelectorAll('.pd-chk:checked')].map(c=>parseInt(c.dataset.idx))
+  const selected=checked.map(i=>_pdRows[i]).filter(Boolean)
+  if(!selected.length){toast('No students selected','info');return}
+  const addDop=$('pdDopCheck')?.checked
+  const dateStr=$('pdDate')?.value||''
+  let stampText=''
+  if(addDop&&dateStr){const[y,m,d]=dateStr.split('-');stampText='DOP: '+d+'/'+m+'/'+y.slice(-2)}
+  const clsName=$('pdClass')?.selectedOptions[0]?.text||''
+  const sec=$('pdSection')?.value||''
+  const btn=$('pdStartBtn');if(btn)btn.disabled=true
+  const prog=$('pdProgress')
+  if(prog)prog.textContent='Preparing '+selected.length+' photos…'
   const zip=new JSZip()
-  let done=0,fail=0
-  for(const e of rows){
+  let done=0;const failed=[]
+  for(const e of selected){
     const s=e.students
     try{
       const url=R2.url(s.photo_url)
@@ -4517,26 +4545,28 @@ async function runDownloadPhotos(){
       const name=(s.full_name||s.student_id||'photo').replace(/[^A-Za-z0-9 ]+/g,'_')+'_'+(e.roll_no||'0')
       zip.file(name+'.jpg',stamped)
       done++
-    }catch(err){console.warn('Photo dl fail',s?.student_id,err);fail++}
-    if(prog)prog.textContent='Downloaded '+done+'/'+rows.length+(fail?' ('+fail+' failed)':'')+'…'
+    }catch(err){console.warn('Photo dl fail',s?.student_id,err);failed.push((e.roll_no||'—')+'. '+(s.full_name||s.student_id))}
+    if(prog)prog.textContent='Downloaded '+done+'/'+selected.length+(failed.length?' ('+failed.length+' failed)':'')+'…'
   }
   if(prog)prog.textContent='Creating ZIP…'
   const content=await zip.generateAsync({type:'blob'})
   const a=document.createElement('a');a.href=URL.createObjectURL(content)
-  a.download='Photos_'+clsName.replace(/\s+/g,'')+(secName?'_'+secName:'')+(stampText?'_'+stampText.replace(/[\/]/g,'-'):'')+'.zip'
+  a.download='Photos_'+clsName.replace(/\s+/g,'')+(sec?'_'+sec:'')+(stampText?'_'+stampText.replace(/[\/]/g,'-'):'')+'.zip'
   a.click();URL.revokeObjectURL(a.href)
-  if(prog)prog.textContent='Done! '+done+' photos downloaded'+(fail?', '+fail+' failed':'')+'.'
+  let msg='Done! '+done+' photos downloaded.'
+  if(failed.length)msg+='<br><span style="color:#C9344D;font-weight:600">Failed ('+failed.length+'): '+failed.map(f=>esc(f)).join(', ')+'</span>'
+  if(prog)prog.innerHTML=msg
   if(btn)btn.disabled=false
 }
 function _stampDate(img,text){
   return new Promise(resolve=>{
     const w=img.width,h=img.height
-    const bandH=Math.round(h*0.12)
+    const bandH=text?Math.round(h*0.12):0
     const c=document.createElement('canvas');c.width=w;c.height=h+bandH
     const ctx=c.getContext('2d')
     ctx.drawImage(img,0,0,w,h)
-    ctx.fillStyle='#FFFFFF';ctx.fillRect(0,h,w,bandH)
     if(text){
+      ctx.fillStyle='#FFFFFF';ctx.fillRect(0,h,w,bandH)
       ctx.fillStyle='#000000';ctx.textAlign='center';ctx.textBaseline='middle'
       ctx.font='bold '+Math.round(bandH*0.6)+'px sans-serif'
       ctx.fillText(text,w/2,h+bandH/2)
@@ -13207,6 +13237,7 @@ function initDownloadCenter(){
       {key:'student_master',label:'Student Master',desc:'Full student + enrollment data with photo URLs',sensitive:false,filters:['session','classSec','status']},
       {key:'contact_sheet',label:'Contact Sheet',desc:'Student names, class-section, parent phone numbers',sensitive:false,filters:['classSec']},
       {key:'family_siblings',label:'Family / Siblings',desc:'Family codes, students, sibling discount info',sensitive:false,filters:['session']},
+      {key:'student_photos',label:'Student Photos (ZIP)',desc:'Download profile photos with optional date stamp',sensitive:false,filters:[]},
     ]},
     {name:'Fees & Payments',items:[
       {key:'payment_transactions',label:'Payment Transactions (Bundle)',desc:'Date, family, students in bundle, total, mode/remarks',sensitive:false,filters:['session','dateRange']},
@@ -13356,6 +13387,7 @@ async function dlLoadSections(){
 }
 
 function dlOpen(key){
+  if(key==='student_photos'){openPhotoDownloadPanel();return}
   const m=_dlMeta[key];if(!m)return
   let body=_dlFilterHTML(key)
   body+='<div style="margin-top:8px"><button class="btn btn-dark btn-sm" onclick="dlExport(\''+key+'\')"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CSV</button>'
