@@ -4513,7 +4513,6 @@ async function pdLoadStudents(){
   }).sort((a,b)=>(a.roll_no||0)-(b.roll_no||0))
   _pdRows=_pdAllRows.filter(e=>!!e.students?.photo_url)
   const noPhoto=_pdAllRows.filter(e=>!e.students?.photo_url)
-  const el=$('pdStudentList');if(!el)return
   let h='<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700;color:var(--ink-soft)">'+_pdRows.length+' with photos, '+noPhoto.length+' without</span><span><button class="btn btn-ghost btn-xs" onclick="pdToggleAll(true)">Select All</button> <button class="btn btn-ghost btn-xs" onclick="pdToggleAll(false)">Deselect All</button></span></div>'
   h+=_pdRows.map((e,i)=>{const s=e.students;return'<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line)"><input type="checkbox" class="pd-chk" data-idx="'+i+'" checked> <span style="min-width:30px;font-weight:600">'+(e.roll_no||'—')+'</span> '+esc(s.full_name||'—')+'</label>'}).join('')
   if(noPhoto.length){
