@@ -4478,8 +4478,7 @@ function openDownloadPhotosModal(){
   const dd=String(today.getDate()).padStart(2,'0'), mm=String(today.getMonth()+1).padStart(2,'0'), yy=String(today.getFullYear()).slice(-2)
   openModal('Download Student Photos',
     '<div style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">Downloads profile photos of <b>Class '+esc(clsName)+(secName?' — '+esc(secName):'')+'</b> as a ZIP with a date stamp on each photo.</div>'
-    +'<div class="form-row"><div class="fg"><label>Date to stamp on photos</label><input type="date" id="dlPhotoDate" value="'+today.getFullYear()+'-'+mm+'-'+dd+'" style="max-width:200px"></div></div>'
-    +'<div class="form-row"><div class="fg"><label>Date Format</label><select id="dlPhotoDateFmt" style="max-width:200px"><option value="dd/mm/yy">DD/MM/YY</option><option value="dd-mm-yyyy">DD-MM-YYYY</option><option value="dd/mm/yyyy">DD/MM/YYYY</option></select></div></div>'
+    +'<div class="form-row"><div class="fg"><label>Date to stamp on photos (DOP: DD/MM/YY)</label><input type="date" id="dlPhotoDate" value="'+today.getFullYear()+'-'+mm+'-'+dd+'" style="max-width:200px"></div></div>'
     +'<div id="dlPhotoProgress" style="font-size:12px;color:var(--ink-soft);margin-top:8px"></div>',
     '<button class="btn btn-primary" id="dlPhotoStartBtn" onclick="runDownloadPhotos()">Download ZIP</button><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>')
 }
@@ -4488,13 +4487,10 @@ async function runDownloadPhotos(){
   const secF=$('studentSectionFilter')?.value||''
   if(!cls){toast('Select a class','info');return}
   const dateStr=$('dlPhotoDate')?.value||''
-  const fmt=$('dlPhotoDateFmt')?.value||'dd/mm/yy'
   let stampText=''
   if(dateStr){
     const [y,m,d]=dateStr.split('-')
-    if(fmt==='dd/mm/yy')stampText=d+'/'+m+'/'+y.slice(-2)
-    else if(fmt==='dd-mm-yyyy')stampText=d+'-'+m+'-'+y
-    else stampText=d+'/'+m+'/'+y
+    stampText='DOP: '+d+'/'+m+'/'+y.slice(-2)
   }
   const clsName=($('studentClassFilter')?.selectedOptions[0]?.text||'').trim()
   const secName=secF?($('studentSectionFilter')?.selectedOptions[0]?.text||'').trim():''
